@@ -14,8 +14,24 @@ import capcut_project as cp  # noqa: E402
 from machine import PATHS, TMP  # noqa: E402
 
 API = "http://localhost:9001"
-CLIP = (Path(PATHS["root"]) / "zapply/edited/hook2.mp4").as_posix()
 DRAFT_CACHE = TMP / "_test_fixture"
+
+
+def _media(rel: str, lavfi: list) -> str:
+    """The real sample file under root if this PC has it, else a synthetic stand-in with the same name, made once with ffmpeg."""
+    real = Path(PATHS["root"]) / rel
+    if real.exists():
+        return real.as_posix()
+    out = TMP / "_test_media" / rel
+    if not out.exists():
+        out.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", *lavfi, str(out)], check=True)
+    return out.as_posix()
+
+
+CLIP = _media("zapply/edited/hook2.mp4",
+              ["-f", "lavfi", "-i", "testsrc2=size=1080x1920:rate=30:duration=6",
+               "-f", "lavfi", "-i", "sine=frequency=440:duration=6", "-shortest", "-pix_fmt", "yuv420p"])
 
 
 def _api_up():
@@ -45,7 +61,8 @@ def base_draft():
 
 
 AUDIO_CACHE = TMP / "_test_audio_fixture"
-AUDIO = (Path(PATHS["root"]) / "for cloning.MP3").as_posix()
+AUDIO = _media("for cloning.MP3",
+               ["-f", "lavfi", "-i", "sine=frequency=330:duration=8"])
 
 
 @pytest.fixture(scope="session")
