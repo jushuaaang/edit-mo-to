@@ -13,4 +13,5 @@ The goal: next time, the agents work more like the user without being told again
    - **Lasting changes to how an agent works** (a new required prompt block, a new layout) go in `D:\Video Editing\.claude\agents\<style>.md`. Keep edits small and in that file's own style.
 3. ⛔ Show the proposed additions as a table, `# | File | Add/Change | Why (quote)`, and ask: "Save these so I work like this next time?" Apply only what the user approves.
 4. Never delete a user rule without asking. If a new rule contradicts an old one, show both and ask.
-5. Offer to delete the temp files in `C:\Users\Keytech\mcp-servers\tmp\build` and `...\tmp\qa` (ask first).
+5. **Sync to GitHub** (repo `https://github.com/jushuaaang/CapCut-AI-Tool`, private). After the approved changes are saved, commit only the workflow files: `git -C "D:\Video Editing" add -A`, then commit with a one-line summary of what was learned, then push. `.gitignore` keeps client footage out. Never force-push. If the push is rejected because the other PC pushed first, `git pull --rebase` and push again, and ask the user if there's a conflict.
+6. Offer to delete the temp files in `C:\Users\Keytech\mcp-servers\tmp\build` and `...\tmp\qa` (ask first).
