@@ -1,0 +1,42 @@
+# Fascora (trial) [cfd915f6, 2026-10-16]
+- **Product:** Fascora, Type I collagen peptides powder (stand-up pouch, never a bottle). Avatar: plantar fasciitis, 50+. Product page https://www.trydigestiq.com/fascora
+- **Brief:** Google Doc https://docs.google.com/document/d/1Z9sXsKQJK2IJKIIJ_5e7QaxkDbJWpArKgJM8BFoLRXk (read it via `/mobilebasic` in the browser; the shell can't export it). Assets Drive folder `1v2d_SEcppbdYrEEHpQQpVTsyK53Xc2AI`.
+- **Brief rules:** 1080×1350 at 60 fps; hook in the first 3s; style "AI UGC"; "SHOW +50 MAN & WOMAN ONLY", no young people; every clip matches what's said; static image if no clip fits; no filler B-roll; cut the avatar so there are no long pauses; captions required (user's auto-caption); soft background music; script word for word (the avatar already speaks it).
+- **User decisions:**
+  - Keep the avatar audio even though it says "fasora" / "Fisora" (client-provided).
+  - The 3 extra hook lines in the avatar file become Hooks 2–4 (T02–T04).
+  - Pauses are cut to about 0.15s by audio level.
+  - Salon floor is TILE (matches the script, not the avatar's wood).
+  - Line 41 before/after is a LEFT/RIGHT split (BEFORE on the left, 540×1350 panes).
+  - Full-frame cutaways, not the reference video's inset cards.
+  - "Modern AI UGC": punch-ins, full-frame AI B-roll, glass cards, flashes.
+- **User emphasis:** "make the ai generated vids consistent like no shortcut and make it realistic".
+
+## Status at the Mac → Windows switch (2026-10-16)
+- **Video folder:** `{root}/Fascora/` (copy the whole folder from the Mac; media isn't in git).
+  - `clips/`:
+    - `SCRIPT#4.mp4`: the avatar, the VO and the A-roll; 5:17, 1080×1920, 25 fps.
+    - `reference.mp4`
+    - client assets in `Animation/`, `assets/`, `Product.png` and `grok-video-cff8eed0…mp4`
+    - `ai/`: V01–V10 done, 1080p upscaled from Flow
+  - `refs/`: avatar frames plus the contact sheet of R1–R10.
+  - `motion/`: 12 overlay .movs.
+  - `_work/`:
+    - all 59 prompts (`fascora_prompts_full.txt`, plus `vtype.json` as typing-ready text with attach lists);
+    - `build/` (plan_T01_progress.json, plan_t01.py, editor build.py/render.py/preview.py, fascora_T01_build.json);
+    - `plates/`;
+    - `timing/` (th_lines.json word timings, script.txt);
+    - `capcut_project_mac/` (Mac CapCut draft copy, with Mac absolute paths).
+- **Google Flow project:** https://flow.google.com/project/a691ac6c-b266-4a30-a664-4960c3dcf999 (account on Ultra; Omni 1.1 Flash 4s = 7 credits, 6s = 10; Nano Banana images free; 1080p download upscale is free).
+  - References are named in Flow: R1_dana_headshot, R2_salon_set, R3_dana_salon_fullbody, R4_kitchen_set, R5_bedroom_set, R6_dana_home_fullbody, R7_linda_salon, R8_exam_room_podiatrist_dana, R9_dana_errand_fullbody, R10_hallway_startframe.
+  - Attach them by typing the name in the "+" asset search.
+  - Videos are named V01_L06_… in Flow, and downloads take the Flow title.
+- **Flow automation tips** (Claude in Chrome):
+  - Use the "Upload media" button only after patching `HTMLInputElement.prototype.click` so the hidden file input attaches to the DOM, then use file_upload.
+  - Submit with the arrow button, not Return: Return once opened a finished clip instead.
+  - Settings: Video › Ingredients, 9:16, 720p, 4s, x1.
+- **Generated:** V01–V10, 73 credits, all passed QC.
+- **Next:** batch 2 is V11–V20, then V21–V50 (body) and V51–V59 (hooks, still to be parsed from the prompt file; the parser missed their headers).
+- **CapCut:** project "Fascora", timeline "Timeline 01 – H1 (progress)". 4:19:28, 1080×1350, 30 fps; V1–V10 placed, 48 "PLACEHOLDER Vxx" A-roll segments.
+  - It was built on the Mac. On Windows, rebuild it with the editor from `_work/build/` with the paths remapped, rather than copying the draft.
+  - Known to-dos: bigger glass cards on 4:5, the line-12 2×2 grid once V11/V12 exist, the line-41 split, and a longer end card (V50).
