@@ -1,0 +1,33 @@
+<!--defaults {"color": "#1e6bff", "peak": 0.75, "hold": 0.08, "vignette": "true", "duration": 0.5} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; }
+  #f { position: absolute; inset: 0; background: {{color}}; opacity: 0; }
+  #v { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, {{color}} 100%); }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="f" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0"></div>
+  <div id="v" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="1"></div>
+</div>
+<script>
+  const D = {{duration}}, P = Number("{{peak}}"), H = Number("{{hold}}"), VIG = "{{vignette}}" === "true";
+  const tl = gsap.timeline({ paused: true });
+  tl.to("#f", { opacity: P, duration: 0.04, ease: "none" }, 0);
+  tl.to("#f", { opacity: 0, duration: Math.max(0.1, D - 0.04 - H), ease: "power2.out" }, 0.04 + H);
+  if (VIG) {
+    tl.to("#v", { opacity: 0.9, duration: 0.04 }, 0);
+    tl.to("#v", { opacity: 0, duration: Math.max(0.1, D - 0.04), ease: "power1.out" }, 0.06);
+  }
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

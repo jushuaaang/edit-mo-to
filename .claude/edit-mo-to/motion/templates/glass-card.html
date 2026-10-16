@@ -1,0 +1,45 @@
+<!--defaults {"icon": "✓", "icon_bg": "#248a3d", "title": "600 mg", "sub": "on the front", "x": 700, "y": 760, "width": 360, "theme": "light", "font": "Inter", "tail": "left", "duration": 1.6} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500;700;800&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", -apple-system, sans-serif; }
+  #c { position: absolute; left: {{x}}px; top: {{y}}px; width: {{width}}px; padding: 22px 26px; border-radius: 30px;
+       display: flex; align-items: center; gap: 20px; transform-origin: 0% 50%; }
+  .light { background: linear-gradient(160deg, rgba(255,255,255,.96), rgba(236,240,248,.90)); color: #0b0f19;
+           border: 1.5px solid rgba(255,255,255,.9); box-shadow: 0 24px 60px rgba(0,0,0,.35), inset 0 1px 0 #fff; }
+  .dark { background: linear-gradient(160deg, rgba(40,44,58,.88), rgba(18,20,30,.86)); color: #fff;
+          border: 1.5px solid rgba(255,255,255,.18); box-shadow: 0 24px 60px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.15); }
+  #ic { flex: none; width: 74px; height: 74px; border-radius: 20px; background: {{icon_bg}}; color: #fff; font-size: 42px; font-weight: 800;
+        display: flex; align-items: center; justify-content: center; box-shadow: inset 0 -4px 0 rgba(0,0,0,.15); }
+  #tt { font-size: 50px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; }
+  #st { font-size: 24px; font-weight: 500; opacity: .6; margin-top: 4px; }
+  #tail { position: absolute; top: 50%; width: 26px; height: 26px; margin-top: -13px; transform: rotate(45deg); background: inherit; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="c" class="clip {{theme}}" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="ic">{{icon}}</div><div><div id="tt">{{title}}</div><div id="st">{{sub}}</div></div>
+  </div>
+</div>
+<script>
+  const D = {{duration}}, TAIL = "{{tail}}";
+  const c = document.getElementById("c");
+  if (TAIL === "right") c.style.transformOrigin = "100% 50%";
+  const tl = gsap.timeline({ paused: true });
+  tl.fromTo(c, { scale: 0.2, opacity: 0, y: 30 }, { scale: 1, opacity: 1, y: 0, duration: 0.42, ease: "elastic.out(1, 0.6)" }, 0);
+  tl.fromTo("#ic", { scale: 0, rotation: -40 }, { scale: 1, rotation: 0, duration: 0.35, ease: "back.out(3)" }, 0.12);
+  tl.fromTo(["#tt", "#st"], { x: 20, opacity: 0 }, { x: 0, opacity: 1, duration: 0.25, stagger: 0.06, ease: "power3.out" }, 0.15);
+  tl.to(c, { y: -6, duration: Math.max(0.3, D - 0.75), ease: "sine.inOut" }, 0.45);
+  tl.to(c, { scale: 0.85, opacity: 0, duration: 0.16, ease: "power2.in" }, D - 0.17);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

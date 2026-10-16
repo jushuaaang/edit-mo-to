@@ -1,0 +1,231 @@
+{
+ "project": "Cirelle Rehearsal v3 SFX",
+ "timeline": "Timeline 01 – Hook",
+ "clips_dir": "D:/Video Editing/Cirelle/",
+ "motion_dir": "D:/Video Editing/Cirelle/motion/apple_v3/",
+ "segs": [
+  [
+   "07.mp4",
+   4.62,
+   0,
+   39,
+   1.0
+  ],
+  [
+   "07.mp4",
+   5.92,
+   39,
+   88,
+   1.15
+  ],
+  [
+   "008.mp4",
+   0.0,
+   88,
+   122,
+   1.0
+  ],
+  [
+   "008.mp4",
+   1.1333333333,
+   122,
+   191,
+   1.12
+  ],
+  [
+   "008.mp4",
+   3.4333333333,
+   191,
+   241,
+   1.0
+  ],
+  [
+   "008.mp4",
+   5.1,
+   241,
+   313,
+   1.2
+  ]
+ ],
+ "tracks": {
+  "ui": 5,
+  "title": 6,
+  "flash": 7
+ },
+ "overlays": [
+  {
+   "track": "flash",
+   "template": "color-flash",
+   "from": 0,
+   "to": 15,
+   "vars": {
+    "color": "#1e6bff",
+    "peak": 0.8
+   },
+   "sfx": "default"
+  },
+  {
+   "track": "title",
+   "template": "kinetic-title",
+   "from": 3,
+   "to": 39,
+   "vars": {
+    "line1": "LOOK AT",
+    "line2": "THIS ONE",
+    "accent": "#3fa9ff"
+   },
+   "sfx": "default"
+  },
+  {
+   "track": "title",
+   "template": "kinetic-title",
+   "from": 39,
+   "to": 88,
+   "vars": {
+    "line1": "600 MILLIGRAMS",
+    "line2": "ON THE FRONT",
+    "accent": "#ffd60a"
+   },
+   "sfx": "default"
+  },
+  {
+   "track": "ui",
+   "template": "glass-card",
+   "from": 44,
+   "to": 88,
+   "vars": {
+    "icon": "✓",
+    "icon_bg": "#248a3d",
+    "title": "600 mg",
+    "sub": "on the front",
+    "x": 430,
+    "y": 700,
+    "width": 360
+   },
+   "sfx": "default"
+  },
+  {
+   "track": "flash",
+   "template": "color-flash",
+   "from": 88,
+   "to": 99,
+   "vars": {
+    "color": "#ffffff",
+    "peak": 0.55,
+    "hold": 0.02,
+    "vignette": "false"
+   },
+   "sfx": "default"
+  },
+  {
+   "track": "title",
+   "template": "kinetic-title",
+   "from": 94,
+   "to": 122,
+   "vars": {
+    "line1": "BUT TURN",
+    "line2": "IT AROUND",
+    "accent": "#30d158"
+   },
+   "sfx": "default"
+  },
+  {
+   "track": "title",
+   "template": "kinetic-title",
+   "from": 122,
+   "to": 191,
+   "vars": {
+    "line1": "FIFTY-FIFTY",
+    "line2": "BLEND",
+    "accent": "#3fa9ff"
+   },
+   "sfx": "default"
+  },
+  {
+   "track": "ui",
+   "template": "glass-split",
+   "from": 126,
+   "to": 191,
+   "vars": {
+    "left": "R",
+    "right": "S",
+    "left_value": 50,
+    "right_value": 50,
+    "x": 690,
+    "y": 740,
+    "width": 600
+   },
+   "sfx": "default"
+  },
+  {
+   "track": "title",
+   "template": "kinetic-title",
+   "from": 191,
+   "to": 241,
+   "vars": {
+    "line1": "TWO MIRROR",
+    "line2": "MOLECULES",
+    "accent": "#ff2d95"
+   },
+   "sfx": "default"
+  },
+  {
+   "track": "ui",
+   "template": "glass-compare",
+   "from": 194,
+   "to": 241,
+   "vars": {
+    "win": "R-form",
+    "lose": "S-form",
+    "mode": "mirror",
+    "x": 690,
+    "y": 730,
+    "width": 600,
+    "t_verdict": 0.45
+   },
+   "sfx": "default"
+  },
+  {
+   "track": "flash",
+   "template": "color-flash",
+   "from": 241,
+   "to": 255,
+   "vars": {
+    "color": "#30d158",
+    "peak": 0.4
+   },
+   "sfx": "default"
+  },
+  {
+   "track": "title",
+   "template": "kinetic-title",
+   "from": 241,
+   "to": 313,
+   "vars": {
+    "line1": "ONLY THE R-FORM",
+    "line2": "WORKS ON NERVES",
+    "accent": "#30d158",
+    "size2": 80
+   },
+   "sfx": "default"
+  },
+  {
+   "track": "ui",
+   "template": "glass-compare",
+   "from": 243,
+   "to": 313,
+   "vars": {
+    "win": "R-form",
+    "win_note": "works",
+    "lose": "S-form",
+    "lose_note": "doesn't",
+    "mode": "verdict",
+    "x": 690,
+    "y": 730,
+    "width": 600,
+    "t_verdict": 0.42
+   },
+   "sfx": "default"
+  }
+ ]
+}

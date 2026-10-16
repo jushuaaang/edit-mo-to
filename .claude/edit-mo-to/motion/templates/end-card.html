@@ -1,0 +1,37 @@
+<!--defaults {"headline": "Try it risk-free", "sub": "90-day money-back guarantee", "button": "SHOP NOW", "logo_text": "", "bg": "rgba(8,12,30,0.86)", "fg": "#ffffff", "button_bg": "#e53935", "font": "Montserrat", "duration": 3} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;900&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; color: {{fg}}; }
+  #panel { position: absolute; left: 0; right: 0; bottom: 0; height: 900px; background: {{bg}};
+           border-radius: 60px 60px 0 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 34px; }
+  #logo { font-size: 64px; font-weight: 900; letter-spacing: .12em; opacity: .95; }
+  #h { font-size: 92px; font-weight: 900; text-align: center; padding: 0 60px; line-height: 1.05; }
+  #s { font-size: 46px; font-weight: 600; opacity: .9; text-align: center; padding: 0 60px; }
+  #btn { margin-top: 20px; background: {{button_bg}}; font-size: 66px; font-weight: 900; padding: 28px 96px; border-radius: 999px;
+         box-shadow: 0 0 0 7px #fff, 0 18px 40px rgba(0,0,0,.5); }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="panel" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="logo">{{logo_text}}</div><div id="h">{{headline}}</div><div id="s">{{sub}}</div><div id="btn">{{button}}</div>
+  </div>
+</div>
+<script>
+  const D = {{duration}};
+  const tl = gsap.timeline({ paused: true });
+  tl.fromTo("#panel", { yPercent: 100 }, { yPercent: 0, duration: 0.45, ease: "power3.out" }, 0);
+  tl.from(["#logo", "#h", "#s", "#btn"], { y: 50, opacity: 0, duration: 0.35, stagger: 0.1, ease: "power2.out" }, 0.25);
+  tl.to("#btn", { scale: 1.07, duration: 0.35, yoyo: true, repeat: Math.max(1, Math.floor((D - 1.1) / 0.35) - 1), ease: "sine.inOut" }, 0.9);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!--defaults {"line1": "THE BEST", "line2": "CONTENT AGENCY", "fg": "#ffffff", "accent": "#3fa9ff", "font": "Montserrat", "size1": 74, "size2": 92, "top": 1080, "skew": -8, "duration": 1.5} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:ital,wght@1,900&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; font-weight: 900; font-style: italic; }
+  #t { position: absolute; top: {{top}}px; left: 50%; text-align: center; line-height: .92; white-space: nowrap; }
+  .l { display: block; width: max-content; margin: 0 auto; text-transform: uppercase; letter-spacing: -0.01em; paint-order: stroke fill; }
+  #l1 { font-size: {{size1}}px; color: {{fg}}; -webkit-text-stroke: 7px rgba(0,0,0,.85);
+        text-shadow: 0 6px 18px rgba(0,0,0,.55); }
+  #l2 { font-size: {{size2}}px; color: {{accent}}; -webkit-text-stroke: 7px rgba(0,0,0,.85);
+        text-shadow: 0 0 22px {{accent}}, 0 6px 18px rgba(0,0,0,.55); }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="t" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0"><span id="l1" class="l">{{line1}}</span><span id="l2" class="l">{{line2}}</span></div>
+</div>
+<script>
+  const D = {{duration}};
+  // auto-fit: shrink text that would run past the safe width (measured with the real font)
+  function fitW(el, maxW) {
+    el.style.fontSize = "";
+    const w = el.getBoundingClientRect().width / (gsap.getProperty(el, "scaleX") || 1);
+    if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
+  }
+  function fitAll() { fitW(document.getElementById("l1"), 960); fitW(document.getElementById("l2"), 960); }
+  fitAll();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
+  const tl = gsap.timeline({ paused: true });
+  gsap.set("#t", { xPercent: -50, skewX: {{skew}} });
+  tl.fromTo("#l1", { y: 40, scale: 0.6, opacity: 0 }, { y: 0, scale: 1, opacity: 1, duration: 0.18, ease: "back.out(3)" }, 0);
+  tl.fromTo("#l2", { y: 50, scale: 1.6, opacity: 0 }, { y: 0, scale: 1, opacity: 1, duration: 0.22, ease: "expo.out" }, 0.08);
+  tl.to("#t", { x: 6, duration: 0.04, yoyo: true, repeat: 3, ease: "none" }, 0.3);
+  tl.to("#t", { scale: 1.04, duration: Math.max(0.2, D - 0.7), ease: "none" }, 0.4);
+  tl.to("#t", { opacity: 0, scale: 1.12, duration: 0.12, ease: "power2.in" }, D - 0.13);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

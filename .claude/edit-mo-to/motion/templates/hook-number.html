@@ -1,0 +1,43 @@
+<!--defaults {"number": "1", "label": "", "bg": "#e53935", "fg": "#ffffff", "font": "Montserrat", "top": 260, "duration": 2} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@900&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; font-weight: 900; }
+  #g { position: absolute; top: {{top}}px; left: 50%; display: flex; align-items: center; gap: 26px; }
+  #n { width: 210px; height: 210px; border-radius: 50%; background: {{bg}}; color: {{fg}}; font-size: 140px;
+       display: flex; align-items: center; justify-content: center; border: 8px solid {{fg}};
+       box-shadow: 0 16px 40px rgba(0,0,0,.45); }
+  #l { color: {{fg}}; font-size: 70px; white-space: nowrap; -webkit-text-stroke: 8px #000; paint-order: stroke fill; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="g" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0"><div id="n">{{number}}</div><div id="l">{{label}}</div></div>
+</div>
+<script>
+  const D = {{duration}};
+  // auto-fit: shrink text that would run past the safe width (measured with the real font)
+  function fitW(el, maxW) {
+    el.style.fontSize = "";
+    const w = el.getBoundingClientRect().width / (gsap.getProperty(el, "scaleX") || 1);
+    if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
+  }
+  function fitAll() { fitW(document.getElementById("l"), 760); }
+  fitAll();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
+  const tl = gsap.timeline({ paused: true });
+  gsap.set("#g", { xPercent: -50 });
+  tl.fromTo("#n", { scale: 0, rotation: -180 }, { scale: 1, rotation: 0, duration: 0.45, ease: "back.out(2)" }, 0);
+  tl.fromTo("#l", { x: -60, opacity: 0 }, { x: 0, opacity: 1, duration: 0.3, ease: "power3.out" }, 0.25);
+  tl.to("#g", { opacity: 0, scale: 0.8, duration: 0.2 }, D - 0.25);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

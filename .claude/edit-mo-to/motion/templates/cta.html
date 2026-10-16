@@ -1,0 +1,45 @@
+<!--defaults {"text": "SHOP NOW", "arrow": "›", "bg": "#e53935", "fg": "#ffffff", "ring": "#ffffff", "font": "Montserrat", "size": 70, "bottom": 330, "duration": 4} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@800;900&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; font-weight: 900; }
+  #c { position: absolute; bottom: {{bottom}}px; left: 50%; background: {{bg}}; color: {{fg}}; font-size: {{size}}px;
+       padding: 30px 90px; border-radius: 999px; white-space: nowrap;
+       box-shadow: 0 0 0 8px {{ring}}, 0 18px 40px rgba(0,0,0,.5); }
+  #tap { position: absolute; bottom: {{bottom}}px; left: 62%; width: 90px; height: 90px; border-radius: 50%;
+         background: rgba(255,255,255,.85); opacity: 0; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="c" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">{{text}} {{arrow}}</div>
+  <div id="tap" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="1"></div>
+</div>
+<script>
+  const D = {{duration}};
+  // auto-fit: shrink text that would run past the safe width (measured with the real font)
+  function fitW(el, maxW) {
+    el.style.fontSize = "";
+    const w = el.getBoundingClientRect().width / (gsap.getProperty(el, "scaleX") || 1);
+    if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
+  }
+  function fitAll() { fitW(document.getElementById("c"), 980); }
+  fitAll();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
+  const tl = gsap.timeline({ paused: true });
+  gsap.set("#c", { xPercent: -50 });
+  tl.fromTo("#c", { y: 260, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, 0.05);
+  tl.to("#c", { scale: 1.08, duration: 0.35, yoyo: true, repeat: Math.max(1, Math.floor((D - 1) / 0.35) - 1), ease: "sine.inOut" }, 0.6);
+  tl.fromTo("#tap", { scale: 0.3, opacity: 0.9 }, { scale: 1.8, opacity: 0, duration: 0.6, ease: "power2.out" }, 0.9);
+  tl.to("#c", { opacity: 0, duration: 0.25 }, D - 0.3);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>
