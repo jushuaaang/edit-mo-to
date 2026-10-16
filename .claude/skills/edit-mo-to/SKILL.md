@@ -7,6 +7,8 @@ description: The user's end-to-end client video workflow - from client brief to 
 
 This is the user's own editing workflow. You run it in the main conversation, and you own all talk with the user. Agents do the heavy, self-contained work: `ugc`, `broll`, `claymation`, `pixar` and `product-ad` (style), `motion-designer` (new looks and templates only), `editor` (builds CapCut and renders overlays), and `qa` (checks).
 
+**Before step 1, sync:** run `git -C "D:\Video Editing" pull --ff-only`, so preferences, client notes and templates learned on the other PC are here. If it fails (no network, or local changes), say so and continue.
+
 **Before step 1, read** `D:\Video Editing\.claude\edit-mo-to\preferences.md` (General) and, once you know the client, `D:\Video Editing\.claude\edit-mo-to\clients\<client>.md`. Read `reference/steps.md` for the exact gate wording and the agent dispatch templates.
 
 ## Hard rules
