@@ -13,6 +13,9 @@
 !/.claude/skills/
 !/.claude/edit-mo-to/
 
+# per-machine paths (see .claude/edit-mo-to/machine.example.json)
+/.claude/edit-mo-to/machine.json
+
 # installable dependencies: reinstalled by setup, never committed
 node_modules/
 .venv/

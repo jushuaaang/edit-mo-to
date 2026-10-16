@@ -8,4 +8,4 @@
 - **Structure:** body first, about 40+ clips (0:09–2:44). Then hooks 1–4, each split into 2–3 host sub-clips (H1-A/B…).
   - H2A uses the original kitchen background.
   - H4A matches the pacing of the hook4 audio.
-- **Lip-sync:** the client flagged lip-sync drift. See `D:\Video Editing\PYNK_AI_UGC_Studio\lipsync_report.md`.
+- **Lip-sync:** the client flagged lip-sync drift. See `{root}/PYNK_AI_UGC_Studio/lipsync_report.md`.

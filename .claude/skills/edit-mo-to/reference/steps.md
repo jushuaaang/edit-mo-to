@@ -5,7 +5,7 @@
 - **Notion:** public pages via WebFetch, one call per page, and follow links to sub-pages the brief points to (checklists, examples). If a page needs login or returns nothing, ⛔ ask the user to paste or export it. The Notion connector isn't authorised.
 - **Reference videos:**
   - `ffprobe` for duration, fps and size;
-  - a contact sheet (`ffmpeg -i "<v>" -vf "fps=1,scale=240:-1,tile=6x5" -frames:v 1 "C:\Users\Keytech\mcp-servers\tmp\ref_sheet.jpg"`), which you then Read;
+  - a contact sheet (`ffmpeg -i "<v>" -vf "fps=1,scale=240:-1,tile=6x5" -frames:v 1 "{tmp}/ref_sheet.jpg"`), which you then Read;
   - extract audio and transcribe with `media_timing.py vo`.
   - Note: cut rhythm (cuts/sec), layouts, text style, hook pattern, music energy.
 - **Checklist format** (a table in chat): `# | Rule (quoted) | Source | Applies to (script/prompts/edit/export)`.

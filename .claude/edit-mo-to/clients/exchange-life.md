@@ -18,12 +18,12 @@
   - Use clips from the same batch, matching lighting, setting, charm colour, holder, outfit and nails.
   - Don't mix Western and Filipino filmers in one video.
 - **Mirroring:** check each clip's flags and tag text, and mirror only the ones that read backwards. This is manual in CapCut. The first trial batch was mirrored throughout; in the Advanced batch only Creator IMG_1225.MOV was [2026-10-16].
-- **Clip SFX:** `D:\Video Editing\Exchange life\Hair_clip_Hairpin_Valletta_etc._(snap)(1147434).mp4` (0.25s snap; the client's chosen sound). Extract its audio before adding it.
+- **Clip SFX:** `{root}/Exchange life/Hair_clip_Hairpin_Valletta_etc._(snap)(1147434).mp4` (0.25s snap; the client's chosen sound). Extract its audio before adding it.
 
 ## Advanced Video Editor Assessment [dc1a76b1, 2026-10-16]
 - **Notes:** Milanote https://app.milanote.com/1WrThB1sjdA71Z/advanced-video-editor-assessment?p=XFV6Crsy6zf. **Checklist:** https://exchange-life-community.notion.site/Editing-Checklist-2e7f18559277803f867be0c3cab9b2a2. The Notion page needs the browser (scroll to load it); WebFetch returns nothing.
 - **Two trial videos:** 1. Voiceover Trial (done 2026-10-16), 2. Talking Head Mash-Up.
-- **Folder:** `D:\Video Editing\Advance Exchange life\`. Downloaded clips are in `clips\`, founder clips in `Tristan_2\`. VO: `voice over.mp3` (ElevenLabs clone). Example edit: `video reference.mp4` (4:5, fast ~1.3s cuts).
+- **Folder:** `{root}/Advance Exchange life/`. Downloaded clips are in `clips\`, founder clips in `Tristan_2\`. VO: `voice over.mp3` (ElevenLabs clone). Example edit: `video reference.mp4` (4:5, fast ~1.3s cuts).
 - **VO trial rules:**
   - The hook is the founder traveling in Brazil, smiling to camera. The Rio beach clips in Founder → Week 15 (IMG_0174/0183/0184) fit; IMG_0184 at 11.6s is a real smile.
   - Black screen for "let me tell you why".
@@ -40,7 +40,7 @@
   - **Clips:** Playbook "Content Requests" `Lu1qqVQA9UkE6RfwvbFmxJez` (root folder `y4P9Djzgn9DQDr5GBcopJxAP`, 596 assets).
     - Gabriel request folders hold several creators reading one script.
     - Used: Week37_Gabriel_TK_Advancements, the airport-charm script, read by Conrad-folder woman, Joanne and Megan; plus B-roll from Megan, Joanne and Taylor in the same folder.
-  - **Folder:** `D:\Video Editing\Advance Exchange life\Talking Head\` (clips in `clips\`, snap SFX as `clip_snap_sfx.wav`).
+  - **Folder:** `{root}/Advance Exchange life/Talking Head/` (clips in `clips\`, snap SFX as `clip_snap_sfx.wav`).
   - **Reference:** Downloads `6c7f1b12…99e34.mp4` (Perfect White Tee ad, ~1s cuts, product cutaways, end card).
   - **CapCut project:** "Exchange Life Talking Head Mash-Up", Timeline 01. 40:01 long, 25 centred overlays, 2 snaps. User captions and music.
   - **Notes:** Joanne_40E84536 is very quiet (+17 dB) and has a BIGVU watermark (scale 1.18 hides it). Only two real clip-ons exist in the chosen B-roll; the user was fine with 2 snaps.

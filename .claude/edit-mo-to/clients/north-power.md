@@ -11,4 +11,4 @@
   - Music: whimsical orchestral, 118 BPM, made in 3 Suno parts.
 - **Video 2:** realistic iPhone style, about 135s, with dad-bod real men (after = smoother, not thinner).
   - CTA: "Buy two get one free" (confirm the deal is live), free returns, ships worldwide in 5–8 business days.
-- **Finals:** `D:\Video Editing\North Power\edited\GIDEON_MONTANO_VIDEO1.mp4` and `Gideon-Montano-Video2.mp4`.
+- **Finals:** `{root}/North Power/edited/GIDEON_MONTANO_VIDEO1.mp4` and `Gideon-Montano-Video2.mp4`.

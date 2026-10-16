@@ -65,7 +65,16 @@ This repo holds the **workflow only**: skills, agents, preferences, client notes
    ```
    The CapCut tests need the backend running on port 9001.
 
-**Path note:** some files still name this PC's paths (`D:\Video Editing`, `C:\Users\Keytech\…`, CapCut's drafts folder under `%LOCALAPPDATA%`). On a PC with a different username or drive, update those paths (search for `Keytech`), or make the workflow portable with a single config file first.
+## Setting up a Mac
+
+Same steps as Windows, with these differences:
+- Install with Homebrew: `brew install node python@3.12 ffmpeg gh`, plus CapCut desktop and Claude Code.
+- Clone to `~/Video Editing`. Create venvs with `python3.12 -m venv .venv` and use `.venv/bin/python` wherever Windows uses `.venv\Scripts\python`.
+- `capcut-start.mjs` picks the right venv path on either OS.
+- CapCut drafts live in `~/Movies/CapCut/User Data/Projects/com.lveditor.draft`.
+
+## Machine paths
+Each PC has its own untracked `.claude/edit-mo-to/machine.json` (copy `machine.example.json`): `root`, `python`, `tmp`, `mcp_servers`, `capcut_drafts`. The Python tools read it through `tools/machine.py`; the skill and agents write these as `{root}`, `{python}`, `{tmp}` and `{capcut_drafts}`. Keys you leave out fall back to the platform default, so the Windows PC works without the file.
 
 ## Keeping PCs in sync
 Preferences, client notes and new templates change as the workflow learns.

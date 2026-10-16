@@ -1,6 +1,6 @@
 # Zapply [4971109a]
 - **Brief and references:** script `zapply.docx`, in modules (Hooks, 02 Body 1–5, CTA). VO is `body.mp3`. Reference video `zapply reference.mp4`, plus DatAds references (NL/UK).
-- **B-roll folder:** `D:\Video Editing\zapply\Zapply Organized Brolls` (955 files; the old `Downloads` copy is gone), with subfolders Emotions, Lifestyle-Activities, AI Brolls/Body Animations, Zapply Product Shots). Finals are in `D:\Video Editing\zapply\edited\`.
+- **B-roll folder:** `{root}/zapply/Zapply Organized Brolls` (955 files; the old `Downloads` copy is gone), with subfolders Emotions, Lifestyle-Activities, AI Brolls/Body Animations, Zapply Product Shots). Finals are in `{root}/zapply/edited/`.
 - **Mostly client B-roll,** with AI as the top half of splits. 4s max per clip (client rule), reference pacing around 1.5–2s on energetic lines (a guide, not a limit), and no reuse across hooks.
 - **Text style (the user adds it):**
   - captions are 2–4 words, bold white on a royal-blue box, with a red box on the hook line;

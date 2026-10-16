@@ -7,9 +7,11 @@ description: The user's end-to-end client video workflow - from client brief to 
 
 This is the user's own editing workflow. You run it in the main conversation, and you own all talk with the user. Agents do the heavy, self-contained work: `ugc`, `broll`, `claymation`, `pixar` and `product-ad` (style), `motion-designer` (new looks and templates only), `editor` (builds CapCut and renders overlays), and `qa` (checks).
 
-**Before step 1, sync:** run `git -C "D:\Video Editing" pull --ff-only`, so preferences, client notes and templates learned on the other PC are here. If it fails (no network, or local changes), say so and continue.
+**Paths:** `{root}`, `{python}`, `{tmp}`, `{capcut_drafts}` come from `.claude/edit-mo-to/machine.json` (see CLAUDE.md). Resolve them before running anything, and pass resolved paths to agents.
 
-**Before step 1, read** `D:\Video Editing\.claude\edit-mo-to\preferences.md` (General) and, once you know the client, `D:\Video Editing\.claude\edit-mo-to\clients\<client>.md`. Read `reference/steps.md` for the exact gate wording and the agent dispatch templates.
+**Before step 1, sync:** run `git -C "{root}" pull --ff-only`, so preferences, client notes and templates learned on the other PC are here. If it fails (no network, or local changes), say so and continue.
+
+**Before step 1, read** `{root}/.claude/edit-mo-to/preferences.md` (General) and, once you know the client, `{root}/.claude/edit-mo-to/clients/<client>.md`. Read `reference/steps.md` for the exact gate wording and the agent dispatch templates.
 
 ## Hard rules
 - **STOP at every gate** marked ⛔. Ask, and wait for the user's answer. Never assume a choice the process says to ask about. ("we will do this step by step, you will not proceed until I say proceed")
@@ -20,7 +22,7 @@ This is the user's own editing workflow. You run it in the main conversation, an
 - **Track state** in a running "Job card" (client, product, style, video folder, brief checklist, script, VO path + timings, B-roll source, generator, music, project name, timelines). Re-show it when it changes.
 
 ## The 12 steps
-1. ⛔ **Brief.** Ask for the client's brief or instructions (PDF, docx, Notion URL, or pasted text) and any reference videos. Also ask for the per-video folder path the user made under `D:\Video Editing\`.
+1. ⛔ **Brief.** Ask for the client's brief or instructions (PDF, docx, Notion URL, or pasted text) and any reference videos. Also ask for the per-video folder path the user made under `{root}/`.
    - If the brief, references and folder already came with the request, don't ask again: confirm the folder exists and go to step 2.
 2. **Study the brief.**
    - Read everything (see steps.md for PDF, docx, Notion and video handling).
@@ -66,10 +68,10 @@ This is the user's own editing workflow. You run it in the main conversation, an
 12. **Export** is done by the user. Then run the **learning step** (`reference/learning.md`).
 
 ## Tools
-- Python: `"D:\Video Editing\.claude\edit-mo-to\tools\.venv\Scripts\python.exe"`
+- Python: `"{python}"`
 - `...\tools\media_timing.py`: `vo <audio> [script.txt]`, `beats <audio>`
 - `...\tools\capcut_project.py`: `list <project>` (for showing timelines). The editor uses the rest.
-- `...\tools\motion_render.py`: `list`, `render <template> <out.mov> --vars-file f.json`, `preview <mov> <png>`. Templates: `...\motion\CATALOGUE.md`.
+- `...\tools\motion_render.py`: `list`, `render <template> <out.mov> --vars-file f.json`, `preview <mov> <png>`. Templates: `{root}/.claude/edit-mo-to/motion/CATALOGUE.md`.
 - `...\tools\plan_preview.py <plan.json> <out.mp4>`: ffmpeg preview of a frame-based plan with its overlays.
 - `...\tools\playbook_scan.py <slug> <folderToken> <outdir>`: scans a shared Playbook folder into contact sheets without downloading anything. The organization header is set to exchange-life; change it for other clients.
-- ffmpeg and ffprobe are on PATH. Write temp files to `C:\Users\Keytech\mcp-servers\tmp\` (short path).
+- ffmpeg and ffprobe are on PATH. Write temp files to `{tmp}/` (short path).

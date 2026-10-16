@@ -11,10 +11,11 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import capcut_project as cp  # noqa: E402
+from machine import PATHS, TMP  # noqa: E402
 
 API = "http://localhost:9001"
-CLIP = "D:/Video Editing/zapply/edited/hook2.mp4"
-DRAFT_CACHE = Path("C:/Users/Keytech/mcp-servers/tmp/_test_fixture")
+CLIP = (Path(PATHS["root"]) / "zapply/edited/hook2.mp4").as_posix()
+DRAFT_CACHE = TMP / "_test_fixture"
 
 
 def _api_up():
@@ -43,8 +44,8 @@ def base_draft():
     return DRAFT_CACHE
 
 
-AUDIO_CACHE = Path("C:/Users/Keytech/mcp-servers/tmp/_test_audio_fixture")
-AUDIO = "D:/Video Editing/for cloning.MP3"
+AUDIO_CACHE = TMP / "_test_audio_fixture"
+AUDIO = (Path(PATHS["root"]) / "for cloning.MP3").as_posix()
 
 
 @pytest.fixture(scope="session")

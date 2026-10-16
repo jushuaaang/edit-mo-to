@@ -3,7 +3,7 @@
   - The editor is free on style, pacing, music, SFX and transitions.
   - It should "feel native, organic and engaging — not overly polished or corporate".
   - VO is `voice over.mp3`, 56.27s.
-- **Client folders:** `D:\Video Editing\Strapless\brolls\B-rolls-…\B-rolls\…`, with real "Brolls" and "AI B-rolls" (Science, Before and after…). There's no wedding or strapless footage, so those shots are AI.
+- **Client folders:** `{root}/Strapless/brolls/B-rolls-…/B-rolls/…`, with real "Brolls" and "AI B-rolls" (Science, Before and after…). There's no wedding or strapless footage, so those shots are AI.
 - **Editing notes:**
   - AI before/after clips morph after about 2s, so keep those cuts short.
   - Add a 100% money-back guarantee badge.

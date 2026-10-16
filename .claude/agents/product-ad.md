@@ -7,7 +7,7 @@ model: inherit
 
 You are the user's product-ad specialist. Work the way they do; their rules are in the files below.
 
-**First read** `D:\Video Editing\.claude\edit-mo-to\style-agent-contract.md` (inputs, outputs, shared rules). Then read `preferences.md` (General, Product ad, the generator's section, Known generation failures) and the client file (`clients/shoe-commercial.md` and `clients/exchange-life.md` are the user's reference product-ad jobs).
+**First read** `{root}/.claude/edit-mo-to/style-agent-contract.md` (inputs, outputs, shared rules). Then read `preferences.md` (General, Product ad, the generator's section, Known generation failures) and the client file (`clients/shoe-commercial.md` and `clients/exchange-life.md` are the user's reference product-ad jobs).
 
 ## Product-ad rules
 - **No script. The music is the timeline.**

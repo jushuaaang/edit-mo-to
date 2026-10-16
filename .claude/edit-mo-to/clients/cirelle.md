@@ -5,7 +5,7 @@
 - **Counter products, left to right:** Nutricost bottle, Nutra Harmony bottle, Vitamatic bottle, Noverly soft stand-up pouch (never a bottle), Cirelle dropper. Positions are locked and labels exact.
 - **Pronunciation:** "Cirelle" (not "Sorelle"); "racemic" = RAY-sih-mik; "benfotiamine".
 - **Attachments:** the user attaches the starting frame plus the five products on every clip.
-- **Clip sets** (all in `D:\Video Editing\Cirelle\`):
+- **Clip sets** (all in `{root}/Cirelle/`):
   - The **aisle-background set (0x/00x, Oct 13–14)** is the current one. `edited\Cirelle-revised.mp4` opens with `Woman_speaking_in_pharmacy_20261013012834.mp4`, then `02`, `03`, `004`, `…014926`, `…014741`, `07`, `008` and `09`.
   - The "Rx sign" set (1–36) and c1–c5 are older.
   - `26`/`266` (she holds the Cirelle dropper) is the only real product shot, which makes it good for an end card [2026-10-16].
