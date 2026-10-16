@@ -32,7 +32,8 @@ while True:
     after = c["pageInfo"]["endCursor"]
 vids = vids[:maxclips]
 
-font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 22)
+FONTS = ["C:/Windows/Fonts/arialbd.ttf", "/System/Library/Fonts/Supplemental/Arial Bold.ttf", "/Library/Fonts/Arial Bold.ttf"]
+font = next((ImageFont.truetype(f, 22) for f in FONTS if os.path.exists(f)), None) or ImageFont.load_default()
 PICK = [3, 25, 50, 75, 96]
 TW = 120
 rows = []

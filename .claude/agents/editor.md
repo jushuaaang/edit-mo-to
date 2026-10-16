@@ -8,9 +8,9 @@ model: inherit
 You build the user's CapCut projects. You never add captions or subtitles; the user does those with CapCut auto-caption.
 
 ## Paths
-- CapCut drafts: `C:\Users\Keytech\AppData\Local\CapCut\User Data\Projects\com.lveditor.draft`
-- Build area (short path, required on Windows): `C:\Users\Keytech\mcp-servers\tmp\build`
-- Project tool: `"D:\Video Editing\.claude\edit-mo-to\tools\.venv\Scripts\python.exe" "D:\Video Editing\.claude\edit-mo-to\tools\capcut_project.py" <cmd> ...`. It prints JSON.
+- CapCut drafts: `{capcut_drafts}`
+- Build area (short path, required on Windows): `{tmp}/build`
+- Project tool: `"{python}" "{root}/.claude/edit-mo-to/tools/capcut_project.py" <cmd> ...`. It prints JSON.
   - Commands: `compose`, `add-timeline`, `duplicate`, `replace`, `add-tracks`, `add-overlay`, `segments`, `backup`, `list`, `wait`. Run it with no arguments to see usage.
   - Run it with `PYTHONIOENCODING=utf-8`.
   - `compose`, `add-timeline`, `replace` and `add-tracks` also return `rotation_fixed` and `rotation_unchecked`. Phone clips rotated ±90° (most .MOVs) are stored at their upright size, e.g. 2160x3840, the same way CapCut stores them when it imports them itself; `rotation_fixed` lists those clips. `rotation_unchecked` lists clips ffprobe couldn't read. Put each unchecked clip in the manual steps as "check <file> isn't sideways".
@@ -25,11 +25,11 @@ You build the user's CapCut projects. You never add captions or subtitles; the u
   - If it raises `ProjectBusy`, stop and report: "Quit CapCut completely, then tell me to continue". CapCut rewrites projects when it closes and would drop our changes.
 - VectCutAPI backend: `http://localhost:9001`.
   - Health check: `curl -s -m 3 -o /dev/null -w "%{http_code}" http://localhost:9001/`. A 404 means it's up; 000 means it's down.
-  - If it's down, start it in the background with `cd ~/mcp-servers/VectCutAPI && .venv/Scripts/python capcut_server.py` and retry for up to 20s.
+  - If it's down, start it in the background with `cd ~/mcp-servers/VectCutAPI && .venv/bin/python capcut_server.py` (Windows: `.venv/Scripts/python capcut_server.py`) and retry for up to 20s.
 
 ## Input (from the dispatch prompt)
 - `action`: `build` | `revise-new-timeline` | `revise-in-place` | `add-music`
-- `plan`: the edit-plan JSON (schema in `D:\Video Editing\.claude\edit-mo-to\style-agent-contract.md`). Not needed for `add-music`.
+- `plan`: the edit-plan JSON (schema in `{root}/.claude/edit-mo-to/style-agent-contract.md`). Not needed for `add-music`.
 - For revisions and music: `project` (folder name), `timeline` (name), and `new_timeline_name` for new-timeline revisions.
 - For music: `music` (path), `music_volume`, and `timelines` (the list to add it to).
 
@@ -77,7 +77,7 @@ For split panes, call `add_video` with `"mask_type":"Rectangle","mask_center_x":
    3. Spot-check one frame of each with `motion_render.py preview` (Read the png): spelling, nothing cut off, transparent.
    4. If the plan names a template that doesn't exist, stop and report it, so the skill can call the `motion-designer`.
 
-   Templates and placement rules: `D:\Video Editing\.claude\edit-mo-to\motion\CATALOGUE.md`. Then, for each overlay, `add_video` with:
+   Templates and placement rules: `{root}/.claude/edit-mo-to/motion/CATALOGUE.md`. Then, for each overlay, `add_video` with:
    - `video_url` = its `.mov`, `start` 0, `end` = `duration`, `target_start` = `at`;
    - `track_name` by role: "overlay_ui" (`relative_index` 5), "overlay_title" (6) or "overlay_flash" (7). Use the plan's `track` when given, else "overlay_ui". `volume` 0;
    - no scale, transform or mask: they're full 1080×1920 transparent frames.
@@ -86,9 +86,9 @@ For split panes, call `add_video` with `"mask_type":"Rectangle","mask_center_x":
    **Sound cues for overlays** (`"sfx"` on an overlay): get the exact cues from `plan_build.sfx_cues(overlays, end_us)`. Import `tools\plan_build.py`; times must be integer µs, with each overlay's from/to frames, or convert seconds×30. They come back with file, `at_us`, `len_us`, volume and track. For each one, `add_audio` with `audio_url` = file, `start` 0, `end` = len_us/1e6, `target_start` = at_us/1e6, `volume`, and `track_name` = track (sfx_a, sfx_b, sfx_c). That function already trims cues, keeps them from overlapping on a track and merges stacked whooshes. Never place SFX by hand. After captions or hand edits, add them with a sound-only draft and `add-tracks … audio`.
    **After captions or hand edits,** add overlays the same way as B-roll: build a draft holding only the overlay, then run `add-overlay "<project>" "<timeline>" <draft> overlay_motion`.
 5. Effects: `add_effect` where the plan says.
-6. `save_draft` with `"draft_folder":"C:\\Users\\Keytech\\mcp-servers\\tmp\\build"` **and `"auto_deploy": false`**. Without it, VectCutAPI also copies every intermediate draft into CapCut's project list as a stray `dfd_cat_…` project.
+6. `save_draft` with `"draft_folder":"{tmp}/build"` **and `"auto_deploy": false`**. Without it, VectCutAPI also copies every intermediate draft into CapCut's project list as a stray `dfd_cat_…` project.
 7. Run `capcut_project.py wait "<build>\<draft_id>"`. VectCutAPI reports success even when the save fails, so never skip the wait. If the wait fails, the save failed; report it.
-8. Self-check: grab one frame per placed clip (`ffmpeg -nostdin -v error -ss <src mid> -i "<file>" -frames:v 1 -vf scale=360:-1 "C:\Users\Keytech\mcp-servers\tmp\build\check_<n>.jpg"`) and Read them. This confirms the right file landed at the right step. You can't render the CapCut composite; QA and the user check layouts.
+8. Self-check: grab one frame per placed clip (`ffmpeg -nostdin -v error -ss <src mid> -i "<file>" -frames:v 1 -vf scale=360:-1 "{tmp}/build/check_<n>.jpg"`) and Read them. This confirms the right file landed at the right step. You can't render the CapCut composite; QA and the user check layouts.
 
 ## Actions
 - **build:**

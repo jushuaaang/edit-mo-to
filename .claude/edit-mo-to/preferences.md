@@ -103,7 +103,7 @@ Session tags: Cirelle fe9a0790 · GODA 6ec28f49 · Nuva 73daf057 · Nativia ac6e
   - **Zooms:** punch-ins (1.12–1.2) on key words, cut at word gaps.
   - **Captions:** the keyword titles replace CapCut auto-captions in this style, so don't double them.
   - **Sound design:** a whoosh on each flash and title, a pop on each card, a ping on ✓ and on the payoff (`"sfx": "default"` on every overlay), kept under her voice. Added 2026-10-16 from HyperFrames' bundled SFX library.
-  - **Reference:** `C:\Users\Keytech\Downloads\Talking Head (Short-form) with Devin jatho's + Apple UI stlyle. #videoediting  #talkinghead #editor.mp4`.
+  - **Reference:** `C:\Users\Keytech\Downloads\Talking Head (Short-form) with Devin jatho's + Apple UI stlyle. #videoediting  #talkinghead #editor.mp4` (on the Windows PC).
 - **Import first, then edit.** The files the user hands over (generated clips, B-roll, VO, music) are imported into the CapCut project so they show in its media panel under their real names, and the timeline uses those imported files, not hidden copies [2026-10-16].
 - **The user's CapCut is 9.6.** Projects are built by the editor agent. Hooks and revisions go on separate timelines [design].
 - **Mirroring is manual** (the tools can't flip clips), so list the clips to mirror. Check each clip's flags and tag text, and mirror only the ones that read backwards. In the Exchange Life trial batch every clip was mirrored, but in the Advanced batch only IMG_1225 was [ExchangeLife, ExchangeLife 2026-10-16].

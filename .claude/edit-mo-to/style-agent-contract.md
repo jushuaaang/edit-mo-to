@@ -2,7 +2,7 @@
 
 ## What you receive (in the dispatch prompt)
 - `mode`: `prompts` or `edit-plan`
-- `client` (matches a file in `D:\Video Editing\.claude\edit-mo-to\clients\` if one exists) and the `product` name
+- `client` (matches a file in `{root}/.claude/edit-mo-to/clients/` if one exists) and the `product` name
 - `video_folder`: the per-video folder the user made (clips, VO and music live here)
 - `brief_checklist`: every rule from the client brief, each one quoted
 - `script`: the approved script, one line per row, with hook/body/CTA labels (or "none — music only")
@@ -14,7 +14,7 @@
 - `revision`: change requests plus the timeline they apply to (edit-plan mode only, optional)
 
 ## Before you write anything
-1. Read `D:\Video Editing\.claude\edit-mo-to\preferences.md`: the General section, your style's section, the generator's section and "Known generation failures". These are the user's own rules. Follow them.
+1. Read `{root}/.claude/edit-mo-to/preferences.md`: the General section, your style's section, the generator's section and "Known generation failures". These are the user's own rules. Follow them.
 2. Read the client file, if there is one.
 3. If a brief rule conflicts with a preference, **the brief wins**. Say so in your notes.
 
@@ -26,11 +26,11 @@
 - Never put captions or subtitles in prompts or plans. The user adds captions in CapCut. Badges, CTA graphics, stats, callouts and other motion graphics go in the edit plan's `overlays` (see below), and only if the brief or style calls for them or they make the edit more engaging without adding claims.
 - Every AI prompt repeats the user's lock lines (realism / product / no-text / voice / look / style bible, whichever apply). Never write "same as above".
 - Use absolute Windows paths, with the full folder address.
-- **Paths:** check that every path you're given exists. If `client_broll_folder` is missing, look for it inside `video_folder` (e.g. `D:\Video Editing\<client>\…`), use what you find, and say so in Notes.
+- **Paths:** check that every path you're given exists. If `client_broll_folder` is missing, look for it inside `video_folder` (e.g. `{root}/<client>/…`), use what you find, and say so in Notes.
 - **Cataloguing client clips** (libraries can hold 900+ files):
   1. List the whole tree with folder names. Shortlist candidates by folder plus filename against each line.
   2. For the shortlist only (roughly ≤ 30 clips), run ffprobe (`ffprobe -v error -show_entries format=duration:stream=r_frame_rate,width,height:stream_side_data=rotation -of json "<file>"`).
-  3. Make one contact strip per clip: `ffmpeg -v error -i "<file>" -vf "fps=1/max(1\,floor(<dur>/6)),scale=180:-1,tile=6x1" -frames:v 1 "C:\Users\Keytech\mcp-servers\tmp\frames\<n>.jpg"`. Read it, and judge from what you see, never from the filename alone.
+  3. Make one contact strip per clip: `ffmpeg -v error -i "<file>" -vf "fps=1/max(1\,floor(<dur>/6)),scale=180:-1,tile=6x1" -frames:v 1 "{tmp}/frames/<n>.jpg"`. Read it, and judge from what you see, never from the filename alone.
   - ffmpeg auto-applies rotation, so frames look upright. Still note clips with rotation metadata so the user can check them in CapCut.
 - **Already-generated AI clips** in the video folder or client library from earlier jobs count as usable library footage.
 - **Splitting lines into several cuts:** use the word timestamps in `vo_timings.words` to place cut points between words. Never guess.
@@ -64,7 +64,7 @@ A short intro line, then one table:
 ```
 
 - **Overlays (preferred for all on-screen graphics).** These are animated, transparent HyperFrames overlays: badges, CTA buttons, end cards, stats, one-word pops, product callouts, hook numbers, split labels.
-  - Pick templates from `D:\Video Editing\.claude\edit-mo-to\motion\CATALOGUE.md`. The editor renders each one to a `.mov` during the build and places it on a top track at `at`. Add `"track": "ui" | "title" | "flash"` to layer them.
+  - Pick templates from `{root}/.claude/edit-mo-to/motion/CATALOGUE.md`. The editor renders each one to a `.mov` during the build and places it on a top track at `at`. Add `"track": "ui" | "title" | "flash"` to layer them.
   - **Sound design (SFX):** each overlay can carry `"sfx": "default"` (the template's tuned cue from `motion\sfx_defaults.json`: whoosh on flashes and titles, pop on cards and badges, ping on ✓ and stats, click on buttons), `"none"`, or a custom list `[{"name": "sparkle", "offset": 0.1, "len": 1.0, "volume": 0.3}]` using the 19 sounds in `motion\sfx\`.
     - Use `"default"` on every overlay in the Apple-UI talking-head style, and on key overlays (badge, CTA, end card, stat, word-pop) in other styles. Use `"none"` where the brief bans SFX, or for calm or luxury moods.
     - Cues are placed on sound tracks under the VO, trimmed, with stacked whooshes merged. This is separate from music, which stays the user's choice at step 11.

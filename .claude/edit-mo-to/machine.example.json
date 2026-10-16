@@ -1,0 +1,17 @@
+{
+ "_note": "Copy to machine.json (untracked) and adjust. Keys you leave out use the platform default from tools/machine.py.",
+ "_windows": {
+  "root": "D:/Video Editing",
+  "python": "D:/Video Editing/.claude/edit-mo-to/tools/.venv/Scripts/python.exe",
+  "tmp": "C:/Users/Keytech/mcp-servers/tmp",
+  "mcp_servers": "C:/Users/Keytech/mcp-servers",
+  "capcut_drafts": "C:/Users/Keytech/AppData/Local/CapCut/User Data/Projects/com.lveditor.draft"
+ },
+ "_mac": {
+  "root": "/Users/<you>/Video Editing",
+  "python": "/Users/<you>/Video Editing/.claude/edit-mo-to/tools/.venv/bin/python",
+  "tmp": "/Users/<you>/mcp-servers/tmp",
+  "mcp_servers": "/Users/<you>/mcp-servers",
+  "capcut_drafts": "/Users/<you>/Movies/CapCut/User Data/Projects/com.lveditor.draft"
+ }
+}

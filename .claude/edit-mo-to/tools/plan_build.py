@@ -16,9 +16,9 @@ TOOLS = Path(__file__).resolve().parent
 MOTION = TOOLS.parent / "motion"
 sys.path.insert(0, str(TOOLS))
 import motion_render as mr  # noqa: E402
+from machine import BUILD  # noqa: E402
 
 API = "http://localhost:9001"
-BUILD = "C:/Users/Keytech/mcp-servers/tmp/build"
 SFX_TRACKS = ("sfx_a", "sfx_b", "sfx_c")
 MERGE_US = 150_000
 

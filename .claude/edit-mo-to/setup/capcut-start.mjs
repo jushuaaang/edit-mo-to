@@ -8,7 +8,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const vectcutDir = path.join(root, "VectCutAPI");
-const python = path.join(vectcutDir, ".venv", "Scripts", "python.exe");
+const python = process.platform === "win32"
+  ? path.join(vectcutDir, ".venv", "Scripts", "python.exe")
+  : path.join(vectcutDir, ".venv", "bin", "python");
 const PORT = 9001;
 
 function isListening(port) {
