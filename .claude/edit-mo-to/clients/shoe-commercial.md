@@ -1,0 +1,13 @@
+# Shoe commercial (Warren & Cole) [3420882a]
+- **Product:** black polished leather derby, single buckled strap, chunky lug sole, cream welt stitching. Logo: gold "WC" monogram with "LEATHER SHOES".
+- **Format:** 10–20s, 2–4s clips, every clip a different angle (two inspiration mp4s).
+- **Three moods:**
+  - Elegant: black/gold marble.
+  - Bold Urban Night: neon, wet asphalt.
+  - Warm Heritage: terracotta/walnut.
+- **Shots:**
+  - Models are faceless (legs, hands, torso).
+  - One-word text: Refined / Commanding / Timeless.
+  - Add the "soft cushion sole" shot.
+  - Put the logo in one clip, overlaying the real logo if the generated one warps.
+- **Claims:** avoid anything unverified (handmade, genuine leather, Italian, weightless).

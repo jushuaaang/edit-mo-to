@@ -1,0 +1,60 @@
+<!--defaults {"win": "R-form", "win_note": "works", "lose": "S-form", "lose_note": "doesn't", "mode": "verdict", "win_color": "#248a3d", "lose_color": "#d70015", "x": 540, "y": 780, "width": 640, "t_verdict": 0.5, "font": "Inter", "duration": 2.4} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;800&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", -apple-system, sans-serif; }
+  #c { position: absolute; left: {{x}}px; top: {{y}}px; width: {{width}}px; padding: 14px; border-radius: 34px;
+       background: linear-gradient(160deg, rgba(255,255,255,.95), rgba(232,236,245,.9)); border: 1.5px solid #fff;
+       box-shadow: 0 24px 60px rgba(0,0,0,.35), inset 0 1px 0 #fff; }
+  .row { display: flex; align-items: center; gap: 22px; padding: 16px 20px; border-radius: 22px; }
+  .row + .row { margin-top: 8px; }
+  .mk { flex: none; width: 66px; height: 66px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        font-size: 38px; font-weight: 800; color: #fff; background: #c7c7cc; }
+  .nm { font-size: 44px; font-weight: 800; color: #0b0f19; letter-spacing: -0.02em; }
+  .nt { margin-left: auto; font-size: 30px; font-weight: 600; color: #8e8e93; }
+  #rw { background: rgba(52,199,89,0); }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="c" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="rw" class="row"><div id="mw" class="mk">?</div><div class="nm">{{win}}</div><div id="tw" class="nt">{{win_note}}</div></div>
+    <div id="rl" class="row"><div id="ml" class="mk">?</div><div class="nm">{{lose}}</div><div id="tl2" class="nt">{{lose_note}}</div></div>
+  </div>
+</div>
+<script>
+  const D = {{duration}}, TV = Number("{{t_verdict}}"), MIRROR = "{{mode}}" === "mirror";
+  const tl = gsap.timeline({ paused: true });
+  gsap.set("#c", { xPercent: -50 });
+  gsap.set(["#tw", "#tl2"], { opacity: 0 });
+  tl.fromTo("#c", { y: 40, scale: 0.7, opacity: 0 }, { y: 0, scale: 1, opacity: 1, duration: 0.4, ease: "back.out(2)" }, 0);
+  tl.from(["#rw", "#rl"], { x: -30, opacity: 0, duration: 0.25, stagger: 0.08, ease: "power3.out" }, 0.1);
+  if (MIRROR) {
+    // two equal mirror twins: marks show each name's first letter and rock as mirror images
+    document.getElementById("mw").textContent = "{{win}}".charAt(0);
+    document.getElementById("ml").textContent = "{{lose}}".charAt(0);
+    gsap.set("#mw", { backgroundColor: "#0a84ff" });
+    gsap.set("#ml", { backgroundColor: "#5e5ce6" });
+    tl.fromTo("#mw", { rotation: -18 }, { rotation: 18, duration: 0.5, yoyo: true, repeat: Math.max(1, Math.floor((D - TV) / 0.5)), ease: "sine.inOut" }, TV);
+    tl.fromTo("#ml", { rotation: 18, scaleX: -1 }, { rotation: -18, duration: 0.5, yoyo: true, repeat: Math.max(1, Math.floor((D - TV) / 0.5)), ease: "sine.inOut" }, TV);
+  } else {
+    tl.call(() => { document.getElementById("mw").textContent = "✓"; document.getElementById("ml").textContent = "✕"; }, null, TV);
+    tl.to("#mw", { backgroundColor: "{{win_color}}", scale: 1.15, duration: 0.2, ease: "back.out(3)" }, TV);
+    tl.to("#mw", { scale: 1, duration: 0.15 }, TV + 0.2);
+    tl.to("#rw", { backgroundColor: "rgba(52,199,89,0.14)", duration: 0.2 }, TV);
+    tl.to("#ml", { backgroundColor: "{{lose_color}}", duration: 0.2 }, TV + 0.1);
+    tl.to("#rl", { opacity: 0.45, duration: 0.25 }, TV + 0.2);
+    tl.to(["#tw", "#tl2"], { opacity: 1, duration: 0.2 }, TV + 0.15);
+  }
+  tl.to("#c", { opacity: 0, y: -20, duration: 0.16 }, D - 0.17);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+<!--defaults {"left": "R", "right": "S", "left_value": 50, "right_value": 50, "suffix": "%", "left_color": "#0a84ff", "right_color": "#8e8e93", "title": "", "x": 540, "y": 790, "width": 760, "font": "Inter", "duration": 2.3} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;800&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", -apple-system, sans-serif; }
+  #c { position: absolute; left: {{x}}px; top: {{y}}px; width: {{width}}px; padding: 18px; border-radius: 34px;
+       background: linear-gradient(160deg, rgba(255,255,255,.95), rgba(232,236,245,.90)); border: 1.5px solid #fff;
+       box-shadow: 0 24px 60px rgba(0,0,0,.35), inset 0 1px 0 #fff; }
+  #ti { font-size: 26px; font-weight: 600; color: #3a3a3c; text-align: center; margin: 2px 0 12px; }
+  #ti:empty { display: none; }
+  #seg { position: relative; height: 104px; border-radius: 24px; background: #e5e5ea; display: flex; overflow: hidden; }
+  .s { position: relative; display: flex; align-items: center; justify-content: center; gap: 14px; color: #fff;
+       font-weight: 800; font-size: 46px; width: 0; overflow: hidden; white-space: nowrap; }
+  #sl { background: {{left_color}}; } #sr { background: {{right_color}}; }
+  .s small { font-size: 32px; opacity: .9; }
+  #knob { position: absolute; top: 10px; bottom: 10px; width: 8px; margin-left: -4px; border-radius: 4px; background: #fff;
+          box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="c" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="ti">{{title}}</div>
+    <div id="seg"><div id="sl" class="s">{{left}} <small><span id="nl">0</span>{{suffix}}</small></div>
+                  <div id="sr" class="s">{{right}} <small><span id="nr">0</span>{{suffix}}</small></div><div id="knob"></div></div>
+  </div>
+</div>
+<script>
+  const D = {{duration}}, LV = Number("{{left_value}}"), RV = Number("{{right_value}}");
+  const tot = LV + RV, W = {{width}} - 36;
+  const tl = gsap.timeline({ paused: true }), n = { l: 0, r: 0 };
+  gsap.set("#c", { xPercent: -50 });
+  gsap.set("#knob", { left: 0, x: 0, opacity: 0 });
+  tl.fromTo("#c", { y: 40, scale: 0.7, opacity: 0 }, { y: 0, scale: 1, opacity: 1, duration: 0.4, ease: "back.out(2)" }, 0);
+  tl.to("#sl", { width: W * LV / tot, duration: 0.45, ease: "power3.out" }, 0.15);
+  tl.to("#sr", { width: W * RV / tot, duration: 0.45, ease: "power3.out" }, 0.15);
+  tl.to("#knob", { x: W * LV / tot, opacity: 1, duration: 0.45, ease: "power3.out" }, 0.15);
+  tl.to(n, { l: LV, r: RV, duration: 0.45, ease: "power2.out", onUpdate: () => {
+    document.getElementById("nl").textContent = Math.round(n.l); document.getElementById("nr").textContent = Math.round(n.r); } }, 0.15);
+  tl.to("#c", { opacity: 0, y: -20, duration: 0.16 }, D - 0.17);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

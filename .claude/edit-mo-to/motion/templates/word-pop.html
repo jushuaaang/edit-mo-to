@@ -1,0 +1,45 @@
+<!--defaults {"text": "LIPOSOMAL", "fg": "#ffffff", "stroke": "#000000", "highlight": "#ffd23f", "font": "Anton", "size": 150, "top": 760, "duration": 1.5} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; }
+  #w { position: absolute; top: {{top}}px; left: 50%; color: {{fg}}; font-size: {{size}}px; line-height: 1;
+       text-transform: uppercase; white-space: nowrap; -webkit-text-stroke: 10px {{stroke}}; paint-order: stroke fill;
+       text-shadow: 0 10px 30px rgba(0,0,0,.5); }
+  #bar { position: absolute; top: calc({{top}}px + {{size}}px * 0.95); left: 50%; height: 18px; width: 0;
+         background: {{highlight}}; border-radius: 9px; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="w" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">{{text}}</div>
+  <div id="bar" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="1"></div>
+</div>
+<script>
+  const D = {{duration}};
+  // auto-fit: shrink text that would run past the safe width (measured with the real font)
+  function fitW(el, maxW) {
+    el.style.fontSize = "";
+    const w = el.getBoundingClientRect().width / (gsap.getProperty(el, "scaleX") || 1);
+    if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
+  }
+  function fitAll() { fitW(document.getElementById("w"), 980); }
+  fitAll();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
+  const tl = gsap.timeline({ paused: true });
+  gsap.set(["#w", "#bar"], { xPercent: -50 });
+  tl.fromTo("#w", { scale: 2.2, opacity: 0, filter: "blur(12px)" }, { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.28, ease: "expo.out" }, 0);
+  tl.to("#bar", { width: 620, duration: 0.3, ease: "power3.out" }, 0.18);
+  tl.to("#w", { scale: 1.05, duration: Math.max(0.2, D - 0.75), ease: "none" }, 0.3);
+  tl.to(["#w", "#bar"], { opacity: 0, y: -30, duration: 0.2, ease: "power2.in" }, D - 0.22);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

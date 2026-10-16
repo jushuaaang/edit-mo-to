@@ -1,0 +1,33 @@
+# edit-mo-to workflow repo: track ONLY the workflow, never client footage or projects.
+# Everything is ignored by default; the workflow paths are re-included below.
+/*
+!/.gitignore
+!/README.md
+!/CLAUDE.md
+!/docs/
+!/.claude/
+
+# inside .claude: no local session state or settings
+/.claude/*
+!/.claude/agents/
+!/.claude/skills/
+!/.claude/edit-mo-to/
+
+# installable dependencies: reinstalled by setup, never committed
+node_modules/
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# media and renders never belong in this repo
+*.mp4
+*.mov
+*.MOV
+*.m4v
+*.webm
+*.wav
+*.m4a
+*.zip
+*.tar
+# (the 19 Pixabay SFX mp3s in motion/sfx are part of the workflow and stay tracked)

@@ -1,0 +1,14 @@
+# North Power / North Alpine [3e72f5fc]
+- **Product:** NorthPower compression vest (black, white, grey). Site north-alpine.com. Angle: "Man boobs".
+  - Stay within appearance claims ("visibly streamlined torso"); no weight-loss claims.
+  - CTA: 90-day money-back / risk-free.
+- **Video 1, "The Binder":** Pixar style, 40s. Hook 0–5s, body 5–33s, CTA 33–40s. Keyframes S1–S9, then Seedance 2.5 clips C1–C9.
+  - **Danny:** broad, soft-bellied, short brown beard, white dress shirt with cream buttons, no tie, collar open, grey trousers.
+  - **Binder:** cobalt blue, no face.
+  - **C8/C9 hero set:** dark steel podium, cyan rim light, navy honeycomb, moving sparks, and a gold plate reading "90 DAYS RISK FREE".
+- **Audio:**
+  - VO: warm male narrator, late 30s, baritone, animated-film storyteller.
+  - Music: whimsical orchestral, 118 BPM, made in 3 Suno parts.
+- **Video 2:** realistic iPhone style, about 135s, with dad-bod real men (after = smoother, not thinner).
+  - CTA: "Buy two get one free" (confirm the deal is live), free returns, ships worldwide in 5–8 business days.
+- **Finals:** `D:\Video Editing\North Power\edited\GIDEON_MONTANO_VIDEO1.mp4` and `Gideon-Montano-Video2.mp4`.

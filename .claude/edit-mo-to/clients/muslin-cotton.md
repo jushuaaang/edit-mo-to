@@ -1,0 +1,17 @@
+# Muslin Cotton (Muslin Blanket) [71ae1a3e UGC, 8e760cdc claymation]
+- **Offer:**
+  - Muslin $69 vs Cooling Blanket $120;
+  - buy one, get one free (two blankets for $69);
+  - 30-night guarantee and six breathable layers;
+  - "over four hundred thousand customers";
+  - sold direct: no retail markup, no celebrity fees, no "cooling tech" premium.
+  - Never say "synthetic".
+- **UGC version:** narrator VO (ElevenLabs "Kai"), no model ("the product is the muslin blanket"). Mix of AI and client / Meta-library B-roll, with price overlays added in the edit.
+- **Claymation version:**
+  - **References:** "follow the reference ad (ai podcast)_.docx" and "Ad Library.mp4".
+  - **Format:** two clay blankets at podcast mics, with about a third of the shots as clay cutaways. One hook (H1/H2/H3, pick one) plus body B1–B12, about 107–109s.
+  - **Cooling Blanket:** smug, brisk, slightly nasal, mid-high voice. Icy blue-gray quilted body, $120 tag, name on chest.
+  - **Muslin Blanket:** calm, warm, lower-pitched, steady voice. Cream-oat gauzy layers, $69 tag.
+  - **Sleeper:** a man in blue-striped pajamas under a light-brown, muslin-coloured blanket, at night. He sweats heavily in the "hot" shots and has eyes closed when asleep.
+  - **Accepted STYLE & AUDIO block,** appended to every clip: "STYLE & AUDIO: Handmade stop-motion claymation, sculpted clay characters with visible fingerprints, slightly stepped, jittery stop-motion movement, warm amber podcast studio, shallow depth of field, vertical 9:16. Characters keep exactly the look, printed labels, and price tags of the attached references. AUDIO: use only the attached audio file as the soundtrack and dialogue; do not generate any other speech, voices, music, or sounds. In the attached audio, the smug, brisk, slightly nasal mid-high voice is the Cooling Blanket and the calm, warm, lower-pitched, steady voice is the Muslin Blanket; keep these two voices exactly the same in every clip. Lip-sync each character's mouth precisely to its own voice; only the speaking character's mouth moves, and during cutaways the audio continues as voice-over. No subtitles, no captions, no watermarks, no on-screen text except the labels and price tags printed on the characters."
+  - **B-roll style line:** "Cinematic handmade claymation B-roll, richly detailed miniature set, warm cinematic lighting, shallow depth of field, visible fingerprints and tool marks, vertical 9:16, silent, no text."

@@ -1,0 +1,6 @@
+{
+  "name": "edit-mo-to-motion",
+  "private": true,
+  "description": "HyperFrames overlay templates for edit-mo-to",
+  "dependencies": { "hyperframes": "0.8.162" }
+}

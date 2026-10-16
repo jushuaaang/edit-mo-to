@@ -1,0 +1,13 @@
+# Cirelle [fe9a0790]
+- **Product:** Cirelle liposomal R-ALA drops (dropper bottle). Source brief: Cirelle_Rami_2.pdf.
+- **Format:** long-form pharmacist talking-head, about 4:07–4:30. About 36 clips of 6–10s, chained start/end frames (Frames to Video).
+- **Host:** pharmacist in a white coat and blue blouse at a pharmacy counter. Warm, calm "pharmacist cadence". Must not look like the reference face.
+- **Counter products, left to right:** Nutricost bottle, Nutra Harmony bottle, Vitamatic bottle, Noverly soft stand-up pouch (never a bottle), Cirelle dropper. Positions are locked and labels exact.
+- **Pronunciation:** "Cirelle" (not "Sorelle"); "racemic" = RAY-sih-mik; "benfotiamine".
+- **Attachments:** the user attaches the starting frame plus the five products on every clip.
+- **Clip sets** (all in `D:\Video Editing\Cirelle\`):
+  - The **aisle-background set (0x/00x, Oct 13–14)** is the current one. `edited\Cirelle-revised.mp4` opens with `Woman_speaking_in_pharmacy_20261013012834.mp4`, then `02`, `03`, `004`, `…014926`, `…014741`, `07`, `008` and `09`.
+  - The "Rx sign" set (1–36) and c1–c5 are older.
+  - `26`/`266` (she holds the Cirelle dropper) is the only real product shot, which makes it good for an end card [2026-10-16].
+- **Hook option, "racemic reveal" (10.4s):** `07.mp4` 4.62–7.55, then `008.mp4` 0–7.5. She says "Look at this one, 600 milligrams on the front. But turn it around, fifty-fifty blend of two mirror molecules. Only the R-form works on nerves." The plain alpha-lipoic bottle she holds is correct for this line. Built as "Cirelle Rehearsal v2 Apple UI" [2026-10-16].
+- **On-screen text:** use the script's words only. No competitor brand names, study numbers, percentages beyond the script, or "cure" wording. Spell Cirelle, R-Alpha Lipoic Acid, benfotiamine and methylcobalamin exactly [2026-10-16].

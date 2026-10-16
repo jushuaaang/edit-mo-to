@@ -1,0 +1,66 @@
+<!--defaults {"split_text": "50 / 50", "pair_text": "2 MIRROR MOLECULES", "payoff_text": "ONLY THE R-FORM WORKS", "left": "R", "right": "S", "t_pair": 2.3, "t_payoff": 4.45, "win": "#ffd23f", "lose": "#8a8f9c", "panel": "rgba(8,14,40,0.80)", "fg": "#ffffff", "font": "Montserrat", "top": 1000, "duration": 6.3} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@700;900&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; color: {{fg}}; }
+  #panel { position: absolute; top: {{top}}px; left: 50%; width: 900px; height: 300px; border-radius: 40px;
+           background: {{panel}}; box-shadow: 0 20px 50px rgba(0,0,0,.45); overflow: hidden; }
+  .cap { position: absolute; left: 0; right: 0; top: 26px; text-align: center; font-weight: 900; font-size: 54px;
+         letter-spacing: .02em; white-space: nowrap; }
+  #bar { position: absolute; left: 70px; right: 70px; top: 130px; height: 120px; border-radius: 60px; overflow: hidden; display: flex; }
+  #bar div { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 72px; font-weight: 900; }
+  #barL { background: {{win}}; color: #10162b; } #barR { background: {{lose}}; color: #10162b; }
+  .mol { position: absolute; top: 112px; width: 160px; height: 160px; }
+  .mol svg { width: 100%; height: 100%; overflow: visible; }
+  .mol b { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 64px; font-weight: 900; }
+  #mL { left: 230px; } #mR { right: 230px; }
+  #mirror { position: absolute; left: 50%; top: 110px; width: 4px; height: 170px; background: rgba(255,255,255,.6); margin-left: -2px; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="panel" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="c1" class="cap">{{split_text}}</div>
+    <div id="c2" class="cap">{{pair_text}}</div>
+    <div id="c3" class="cap" style="color: {{win}}">{{payoff_text}}</div>
+    <div id="bar"><div id="barL">{{left}}</div><div id="barR">{{right}}</div></div>
+    <div id="mirror"></div>
+    <div id="mL" class="mol"><svg viewBox="-60 -60 120 120"><polygon id="hL" points="0,-50 43,-25 43,25 0,50 -43,25 -43,-25" fill="none" stroke="{{win}}" stroke-width="9"/></svg><b id="bL">{{left}}</b></div>
+    <div id="mR" class="mol"><svg viewBox="-60 -60 120 120"><polygon id="hR" points="0,-50 43,-25 43,25 0,50 -43,25 -43,-25" fill="none" stroke="{{lose}}" stroke-width="9"/></svg><b id="bR">{{right}}</b></div>
+  </div>
+</div>
+<script>
+  const D = {{duration}}, TP = {{t_pair}}, TW = {{t_payoff}};
+  const tl = gsap.timeline({ paused: true });
+  gsap.set("#panel", { xPercent: -50 });
+  gsap.set(["#c2", "#c3", "#mL", "#mR", "#mirror"], { opacity: 0 });
+  // phase 1: the 50/50 split
+  tl.fromTo("#panel", { y: 60, opacity: 0, scale: 0.9 }, { y: 0, opacity: 1, scale: 1, duration: 0.35, ease: "back.out(1.7)" }, 0);
+  tl.fromTo("#barL", { flexGrow: 0.01 }, { flexGrow: 1, duration: 0.45, ease: "power3.out" }, 0.15);
+  tl.fromTo("#barR", { flexGrow: 0.01 }, { flexGrow: 1, duration: 0.45, ease: "power3.out" }, 0.15);
+  // phase 2: two mirror molecules
+  tl.to(["#c1", "#bar"], { opacity: 0, y: -20, duration: 0.2 }, TP - 0.2);
+  tl.to("#c2", { opacity: 1, duration: 0.2 }, TP);
+  tl.to("#mirror", { opacity: 1, duration: 0.2 }, TP);
+  tl.fromTo("#mL", { opacity: 0, x: 150 }, { opacity: 1, x: 0, duration: 0.4, ease: "power3.out" }, TP);
+  tl.fromTo("#mR", { opacity: 0, x: -150, scaleX: -1 }, { opacity: 1, x: 0, scaleX: 1, duration: 0.4, ease: "power3.out" }, TP);
+  tl.fromTo(["#hL", "#hR"], { rotation: 0, transformOrigin: "50% 50%" }, { rotation: 30, duration: Math.max(0.5, TW - TP - 0.2), ease: "none" }, TP);
+  // phase 3: R wins, S greys out
+  tl.to("#c2", { opacity: 0, duration: 0.15 }, TW - 0.15);
+  tl.to("#c3", { opacity: 1, duration: 0.2 }, TW);
+  tl.to("#mR", { opacity: 0.25, scale: 0.8, filter: "grayscale(1)", duration: 0.3 }, TW);
+  tl.to("#mL", { scale: 1.3, x: 120, duration: 0.35, ease: "back.out(2)" }, TW);
+  tl.to("#hL", { attr: { "stroke-width": 13 }, duration: 0.3 }, TW);
+  tl.to("#mL", { filter: "drop-shadow(0 0 22px {{win}})", duration: 0.3, yoyo: true, repeat: Math.max(1, Math.floor((D - TW - 0.6) / 0.3)) }, TW + 0.2);
+  tl.to("#panel", { opacity: 0, y: -30, duration: 0.2 }, D - 0.22);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

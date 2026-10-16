@@ -1,0 +1,22 @@
+{
+  "_note": "Default sound cue(s) per template. offset/len in seconds from the overlay's start; len trims long files; volume 0-1 (kept under the VO). An overlay opts in with \"sfx\": \"default\", or gives its own list, or \"none\". Files are in ./sfx (Pixabay licence: commercial use, no attribution needed).",
+  "color-flash":     [{"name": "whoosh", "offset": 0.0, "len": 0.55, "volume": 0.45}],
+  "kinetic-title":   [{"name": "whoosh-short", "offset": 0.0, "len": 0.5, "volume": 0.35}],
+  "glass-card":      [{"name": "pop", "offset": 0.03, "len": 0.6, "volume": 0.55}],
+  "glass-split":     [{"name": "click", "offset": 0.15, "len": 0.37, "volume": 0.5}],
+  "glass-compare":   [{"name": "pop", "offset": 0.0, "len": 0.6, "volume": 0.5},
+                      {"name": "ping", "offset": "t_verdict", "len": 0.9, "volume": 0.5, "when": "mode=verdict"}],
+  "badge":           [{"name": "pop", "offset": 0.05, "len": 0.6, "volume": 0.55}],
+  "cta":             [{"name": "whoosh-short", "offset": 0.05, "len": 0.5, "volume": 0.35},
+                      {"name": "click", "offset": 0.9, "len": 0.37, "volume": 0.5}],
+  "end-card":        [{"name": "whoosh-short", "offset": 0.0, "len": 0.5, "volume": 0.4},
+                      {"name": "chime", "offset": 0.4, "len": 1.6, "volume": 0.35}],
+  "stat":            [{"name": "ping", "offset": 0.2, "len": 0.9, "volume": 0.45}],
+  "word-pop":        [{"name": "impact-bass-1", "offset": 0.0, "len": 1.2, "volume": 0.5}],
+  "callout":         [{"name": "pop", "offset": 0.0, "len": 0.6, "volume": 0.5}],
+  "hook-number":     [{"name": "whoosh-short", "offset": 0.0, "len": 0.5, "volume": 0.4}],
+  "split-labels":    [{"name": "whoosh-short", "offset": 0.0, "len": 0.5, "volume": 0.35}],
+  "mirror-molecules":[{"name": "pop", "offset": 0.0, "len": 0.6, "volume": 0.5},
+                      {"name": "click", "offset": "t_pair", "len": 0.37, "volume": 0.45},
+                      {"name": "ping", "offset": "t_payoff", "len": 0.9, "volume": 0.5}]
+}

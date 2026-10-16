@@ -1,0 +1,11 @@
+# Nativia [ac6ec8ea]
+- **Product:** Nativia ampoule (30 ml glass, gold threads, silver cap, beige label) with a syringe applicator.
+- **Host:** Black woman, 56, sage-green soft knit top, gold hoops, kitchen setting. Deep warm brown skin, never plastic.
+- **Client SOP:**
+  - The product can't be revealed in the hook, so the vial is blurred or hidden in hooks 1 and 4.
+  - The SOP wants Week 1–3 progression.
+- **Competitors shown:** night cream jar, collagen powder tub, retinol bottle, microcurrent wand (the wand must match its reference).
+- **Structure:** body first, about 40+ clips (0:09–2:44). Then hooks 1–4, each split into 2–3 host sub-clips (H1-A/B…).
+  - H2A uses the original kitchen background.
+  - H4A matches the pacing of the hook4 audio.
+- **Lip-sync:** the client flagged lip-sync drift. See `D:\Video Editing\PYNK_AI_UGC_Studio\lipsync_report.md`.

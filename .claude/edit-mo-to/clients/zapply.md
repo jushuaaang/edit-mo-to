@@ -1,0 +1,11 @@
+# Zapply [4971109a]
+- **Brief and references:** script `zapply.docx`, in modules (Hooks, 02 Body 1–5, CTA). VO is `body.mp3`. Reference video `zapply reference.mp4`, plus DatAds references (NL/UK).
+- **B-roll folder:** `D:\Video Editing\zapply\Zapply Organized Brolls` (955 files; the old `Downloads` copy is gone), with subfolders Emotions, Lifestyle-Activities, AI Brolls/Body Animations, Zapply Product Shots). Finals are in `D:\Video Editing\zapply\edited\`.
+- **Mostly client B-roll,** with AI as the top half of splits. 4s max per clip (client rule), reference pacing around 1.5–2s on energetic lines (a guide, not a limit), and no reuse across hooks.
+- **Text style (the user adds it):**
+  - captions are 2–4 words, bold white on a royal-blue box, with a red box on the hook line;
+  - zoom-blur whip on pain words;
+  - numbered hooks: Hook 2 is a white numeral on a red badge, Hook 3 a "SIGN #n" card, Hook 4 a comic numeral.
+- **AI graphics:** "premium dark-tech", navy/black with an electric-blue glow, matching the client's blue holographic library.
+- **Product format:** Zapply T1 is a pouch of capsules ("90 capsules"), so never script "scoop" or "powder" [dry run 2026-10-15].
+- **Rejected:** the Alternatives/Drinks clips (guy stirring powder). The user disliked the visual for "After one week, the stress starts to drop."
