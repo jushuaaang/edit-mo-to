@@ -2,6 +2,11 @@
 integer-µs timing).
 
 usage: python plan_build.py plan.json [--render-only]
+       python plan_build.py plan.json --snap-beats beats.json [--tol 3] [--music-at FRAME] [--tracks ui,flash] [--out f]
+            move each overlay's start onto the nearest music beat (media_timing.py beats output) when one is
+            within --tol frames, keeping its length; --music-at = the timeline frame where the music starts;
+            only the listed --tracks move (default all); an overlay with "snap": false stays put (use it for
+            overlays locked to a spoken word or a cut). Writes --out (default: plan.snapped.json) and lists moves.
 
 Plan (frame numbers at 30 fps): see examples/cirelle_apple_ui_plan.json
   segs:     [file, src_in_seconds, from_frame, to_frame, scale]
@@ -90,6 +95,23 @@ def sfx_cues(overlays: list, end_us: int | None = None) -> list:
     return out
 
 
+def beat_snap(overlays: list, beats: list, tol: int = 3, music_at: int = 0, tracks=None) -> list:
+    """Snap overlay starts (frames, 30 fps) to the nearest beat within tol frames, in place; lengths are kept.
+    beats are seconds from the music's start, which sits at timeline frame music_at. Returns the moves."""
+    frames = sorted({music_at + round(b * 30) for b in beats})
+    moves = []
+    for i, o in enumerate(overlays):
+        if o.get("snap") is False or not frames or (tracks and o.get("track") not in tracks):
+            continue
+        near = min(frames, key=lambda f: abs(f - o["from"]))
+        shift = near - o["from"]
+        if shift == 0 or abs(shift) > tol or near < 0:
+            continue
+        moves.append({"index": i, "template": o.get("template"), "from": o["from"], "to": near})
+        o["from"], o["to"] = near, o["to"] + shift
+    return moves
+
+
 def post(ep, body):
     import requests
 
@@ -137,6 +159,16 @@ def main(argv: list[str]) -> None:
     if not argv:
         raise SystemExit(__doc__)
     plan = json.loads(Path(argv[0]).read_text(encoding="utf-8"))
+    if "--snap-beats" in argv:
+        opt = lambda k, d: argv[argv.index(k) + 1] if k in argv else d
+        beats = json.loads(Path(opt("--snap-beats", "")).read_text(encoding="utf-8"))
+        moves = beat_snap(plan["overlays"], beats["beats"] if isinstance(beats, dict) else beats,
+                          int(opt("--tol", 3)), int(opt("--music-at", 0)),
+                          [t for t in opt("--tracks", "").split(",") if t] or None)
+        out = Path(opt("--out", str(Path(argv[0]).with_suffix(".snapped.json"))))
+        out.write_text(json.dumps(plan, indent=1, ensure_ascii=False), encoding="utf-8")
+        print(json.dumps({"plan": str(out), "moved": moves}, ensure_ascii=False))
+        return
     render_overlays(plan, force="--render-only" in argv)
     if "--render-only" in argv:
         return

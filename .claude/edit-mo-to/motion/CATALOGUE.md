@@ -61,6 +61,8 @@ Effects and motion only: `font` and every colour are vars set from the client's 
 | morph-flow | continuity instead of pop-ins: one shape carries a short sequence (chip → card → CTA button by default) and never cuts; at each step the content leaves under a short blur while the shape springs to the next size, radius and colour, and the CTA settles with one soft press | texts (a\|b\|c), subs (card second lines), kinds (chip\|card\|button), times (s,s,s), x, y, card_w, chip_bg, chip_fg, card_bg, card_fg, accent, accent_fg, font |
 | logo-reveal | the client's real logo draws on (each letter or part in reading order), then fills as the line completes; optional tracked tagline. `svg` = the logo's .svg file (inlined at render). PNG-only logo: `motion_render.py trace logo.png logo.svg [--invert]` traces it first (never redraw or approximate a logo). Fallback `image` = PNG with a soft mask wipe | svg, image, color (fill override; empty keeps the logo's fills), stroke, line_w, width, x, y, t_start, t_draw, tagline, tagline_color, shadow, font |
 
+**Hit the beat:** for music-cut ads, `tools/plan_build.py plan.json --snap-beats beats.json --tol 3 [--music-at FRAME] [--tracks ui,flash]` moves each overlay's start onto the nearest beat (from `media_timing.py beats`) when one is within the tolerance, keeping its length. Overlays locked to a spoken word or a cut get `"snap": false`.
+
 ## Sound effects
 - 19 sounds in `sfx\` (Pixabay licence: commercial use, no attribution): whoosh, whoosh-short, whoosh-cinematic, pop, click, click-soft, ping, chime, notification, sparkle, impact-bass-1/2, riser, glitch-1/2/3, typing, key-press, error.
 - Each template has a tuned default cue in `sfx_defaults.json`. Overlays opt in with `"sfx": "default"`.
