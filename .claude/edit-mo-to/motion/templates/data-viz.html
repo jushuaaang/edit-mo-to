@@ -1,0 +1,176 @@
+<!--defaults {"mode": "bars", "values": "38|92", "labels": "Before|After", "title": "Morning stiffness gone", "prefix": "", "suffix": "%", "decimals": 0, "max": "", "winner": "max", "x": 540, "y": 1000, "width": 880, "t_start": 0.15, "count_dur": 1.1, "bg": "#f5f5f7", "fg": "#141416", "muted": "#c9cbd1", "accent": "#3a3d45", "font": "Inter", "scale": 1, "height": 1920, "duration": 3.2} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;700;800&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", -apple-system, sans-serif; --s: {{scale}};
+          -webkit-font-smoothing: antialiased; color: {{fg}}; }
+  /* flat material: solid fill, hairline edge, two-layer soft shadow; no gradient, no glow */
+  #card { position: absolute; top: {{y}}px; width: calc(var(--s) * {{width}}px); background: {{bg}};
+          border-radius: calc(var(--s) * 40px); padding: calc(var(--s) * 40px) calc(var(--s) * 48px) calc(var(--s) * 44px);
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,.6), 0 0 0 1px rgba(0,0,0,.06), 0 2px 6px rgba(0,0,0,.10), 0 20px 48px rgba(0,0,0,.24); }
+  #title { font-size: calc(var(--s) * 26px); font-weight: 700; letter-spacing: .16em; text-transform: uppercase; opacity: .62;
+           white-space: nowrap; margin-bottom: calc(var(--s) * 26px); }
+  #title:empty { display: none; }
+  .num { font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; line-height: 1; white-space: nowrap; }
+  /* bars */
+  .row + .row { margin-top: calc(var(--s) * 30px); }
+  .rh { display: flex; align-items: baseline; justify-content: space-between; gap: calc(var(--s) * 20px); margin-bottom: calc(var(--s) * 14px); }
+  .rl { font-size: calc(var(--s) * 34px); font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+  .row .num { font-size: calc(var(--s) * 64px); }
+  .trk { position: relative; height: calc(var(--s) * 24px); border-radius: 999px; background: rgba(127,127,127,.16); overflow: hidden; }
+  .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; border-radius: 999px; background: {{muted}}; transform-origin: 0 50%; }
+  /* rings */
+  #rings { display: flex; justify-content: space-around; gap: calc(var(--s) * 24px); }
+  .ring { position: relative; display: flex; flex-direction: column; align-items: center; }
+  .ring svg { width: calc(var(--s) * var(--rs)); height: calc(var(--s) * var(--rs)); transform: rotate(-90deg); overflow: visible; }
+  .ring circle { fill: none; stroke-linecap: round; }
+  .ring .bgc { stroke: rgba(127,127,127,.16); }
+  .ring .arc { stroke: {{muted}}; }
+  .ring .num { font-size: calc(var(--s) * var(--ns)); position: absolute; top: calc(var(--s) * var(--rs) / 2); left: 50%; transform: translate(-50%, -50%); }
+  .ring .rl { margin-top: calc(var(--s) * 18px); }
+  /* line */
+  #lhead { display: flex; align-items: baseline; justify-content: space-between; gap: calc(var(--s) * 20px); margin-bottom: calc(var(--s) * 10px); }
+  #lhead .num { font-size: calc(var(--s) * 96px); }
+  #lsvg { display: block; width: 100%; overflow: visible; }
+  #lsvg .grid { stroke: rgba(127,127,127,.22); stroke-width: 1.5; }
+  #lsvg .ln { fill: none; stroke: {{accent}}; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+  #lsvg .area { fill: {{accent}}; opacity: .10; }
+  #lsvg .dot { fill: {{accent}}; stroke: {{bg}}; stroke-width: 5; }
+  #xl { display: flex; justify-content: space-between; margin-top: calc(var(--s) * 14px); }
+  #xl span { font-size: calc(var(--s) * 26px); font-weight: 600; opacity: .62; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="card" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="title">{{title}}</div>
+    <div id="body"></div>
+  </div>
+</div>
+<script>
+  // Data that moves: bars fill / rings close / a line draws while the number counts up, then the
+  // comparison resolves (winner takes the accent, the rest step back).
+  const D = Number("{{duration}}"), S = Number("{{scale}}"), MODE = "{{mode}}";
+  const X = Number("{{x}}"), W = Number("{{width}}") * S, T0 = Number("{{t_start}}"), CD = Number("{{count_dur}}");
+  const DEC = Number("{{decimals}}") || 0, WIN = "{{winner}}";
+  const VALS = "{{values}}".split("|").map(v => Number(v.trim()) || 0);
+  const dec = s => { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; };   // vars arrive HTML-escaped
+  const LABS = dec("{{labels}}").split("|").map(s => s.trim());
+  const PRE = dec("{{prefix}}"), SUF = dec("{{suffix}}");
+  const MAX = Number("{{max}}") || (MODE === "ring" && SUF === "%" ? 100 : Math.max(...VALS) * (MODE === "line" ? 1.08 : 1)) || 1;
+  const ACC = "{{accent}}", MUT = "{{muted}}";
+  const fmt = v => PRE + Number(v).toLocaleString("en-US", { minimumFractionDigits: DEC, maximumFractionDigits: DEC }) + SUF;
+  const card = document.getElementById("card"), body = document.getElementById("body");
+  card.style.left = Math.round(Math.max(24, Math.min(1080 - 24 - W, X - W / 2))) + "px";
+  const winIdx = WIN === "none" ? -1 : WIN === "last" ? VALS.length - 1 : WIN === "first" ? 0
+               : /^\d+$/.test(WIN) ? Math.min(VALS.length - 1, Number(WIN)) : VALS.indexOf(Math.max(...VALS));
+  const tl = gsap.timeline({ paused: true });
+  const counter = (el, to, at, dur, from = 0) => {
+    const o = { v: from };
+    el.textContent = fmt(from);
+    tl.to(o, { v: to, duration: dur, ease: "power2.out", onUpdate: () => { el.textContent = fmt(o.v); } }, at);
+  };
+  // shrink a label (never clip it) to fit the space it has
+  const fit = (el, maxW) => { el.style.fontSize = ""; const w = el.scrollWidth; if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px"; };
+  let layout = () => fit(document.getElementById("title"), W - 96 * S);
+  const RESOLVE = T0 + CD + 0.05;
+
+  if (MODE === "ring") {
+    const n = Math.min(VALS.length, 3), rs = n === 1 ? 300 : n === 2 ? 260 : 210;
+    body.innerHTML = `<div id="rings">${VALS.slice(0, n).map((v, i) => `<div class="ring" style="--rs:${rs}px">
+      <svg viewBox="0 0 100 100"><circle class="bgc" cx="50" cy="50" r="44" stroke-width="9"/><circle class="arc" cx="50" cy="50" r="44" stroke-width="9" pathLength="100"/></svg>
+      <div class="num" style="--ns:${n === 1 ? 92 : n === 2 ? 76 : 58}px"></div><div class="rl"></div></div>`).join("")}</div>`;
+    document.querySelectorAll(".ring .rl").forEach((e, i) => { e.textContent = LABS[i] || ""; });
+    const rings = [...document.querySelectorAll(".ring")];
+    rings.forEach((r, i) => {
+      const arc = r.querySelector(".arc"), num = r.querySelector(".num"), t = T0 + i * 0.16;
+      const frac = Math.max(0, Math.min(1, VALS[i] / MAX));
+      gsap.set(arc, { strokeDasharray: 100, strokeDashoffset: 100 });
+      tl.to(arc, { strokeDashoffset: 100 - frac * 100, duration: CD, ease: "power2.out" }, t);
+      counter(num, VALS[i], t, CD);
+      tl.fromTo(r, { opacity: 0, y: 18 * S }, { opacity: 1, y: 0, duration: 0.4, ease: "expo.out" }, t - 0.1);
+    });
+    layout = (base => () => { base(); rings.forEach(r => { fit(r.querySelector(".rl"), W / n - 20 * S); fit(r.querySelector(".num"), rs * S * 0.74); }); })(layout);
+    if (winIdx >= 0 && n > 1) rings.forEach((r, i) => {
+      if (i === winIdx) { tl.to(r.querySelector(".arc"), { stroke: ACC, duration: 0.3, ease: "power1.out" }, RESOLVE + 0.16 * (n - 1));
+                          tl.fromTo(r.querySelector(".num"), { scale: 1 }, { scale: 1.08, duration: 0.18, ease: "power2.out", yoyo: true, repeat: 1 }, RESOLVE + 0.16 * (n - 1)); }
+      else tl.to(r, { opacity: 0.55, duration: 0.3, ease: "power1.out" }, RESOLVE + 0.16 * (n - 1));
+    });
+    else rings.forEach(r => tl.to(r.querySelector(".arc"), { stroke: ACC, duration: 0.3 }, RESOLVE));
+  } else if (MODE === "line") {
+    const n = VALS.length, VW = 1000, VH = 380, PADY = 18;
+    const pts = VALS.map((v, i) => [n === 1 ? VW : i * VW / (n - 1), VH - PADY - (v / MAX) * (VH - 2 * PADY)]);
+    // smooth monotone-ish curve through the points (Catmull-Rom → cubic Bézier)
+    let d = `M${pts[0][0]},${pts[0][1]}`;
+    for (let i = 0; i < n - 1; i++) {
+      const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+      d += ` C${p1[0] + (p2[0] - p0[0]) / 6},${p1[1] + (p2[1] - p0[1]) / 6} ${p2[0] - (p3[0] - p1[0]) / 6},${p2[1] - (p3[1] - p1[1]) / 6} ${p2[0]},${p2[1]}`;
+    }
+    const lab = n > 2 ? [LABS[0] || "", LABS[n - 1] || ""] : LABS.slice(0, n);
+    body.innerHTML = `<div id="lhead"><div class="rl" id="lcap"></div><div class="num" id="lnum"></div></div>
+      <svg id="lsvg" viewBox="0 0 ${VW} ${VH}" style="height:calc(var(--s) * ${Math.round(VH * (W - 96 * S) / VW / S)}px)">
+        ${[0.25, 0.5, 0.75].map(f => `<line class="grid" x1="0" x2="${VW}" y1="${VH * f}" y2="${VH * f}"/>`).join("")}
+        <clipPath id="cp"><rect id="cpr" x="-20" y="-40" width="0" height="${VH + 80}"/></clipPath>
+        <path class="area" clip-path="url(#cp)" d="${d} L${VW},${VH} L0,${VH} Z"/>
+        <path class="ln" id="ln" d="${d}"/><circle class="dot" id="dot" r="13" cx="${pts[0][0]}" cy="${pts[0][1]}"/></svg>
+      <div id="xl">${lab.map(() => "<span></span>").join("")}</div>`;
+    document.getElementById("lcap").textContent = LABS[n - 1] || "";
+    [...document.querySelectorAll("#xl span")].forEach((s, i) => { s.textContent = lab[i]; });
+    const ln = document.getElementById("ln"), dot = document.getElementById("dot"), num = document.getElementById("lnum"), lcap = document.getElementById("lcap");
+    const L = ln.getTotalLength();
+    gsap.set(ln, { strokeDasharray: L, strokeDashoffset: L });
+    const st = { p: 0 };
+    const draw = () => {
+      const pt = ln.getPointAtLength(st.p * L);
+      ln.style.strokeDashoffset = L * (1 - st.p);
+      dot.setAttribute("cx", pt.x); dot.setAttribute("cy", pt.y);
+      document.getElementById("cpr").setAttribute("width", pt.x + 20);
+      // the number reads the value under the head
+      const fx = pt.x / VW * (n - 1), i = Math.min(n - 2, Math.floor(fx)), f = fx - i;
+      lcap.textContent = LABS[Math.min(n - 1, Math.round(fx))] || "";
+      num.textContent = fmt(n === 1 ? VALS[0] : VALS[i] + (VALS[i + 1] - VALS[i]) * Math.max(0, Math.min(1, f)));
+    };
+    tl.fromTo(st, { p: 0 }, { p: 1, duration: CD, ease: "power2.inOut", onUpdate: draw }, T0);
+    tl.fromTo(dot, { scale: 0, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.3, ease: "back.out(1.6)" }, T0 - 0.05);
+    tl.fromTo(dot, { scale: 1 }, { scale: 1.35, duration: 0.16, ease: "power2.out", yoyo: true, repeat: 1 }, T0 + CD);
+    draw();
+    layout = (base => () => { base(); const c = document.getElementById("lcap"); c.style.fontSize = ""; fit(c, W - 96 * S - num.scrollWidth - 30 * S); })(layout);
+  } else {
+    body.innerHTML = VALS.map((v, i) => `<div class="row"><div class="rh"><div class="rl"></div><div class="num"></div></div><div class="trk"><div class="fill"></div></div></div>`).join("");
+    const rows = [...document.querySelectorAll(".row")];
+    rows.forEach((r, i) => {
+      r.querySelector(".rl").textContent = LABS[i] || "";
+      const t = T0 + i * 0.18, fill = r.querySelector(".fill");
+      tl.fromTo(r, { opacity: 0, y: 16 * S }, { opacity: 1, y: 0, duration: 0.4, ease: "expo.out" }, t - 0.12);
+      tl.fromTo(fill, { scaleX: 0 }, { scaleX: Math.max(0.02, Math.min(1, VALS[i] / MAX)), duration: CD, ease: "power2.out" }, t);
+      counter(r.querySelector(".num"), VALS[i], t, CD);
+    });
+    const tEnd = RESOLVE + 0.18 * (rows.length - 1);
+    rows.forEach((r, i) => {
+      if (winIdx < 0) return;
+      if (i === winIdx) {
+        tl.to(r.querySelector(".fill"), { backgroundColor: ACC, duration: 0.3, ease: "power1.out" }, tEnd);
+        tl.fromTo(r.querySelector(".num"), { scale: 1, transformOrigin: "100% 80%" }, { scale: 1.1, duration: 0.18, ease: "power2.out", yoyo: true, repeat: 1 }, tEnd);
+      } else tl.to(r.querySelectorAll(".num,.rl"), { opacity: 0.5, duration: 0.3, ease: "power1.out" }, tEnd);
+    });
+    layout = (base => () => { base(); rows.forEach(r => { const rl = r.querySelector(".rl"), nm = r.querySelector(".num");
+      const keep = nm.textContent; nm.textContent = fmt(VALS[rows.indexOf(r)]); const nw = nm.scrollWidth; nm.textContent = keep;
+      fit(rl, W - 96 * S - nw - 24 * S); }); })(layout);
+  }
+  layout();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
+
+  tl.fromTo(card, { opacity: 0 }, { opacity: 1, duration: 0.18, ease: "power1.out" }, 0);
+  tl.fromTo(card, { y: 30 * S, scale: 0.94, filter: "blur(6px)" }, { y: 0, scale: 1, filter: "blur(0px)", duration: 0.55, ease: "back.out(1.2)" }, 0);
+  tl.to(card, { opacity: 0, y: 12, scale: 0.97, filter: "blur(4px)", duration: 0.22, ease: "power2.in" }, D - 0.26);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

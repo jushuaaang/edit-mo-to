@@ -51,6 +51,12 @@ Effects and motion only. **Never copy a reference's colours or fonts:** every te
 
 **Section rhythm:** between list sections, use a quick whip/blur transition on the cut (CapCut "Blur" or "Swipe", 0.3 s) and change the framing (wide ↔ punch-in), so each section reads as new.
 
+## Premium motion kit (craft rules in `motion-designer.md`, built 2026-10-19)
+Effects and motion only: `font` and every colour are vars set from the client's brand and the mood; defaults are neutral greys. 9:16 at `height` 1920 (1350 for 4:5); `scale` resizes. Each change has a cause (a spoken word, a click, a beat).
+| Template | Use for | Key vars |
+|---|---|---|
+| data-viz | data that moves: `bars` fill while numbers count, then the winner takes the accent and the rest step back; `ring` (1–3 rings close around counting %); `line` draws left to right, the number and caption read the value under the head | mode, values (a\|b), labels, title, prefix, suffix, decimals, max, winner (max/last/first/index/none), t_start, count_dur, x, y, width, bg, fg, muted, accent, font |
+
 ## Sound effects
 - 19 sounds in `sfx\` (Pixabay licence: commercial use, no attribution): whoosh, whoosh-short, whoosh-cinematic, pop, click, click-soft, ping, chime, notification, sparkle, impact-bass-1/2, riser, glitch-1/2/3, typing, key-press, error.
 - Each template has a tuned default cue in `sfx_defaults.json`. Overlays opt in with `"sfx": "default"`.
