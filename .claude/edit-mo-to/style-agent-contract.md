@@ -1,7 +1,7 @@
 # Style agent contract (shared by ugc, broll, claymation, pixar, product-ad)
 
 ## What you receive (in the dispatch prompt)
-- `mode`: `prompts` | `edit-plan`
+- `mode`: `storyboard` | `prompts` | `edit-plan`
 - `client` (a file in `{root}/.claude/edit-mo-to/clients/`, if one exists) and `product`
 - `video_folder`: the per-video folder (clips, VO, music)
 - `brief_checklist`: every brief rule, quoted
@@ -32,6 +32,12 @@
 - **Splitting a line into several cuts:** place cut points between words using `vo_timings.words`. Never guess.
 - **AI clip shorter than the generator's minimum** (e.g. 1.5s vs Flow's 4s): generate the minimum and say "use the first N:FF" (or which part).
 - **AI prompts follow `broll_source`:** `client` = none; `both` = only for lines no client clip fits. "Optional upgrade" prompts are marked OPTIONAL, 2 at most.
+
+## Output: `mode: storyboard` (script gate, before any video is generated)
+Shows the direction of the whole ad. No VO exists yet, so `est` times come from the script (about 2.5 words/s).
+1. Write `<video_folder>/storyboard/storyboard.json` in the schema of `tools/storyboard.py` (see its docstring): `title`; `direction` (2–3 lines: hook idea, pacing, look); brand `font`/`bg`/`fg`/`accent`; one beat per script line or planned cut, with `line`, `est`, `shot` (a real client clip and time when one fits, catalogued as above, otherwise an AI shot with framing / subject / action / camera), `graphic` (a CATALOGUE template with the client's colours and font, only where the edit will really have one), `transition` and `note` (mood, music, SFX).
+2. For every AI shot, a **Nano Banana keyframe prompt** in its own code block, named after its beat (`SB-3`), with the lock lines that apply (realism, product, look, wardrobe, no text). These images become the clips' start frames later, so write them as the exact first frame of the clip.
+3. Run `"{python}" "{root}/.claude/edit-mo-to/tools/storyboard.py" "<video_folder>/storyboard/storyboard.json"` and hand back the `storyboard.html` path and the keyframe prompt table (`# | Script line | Shot | Save as`).
 
 ## Output: `mode: prompts`
 A short intro line, then one table: `# | Script line | VO in | VO out | Length | Source | Prompt / Cut | Attach`

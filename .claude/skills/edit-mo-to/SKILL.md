@@ -31,6 +31,7 @@ The user's own editing workflow. You run it in the main conversation and own all
 3. **Script.**
    - Brief has a script: use it word for word.
    - No script: ⛔ ask your questions, write it, run `qa` (gate `script`), ⛔ wait for approval.
+   - ⛔ **"Storyboard first?"** Ask once the script is set (yes for new clients, new styles or AI-heavy ads; skip for repeat formats). If yes: ask the B-roll source and generator now (step 6's questions, not asked again later), dispatch the style agent (`mode: storyboard`), show the `storyboard.html` and the Nano Banana keyframe prompts, and ⛔ ask "Approve this direction, or tell me what to change? Generate the keyframes and tell me when they're saved if you want to see the real look." When keyframes arrive, re-run `storyboard.py` (graphics are cached, ~5 s) and show it again. The approved storyboard is the plan for step 6: its shots and graphics carry over, and the keyframes become the AI clips' start frames.
    - TikTok product ad: no script. **Music first:** ⛔ "Suno prompt or your own no-copyright YouTube music?", wait for the track, go to step 5 (beats).
 4. ⛔ **Voiceover.** Wait for the user's ElevenLabs file. Note whether it's **one file** (hooks + body) or **one per hook/body**; it sets each timeline's `vo_in`/`vo_out`.
    - **Reusing an existing VO** (saves credits): `media_timing.py vo <file>` with no script, show its sentences with times, ⛔ let the user pick the spans. The script becomes those spoken lines; each timeline's `vo_in`/`vo_out` is its span.
@@ -61,6 +62,7 @@ The user's own editing workflow. You run it in the main conversation and own all
 - Python: `"{python}"`; tools in `{root}/.claude/edit-mo-to/tools/`:
   - `media_timing.py`: `vo <audio> [script.txt]`, `beats <audio>`
   - `speech_cuts.py`: `propose <clip>`, `apply <cuts.json>` (dead air and mistake cuts, step 5)
+  - `storyboard.py <storyboard.json>`: the storyboard sheet (step 3), one shareable HTML page
   - `edit_diff.py`: `snapshot` (editor, after builds), `diff` and `history` (learning step: what the editor changed by hand)
   - `capcut_project.py`: `list <project>` (show timelines); the editor uses the rest.
   - `motion_render.py`: `list`, `render <template> <out.mov> --vars-file f.json`, `preview <mov> <png>`. Catalogue: `motion/CATALOGUE.md`.

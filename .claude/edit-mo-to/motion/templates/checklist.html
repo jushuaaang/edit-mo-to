@@ -36,7 +36,8 @@
 </div>
 <script>
   const D = Number("{{duration}}"), S = Number("{{scale}}");
-  const items = "{{items}}".split("|").map(s => s.trim()).filter(Boolean);
+  const dec = s => { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; };
+  const items = dec("{{items}}").split("|").map(s => s.trim()).filter(Boolean);
   const ticks = "{{t_checks}}".split(",").map(s => s.trim()).filter(Boolean).map(Number);
   const list = document.getElementById("list"), card = document.getElementById("card");
   items.forEach(t => {

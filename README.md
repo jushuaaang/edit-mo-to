@@ -12,7 +12,9 @@ Orange steps are yours; blue steps are Claude's. Claude stops at every step that
 flowchart TD
     A["1 · You send the client's brief<br/>(PDF, doc, Notion link or pasted text)"]:::you --> B["2 · Claude studies it<br/>checklist of every brief rule + editing style"]:::claude
     B -->|you confirm| C["3 · Script<br/>(the brief's own, or Claude writes one)"]:::claude
-    C -->|you approve| D["4 · You make the voiceover<br/>in ElevenLabs"]:::you
+    C -->|you approve| S["Storyboard (optional)<br/>every shot + graphic, before any video is made"]:::claude
+    S -->|you approve the direction| D["4 · You make the voiceover<br/>in ElevenLabs"]:::you
+    C -.->|skip| D
     D --> E["5 · Timing + clean-up<br/>word timings, dead air and stutters cut"]:::claude
     E --> F["6 · B-roll picks + AI video prompts<br/>timed to the voiceover"]:::claude
     F -->|you generate the AI clips| G["7 · Claude builds the CapCut project<br/>cuts, motion graphics, sound effects"]:::claude
@@ -61,9 +63,10 @@ Setup takes about 15–30 minutes, mostly downloads. Afterwards, always start Cl
 1. In the Claude app's **Code** tab, start a session in your video folder (for example `D:\Video Editing`).
 2. Make a folder for the video inside it (for example `D:\Video Editing\Glow Serum`) and put the client's files there.
 3. Type **`/edit-mo-to`** and paste the brief, or attach it. Say which folder you made. Tip: if you already know them, add the B-roll source (client clips, AI or both), the AI tool (Google Flow or Seedance) and the voiceover file, and Claude skips those questions.
-4. Answer Claude's questions as they come. Each one is a stop sign: nothing happens until you reply.
-5. When the project is built, **quit CapCut completely** before asking for changes (CapCut overwrites projects when it closes). Then open it, review, and either ask for changes ("make the hook faster", "swap clip 4") or edit it yourself.
-6. Add captions with CapCut's auto-caption, tell Claude, pick the music, and export.
+4. When the script is ready, Claude asks **"Storyboard first?"** Say yes for a new client or an AI-heavy ad: you get a storyboard page (every shot, with the real client footage and the real motion graphics) before any video is generated. Claude also gives you free Nano Banana image prompts for the AI shots; generate them in Google Flow if you want to see the real look, and those images become the start frames of the videos later.
+5. Answer Claude's questions as they come. Each one is a stop sign: nothing happens until you reply.
+6. When the project is built, **quit CapCut completely** before asking for changes (CapCut overwrites projects when it closes). Then open it, review, and either ask for changes ("make the hook faster", "swap clip 4") or edit it yourself.
+7. Add captions with CapCut's auto-caption, tell Claude, pick the music, and export.
 
 Good to know:
 - **Deliverables appear in the chat as tables** (clip lists, prompts, plans), with times in `seconds:frames` (for example `7:12` = 7 seconds and 12 frames).
