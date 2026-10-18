@@ -1,0 +1,107 @@
+<!--defaults {"svg": "", "image": "", "color": "", "stroke": "#ffffff", "line_w": 2.5, "width": 620, "x": 540, "y": 900, "t_start": 0.15, "t_draw": 1.1, "tagline": "", "tagline_color": "#ffffff", "shadow": 0.3, "font": "Inter", "scale": 1, "height": 1920, "duration": 3} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+  #lg { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; }
+  #mark { position: relative; }
+  #mark svg, #mark img { display: block; width: 100%; height: auto; overflow: visible; }
+  #mark { filter: drop-shadow(0 2px 14px rgba(0,0,0,{{shadow}})); }
+  #strokes { position: absolute; inset: 0; }
+  #strokes * { fill: none !important; stroke: {{stroke}}; stroke-linecap: round; stroke-linejoin: round; }
+  #tag { margin-top: calc({{scale}} * 34px); color: {{tagline_color}}; font-size: calc({{scale}} * 28px); font-weight: 700;
+         letter-spacing: .22em; text-transform: uppercase; white-space: nowrap; text-shadow: 0 1px 10px rgba(0,0,0,.25); }
+  #tag:empty { display: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="lg" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="mark"></div><div id="tag">{{tagline}}</div>
+  </div>
+</div>
+<script>
+  // The client's real logo draws itself on, then fills. svg = the logo's .svg file (motion_render inlines it;
+  // for a PNG-only logo run `motion_render.py trace logo.png logo.svg` first). Each shape's outline draws in
+  // reading order, the fill rises in as the line completes, then the line falls away. color overrides the
+  // logo's own fills (e.g. white on dark footage); empty keeps them. Fallback: image = a PNG, revealed by a
+  // soft left-to-right mask wipe.
+  const D = Number("{{duration}}"), S = Number("{{scale}}"), X = Number("{{x}}"), Y = Number("{{y}}");
+  const T0 = Number("{{t_start}}"), TD = Number("{{t_draw}}"), LW = Number("{{line_w}}") * S;
+  const W = Math.min(1000, Number("{{width}}") * S), COLOR = "{{color}}";
+  const dec = s => { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; };
+  const lg = document.getElementById("lg"), mark = document.getElementById("mark");
+  mark.style.width = W + "px";
+  const raw = dec("{{svg}}").trim(), tl = gsap.timeline({ paused: true });
+  let svg = null;
+  if (/^<svg[\s>]/i.test(raw)) {
+    const doc = new DOMParser().parseFromString(raw, "image/svg+xml");
+    if (doc.documentElement.nodeName.toLowerCase() === "svg") svg = document.importNode(doc.documentElement, true);
+  }
+  const place = () => { lg.style.left = Math.round(X - lg.offsetWidth / 2) + "px"; lg.style.top = Math.round(Y - mark.offsetHeight / 2) + "px"; };
+
+  if (svg) {
+    const vb = (svg.getAttribute("viewBox") || "").split(/[\s,]+/).map(Number);
+    if (vb.length !== 4) { const w = parseFloat(svg.getAttribute("width")) || 100, h = parseFloat(svg.getAttribute("height")) || 100; svg.setAttribute("viewBox", `0 0 ${w} ${h}`); vb.splice(0, 4, 0, 0, w, h); }
+    svg.removeAttribute("width"); svg.removeAttribute("height");
+    mark.appendChild(svg);
+    const GEO = "path,circle,ellipse,rect,polygon,polyline,line";
+    const shapes = [...svg.querySelectorAll(GEO)].filter(e => !e.closest("defs,clipPath,mask"));
+    if (COLOR) shapes.forEach(e => { e.style.fill = COLOR; });
+    // stroke layer: a copy of every shape, compound paths split into their subpaths, so each letter
+    // or part draws on its own, ordered left to right
+    const ns = "http://www.w3.org/2000/svg", layer = document.createElementNS(ns, "svg");
+    layer.id = "strokes"; layer.setAttribute("viewBox", vb.join(" ")); layer.setAttribute("preserveAspectRatio", svg.getAttribute("preserveAspectRatio") || "xMidYMid meet");
+    mark.appendChild(layer);
+    const strokes = [];
+    shapes.forEach(e => {
+      // the shape's transforms up to the root svg, so the copy sits exactly on the original
+      let m = svg.createSVGMatrix();
+      for (let el = e; el && el !== svg; el = el.parentNode)
+        if (el.transform && el.transform.baseVal.numberOfItems) m = el.transform.baseVal.consolidate().matrix.multiply(m);
+      const tf = `matrix(${m.a},${m.b},${m.c},${m.d},${m.e},${m.f})`;
+      const d = e.tagName.toLowerCase() === "path" ? e.getAttribute("d") || "" : null;
+      const subs = d && !/[m]/.test(d.replace(/^\s*m/, "M")) ? d.split(/(?=M)/).filter(s => s.trim()) : null;
+      (subs && subs.length > 1 ? subs.map(sd => { const p = document.createElementNS(ns, "path"); p.setAttribute("d", sd); return p; }) : [e.cloneNode(false)])
+        .forEach(c => { c.removeAttribute("style"); c.removeAttribute("class"); if (tf) c.setAttribute("transform", tf); layer.appendChild(c); strokes.push(c); });
+    });
+    const k = vb[2] / W;   // user units per screen px
+    strokes.forEach(c => c.style.strokeWidth = LW * k);
+    strokes.sort((a, b) => a.getBBox().x - b.getBBox().x);
+    // draw: each stroke ~55% of the draw time, starts spread across the rest, in reading order
+    const n = strokes.length, each = TD * (n > 1 ? 0.55 : 1), gap = n > 1 ? (TD - each) / (n - 1) : 0;
+    strokes.forEach((c, i) => {
+      const L = c.getTotalLength ? c.getTotalLength() : 1000;
+      gsap.set(c, { strokeDasharray: `${L} ${L}`, strokeDashoffset: L });
+      tl.to(c, { strokeDashoffset: 0, duration: each, ease: "power2.inOut" }, T0 + i * gap);
+    });
+    const tFill = T0 + TD * 0.82;
+    tl.fromTo(shapes, { fillOpacity: 0 }, { fillOpacity: 1, duration: 0.45, ease: "power1.inOut" }, tFill);
+    tl.to(layer, { opacity: 0, duration: 0.35, ease: "power1.in" }, tFill + 0.25);
+    tl.fromTo(mark, { scale: 0.975 }, { scale: 1, duration: TD + 0.6, ease: "power1.out" }, T0);
+  } else if ("{{image}}") {
+    const img = document.createElement("img"); img.src = "{{image}}"; mark.appendChild(img);
+    const st = { p: -15 };
+    const paint = () => { const m = `linear-gradient(90deg, #000 ${st.p}%, transparent ${st.p + 15}%)`; img.style.webkitMaskImage = m; img.style.maskImage = m; };
+    tl.fromTo(st, { p: -15 }, { p: 100, duration: TD, ease: "power2.inOut", onUpdate: paint }, T0);
+    tl.fromTo(img, { filter: "blur(8px)", scale: 0.97 }, { filter: "blur(0px)", scale: 1, duration: TD + 0.3, ease: "power2.out" }, T0);
+    paint();
+    if (!img.complete) img.addEventListener("load", place);
+  }
+  const tag = document.getElementById("tag");
+  const fitTag = () => { tag.style.fontSize = ""; const w = tag.scrollWidth, m = 1000; if (w > m) tag.style.fontSize = (parseFloat(getComputedStyle(tag).fontSize) * m / w) + "px"; place(); };
+  fitTag();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitTag);
+  tl.fromTo(tag, { opacity: 0, y: 14 * S, filter: "blur(6px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "expo.out" }, T0 + TD + 0.15);
+  tl.to(lg, { opacity: 0, scale: 0.98, filter: "blur(6px)", duration: 0.24, ease: "power2.in" }, D - 0.26);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

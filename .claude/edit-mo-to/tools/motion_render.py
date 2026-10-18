@@ -12,13 +12,17 @@ CLI (prints JSON):
                                                  HyperFrames audit: lint, runtime errors, text overflow/overlap,
                                                  contrast. Held problems are errors/warnings; entrance blips are info
     preview <file.mov> <out.png> [seconds]       one frame composited over green (check transparency)
+    trace <logo.png> <out.svg> [--threshold 0-255] [--invert]
+                                                 trace a PNG logo to a one-colour SVG outline (OpenCV
+                                                 contours, holes kept), for logo-reveal when no SVG exists
     cutout <clip> <out.mov> [--in s] [--len s]   the person alone on alpha (HyperFrames u2net_human_seg,
                                                  ~1.3 s/frame on CPU), for text/graphics BEHIND the speaker:
                                                  place it on a track above those overlays, same at/scale/xy
                                                  as the A-roll segment it was cut from
 
 Vars whose value is an existing media file (video/image path) are copied into the render, so templates
-can show the user's own clips (phone-cards).
+can show the user's own clips (phone-cards). Vars that point at an existing .svg file are replaced by the
+file's markup (scripts and event handlers removed), so logo-reveal can draw the real logo's paths.
 """
 import html
 import json
@@ -108,10 +112,65 @@ def _probe(path: Path) -> dict:
 MEDIA_EXT = {".mp4", ".mov", ".webm", ".m4v", ".png", ".jpg", ".jpeg", ".webp"}
 
 
+def svg_markup(path: Path) -> str:
+    """An SVG file's <svg>…</svg> markup, without the XML prolog, comments, scripts or on* handlers."""
+    text = Path(path).read_text(encoding="utf-8", errors="replace")
+    text = re.sub(r"<\?xml.*?\?>|<!DOCTYPE.*?>|<!--.*?-->", "", text, flags=re.S | re.I)
+    text = re.sub(r"<script\b.*?</script>|<foreignObject\b.*?</foreignObject>", "", text, flags=re.S | re.I)
+    text = re.sub(r"\son[a-z]+\s*=\s*(\"[^\"]*\"|'[^']*')", "", text, flags=re.I)
+    m = re.search(r"<svg\b.*</svg>", text, flags=re.S | re.I)
+    if not m:
+        raise ValueError(f"{path} has no <svg> element")
+    return re.sub(r"\s+", " ", m.group(0)).strip()
+
+
+def trace(png: Path, out: Path, threshold: int | None = None, invert: bool = False) -> dict:
+    """Trace a logo PNG to a one-colour SVG: the alpha channel if it has one, else dark-on-light (or light-on-
+    dark with invert) by Otsu or the given threshold. Outer shapes and their holes become one even-odd path."""
+    import cv2
+
+    img = cv2.imread(str(png), cv2.IMREAD_UNCHANGED)
+    if img is None:
+        raise ValueError(f"cannot read {png}")
+    if img.ndim == 3 and img.shape[2] == 4 and img[:, :, 3].min() < 250:
+        gray, dark_is_ink = img[:, :, 3], False
+    else:
+        gray = cv2.cvtColor(img[:, :, :3], cv2.COLOR_BGR2GRAY) if img.ndim == 3 else img
+        dark_is_ink = not invert
+    # trace at >= 1600 px wide so curves stay smooth after polygon simplification
+    k = max(1.0, 1600 / gray.shape[1])
+    gray = cv2.resize(gray, None, fx=k, fy=k, interpolation=cv2.INTER_CUBIC)
+    flag = cv2.THRESH_BINARY_INV if dark_is_ink else cv2.THRESH_BINARY
+    if threshold is None:
+        _, mask = cv2.threshold(gray, 0, 255, flag | cv2.THRESH_OTSU)
+    else:
+        _, mask = cv2.threshold(gray, threshold, 255, flag)
+    contours, _ = cv2.findContours(mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
+    h, w = mask.shape
+    min_area = w * h * 2e-5
+    polys = [cv2.approxPolyDP(c, 0.6, True).reshape(-1, 2) / k for c in contours if abs(cv2.contourArea(c)) >= min_area]
+    if not polys:
+        raise ValueError("nothing traced; try --threshold or --invert")
+    # tight viewBox around the ink, with a 1% margin
+    pts = [p for c in polys for p in c]
+    x0, y0 = min(p[0] for p in pts), min(p[1] for p in pts)
+    pad = 0.01 * max(max(p[0] for p in pts) - x0, max(p[1] for p in pts) - y0)
+    x0, y0 = x0 - pad, y0 - pad
+    W, H = max(p[0] for p in pts) - x0 + pad, max(p[1] for p in pts) - y0 + pad
+    parts = ["M" + " L".join(f"{x - x0:.1f},{y - y0:.1f}" for x, y in c) + "Z" for c in polys]
+    Path(out).write_text(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W:.0f} {H:.0f}">'
+                         f'<path fill="#000" fill-rule="evenodd" d="{" ".join(parts)}"/></svg>\n', encoding="utf-8")
+    return {"svg": str(out), "shapes": len(parts), "viewbox": f"0 0 {W:.0f} {H:.0f}"}
+
+
 def _stage_media(variables: dict, work: Path) -> dict:
-    """Copy vars that point at real media files into the render folder; the template sees a relative name."""
+    """Copy vars that point at real media files into the render folder; the template sees a relative name.
+    A var pointing at an .svg file becomes that file's markup."""
     out = dict(variables)
     for k, v in variables.items():
+        if isinstance(v, str) and v.lower().endswith(".svg") and Path(v).is_file():
+            out[k] = svg_markup(Path(v))
+            continue
         if isinstance(v, str) and Path(v).suffix.lower() in MEDIA_EXT and Path(v).is_file():
             name = f"media_{k}{Path(v).suffix.lower()}"
             shutil.copy2(v, work / name)
@@ -262,6 +321,9 @@ def main(argv: list[str]) -> None:
         start = float(args[args.index("--in") + 1]) if "--in" in args else 0.0
         length = float(args[args.index("--len") + 1]) if "--len" in args else None
         out = cutout(Path(args[0]), Path(args[1]), start, length)
+    elif cmd == "trace":
+        thr = int(args[args.index("--threshold") + 1]) if "--threshold" in args else None
+        out = trace(Path(args[0]), Path(args[1]), thr, "--invert" in args)
     elif cmd == "preview":
         out = {"png": str(preview(Path(args[0]), Path(args[1]), float(args[2]) if len(args) > 2 else None))}
     else:

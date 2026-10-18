@@ -91,3 +91,30 @@ def test_stage_media_copies_real_files_only(tmp_path):
     out = mr._stage_media({"video1": str(clip), "video2": "placeholder.mp4", "label1": "BEFORE"}, work)
     assert out == {"video1": "media_video1.mp4", "video2": "placeholder.mp4", "label1": "BEFORE"}
     assert (work / "media_video1.mp4").exists()
+
+
+def test_stage_media_inlines_svg_without_scripts(tmp_path):
+    svg = tmp_path / "logo.svg"
+    svg.write_text('<?xml version="1.0"?><!-- c --><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" '
+                   'onload="alert(1)"><script>alert(2)</script><path d="M0 0H10V10Z"/></svg>', encoding="utf-8")
+    out = mr._stage_media({"svg": str(svg)}, tmp_path)
+    assert out["svg"].startswith("<svg") and "<path" in out["svg"]
+    assert "script" not in out["svg"] and "onload" not in out["svg"] and "<?xml" not in out["svg"]
+    html = mr.fill(mr.template_text("logo-reveal"), out)
+    assert "&lt;svg" in html   # escaped into a JS string, decoded by the template
+
+
+def test_trace_keeps_holes_and_crops_to_the_ink(tmp_path):
+    import cv2
+    import numpy as np
+
+    img = np.full((300, 600), 255, np.uint8)
+    cv2.circle(img, (300, 150), 100, 0, -1)
+    cv2.circle(img, (300, 150), 50, 255, -1)          # a ring: one outer shape, one hole
+    png = tmp_path / "ring.png"
+    cv2.imwrite(str(png), img)
+    info = mr.trace(png, tmp_path / "ring.svg")
+    text = (tmp_path / "ring.svg").read_text(encoding="utf-8")
+    assert info["shapes"] == 2 and 'fill-rule="evenodd"' in text
+    w, h = map(float, info["viewbox"].split()[2:])
+    assert 200 <= w <= 212 and 200 <= h <= 212

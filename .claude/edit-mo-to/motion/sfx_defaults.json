@@ -33,5 +33,7 @@
                       {"name": "click", "offset": "t_clicks", "len": 0.37, "volume": 0.5}],
   "kinetic-type":    [{"name": "whoosh-short", "offset": 0.0, "len": 0.5, "volume": 0.3}],
   "morph-flow":      [{"name": "pop", "offset": 0.0, "len": 0.6, "volume": 0.45},
-                      {"name": "whoosh-short", "offset": "times", "len": 0.4, "volume": 0.25}]
+                      {"name": "whoosh-short", "offset": "times", "len": 0.4, "volume": 0.25}],
+  "logo-reveal":     [{"name": "riser", "offset": 0.0, "len": 1.2, "volume": 0.25},
+                      {"name": "chime", "offset": 1.1, "len": 1.6, "volume": 0.35}]
 }
