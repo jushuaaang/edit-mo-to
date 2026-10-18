@@ -24,6 +24,17 @@ Every template is `templates\<name>.html`. For exact variables and defaults, run
 | glass-compare | ✓/✕ verdict rows, or mirror twins (`mode`) | win, lose, win_note, lose_note, mode, t_verdict |
 | color-flash | full-frame colour wash on a beat | color, peak, hold, vignette |
 
+## "Fascora glass" system: native 4:5, works for 9:16 too (built 2026-10-17)
+Every template here has a `height` var (default 1350, use 1920 for 9:16) and a `scale` var. They render at the full canvas size, so place the .mov at CapCut scale 1.0, x 0, y 0, with position set by the template vars (canvas px). No emoji: icons are SVG line glyphs. Type is Inter with SF-style tracking. The material is a flat iOS frosted fill with a 1px inner edge and a soft two-layer shadow. Accents are the pouch blues (navy `#0e2f5a`, mid `#1f6fb8`, wave `#8fd3ff`).
+| Template | Use for | Key vars |
+|---|---|---|
+| glass-card-v2 | premium iOS card: one bold title line + one short line. The title shrinks up to 15% to stay on one line, otherwise wraps balanced; never leaves an orphan word | title, sub, icon (check/plus/leaf/drop/clock/heart/none), accent, x, y, anchor, scale, max_width, theme |
+| glass-title | hook title: light glass label (line 1) + navy panel (line 2); key phrase lights up in wave blue on its spoken word | line1, line2, key, t_key, y, align, scale, size1, size2 |
+| glass-toggle | iOS segmented control, e.g. "6 months ago │ Now"; thumb springs across on the word | left, right, t_switch, y, scale |
+| glass-counter | big counting number + label in a glass card ("20 clients a day") | value, prefix, suffix, label, from, t_count, count_dur, x, y, anchor |
+| pain-marker | pulsing pain point on the body + leader line + glass tag | label, x, y, side, dx, dy, color |
+| light-sweep | soft blue-white glint across a cut (0.5 s), a premium alternative to `color-flash` | tint, peak, angle, dir |
+
 ## Sound effects
 - 19 sounds in `sfx\` (Pixabay licence: commercial use, no attribution): whoosh, whoosh-short, whoosh-cinematic, pop, click, click-soft, ping, chime, notification, sparkle, impact-bass-1/2, riser, glitch-1/2/3, typing, key-press, error.
 - Each template has a tuned default cue in `sfx_defaults.json`. Overlays opt in with `"sfx": "default"`.

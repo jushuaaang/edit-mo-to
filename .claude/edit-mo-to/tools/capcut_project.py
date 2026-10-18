@@ -22,6 +22,10 @@ CLI (prints JSON):
     add-overlay <project> <name> <draft_dir> [track] add a draft's video segments (B-roll) onto a timeline's
                                                  video_overlay (or named) track, keeping captions and hand
                                                  edits byte-for-byte (auto-backup, refuses overlaps)
+    patch <project> <name> <ops.json>            edit a (hand-edited) timeline in place, op by op: set / remove /
+                                                 insert / split / ripple, segments addressed by their CapCut id;
+                                                 everything else stays byte-for-byte (auto-backup, writes
+                                                 draft_content.json, validates before writing; --dry-run)
     segments <project> <name> [search_dir ...]   list what's on a timeline (layout, text, original files);
                                                  search_dirs help find sources CapCut forgot
     backup <project> <name>                      back up a timeline
@@ -50,7 +54,9 @@ PLACEHOLDER_RE = re.compile(r"##_draftpath_placeholder_[0-9A-Fa-f-]+_##")
 FULL_FRAME_CROP = {"upper_left_x": 0.0, "upper_left_y": 0.0, "upper_right_x": 1.0, "upper_right_y": 0.0,
                    "lower_left_x": 0.0, "lower_left_y": 1.0, "lower_right_x": 1.0, "lower_right_y": 1.0}
 MIN_ARGS = {"import": 2, "link-originals": 1, "compose": 2, "add-timeline": 3, "duplicate": 3, "replace": 3, "add-tracks": 3, "add-overlay": 3,
-            "segments": 2, "backup": 2, "list": 1, "wait": 1}
+            "patch": 3, "segments": 2, "backup": 2, "list": 1, "wait": 1}
+PHOTO_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+PHOTO_DURATION_US = 10_800_000_000  # what CapCut stores as a still's material duration (3 h)
 # Per-segment helper materials CapCut gives every video segment (extra_material_refs). add-overlay clones
 # these from a segment already on the target track, so the new clip has the same shape CapCut saves.
 COMPANION_KINDS = ("speeds", "canvases", "placeholder_infos", "sound_channel_mappings", "material_colors",
@@ -717,6 +723,295 @@ def add_overlay(project: Path, name: str, draft: Path, track_name: str = "video_
             **report}
 
 
+def _probe_media(path: str) -> dict:
+    """{duration_us, width, height, kind} of a media file ('photo' for stills, 'video', 'audio')."""
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"media file not found: {path}")
+    if p.suffix.lower() in PHOTO_EXTS:
+        info = _probe_video(path) or (0, 0, 0)
+        return {"duration_us": PHOTO_DURATION_US, "width": info[0], "height": info[1], "kind": "photo"}
+    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration:stream=codec_type,width,height",
+                          "-of", "json", path], capture_output=True, text=True, timeout=30, stdin=subprocess.DEVNULL)
+    data = json.loads(out.stdout or "{}")
+    streams = data.get("streams", [])
+    video = next((s for s in streams if s.get("codec_type") == "video"), None)
+    dur = int(round(float(data.get("format", {}).get("duration", 0)) * 1_000_000))
+    if video:
+        return {"duration_us": dur, "width": int(video.get("width", 0)), "height": int(video.get("height", 0)), "kind": "video"}
+    return {"duration_us": dur, "width": 0, "height": 0, "kind": "audio"}
+
+
+def _point_material_at(m: dict, path: str, info: dict) -> None:
+    """Make a (cloned) video/audio material describe another file."""
+    name = Path(path).name
+    m["path"] = Path(path).as_posix()
+    m["duration"] = info["duration_us"]
+    if "material_name" in m:
+        m["material_name"] = name
+    if "name" in m:
+        m["name"] = name
+    if info["kind"] in ("video", "photo"):
+        m["type"] = info["kind"]
+        m["width"], m["height"] = info["width"], info["height"]
+    for key in ("remote_url", "media_path"):
+        if key in m:
+            m[key] = ""
+
+
+def _new_material_ids(m: dict) -> str:
+    new = _new_id().replace("-", "").lower()
+    m["id"] = new
+    for key in ("material_id", "local_material_id", "music_id"):
+        if key in m:
+            m[key] = new
+    if "unique_id" in m:
+        m["unique_id"] = uuid.uuid4().hex
+    return new
+
+
+class _Patcher:
+    """Applies patch ops to one timeline's content (already loaded with _read_exact)."""
+
+    def __init__(self, content: dict):
+        self.c = content
+        self.mats = content.setdefault("materials", {})
+        self.names = {}  # "@name" -> segment id, for segments created by split/insert
+
+    # --- lookups -------------------------------------------------------------------------
+    def _by_id(self) -> dict:
+        return {m["id"]: (k, m) for k, items in self.mats.items() if isinstance(items, list)
+                for m in items if isinstance(m, dict) and "id" in m}
+
+    def _resolve(self, sid: str) -> str:
+        return self.names.get(sid.lstrip("@"), sid) if isinstance(sid, str) and sid.startswith("@") else sid
+
+    def _locate(self, sid: str) -> tuple[dict, dict]:
+        sid = self._resolve(sid)
+        for t in self.c.get("tracks", []):
+            for s in t.get("segments", []):
+                if s.get("id") == sid:
+                    return t, s
+        raise KeyError(f"no segment with id {sid!r} on this timeline")
+
+    def _track(self, name: str, like_type: str | None = None) -> dict:
+        found = [t for t in self.c.get("tracks", []) if t.get("name") == name]
+        if len(found) > 1:
+            raise ValueError(f"more than one track named {name!r}")
+        if found:
+            return found[0]
+        if not like_type:
+            raise KeyError(f"no track named {name!r}")
+        src = next((t for t in self.c["tracks"] if t.get("type") == like_type), None)
+        if src is None:
+            raise KeyError(f"no track named {name!r} and no {like_type} track to copy its shape from")
+        new = {k: copy.deepcopy(v) for k, v in src.items() if k != "segments"}
+        new.update(id=_new_id(), name=name, segments=[])
+        self.c["tracks"].append(new)
+        return new
+
+    # --- material helpers ------------------------------------------------------------------
+    def _clone_material(self, mid: str) -> str:
+        kind, m = self._by_id()[mid]
+        m = copy.deepcopy(m)
+        new = _new_material_ids(m) if kind in ("videos", "audios") else _new_id()
+        m["id"] = new
+        self.mats[kind].append(m)
+        return new
+
+    def _clone_segment(self, seg: dict) -> dict:
+        new = copy.deepcopy(seg)
+        new["id"] = _new_id().replace("-", "").lower()
+        new["material_id"] = self._clone_material(seg["material_id"])
+        new["extra_material_refs"] = [self._clone_material(r) for r in seg.get("extra_material_refs") or []
+                                      if r in self._by_id()]
+        new["keyframe_refs"] = []
+        new["common_keyframes"] = []
+        return new
+
+    def _set_speed(self, seg: dict, speed) -> None:
+        seg["speed"] = speed
+        by = self._by_id()
+        for r in seg.get("extra_material_refs") or []:
+            k, m = by.get(r, (None, None))
+            if k == "speeds":
+                m["speed"] = speed
+
+    def _apply_fields(self, seg: dict, op: dict) -> None:
+        tr, sr = seg["target_timerange"], seg.get("source_timerange")
+        if "start" in op:
+            tr["start"] = int(op["start"])
+        if "duration" in op:
+            tr["duration"] = int(op["duration"])
+        if sr is not None:
+            if "src_start" in op:
+                sr["start"] = int(op["src_start"])
+            if "src_duration" in op:
+                sr["duration"] = int(op["src_duration"])
+        if "speed" in op:
+            self._set_speed(seg, op["speed"])
+        clip = seg.get("clip")
+        if clip is not None:
+            if "scale" in op:
+                clip.setdefault("scale", {})
+                clip["scale"]["x"] = clip["scale"]["y"] = op["scale"]
+            if "x" in op:
+                clip.setdefault("transform", {})["x"] = op["x"]
+            if "y" in op:
+                clip.setdefault("transform", {})["y"] = op["y"]
+        if "volume" in op:
+            seg["volume"] = op["volume"]
+            if op["volume"]:
+                seg["last_nonzero_volume"] = op["volume"]
+
+    def _repoint(self, seg: dict, path: str) -> None:
+        info = _probe_media(path)
+        kind, m = self._by_id()[seg["material_id"]]
+        if sum(1 for t in self.c["tracks"] for s in t.get("segments", []) if s.get("material_id") == m["id"]) > 1:
+            seg["material_id"] = self._clone_material(m["id"])
+            kind, m = self._by_id()[seg["material_id"]]
+        _point_material_at(m, path, info)
+
+    # --- ops -----------------------------------------------------------------------------
+    def set(self, op: dict) -> dict:
+        _, seg = self._locate(op["id"])
+        if op.get("file"):
+            self._repoint(seg, op["file"])
+        self._apply_fields(seg, op)
+        return {"op": "set", "id": seg["id"]}
+
+    def remove(self, op: dict) -> dict:
+        t, seg = self._locate(op["id"])
+        t["segments"].remove(seg)
+        used = {s.get("material_id") for tr in self.c["tracks"] for s in tr.get("segments", [])}
+        used |= {r for tr in self.c["tracks"] for s in tr.get("segments", []) for r in s.get("extra_material_refs") or []}
+        drop = {seg.get("material_id"), *(seg.get("extra_material_refs") or [])} - used
+        for kind, items in self.mats.items():
+            if isinstance(items, list):
+                self.mats[kind] = [m for m in items if not (isinstance(m, dict) and m.get("id") in drop)]
+        return {"op": "remove", "id": seg["id"]}
+
+    def insert(self, op: dict) -> dict:
+        info = _probe_media(op["file"])
+        like_type = "audio" if info["kind"] == "audio" else "video"
+        track = self._track(op["track"], like_type)
+        if op.get("like"):
+            _, template = self._locate(op["like"])
+        else:
+            pool = track.get("segments") or [s for t in self.c["tracks"] if t.get("type") == like_type
+                                             for s in t.get("segments", [])]
+            if not pool:
+                raise ValueError(f"no {like_type} segment to copy a segment shape from")
+            template = max(pool, key=lambda s: s["target_timerange"]["start"])
+        seg = self._clone_segment(template)
+        _point_material_at(self._by_id()[seg["material_id"]][1], op["file"], info)
+        seg.setdefault("source_timerange", {"start": 0, "duration": 0})
+        self._apply_fields(seg, {"speed": 1.0, **op})
+        if "src_duration" not in op:
+            seg["source_timerange"]["duration"] = int(round(seg["target_timerange"]["duration"] * seg.get("speed", 1.0)))
+        track["segments"].append(seg)
+        track["segments"].sort(key=lambda s: s["target_timerange"]["start"])
+        if op.get("name"):
+            self.names[op["name"].lstrip("@")] = seg["id"]
+        return {"op": "insert", "id": seg["id"], "track": op["track"]}
+
+    def split(self, op: dict) -> dict:
+        t, seg = self._locate(op["id"])
+        at = int(op["at"])
+        s0, s1 = _span(seg)
+        if not s0 < at < s1:
+            raise ValueError(f"split point {at} is outside segment {seg['id']} ({s0}-{s1})")
+        right = self._clone_segment(seg)
+        left_dur = at - s0
+        speed = float(seg.get("speed", 1.0))
+        seg["target_timerange"]["duration"] = left_dur
+        right["target_timerange"] = {"start": at, "duration": s1 - at}
+        if seg.get("source_timerange"):
+            src0, srcd = seg["source_timerange"]["start"], seg["source_timerange"]["duration"]
+            left_src = int(round(left_dur * speed))
+            seg["source_timerange"]["duration"] = left_src
+            right["source_timerange"] = {"start": src0 + left_src, "duration": srcd - left_src}
+        t["segments"].insert(t["segments"].index(seg) + 1, right)
+        if op.get("name"):
+            self.names[op["name"].lstrip("@")] = right["id"]
+        return {"op": "split", "id": seg["id"], "new_id": right["id"]}
+
+    def ripple(self, op: dict) -> dict:
+        at, delta = int(op["at"]), int(op["delta"])
+        moved = 0
+        for t in self.c.get("tracks", []):
+            for s in t.get("segments", []):
+                if s["target_timerange"]["start"] >= at and s.get("id") not in set(map(self._resolve, op.get("except", []))):
+                    s["target_timerange"]["start"] += delta
+                    moved += 1
+        return {"op": "ripple", "at": at, "delta": delta, "moved": moved}
+
+    # --- checks --------------------------------------------------------------------------
+    def validate(self) -> None:
+        for t in self.c.get("tracks", []):
+            spans = sorted((_span(s) + (s.get("id"),)) for s in t.get("segments", []))
+            for (a0, a1, a), (b0, b1, b) in zip(spans, spans[1:]):
+                if b0 < a1:
+                    raise ValueError(f"overlap on track {t.get('name')!r}: {a} ({a0}-{a1}) and {b} ({b0}-{b1})")
+            for s in t.get("segments", []):
+                if s["target_timerange"]["duration"] <= 0 or s["target_timerange"]["start"] < 0:
+                    raise ValueError(f"segment {s.get('id')} has a bad time range {s['target_timerange']}")
+        ends = [_span(s)[1] for t in self.c.get("tracks", []) for s in t.get("segments", [])]
+        self.c["duration"] = max(ends, default=0)
+
+
+def patch_timeline(project: Path, name: str, ops, dry_run: bool = False) -> dict:
+    """Edit a timeline in place op by op, keeping everything else (the user's hand edits, keyframes,
+    captions) byte-for-byte. Ops (times in microseconds, segments by their CapCut id or an "@name"
+    given to a segment made earlier in the same patch):
+        {"op": "set", "id", [file], [start, duration, src_start, src_duration, speed, scale, x, y, volume]}
+        {"op": "remove", "id"}
+        {"op": "insert", "track", "file", "start", "duration", [src_start, src_duration, speed, scale, x, y,
+         volume, like (segment id to copy the shape from), name]}   (a missing track is created)
+        {"op": "split", "id", "at", [name (for the right half)]}
+        {"op": "ripple", "at", "delta", [except: ids]}   shift every segment starting at/after `at`
+    All ops are applied in memory and the result is checked (no overlaps) before anything is written.
+    Writes the timeline's draft_content.json (newest) + draft_info.json, and the root files for the main
+    timeline. Backs the timeline up first."""
+    project = Path(project)
+    if not dry_run:
+        _check_not_busy(project)
+    _ensure_timelines_layout(project)
+    if isinstance(ops, (str, Path)):
+        ops = _read(Path(ops))
+    if isinstance(ops, dict):
+        ops = ops["ops"]
+    tl = _find(project, name)
+    folder = project / "Timelines" / tl["id"]
+    content = _read_exact(_content_file(folder))
+    before = content.get("duration", 0)
+    p = _Patcher(content)
+    done = []
+    for i, op in enumerate(ops):
+        fn = getattr(p, op.get("op", ""), None)
+        if op.get("op") not in ("set", "remove", "insert", "split", "ripple") or fn is None:
+            raise ValueError(f"op {i}: unknown op {op.get('op')!r}")
+        try:
+            done.append({"n": i, **fn(op)})
+        except (KeyError, ValueError, FileNotFoundError) as e:
+            raise ValueError(f"op {i} ({op.get('op')}): {e}; nothing was written") from e
+    p.validate()
+    result = {"name": name, "id": tl["id"], "ops_applied": len(done), "duration_before": before / 1e6,
+              "duration": content["duration"] / 1e6, "dry_run": dry_run, "results": done}
+    if dry_run:
+        return result
+    backup = backup_timeline(project, name)
+    if tl["main"]:
+        for fname in CONTENT_FILES:
+            if (project / fname).exists():
+                shutil.copy2(project / fname, backup / f"root_{fname}")
+    _write_newest_content(folder, content)
+    if tl["main"]:
+        _write_newest_content(project, content)
+    _save_project_json(project, _project_json(project))
+    return {**result, "backup": str(backup)}
+
+
 def _vectcut_hash(url: str) -> str:
     """VectCutAPI names copied media <kind>_<this>.<ext> (util.url_to_hash)."""
     return hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
@@ -849,6 +1144,10 @@ def main(argv: list[str]) -> None:
         out = add_tracks(Path(args[0]), args[1], Path(args[2]), args[3] if len(args) > 3 else "audio")
     elif cmd == "add-overlay":
         out = add_overlay(Path(args[0]), args[1], Path(args[2]), args[3] if len(args) > 3 else "video_overlay")
+    elif cmd == "patch":
+        dry = "--dry-run" in args
+        args = [a for a in args if a != "--dry-run"]
+        out = patch_timeline(Path(args[0]), args[1], Path(args[2]), dry_run=dry)
     elif cmd == "segments":
         out = segments(Path(args[0]), args[1], [Path(d) for d in args[2:]])
     elif cmd == "backup":

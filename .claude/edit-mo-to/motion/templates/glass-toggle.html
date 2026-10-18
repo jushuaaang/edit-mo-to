@@ -1,0 +1,58 @@
+<!--defaults {"left": "6 months ago", "right": "Now", "t_switch": 2.0, "panel": "#0e2f5a", "ink": "#0b2545", "y": 48, "scale": 1, "font": "Inter", "height": 1350, "duration": 4} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", -apple-system, "SF Pro Display", sans-serif;
+          --s: {{scale}}; -webkit-font-smoothing: antialiased; }
+  /* iOS segmented control: glass track, sliding navy thumb */
+  #seg { position: absolute; top: {{y}}px; left: 540px; display: flex; padding: calc(var(--s) * 7px); border-radius: 999px;
+         background: rgba(247,249,252,.84);
+         box-shadow: inset 0 0 0 1px rgba(255,255,255,.75), 0 0 0 1px rgba(11,37,69,.06), 0 2px 6px rgba(6,18,40,.10), 0 16px 40px rgba(6,18,40,.22); }
+  #thumb { position: absolute; top: calc(var(--s) * 7px); bottom: calc(var(--s) * 7px); left: 0; border-radius: 999px; background: {{panel}};
+           box-shadow: 0 3px 10px rgba(4,14,34,.30), inset 0 0 0 1px rgba(255,255,255,.10); }
+  .opt { position: relative; z-index: 1; padding: calc(var(--s) * 16px) calc(var(--s) * 38px) calc(var(--s) * 18px); white-space: nowrap;
+         font-size: calc(var(--s) * 44px); font-weight: 700; letter-spacing: -0.015em; line-height: 1; color: {{ink}}; }
+  #r { min-width: calc(var(--s) * 200px); text-align: center; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="seg" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="thumb"></div><div id="l" class="opt">{{left}}</div><div id="r" class="opt">{{right}}</div>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), TS = Number("{{t_switch}}"), INK = "{{ink}}";
+  const seg = document.getElementById("seg"), th = document.getElementById("thumb"), L = document.getElementById("l"), R = document.getElementById("r");
+  function fit() {
+    seg.style.fontSize = "";
+    const w = seg.offsetWidth;
+    if (w > 980) { const k = 980 / w; [L, R].forEach(e => e.style.fontSize = (parseFloat(getComputedStyle(e).fontSize) * k) + "px"); }
+  }
+  fit();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+  const geo = el => ({ x: el.offsetLeft, w: el.offsetWidth });
+  gsap.set(seg, { xPercent: -50, transformOrigin: "50% 50%" });
+  const tl = gsap.timeline({ paused: true });
+  // thumb is laid out on the left option; on t_switch it springs to the right one
+  tl.set(th, { x: () => geo(L).x, width: () => geo(L).w }, 0);
+  tl.set(L, { color: "#ffffff" }, 0);
+  tl.fromTo(seg, { opacity: 0, y: -24, scale: 0.9, filter: "blur(6px)" }, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.5, ease: "back.out(1.6)" }, 0);
+  tl.fromTo(th, { scaleX: 0.6, opacity: 0 }, { scaleX: 1, opacity: 1, duration: 0.4, ease: "back.out(2)" }, 0.12);
+  tl.to(th, { x: () => geo(R).x, width: () => geo(R).w, duration: 0.5, ease: "back.out(1.4)" }, TS);
+  // labels swap as the thumb passes, so neither is ever white-on-glass
+  tl.to(L, { color: INK, duration: 0.12, ease: "none" }, TS);
+  tl.to(R, { color: "#ffffff", duration: 0.12, ease: "none" }, TS + 0.18);
+  tl.fromTo(seg, { scale: 1 }, { scale: 1.05, duration: 0.14, yoyo: true, repeat: 1, ease: "power2.out" }, TS + 0.1);
+  tl.to(seg, { opacity: 0, y: -14, scale: 0.95, filter: "blur(5px)", duration: 0.22, ease: "power2.in" }, D - 0.26);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

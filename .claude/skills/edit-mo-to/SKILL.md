@@ -19,6 +19,8 @@ This is the user's own editing workflow. You run it in the main conversation, an
 - **Deliverables go in chat, as tables.** Never write them to .md files. Prompts go in copyable code blocks.
 - **Formats:** times in `seconds:frames` at 30 fps; full file paths; 9:16 unless the brief says otherwise.
 - **Captions** are done by the user (CapCut auto-caption), so never add them. **Export** is done by the user.
+- **Keep agent output small.** Agents hand back about 30 lines and leave their full tables, prompts and plan JSON in `{tmp}/reports/<job>/`. Pass those paths on (style agent → editor and QA) instead of pasting the content, and show the user the deliverable table from the file without re-summarising it.
+- **Re-runs post only what changed.** When a prompt is fixed, post only the changed sentences (or point to the prompt file), not the whole prompt with its lock blocks again. After a small fix, run `qa` in delta mode (`scope: delta`, `changed:` the clips or ops touched); keep a full QA run for the first pass at each gate.
 - **Track state** in a running "Job card" (client, product, style, video folder, brief checklist, script, VO path + timings, B-roll source, generator, music, project name, timelines). Re-show it when it changes.
 
 ## The 12 steps
@@ -43,7 +45,7 @@ This is the user's own editing workflow. You run it in the main conversation, an
 6. **B-roll and prompts.**
    - ⛔ Ask: "Use the client's B-roll, generate AI video, or both?" If AI is involved, ⛔ ask: "Where will you generate: Seedance or Google Flow?"
    - Dispatch the style agent (`mode: prompts`), then run `qa` (gate `prompts`).
-   - Show the table and prompts. Fix QA FAILs by re-dispatching first, or list any unresolved ones for the user.
+   - Show the table and prompts. Fix QA FAILs by re-dispatching first (then `qa` in delta mode on the fixed rows), or list any unresolved ones for the user.
 7. ⛔ **Gather and build.**
    - If AI clips are needed, wait until the user says they're generated and where they are, then inventory them (ffprobe).
    - Dispatch the style agent (`mode: edit-plan`).
@@ -58,7 +60,7 @@ This is the user's own editing workflow. You run it in the main conversation, an
    - **Which timeline?**
    - **New timeline or work directly in it?** (In place makes a backup first.)
    - ⛔ "Please quit CapCut completely before I write to the project." (CapCut rewrites projects when it closes and would drop our change; the tool refuses while CapCut.exe is running.)
-   - Then: style agent (`edit-plan` with `revision`), `editor` (`revise-new-timeline` or `revise-in-place`), and `qa` (`build`).
+   - Then: style agent (`edit-plan` with `revision`), `editor` (`revise-new-timeline` or `revise-in-place`), and `qa` (`build`, in delta mode for small changes).
    - **Overlay tweaks** ("move the card up", "make the title bigger") are handled here in the main conversation: change the vars, re-render with `motion_render.py`, preview, then have the editor swap the files. Don't dispatch an agent for small tweaks.
    - Repeat until the user is happy.
 10. ⛔ **Captions.** Remind the user to run CapCut auto-caption, and wait until they say it's done.

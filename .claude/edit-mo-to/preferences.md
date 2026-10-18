@@ -52,6 +52,7 @@ Session tags: Cirelle fe9a0790 · GODA 6ec28f49 · Nuva 73daf057 · Nativia ac6e
 ## UGC
 - **Structure:** hooks (several, as variants) + body + CTA. Body first, then hooks, one at a time [Nativia].
   - In CapCut, the body and CTA go on Timeline 01 and each hook gets its own timeline [design].
+  - **Timeline 01 = hook 1 + body + CTA; Timelines 02+ are hook only** (hook A-roll, hook B-roll, hook graphics). The user pastes T01's body into them themselves ("make only just the hook for timeline 2 to 4 and I will be the one who will insert the body from timeline 1") [Fascora 2026-10-17].
 - **Host A-roll:** lip-synced to the ElevenLabs VO, clips 4–8s, cut points on VO pauses. B-roll covers the VO between host shots [Nativia].
 - **Long talking-head:** about 36 clips, chained so each clip's last frame is the next clip's start frame [Cirelle].
 - **Body B-rolls:** no reference image, a different person in each, no looking at camera when it's B-roll, 4s each [GODA].
@@ -64,12 +65,14 @@ Session tags: Cirelle fe9a0790 · GODA 6ec28f49 · Nuva 73daf057 · Nativia ac6e
 - **Cut length follows the mood and context of the script.** Fast beats cut short (about 1.5–2s); calmer or explanatory lines can hold 6–8s. Pacing is a guide, not a hard limit [rehearsal 2026-10-15]. Only a max the client brief states is law (Zapply: "the b rolls must be 4 secs max") [Zapply].
 - **The product is always in the centre of every B-roll shot.** Set scale and position per cut, check the in, mid and out frames with a ±10% centre box, and swap the shot if the product drifts. Talking heads stay framed as shot ("the product must always be at the center") [ExchangeLife 2026-10-16].
 - **End on product B-roll,** not on a talking face, so the CTA's last line plays over the product ("put a broll on the ending") [ExchangeLife 2026-10-16].
+- **Finding replacement shots:** stop at the first ones that meet the criteria and differ from what's already in the edit. Don't scan the whole library for better ones ("do not look for every videos in the playbook, if you just found new 2 cliping videos… then use it") [ExchangeLife 2026-10-16].
 - **When there's a reference video, match its cut rhythm.** Cut per word or idea (about 1–1.5s), not one clip per script line; about 15–20 shots per 20s of VO ("make it engaging and have fast cuts and more videos") [ExchangeLife 2026-10-16].
 - **Show the exact cut** for each clip as source in–out in `seconds:frames` ("add also the timestamp where I will cut the video") [Zapply, Strapless].
 - **Tables** always include the line, VO time, full path, cut and length, with a Slot (FULL / TOP / BOTTOM) for splits [Strapless, Zapply]. The exact layout is in `style-agent-contract.md`.
 - **Split screens:** before/after splits are 50/50 vertical, BEFORE on top, panes 1080×960, with a 6px white divider and labels. AI macro or graphic on top, live footage below. Use 2×2 or 3×3 grids for social proof [Strapless, Zapply].
 - **Cataloguing client folders:** ffprobe gives duration and fps; ffmpeg frame strips or contact sheets show content. Watch for phone clips with rotation metadata [Strapless].
 - **AI B-roll morphs or goes smooth after about 2s,** so keep those cuts short [Strapless].
+- **No talking-head stretch over about 5s without B-roll.** Keep only a short emotional beat (2–3s) on the face, then cover the rest with B-roll mapped to the words ("2:54 to 3:03 looks boring, lets add brolls in it") [Fascora 2026-10-17].
 - **Graphic B-roll style** matches the client's AI library (e.g. "premium dark-tech", navy with electric-blue glow). Keep the key subject in the centre 1080×960 band so it crops cleanly into a split [Zapply].
 
 ## Claymation
@@ -99,8 +102,11 @@ Session tags: Cirelle fe9a0790 · GODA 6ec28f49 · Nuva 73daf057 · Nativia ac6e
 - **"Talking head + Apple UI" style** (approved on the Cirelle v2 rehearsal) [Cirelle 2026-10-16]:
   - **Titles:** two-line heavy-italic keyword titles at chest height (`kinetic-title`). The top line is white; the bottom line takes a colour that changes per phrase (blue / yellow / green / pink). They pop in with a small shake.
   - **Pop-ups:** iOS glass cards beside the hands or the product, never over the face (`glass-card`, `glass-split`, `glass-compare`).
+  - **Glass cards use `glass-card-v2`:** real frosted glass the footage shows through, one bold title and one readable sub (big enough for 50+ viewers), line icons in the brand's colours, no emoji or glossy app-icon squares, rendered natively for the canvas (never upscaled), no orphan words ("make it beautiful not ai slop") [Fascora 2026-10-17].
   - **Flashes:** full-frame colour flashes on beats (`color-flash`): blue at the open, white on a turn, green on the payoff.
   - **Zooms:** punch-ins (1.12–1.2) on key words, cut at word gaps.
+  - **Zoom-ins are for emphasis only:** about one every 10–15s on a true emphasis word, never two A-roll shots in a row; everything else stays at the base framing ("to much zoom ins, use zoom ins for emphasis") [Fascora 2026-10-17].
+  - **Hooks get a denser motion-graphic edit:** a glass title whose key phrase lights up on its spoken word, plus what fits the hook (a "6 months ago │ Now" toggle, a counter for numbers, a pain marker on the heel or problem area, soft light sweeps on cuts at about half brightness), never over the face and never doubling the captions ("make a more engaging motion graphic edit in hooks 1 to 4") [Fascora 2026-10-17].
   - **Captions:** the keyword titles replace CapCut auto-captions in this style, so don't double them.
   - **Sound design:** a whoosh on each flash and title, a pop on each card, a ping on ✓ and on the payoff (`"sfx": "default"` on every overlay), kept under her voice. Added 2026-10-16 from HyperFrames' bundled SFX library.
   - **Reference:** `C:\Users\Keytech\Downloads\Talking Head (Short-form) with Devin jatho's + Apple UI stlyle. #videoediting  #talkinghead #editor.mp4` (on the Windows PC).
@@ -123,3 +129,6 @@ Session tags: Cirelle fe9a0790 · GODA 6ec28f49 · Nuva 73daf057 · Nativia ac6e
 - **Rotations morph text:** keep products square to the lens [Cirelle].
 - **Two similar characters swap identities:** put one character per shot, or state it explicitly [Muslin-clay].
 - **Faces appear on objects:** add the "no eyes, no faces" line [NorthPower].
+- **Continuity breaks** (glasses taken off then back on, a pillow that moves by itself): add a continuity lock to every prompt: props that leave stay gone, nothing in the room moves on its own, nothing appears or disappears; lock the camera when the room matters, or use Frames to Video from the clip's own first frame [Fascora 2026-10-17].
+- **A phone shows up in frame** (on a stand, a counter, in a mirror): add "no phone anywhere in frame", not only "the filming phone is never visible" [Fascora 2026-10-17].
+- **Secondary people read too young:** write them as clearly 55+ (grey hair, wrinkles, crow's feet) for 50+ briefs, or keep their face out of frame (over the shoulder) [Fascora 2026-10-17].

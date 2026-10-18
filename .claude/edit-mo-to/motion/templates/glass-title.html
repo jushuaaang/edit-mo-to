@@ -1,0 +1,85 @@
+<!--defaults {"line1": "A woman in my chair", "line2": "got me back on my feet", "key": "back on my feet", "t_key": 0.9, "ink": "#0b2545", "panel": "#0e2f5a", "accent": "#8fd3ff", "y": 760, "align": "center", "x": 540, "scale": 1, "size1": 50, "size2": 84, "font": "Inter", "height": 1350, "duration": 3} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;800&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", -apple-system, "SF Pro Display", sans-serif;
+          --s: {{scale}}; -webkit-font-smoothing: antialiased; }
+  #t { position: absolute; top: {{y}}px; left: 0; width: 1080px; display: flex; flex-direction: column; gap: calc(var(--s) * 10px); }
+  #t.center { align-items: center; } #t.left { align-items: flex-start; padding-left: {{x}}px; } #t.right { align-items: flex-end; padding-right: calc(1080px - {{x}}px); }
+  .box { position: relative; white-space: nowrap; border-radius: calc(var(--s) * 22px); }
+  /* line 1: light glass label */
+  #b1 { padding: calc(var(--s) * 12px) calc(var(--s) * 26px) calc(var(--s) * 14px); background: rgba(247,249,252,.88); color: {{ink}};
+        font-size: calc(var(--s) * {{size1}}px); font-weight: 600; letter-spacing: -0.012em; line-height: 1.1;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.75), 0 2px 6px rgba(6,18,40,.10), 0 16px 40px rgba(6,18,40,.22); }
+  /* line 2: deep pouch-navy panel, key phrase lights up in the pouch's wave blue */
+  #b2 { padding: calc(var(--s) * 14px) calc(var(--s) * 32px) calc(var(--s) * 20px); background: {{panel}}; color: #fff;
+        font-size: calc(var(--s) * {{size2}}px); font-weight: 800; letter-spacing: -0.028em; line-height: 1.04;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.12), 0 2px 8px rgba(0,0,0,.18), 0 22px 54px rgba(4,14,34,.38); }
+  .w { display: inline-block; }
+  .k { color: #fff; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="t" class="clip {{align}}" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="b1" class="box">{{line1}}</div>
+    <div id="b2" class="box">{{line2}}</div>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), S = Number("{{scale}}"), TK = Number("{{t_key}}"), KEY = "{{key}}".trim().toLowerCase();
+  const ACC = "{{accent}}", ALIGN = "{{align}}";
+  const b1 = document.getElementById("b1"), b2 = document.getElementById("b2");
+  // split into words (keeps spacing), mark the key phrase
+  function words(el) {
+    const ws = el.textContent.trim().split(/\s+/);
+    el.textContent = "";
+    ws.forEach((w, i) => { const s = document.createElement("span"); s.className = "w"; s.textContent = w; el.appendChild(s); if (i < ws.length - 1) el.appendChild(document.createTextNode(" ")); });
+    return Array.from(el.querySelectorAll(".w"));
+  }
+  const w1 = words(b1), w2 = words(b2);
+  let keys = [];
+  if (KEY) {
+    const kw = KEY.split(/\s+/), low = w2.map(s => s.textContent.toLowerCase().replace(/[^\p{L}\p{N}]/gu, ""));
+    const kk = kw.map(k => k.replace(/[^\p{L}\p{N}]/gu, ""));
+    for (let i = 0; i + kk.length <= low.length; i++) if (kk.every((k, j) => low[i + j] === k)) { keys = w2.slice(i, i + kk.length); break; }
+  }
+  keys.forEach(k => k.classList.add("k"));
+  // auto-fit each line to the safe width (real font), single line always
+  function fitW(el, maxW) {
+    el.style.fontSize = "";
+    const w = el.offsetWidth;
+    if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
+  }
+  const XX = Number("{{x}}"), SAFE = ALIGN === "left" ? 1080 - XX - 40 : ALIGN === "right" ? XX - 40 : 980;
+  function fitAll() { fitW(b1, SAFE); fitW(b2, SAFE); }
+  fitAll();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
+
+  const org = ALIGN === "left" ? "0% 50%" : ALIGN === "right" ? "100% 50%" : "50% 50%";
+  gsap.set([b1, b2], { transformOrigin: org });
+  const tl = gsap.timeline({ paused: true });
+  // boxes spring in (line 1 first), words rise inside them
+  tl.fromTo(b1, { opacity: 0, scale: 0.8, y: 30, filter: "blur(6px)" }, { opacity: 1, scale: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "back.out(1.7)" }, 0);
+  tl.fromTo(w1, { y: 16 * S, opacity: 0 }, { y: 0, opacity: 1, duration: 0.32, stagger: 0.035, ease: "expo.out" }, 0.06);
+  tl.fromTo(b2, { opacity: 0, scale: 0.78, y: 40, filter: "blur(8px)" }, { opacity: 1, scale: 1, y: 0, filter: "blur(0px)", duration: 0.56, ease: "back.out(1.6)" }, 0.12);
+  tl.fromTo(w2, { y: 26 * S, opacity: 0 }, { y: 0, opacity: 1, duration: 0.36, stagger: 0.04, ease: "expo.out" }, 0.18);
+  // key phrase lights up on its spoken word, with a small punch
+  if (keys.length) {
+    tl.to(keys, { color: ACC, duration: 0.16, stagger: 0.05, ease: "power1.out" }, TK);
+    tl.fromTo(b2, { scale: 1 }, { scale: 1.045, duration: 0.12, yoyo: true, repeat: 1, ease: "power2.out" }, TK);
+  }
+  tl.to("#t", { y: -8, duration: Math.max(0.2, D - 0.8), ease: "sine.inOut" }, 0.6);
+  tl.to(b2, { opacity: 0, y: 14, scale: 0.96, filter: "blur(5px)", duration: 0.2, ease: "power2.in" }, D - 0.24);
+  tl.to(b1, { opacity: 0, y: 14, scale: 0.96, filter: "blur(5px)", duration: 0.2, ease: "power2.in" }, D - 0.2);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

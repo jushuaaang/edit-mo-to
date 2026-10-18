@@ -1,0 +1,52 @@
+<!--defaults {"value": "20", "prefix": "", "suffix": "", "label": "clients a day", "from": "0", "t_count": 0.1, "count_dur": 0.9, "accent": "#1f6fb8", "ink": "#0b2545", "x": 540, "y": 700, "anchor": "center", "scale": 1, "font": "Inter", "height": 1350, "duration": 2.5} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;800&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", -apple-system, "SF Pro Display", sans-serif;
+          --s: {{scale}}; -webkit-font-smoothing: antialiased; }
+  #c { position: absolute; left: {{x}}px; top: {{y}}px; display: flex; align-items: center; gap: calc(var(--s) * 26px);
+       padding: calc(var(--s) * 24px) calc(var(--s) * 48px) calc(var(--s) * 28px) calc(var(--s) * 44px); border-radius: calc(var(--s) * 44px);
+       background: rgba(247,249,252,.86); color: {{ink}};
+       box-shadow: inset 0 0 0 1px rgba(255,255,255,.75), 0 0 0 1px rgba(11,37,69,.06), 0 2px 6px rgba(6,18,40,.10), 0 18px 44px rgba(6,18,40,.24); }
+  #n { font-size: calc(var(--s) * 150px); font-weight: 800; letter-spacing: -0.045em; line-height: 0.9; color: {{accent}};
+       font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #lb { font-size: calc(var(--s) * 50px); font-weight: 600; letter-spacing: -0.018em; line-height: 1.08; max-width: calc(var(--s) * 340px); text-wrap: balance; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="c" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="n">{{prefix}}{{value}}{{suffix}}</div><div><div id="lb">{{label}}</div></div>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), V = Number("{{value}}"), F0 = Number("{{from}}"), TC = Number("{{t_count}}"), CD = Number("{{count_dur}}");
+  const PRE = "{{prefix}}", SUF = "{{suffix}}", X = Number("{{x}}"), ANCHOR = "{{anchor}}";
+  const c = document.getElementById("c"), n = document.getElementById("n");
+  function place() {
+    n.style.minWidth = ""; n.textContent = PRE + V + SUF; n.style.minWidth = n.offsetWidth + "px"; // no jitter while counting
+    const w = c.offsetWidth, fx = ANCHOR === "right" ? 1 : ANCHOR === "left" ? 0 : 0.5;
+    c.style.left = Math.round(Math.max(24, Math.min(1056 - w, X - fx * w))) + "px";
+    c.style.transformOrigin = (fx * 100) + "% 50%";
+  }
+  place();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(place);
+  const o = { v: F0 };
+  const tl = gsap.timeline({ paused: true });
+  tl.set(n, { textContent: PRE + F0 + SUF }, 0);
+  tl.fromTo(c, { opacity: 0, scale: 0.84, y: 28, filter: "blur(6px)" }, { opacity: 1, scale: 1, y: 0, filter: "blur(0px)", duration: 0.6, ease: "back.out(1.6)" }, 0);
+  tl.to(o, { v: V, duration: CD, ease: "power3.out", onUpdate: () => { n.textContent = PRE + Math.round(o.v) + SUF; } }, TC);
+  tl.fromTo("#lb", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: "expo.out" }, 0.18);
+  tl.fromTo(n, { scale: 1 }, { scale: 1.08, duration: 0.12, yoyo: true, repeat: 1, ease: "power2.out", transformOrigin: "50% 60%" }, TC + CD - 0.1);
+  tl.to(c, { opacity: 0, y: 10, scale: 0.97, filter: "blur(4px)", duration: 0.22, ease: "power2.in" }, D - 0.26);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

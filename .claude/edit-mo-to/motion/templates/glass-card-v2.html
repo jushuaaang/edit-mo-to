@@ -1,0 +1,115 @@
+<!--defaults {"title": "Type I collagen", "sub": "what your fascia is made of", "icon": "check", "accent": "#1f6fb8", "x": 540, "y": 760, "anchor": "center", "scale": 1, "max_width": 940, "theme": "light", "font": "Inter", "height": 1350, "duration": 2.6} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500;600;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", -apple-system, "SF Pro Display", sans-serif;
+          --s: {{scale}}; -webkit-font-smoothing: antialiased; }
+  /* iOS "regular material": flat translucent fill, 1px luminous inner edge, hairline outer edge, two-layer soft shadow */
+  #c { position: absolute; left: {{x}}px; top: {{y}}px; display: flex; align-items: center;
+       gap: calc(var(--s) * 26px); padding: calc(var(--s) * 30px) calc(var(--s) * 44px) calc(var(--s) * 32px) calc(var(--s) * 30px);
+       border-radius: calc(var(--s) * 40px); max-width: calc(var(--s) * {{max_width}}px); }
+  #c.light { background: rgba(247, 249, 252, 0.84); color: #0b2545;
+             box-shadow: inset 0 0 0 1px rgba(255,255,255,.75), 0 0 0 1px rgba(11,37,69,.06),
+                         0 2px 6px rgba(6,18,40,.10), 0 18px 44px rgba(6,18,40,.22); }
+  #c.dark  { background: rgba(16, 28, 48, 0.72); color: #fff;
+             box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), 0 0 0 1px rgba(0,0,0,.18),
+                         0 2px 6px rgba(0,0,0,.18), 0 18px 44px rgba(0,0,0,.32); }
+  #c.noicon { padding-left: calc(var(--s) * 44px); }
+  #ic { flex: none; width: calc(var(--s) * 76px); height: calc(var(--s) * 76px); border-radius: 50%; background: {{accent}};
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.18), 0 4px 10px rgba(6,18,40,.18); }
+  #ic svg { width: 60%; height: 60%; overflow: visible; }
+  #ic path { fill: none; stroke: #fff; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+  #tx { min-width: 0; }
+  #tt { font-size: calc(var(--s) * 60px); font-weight: 700; letter-spacing: -0.022em; line-height: 1.08; white-space: nowrap; }
+  #tt.wrap { white-space: normal; text-wrap: balance; }
+  #st { font-size: calc(var(--s) * 37px); font-weight: 500; letter-spacing: -0.008em; line-height: 1.22;
+        margin-top: calc(var(--s) * 6px); text-wrap: balance; }
+  #c.light #st { color: #3c4d63; }
+  #c.dark  #st { color: rgba(235,242,250,.78); }
+  #st:empty { display: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="c" class="clip {{theme}}" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="ic"><svg viewBox="0 0 24 24"><path id="glyph" d="" /></svg></div>
+    <div id="tx"><div id="tt">{{title}}</div><div id="st">{{sub}}</div></div>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), S = Number("{{scale}}"), MAXW = Number("{{max_width}}") * S;
+  const X = Number("{{x}}"), Y = Number("{{y}}"), ANCHOR = "{{anchor}}", ICON = "{{icon}}";
+  const GLYPHS = {
+    check: "M5.5 12.6l4.2 4.2L18.6 7.6",
+    plus: "M12 5.5v13M5.5 12h13",
+    leaf: "M5 19C5 10 10 5 19 5c0 9-5 14-14 14zM5 19l8.5-8.5",
+    drop: "M12 4c3.4 4.3 5.8 7.3 5.8 10.1a5.8 5.8 0 0 1-11.6 0C6.2 11.3 8.6 8.3 12 4z",
+    clock: "M12 4.5a7.5 7.5 0 1 0 0 15a7.5 7.5 0 1 0 0-15M12 8v4.4l3 1.8",
+    heart: "M12 19s-7-4.4-7-9.4A3.9 3.9 0 0 1 12 7.4a3.9 3.9 0 0 1 7 2.2C19 14.6 12 19 12 19z"
+  };
+  const c = document.getElementById("c"), tt = document.getElementById("tt"), st = document.getElementById("st");
+  const glyph = document.getElementById("glyph");
+  if (GLYPHS[ICON]) glyph.setAttribute("d", GLYPHS[ICON]);
+  else { document.getElementById("ic").remove(); c.classList.add("noicon"); }
+
+  // no orphans: glue the last two words of each text line together
+  function glue(el) {
+    const w = el.textContent.trim().split(/\s+/);
+    if (w.length >= 3 && w[w.length - 1].length < 9) el.textContent = w.slice(0, -2).join(" ") + " " + w.slice(-2).join(" ");
+  }
+  glue(st);
+  // title stays on one line; shrink up to 15% to fit, otherwise wrap it balanced (never a lone word)
+  // size a wrapped block to its widest balanced line, so the card carries no empty space on the right
+  function hug(el, avail) {
+    el.style.width = avail + "px";
+    if (!el.textContent.trim()) return;
+    const rg = document.createRange(); rg.selectNodeContents(el);
+    const k = gsap.getProperty(c, "scaleX") || 1;
+    const lw = Math.max(...Array.from(rg.getClientRects()).map(r => r.width)) / k;
+    if (lw < avail) el.style.width = Math.ceil(lw + 2) + "px";
+  }
+  function layout() {
+    tt.classList.remove("wrap"); tt.style.fontSize = ""; tt.style.width = ""; st.style.width = "";
+    const iconW = GLYPHS[ICON] ? (76 + 26) * S : 0, padW = (GLYPHS[ICON] ? 74 : 88) * S;
+    const avail = MAXW - iconW - padW, w = tt.scrollWidth, base = parseFloat(getComputedStyle(tt).fontSize);
+    if (w > avail) {
+      if (avail / w >= 0.85) tt.style.fontSize = (base * avail / w) + "px";
+      else {
+        tt.classList.add("wrap"); glue(tt); hug(tt, avail);
+      }
+    }
+    hug(st, avail);
+    const r = { width: c.offsetWidth };
+    const fx = ANCHOR === "right" ? 1 : ANCHOR === "left" ? 0 : 0.5;
+    c.style.left = Math.round(Math.max(24, Math.min(1080 - 24 - r.width, X - fx * r.width))) + "px";
+    c.style.transformOrigin = (fx * 100) + "% 60%";
+  }
+  layout();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
+
+  const tl = gsap.timeline({ paused: true });
+  const len = glyph.getTotalLength ? glyph.getTotalLength() || 30 : 30;
+  gsap.set(glyph, { strokeDasharray: len, strokeDashoffset: ICON === "check" ? len : 0 });
+  tl.fromTo(c, { opacity: 0 }, { opacity: 1, duration: 0.18, ease: "power1.out" }, 0);
+  tl.fromTo(c, { scale: 0.86, y: 26, filter: "blur(6px)" },
+               { scale: 1, y: 0, filter: "blur(0px)", duration: 0.62, ease: "back.out(1.5)" }, 0);
+  if (GLYPHS[ICON]) {
+    tl.fromTo("#ic", { scale: 0.4 }, { scale: 1, duration: 0.5, ease: "back.out(2.2)" }, 0.08);
+    if (ICON === "check") tl.to(glyph, { strokeDashoffset: 0, duration: 0.32, ease: "power2.out" }, 0.22);
+  }
+  tl.fromTo(tt, { y: 14 * S, opacity: 0 }, { y: 0, opacity: 1, duration: 0.42, ease: "expo.out" }, 0.1);
+  tl.fromTo(st, { y: 12 * S, opacity: 0 }, { y: 0, opacity: 1, duration: 0.42, ease: "expo.out" }, 0.18);
+  tl.to(c, { scale: 1.012, duration: Math.max(0.2, D - 0.95), ease: "sine.inOut" }, 0.62);
+  tl.to(c, { opacity: 0, y: 10, scale: 0.97, filter: "blur(4px)", duration: 0.22, ease: "power2.in" }, D - 0.26);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

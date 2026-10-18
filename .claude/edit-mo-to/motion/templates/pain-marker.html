@@ -1,0 +1,65 @@
+<!--defaults {"label": "Heel pain", "x": 420, "y": 1100, "side": "right", "dx": 120, "dy": -170, "color": "#ff5b4f", "ink": "#0b2545", "scale": 1, "font": "Inter", "height": 1350, "duration": 2.5} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", -apple-system, "SF Pro Display", sans-serif;
+          --s: {{scale}}; -webkit-font-smoothing: antialiased; }
+  #pin { position: absolute; inset: 0; }
+  .ring { position: absolute; left: calc({{x}}px - var(--s) * 60px); top: calc({{y}}px - var(--s) * 60px); width: calc(var(--s) * 120px); height: calc(var(--s) * 120px);
+          border-radius: 50%; border: calc(var(--s) * 4px) solid {{color}}; }
+  #core { position: absolute; left: calc({{x}}px - var(--s) * 17px); top: calc({{y}}px - var(--s) * 17px); width: calc(var(--s) * 34px); height: calc(var(--s) * 34px);
+          border-radius: 50%; background: {{color}}; box-shadow: 0 0 0 calc(var(--s) * 5px) #fff, 0 4px 14px rgba(0,0,0,.35); }
+  #line { position: absolute; left: {{x}}px; top: calc({{y}}px - var(--s) * 1.5px); height: calc(var(--s) * 3px); background: #fff; transform-origin: 0 50%; border-radius: 2px;
+          box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+  #tag { position: absolute; display: flex; align-items: center; gap: calc(var(--s) * 14px); white-space: nowrap;
+         padding: calc(var(--s) * 16px) calc(var(--s) * 30px) calc(var(--s) * 18px) calc(var(--s) * 24px); border-radius: 999px;
+         background: rgba(247,249,252,.9); color: {{ink}}; font-size: calc(var(--s) * 46px); font-weight: 700; letter-spacing: -0.015em; line-height: 1;
+         box-shadow: inset 0 0 0 1px rgba(255,255,255,.75), 0 2px 6px rgba(6,18,40,.12), 0 16px 40px rgba(6,18,40,.26); }
+  #dot { width: calc(var(--s) * 16px); height: calc(var(--s) * 16px); border-radius: 50%; background: {{color}}; flex: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="pin" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="line"></div><div class="ring" id="r1"></div><div class="ring" id="r2"></div><div id="core"></div>
+    <div id="tag"><span id="dot"></span><span>{{label}}</span></div>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), S = Number("{{scale}}"), DX = Number("{{dx}}") * S, DY = Number("{{dy}}") * S, SIDE = "{{side}}";
+  const X = Number("{{x}}"), Y = Number("{{y}}");
+  const tag = document.getElementById("tag"), line = document.getElementById("line");
+  function place() {
+    const w = tag.offsetWidth, h = tag.offsetHeight;
+    // tag sits at (dx, dy) from the pin; the line meets the tag's near edge; keep it on canvas
+    let tx = SIDE === "left" ? DX - w : DX;
+    tx = Math.max(24 - X, Math.min(1080 - 24 - X - w, tx));
+    const ty = DY - h / 2;
+    tag.style.left = (X + tx) + "px"; tag.style.top = (Y + ty) + "px";
+    const ex = SIDE === "left" ? tx + w - 10 : tx + 10, ey = DY;
+    const len = Math.hypot(ex, ey), ang = Math.atan2(ey, ex) * 180 / Math.PI;
+    line.style.width = len + "px"; line.style.transform = `rotate(${ang}deg)`;
+    tag.style.transformOrigin = SIDE === "left" ? "100% 50%" : "0% 50%";
+  }
+  place();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(place);
+  const tl = gsap.timeline({ paused: true });
+  tl.fromTo("#core", { scale: 0 }, { scale: 1, duration: 0.4, ease: "back.out(3)" }, 0);
+  // two soft pulses, then a slow breathing ring while it holds
+  [0.05, 0.4].forEach((t, i) => tl.fromTo(i ? "#r2" : "#r1", { scale: 0.3, opacity: 0.95 }, { scale: 1.6, opacity: 0, duration: 0.8, ease: "power2.out" }, t));
+  const reps = Math.max(0, Math.floor((D - 1.6) / 0.9));
+  if (reps) tl.fromTo("#r1", { scale: 0.3, opacity: 0.8 }, { scale: 1.5, opacity: 0, duration: 0.9, ease: "power2.out", repeat: reps - 1 }, 1.2);
+  tl.fromTo(line, { scaleX: 0 }, { scaleX: 1, duration: 0.3, ease: "power3.out" }, 0.15);
+  tl.fromTo(tag, { opacity: 0, scale: 0.7, filter: "blur(6px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.5, ease: "back.out(1.8)" }, 0.3);
+  tl.to("#pin", { opacity: 0, duration: 0.2, ease: "power2.in" }, D - 0.22);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

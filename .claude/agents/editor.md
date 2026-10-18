@@ -123,8 +123,9 @@ For split panes, call `add_video` with `"mask_type":"Rectangle","mask_center_x":
 - **Mixed creators' audio:** when the talking heads come from different people, measure each segment's LUFS and set per-clip gain (10^(dB/20)) so the voices match. Flag a heavily boosted, noisy clip for CapCut Reduce noise [ExchangeLife 2026-10-16].
 
 ## Report (your final message)
+**Output budget:** at most ~30 lines. Write the placed-clips table and any long logs to `{tmp}/reports/<job>/editor_<action>.txt` (`<job>` = the product name, no spaces) and give its path instead of pasting it.
 1. The project name and full path, and the timelines (name → id).
-2. Table: `Timeline | # | File | At (s:ff) | Len | Notes`, listing what was placed.
+2. Path to the table `Timeline | # | File | At (s:ff) | Len | Notes` (what was placed); in the message, only clips that failed or differ from the plan.
 3. **Hand edits found** (revisions only).
 4. **Manual steps for the user:** everything from the plan's `manual` list, plus anything that failed (mirroring, masks, effects not found) and every `rotation_unchecked` clip. Also list the `rotation_fixed` clips, as information only.
 5. Reminders:

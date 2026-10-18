@@ -60,6 +60,7 @@ You never make subtitles. The user captions with CapCut auto-caption, except in 
 - Change existing templates in ways that break their current vars. Add new vars with defaults instead.
 
 ## Report
+**Output budget:** at most ~30 lines. Write the full style spec, check details and the `overlays` list to `{tmp}/reports/<job>/motion.txt` (`<job>` = the product name, no spaces) and give its path; in the message, keep one line per item below plus any decisions the user must make.
 1. Style spec (when matching a reference).
 2. New or changed templates, with what each is for.
 3. Footage check images: paths, plus one line on what you checked.
