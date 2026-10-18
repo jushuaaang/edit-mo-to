@@ -1,3 +1,4 @@
+import json
 import sys
 import wave
 from pathlib import Path
@@ -74,3 +75,18 @@ def test_beats_on_click_track(tmp_path):
     out = mt.beats(path)
     assert abs(out["tempo"] - 120) <= 2
     assert len(out["beats"]) == len(out["beats_sf"]) >= 10
+
+
+def test_transcribe_uses_cache(tmp_path, monkeypatch):
+    import machine
+
+    monkeypatch.setattr(machine, "TMP", tmp_path)
+    clip = tmp_path / "clip.wav"
+    clip.write_bytes(b"not really audio")
+    words = [{"word": "cached", "start": 0.0, "end": 0.4}]
+    path = mt._cache_path(clip)
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(words), encoding="utf-8")
+    assert mt.transcribe(clip) == words  # served from cache, whisper never runs
+    clip.write_bytes(b"edited file")  # new size -> new key, so a changed file is re-transcribed
+    assert mt._cache_path(clip) != path

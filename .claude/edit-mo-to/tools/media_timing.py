@@ -2,7 +2,8 @@
 
 CLI (prints JSON):
     vo <audio> [script.txt] [--fps 30]   word timestamps; with a script (one line per script line)
-                                         returns each line's start/end/duration
+                                         returns each line's start/end/duration. Transcripts are
+                                         cached in {tmp}/transcripts (--no-cache to redo)
     beats <audio> [--fps 30]             tempo and beat times, for cutting product ads to music
 """
 import json
@@ -85,12 +86,31 @@ def _load_16k(audio: Path):
     return np.frombuffer(raw, np.int16).astype(np.float32) / 32768.0
 
 
-def transcribe(audio: Path) -> list[dict]:
+def _cache_path(audio: Path) -> Path:
+    """One transcript per file version, keyed on path + size + mtime, under {tmp}/transcripts."""
+    import hashlib
+
+    from machine import TMP
+
+    st = Path(audio).stat()
+    key = hashlib.sha1(f"{Path(audio).resolve()}|{st.st_size}|{st.st_mtime_ns}".encode()).hexdigest()[:16]
+    return TMP / "transcripts" / f"{Path(audio).stem[:40]}_{key}.json"
+
+
+def transcribe(audio: Path, cache: bool = True) -> list[dict]:
+    """Word timings. Cached, so a clip is transcribed once per job (vo, speech_cuts, re-runs)."""
+    cached = _cache_path(audio) if cache else None
+    if cached and cached.exists():
+        return json.loads(cached.read_text(encoding="utf-8"))
     from faster_whisper import WhisperModel
 
     model = WhisperModel("small.en", device="cpu", compute_type="int8")
     segments, _ = model.transcribe(_load_16k(audio), word_timestamps=True, vad_filter=False)
-    return [{"word": w.word.strip(), "start": w.start, "end": w.end} for s in segments for w in s.words]
+    words = [{"word": w.word.strip(), "start": w.start, "end": w.end} for s in segments for w in s.words]
+    if cached:
+        cached.parent.mkdir(parents=True, exist_ok=True)
+        cached.write_text(json.dumps(words, ensure_ascii=False), encoding="utf-8")
+    return words
 
 
 def beats(audio: Path, fps: int = 30) -> dict:
@@ -129,9 +149,11 @@ def main(argv: list[str]) -> None:
         i = argv.index("--fps")
         fps = int(argv[i + 1])
         argv = argv[:i] + argv[i + 2:]
+    cache = "--no-cache" not in argv
+    argv = [a for a in argv if a != "--no-cache"]
     cmd, args = argv[0], argv[1:]
     if cmd == "vo":
-        words = transcribe(Path(args[0]))
+        words = transcribe(Path(args[0]), cache)
         lines = None
         if len(args) > 1:
             lines = [l.strip() for l in Path(args[1]).read_text(encoding="utf-8").splitlines() if l.strip()]

@@ -418,8 +418,8 @@ def expected_from_vtype(vtype: dict) -> dict:
         name = f"V{num:02d}" + (f"_L{int(line.group(1)):02d}" if line and line.group(1).isdigit()
                                  else f"_{line.group(1)}" if line else "")
         use = re.search(r"use the first ([\d:]+)", head)
-        subject = re.search(r"SUBJECT:(.*?)(?:[A-Z]{4,}:|$)", text, re.S)
-        action = re.search(r"ACTION:(.*?)(?:[A-Z]{4,}:|$)", text, re.S)
+        subject = re.search(r"SUBJECT:(.*?)(?:\b[A-Z]{4,}:|$)", text, re.S)
+        action = re.search(r"ACTION:(.*?)(?:\b[A-Z]{4,}:|$)", text, re.S)
         words = tokens((subject.group(1) if subject else "") + " " + (action.group(1) if action else ""))
         kw = list(dict.fromkeys(w for w in words if not w.isdigit()))[:25]
         clips.append({"name": name, "length": float(v.get("dur") or 0) or None, "keywords": kw,
