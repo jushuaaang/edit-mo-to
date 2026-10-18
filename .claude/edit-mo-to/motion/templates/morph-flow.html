@@ -1,0 +1,104 @@
+<!--defaults {"texts": "New|Made for feet that work all day|Try it for 30 days", "subs": "|One scoop in your morning coffee|", "kinds": "chip|card|button", "times": "0,1.1,2.3", "x": 540, "y": 1180, "card_w": 820, "chip_bg": "#1c1c1e", "chip_fg": "#ffffff", "card_bg": "#f5f5f7", "card_fg": "#141416", "accent": "#3a3d45", "accent_fg": "#ffffff", "font": "Inter", "scale": 1, "height": 1920, "duration": 3.8} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500;700;800&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", -apple-system, sans-serif; --s: {{scale}}; -webkit-font-smoothing: antialiased; }
+  /* the one shape: never cuts, only changes size, radius and colour */
+  #shape { position: absolute; left: 0; top: 0; overflow: hidden;
+           box-shadow: inset 0 0 0 1px rgba(255,255,255,.14), 0 0 0 1px rgba(0,0,0,.06), 0 2px 6px rgba(0,0,0,.12), 0 20px 48px rgba(0,0,0,.26); }
+  .st { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+  .chip { display: flex; align-items: center; gap: calc(var(--s) * 12px); padding: 0 calc(var(--s) * 30px); height: calc(var(--s) * 72px);
+          font-size: calc(var(--s) * 28px); font-weight: 700; letter-spacing: .16em; text-transform: uppercase; white-space: nowrap; }
+  .chip i { width: calc(var(--s) * 12px); height: calc(var(--s) * 12px); border-radius: 50%; background: currentColor; flex: none; }
+  .card { width: calc(var(--s) * var(--cw)); padding: calc(var(--s) * 40px) calc(var(--s) * 48px) calc(var(--s) * 44px); }
+  .card b { display: block; font-size: calc(var(--s) * 56px); font-weight: 800; letter-spacing: -0.025em; line-height: 1.08; text-wrap: balance; }
+  .card span { display: block; margin-top: calc(var(--s) * 12px); font-size: calc(var(--s) * 36px); font-weight: 500; line-height: 1.25; opacity: .72; text-wrap: balance; }
+  .card span:empty { display: none; }
+  .button { display: flex; align-items: center; gap: calc(var(--s) * 18px); padding: 0 calc(var(--s) * 56px); height: calc(var(--s) * 124px);
+            font-size: calc(var(--s) * 46px); font-weight: 800; letter-spacing: -0.015em; white-space: nowrap; }
+  .button svg { width: calc(var(--s) * 40px); height: calc(var(--s) * 40px); flex: none; }
+  .button path { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+  #measure { position: absolute; left: 0; top: 0; visibility: hidden; }
+  #measure .st { position: static; transform: none; display: inline-flex; }
+  #measure .card { display: block; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="shape" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0"></div>
+  <div id="measure"></div>
+</div>
+<script>
+  // One shape carries a short sequence (chip → card → button by default). Between steps it never cuts:
+  // the old content leaves under a short blur while the shape springs to the next size, radius and colour,
+  // then the new content resolves. times = seconds each step begins (the first is the entrance).
+  const D = Number("{{duration}}"), S = Number("{{scale}}"), X = Number("{{x}}"), Y = Number("{{y}}");
+  const dec = s => { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; };
+  const split = v => dec(v).split("|").map(s => s.trim());
+  const TX = split("{{texts}}"), SUB = split("{{subs}}"), KIND = split("{{kinds}}");
+  const n = TX.filter(Boolean).length || 1;
+  const TIMES = "{{times}}".split(",").map(Number);
+  for (let i = 0; i < n; i++) if (isNaN(TIMES[i])) TIMES[i] = i ? TIMES[i - 1] + 1.1 : 0;
+  const LOOK = {
+    chip:   { bg: "{{chip_bg}}", fg: "{{chip_fg}}", r: 999 },
+    card:   { bg: "{{card_bg}}", fg: "{{card_fg}}", r: 40 },
+    button: { bg: "{{accent}}", fg: "{{accent_fg}}", r: 999 },
+  };
+  const ARROW = '<svg viewBox="0 0 24 24"><path d="M5 12h13M13 6.5l5.5 5.5-5.5 5.5"/></svg>';
+  const shape = document.getElementById("shape"), measure = document.getElementById("measure");
+  const make = (i, parent) => {
+    const k = LOOK[KIND[i]] ? KIND[i] : "card", el = document.createElement("div");
+    el.className = "st " + k; el.style.color = LOOK[k].fg; el.style.setProperty("--cw", "{{card_w}}px");
+    if (k === "card") { el.innerHTML = "<b></b><span></span>"; el.firstChild.textContent = TX[i]; el.lastChild.textContent = SUB[i] || ""; }
+    else { el.innerHTML = (k === "chip" ? "<i></i>" : "") + "<em style='font-style:normal'></em>" + (k === "button" ? ARROW : "");
+           el.querySelector("em").textContent = TX[i]; }
+    parent.appendChild(el); return el;
+  };
+  const layers = [], probes = [];
+  for (let i = 0; i < n; i++) { layers.push(make(i, shape)); probes.push(make(i, measure)); }
+  const kindOf = i => LOOK[KIND[i]] ? KIND[i] : "card";
+  const MAXW = 1000 * Math.min(1, S * 1.05);
+  // chips and buttons stay on one line: shrink the label to fit the frame width
+  const fitLine = (el, ref) => { const em = el.querySelector("em"); if (!em) return; em.style.fontSize = "";
+    const w = ref.scrollWidth; if (w > MAXW) em.style.fontSize = (parseFloat(getComputedStyle(em).fontSize) * (MAXW - (w - em.scrollWidth)) / em.scrollWidth) + "px"; };
+
+  const tl = gsap.timeline({ paused: true });
+  function build() {
+    tl.clear();
+    probes.forEach((p, i) => { fitLine(p, p); const em = p.querySelector("em"); if (em) layers[i].querySelector("em").style.fontSize = em.style.fontSize; });
+    const size = probes.map(p => ({ w: p.offsetWidth, h: p.offsetHeight }));
+    const at = i => ({ left: Math.round(Math.max(24, Math.min(1080 - 24 - size[i].w, X - size[i].w / 2))), top: Math.round(Y - size[i].h / 2) });
+    const look = i => { const L = LOOK[kindOf(i)]; return { width: size[i].w, height: size[i].h, borderRadius: Math.min(L.r * S, size[i].h / 2), backgroundColor: L.bg, ...at(i) }; };
+    gsap.set(shape, look(0));
+    layers.forEach((l, i) => gsap.set(l, { opacity: i ? 0 : 1, filter: "blur(0px)", xPercent: -50, yPercent: -50, x: 0, y: 0, scale: 1 }));
+    // entrance
+    tl.fromTo(shape, { opacity: 0, scale: 0.6, filter: "blur(8px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.5, ease: "back.out(1.4)" }, TIMES[0]);
+    tl.fromTo(layers[0], { opacity: 0, y: 10 * S }, { opacity: 1, y: 0, duration: 0.35, ease: "expo.out" }, TIMES[0] + 0.1);
+    for (let i = 1; i < n; i++) {
+      const t = TIMES[i];
+      // content out under a short blur, the shape springs (tiny overshoot), content in under a short blur
+      tl.to(layers[i - 1], { opacity: 0, filter: "blur(8px)", scale: 0.96, duration: 0.12, ease: "power2.in" }, t);
+      tl.to(shape, { ...look(i), duration: 0.52, ease: "back.out(1.15)" }, t + 0.04);
+      tl.fromTo(layers[i], { opacity: 0, filter: "blur(8px)", scale: 1.04 }, { opacity: 1, filter: "blur(0px)", scale: 1, duration: 0.3, ease: "power2.out" }, t + 0.16);
+      if (kindOf(i) === "button") {   // the CTA settles with one soft press
+        tl.to(shape, { scale: 0.97, duration: 0.1, ease: "power2.in" }, t + 0.75);
+        tl.to(shape, { scale: 1, duration: 0.3, ease: "back.out(1.6)" }, t + 0.85);
+        tl.fromTo(layers[i].querySelector("svg"), { x: 0 }, { x: 8 * S, duration: 0.22, ease: "power2.out", yoyo: true, repeat: 1 }, t + 0.8);
+      }
+    }
+    tl.to(shape, { opacity: 0, scale: 0.96, filter: "blur(6px)", duration: 0.22, ease: "power2.in" }, D - 0.25);
+    tl.seek(0);
+  }
+  build();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(build);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

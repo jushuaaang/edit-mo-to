@@ -31,5 +31,7 @@
                       {"name": "ping", "offset": 1.3, "len": 0.9, "volume": 0.4}],
   "cursor-ui":       [{"name": "whoosh-short", "offset": 0.0, "len": 0.5, "volume": 0.3},
                       {"name": "click", "offset": "t_clicks", "len": 0.37, "volume": 0.5}],
-  "kinetic-type":    [{"name": "whoosh-short", "offset": 0.0, "len": 0.5, "volume": 0.3}]
+  "kinetic-type":    [{"name": "whoosh-short", "offset": 0.0, "len": 0.5, "volume": 0.3}],
+  "morph-flow":      [{"name": "pop", "offset": 0.0, "len": 0.6, "volume": 0.45},
+                      {"name": "whoosh-short", "offset": "times", "len": 0.4, "volume": 0.25}]
 }
