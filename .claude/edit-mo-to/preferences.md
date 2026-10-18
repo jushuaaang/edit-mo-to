@@ -106,6 +106,7 @@ Session tags: Cirelle fe9a0790 · GODA 6ec28f49 · Nuva 73daf057 · Nativia ac6e
   - **Captions:** the keyword titles replace CapCut auto-captions in this style; don't double them.
   - **Sound design:** whoosh on each flash and title, pop on each card, ping on ✓ and the payoff (`"sfx": "default"` on every overlay), under her voice [2026-10-16].
   - **Reference:** `C:\Users\Keytech\Downloads\Talking Head (Short-form) with Devin jatho's + Apple UI stlyle. #videoediting  #talkinghead #editor.mp4` (Windows PC).
+- **Reference videos teach effects, not looks.** Adapt a reference's editing effects and motion, but choose colours and fonts fresh for each video, matched to the client's brand, the brief and the mood; never copy the reference's palette or type ("you dont need to follow the color… even the fonts") [2026-10-19].
 - **Clean timelines:** overlays (cards, counters, titles) and their SFX start on a video cut, never at arbitrary times between cuts. In Fascora T02–T04 the user re-placed them by hand [Fascora 2026-10-18].
 - **Import first, then edit.** Files the user hands over (generated clips, B-roll, VO, music) are imported into the project's media panel under their real names, and the timeline uses those files, not hidden copies [2026-10-16].
 - **The user's CapCut is 9.6.** The editor agent builds projects. Hooks and revisions go on separate timelines [design].

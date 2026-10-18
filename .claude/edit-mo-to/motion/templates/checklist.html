@@ -1,0 +1,70 @@
+<!--defaults {"title": "CHECKLIST", "items": "Cut the pauses|Add captions|Add the effects", "t_checks": "0.9,1.4,1.9", "x": 640, "y": 300, "width": 400, "bg": "#161618", "fg": "#ffffff", "accent": "#ffffff", "scale": 1, "font": "Inter", "height": 1920, "duration": 3.5} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500;600;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; --s: {{scale}};
+          -webkit-font-smoothing: antialiased; }
+  #card { position: absolute; left: {{x}}px; top: {{y}}px; width: calc(var(--s) * {{width}}px);
+          padding: calc(var(--s) * 24px) calc(var(--s) * 26px) calc(var(--s) * 20px); border-radius: calc(var(--s) * 24px);
+          transform-origin: 70% 0%; }
+  #card { background: {{bg}}; color: {{fg}}; --tick: {{accent}}; --ink: {{bg}};
+          box-shadow: inset 0 0 0 1px color-mix(in srgb, {{fg}} 10%, transparent), 0 14px 36px rgba(0,0,0,.28); }
+  #card { --box: color-mix(in srgb, {{fg}} 16%, transparent); --sub: color-mix(in srgb, {{fg}} 62%, transparent); }
+  #tt { font-size: calc(var(--s) * 22px); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--sub);
+        margin-bottom: calc(var(--s) * 12px); }
+  #tt:empty { display: none; }
+  .row { display: flex; align-items: center; gap: calc(var(--s) * 16px); padding: calc(var(--s) * 9px) 0; }
+  .box { flex: none; position: relative; width: calc(var(--s) * 34px); height: calc(var(--s) * 34px); border-radius: calc(var(--s) * 9px);
+         background: var(--box); }
+  .fill { position: absolute; inset: 0; border-radius: inherit; background: var(--tick); transform: scale(0); }
+  .box svg { position: absolute; inset: 14%; width: 72%; height: 72%; overflow: visible; }
+  .box path { fill: none; stroke: var(--ink); stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
+  .txt { font-size: calc(var(--s) * 30px); font-weight: 600; line-height: 1.15; letter-spacing: -0.01em; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="card" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="tt">{{title}}</div><div id="list"></div>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), S = Number("{{scale}}");
+  const items = "{{items}}".split("|").map(s => s.trim()).filter(Boolean);
+  const ticks = "{{t_checks}}".split(",").map(s => s.trim()).filter(Boolean).map(Number);
+  const list = document.getElementById("list"), card = document.getElementById("card");
+  items.forEach(t => {
+    const r = document.createElement("div"); r.className = "row";
+    r.innerHTML = '<div class="box"><div class="fill"></div><svg viewBox="0 0 24 24"><path d="M5.5 12.6l4.2 4.2L18.6 7.6"/></svg></div><div class="txt"></div>';
+    r.querySelector(".txt").textContent = t; list.appendChild(r);
+  });
+  // keep the card on the canvas
+  const w = card.offsetWidth, h = card.offsetHeight;
+  card.style.left = Math.max(24, Math.min(1080 - 24 - w, Number("{{x}}"))) + "px";
+
+  const tl = gsap.timeline({ paused: true });
+  tl.fromTo(card, { opacity: 0, scale: 0.86, y: -16, filter: "blur(8px)" },
+                  { opacity: 1, scale: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "back.out(1.6)" }, 0);
+  tl.from(".row", { opacity: 0, x: 18, duration: 0.32, ease: "power3.out", stagger: 0.07 }, 0.14);
+  document.querySelectorAll(".row").forEach((r, i) => {
+    const path = r.querySelector("path"), len = path.getTotalLength() || 20;
+    gsap.set(path, { strokeDasharray: len, strokeDashoffset: len });
+    if (ticks[i] === undefined || ticks[i] >= D - 0.3) return;
+    const t = ticks[i];
+    tl.to(r.querySelector(".fill"), { scale: 1, duration: 0.22, ease: "back.out(2.4)" }, t);
+    tl.to(path, { strokeDashoffset: 0, duration: 0.24, ease: "power2.out" }, t + 0.08);
+    tl.fromTo(r, { scale: 1 }, { scale: 1.04, duration: 0.12, yoyo: true, repeat: 1, ease: "sine.inOut",
+                                 transformOrigin: "0% 50%" }, t);
+  });
+  tl.to(card, { opacity: 0, scale: 0.95, filter: "blur(5px)", duration: 0.22, ease: "power2.in" }, D - 0.24);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

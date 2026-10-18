@@ -1,0 +1,90 @@
+<!--defaults {"layout": "float", "video1": "placeholder.mp4", "video2": "placeholder.mp4", "video3": "placeholder.mp4", "start1": 0, "start2": 0, "start3": 0, "label1": "BEFORE", "label2": "AFTER", "badge1": "", "badge2": "", "y": 330, "card_w": 250, "frame": "#121214", "chip_bg": "#161618", "chip_fg": "#ffffff", "font": "Inter", "scale": 1, "height": 1920, "duration": 3.5} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; --s: {{scale}};
+          -webkit-font-smoothing: antialiased; perspective: 1400px; }
+  .card { position: absolute; width: calc(var(--s) * {{card_w}}px); aspect-ratio: 9 / 16; border-radius: calc(var(--s) * 30px);
+          background: {{frame}}; padding: calc(var(--s) * 7px); transform-style: preserve-3d;
+          box-shadow: 0 2px 6px rgba(0,0,0,.18), 0 22px 50px rgba(0,0,0,.34); }
+  .scr { position: relative; width: 100%; height: 100%; border-radius: calc(var(--s) * 24px); overflow: hidden;
+         background: linear-gradient(160deg, #3a3a40, #1b1b1f); }
+  .scr video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .lab, .bdg { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; font-weight: 700;
+               background: {{chip_bg}}; color: {{chip_fg}}; box-shadow: 0 6px 16px rgba(0,0,0,.22); }
+  .lab { top: calc(var(--s) * -58px); padding: calc(var(--s) * 8px) calc(var(--s) * 16px); border-radius: calc(var(--s) * 12px);
+         font-size: calc(var(--s) * 26px); letter-spacing: .04em; text-transform: uppercase; }
+  .bdg { bottom: calc(var(--s) * 18px); padding: calc(var(--s) * 8px) calc(var(--s) * 18px); border-radius: calc(var(--s) * 14px);
+         font-size: calc(var(--s) * 34px); font-variant-numeric: tabular-nums; }
+  .lab:empty, .bdg:empty { display: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="stage" style="position:absolute;inset:0">
+    <div class="card" id="c1"><div class="scr"><video id="v1" src="{{video1}}" muted playsinline data-start="0" data-duration="{{duration}}" data-media-start="{{start1}}" data-track-index="1"></video></div><div class="lab">{{label1}}</div><div class="bdg">{{badge1}}</div></div>
+    <div class="card" id="c2"><div class="scr"><video id="v2" src="{{video2}}" muted playsinline data-start="0" data-duration="{{duration}}" data-media-start="{{start2}}" data-track-index="2"></video></div><div class="lab">{{label2}}</div><div class="bdg">{{badge2}}</div></div>
+    <div class="card" id="c3"><div class="scr"><video id="v3" src="{{video3}}" muted playsinline data-start="0" data-duration="{{duration}}" data-media-start="{{start3}}" data-track-index="3"></video></div></div>
+  </div>
+</div>
+<script>
+  // The user's own clips in phone frames around the speaker.
+  //   float   – up to 3 tilted cards pop in one by one, then drift ("here are the videos it made")
+  //   orbit   – 3 cards circle the head on an ellipse; back of the orbit is smaller, dimmer, blurred
+  //   compare – 2 cards left/right with label chips (BEFORE / AFTER) and badges (2:51 / 1:32)
+  // Empty videoN = no card (labels apply to compare only).
+  const D = Number("{{duration}}"), S = Number("{{scale}}"), Y = Number("{{y}}"), LAYOUT = "{{layout}}";
+  const W = Number("{{card_w}}") * S, H = W * 16 / 9;
+  const cards = [1, 2, 3].map(i => document.getElementById("c" + i));
+  cards.forEach(c => { const v = c.querySelector("video"); if (!v.getAttribute("src")) v.remove(); });
+  const withVideo = cards.filter(c => c.querySelector("video"));
+  const used = LAYOUT === "compare" ? cards.slice(0, 2) : (withVideo.length ? withVideo : cards);
+  cards.forEach(c => { if (!used.includes(c)) c.style.display = "none"; });
+  if (LAYOUT !== "compare") cards.forEach(c => c.querySelectorAll(".lab,.bdg").forEach(e => e.remove()));
+  const tl = gsap.timeline({ paused: true });
+
+  if (LAYOUT === "compare") {
+    const pos = [{ x: 40, r: -2 }, { x: 1080 - 40 - W, r: 2 }];
+    used.forEach((c, i) => {
+      gsap.set(c, { left: pos[i].x, top: Y + 60 * S, rotation: pos[i].r });
+      tl.fromTo(c, { x: i ? 260 : -260, opacity: 0, rotationY: i ? -35 : 35, filter: "blur(10px)" },
+                   { x: 0, opacity: 1, rotationY: 0, filter: "blur(0px)", duration: 0.6, ease: "expo.out" }, 0.05 + i * 0.18);
+      tl.from(c.querySelector(".lab"), { y: 16, opacity: 0, duration: 0.35, ease: "back.out(2)" }, 0.35 + i * 0.18);
+      tl.from(c.querySelector(".bdg"), { scale: 0.5, opacity: 0, duration: 0.35, ease: "back.out(2.4)" }, 0.55 + i * 0.18);
+    });
+  } else if (LAYOUT === "orbit") {
+    const cx = 540, cy = Y + H * 0.55, rx = 400, ry = 70, turns = D / 6;
+    used.forEach((c, i) => gsap.set(c, { left: cx - W / 2, top: cy - H / 2 }));
+    const st = { a: 0 };
+    const place = () => used.forEach((c, i) => {
+      const a = st.a + i * (Math.PI * 2 / used.length), z = Math.cos(a);           // z: 1 front, -1 back
+      gsap.set(c, { x: Math.sin(a) * rx, y: -z * ry, scale: 0.72 + 0.28 * (z + 1) / 2, zIndex: Math.round(z * 10) + 10,
+                    filter: `blur(${(1 - (z + 1) / 2) * 3}px) brightness(${0.75 + 0.25 * (z + 1) / 2})` });
+    });
+    tl.fromTo("#stage", { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.6)" }, 0);
+    tl.fromTo(st, { a: 0 }, { a: Math.PI * 2 * turns, duration: D, ease: "none", onUpdate: place }, 0);
+    place();
+  } else {
+    const pos = [{ x: 60, y: Y + 300, r: -9 }, { x: 1080 - 60 - W, y: Y - 40, r: 8 }, { x: 1080 - 40 - W, y: Y + 360, r: 6 }];
+    used.forEach((c, i) => {
+      gsap.set(c, { left: pos[i].x, top: pos[i].y, rotation: pos[i].r });
+      const t = 0.05 + i * 0.16;
+      tl.fromTo(c, { scale: 0.55, opacity: 0, rotationY: i % 2 ? -40 : 40, rotationX: 12, filter: "blur(10px)" },
+                   { scale: 1, opacity: 1, rotationY: 0, rotationX: 0, filter: "blur(0px)", duration: 0.6, ease: "back.out(1.5)" }, t);
+      const bobs = Math.max(1, Math.floor((D - t - 0.9) / 1.1));
+      tl.to(c, { y: i % 2 ? 14 : -14, rotation: pos[i].r + (i % 2 ? -1.5 : 1.5), duration: 1.1, ease: "sine.inOut",
+                 repeat: bobs, yoyo: true }, t + 0.6);
+    });
+  }
+  tl.to("#stage", { opacity: 0, scale: 0.96, filter: "blur(8px)", duration: 0.24, ease: "power2.in" }, D - 0.26);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

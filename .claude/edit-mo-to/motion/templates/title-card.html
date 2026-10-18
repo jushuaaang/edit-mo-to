@@ -1,0 +1,64 @@
+<!--defaults {"title": "THE 24/7 EDITOR", "sub": "Build Your Personal AI Video Editor", "chip": "Comment EDIT to join the waitlist", "key": "EDIT", "t_chip": 0.6, "x": 540, "y": 220, "max_width": 980, "bg": "#161618", "fg": "#ffffff", "chip_bg": "#fcfcfd", "chip_fg": "#111111", "font": "Barlow Semi Condensed", "font2": "Inter", "scale": 1, "height": 1920, "duration": 3.5} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;700&display=block" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font2}}:wght@500;600;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; --s: {{scale}}; -webkit-font-smoothing: antialiased; }
+  #grp { position: absolute; top: {{y}}px; display: flex; flex-direction: column; align-items: center; gap: calc(var(--s) * 16px); }
+  #card { max-width: calc(var(--s) * {{max_width}}px); padding: calc(var(--s) * 22px) calc(var(--s) * 44px) calc(var(--s) * 24px);
+          border-radius: calc(var(--s) * 26px); background: {{bg}}; color: {{fg}}; text-align: center;
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 16px 40px rgba(0,0,0,.28); }
+  #tt { font-family: "{{font}}", sans-serif; font-size: calc(var(--s) * 66px); font-weight: 600; line-height: 1.06;
+        text-transform: uppercase; letter-spacing: .005em; text-wrap: balance; }
+  #st { font-family: "{{font2}}", sans-serif; font-size: calc(var(--s) * 30px); font-weight: 600; color: color-mix(in srgb, {{fg}} 78%, transparent);
+        margin-top: calc(var(--s) * 6px); text-wrap: balance; }
+  #st:empty { display: none; }
+  #chip { display: flex; align-items: center; gap: calc(var(--s) * 12px); padding: calc(var(--s) * 14px) calc(var(--s) * 28px);
+          border-radius: 999px; background: {{chip_bg}}; color: {{chip_fg}}; font-family: "{{font2}}", sans-serif;
+          font-size: calc(var(--s) * 30px); font-weight: 600; white-space: nowrap;
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,.9), 0 12px 30px rgba(0,0,0,.22); }
+  #chip svg { width: calc(var(--s) * 32px); height: calc(var(--s) * 32px); flex: none; }
+  #chip b { font-weight: 800; letter-spacing: .02em; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="grp" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="card"><div id="tt">{{title}}</div><div id="st">{{sub}}</div></div>
+    <div id="chip"><svg viewBox="0 0 24 24"><path d="M4.5 6.5h15v9.5H10l-4.5 3.6V16h-1z" fill="none" stroke="{{chip_fg}}" stroke-width="1.8" stroke-linejoin="round"/></svg><span id="ct"></span></div>
+  </div>
+</div>
+<script>
+  // Dark title card (hook title at the top, or the end card) with an optional white comment-CTA chip.
+  const D = Number("{{duration}}"), TC = Number("{{t_chip}}");
+  const dec = s => { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; };
+  const chipText = dec("{{chip}}"), key = dec("{{key}}"), ct = document.getElementById("ct"), chip = document.getElementById("chip");
+  if (!chipText.trim()) chip.remove();
+  else {
+    const i = key ? chipText.indexOf(key) : -1;
+    if (i < 0) ct.textContent = chipText;
+    else { ct.append(chipText.slice(0, i)); const b = document.createElement("b"); b.textContent = key; ct.append(b, chipText.slice(i + key.length)); }
+  }
+  const grp = document.getElementById("grp");
+  function place() { grp.style.left = Math.round(Math.max(20, Math.min(1060 - grp.offsetWidth, Number("{{x}}") - grp.offsetWidth / 2))) + "px"; }
+  place();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(place);
+
+  const tl = gsap.timeline({ paused: true });
+  tl.fromTo("#card", { opacity: 0, scale: 0.88, y: -18, filter: "blur(8px)" },
+                     { opacity: 1, scale: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "back.out(1.6)" }, 0);
+  tl.from("#tt", { y: 14, opacity: 0, duration: 0.4, ease: "expo.out" }, 0.08);
+  tl.from("#st", { y: 10, opacity: 0, duration: 0.4, ease: "expo.out" }, 0.18);
+  if (chipText.trim()) tl.fromTo(chip, { opacity: 0, y: 22, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.45, ease: "back.out(2)" }, TC);
+  tl.to(grp, { opacity: 0, y: -12, filter: "blur(6px)", duration: 0.24, ease: "power2.in" }, D - 0.26);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

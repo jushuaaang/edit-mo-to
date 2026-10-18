@@ -1,0 +1,69 @@
+<!--defaults {"items": "Your reel|1M views across all platforms;New followers|+10K across all platforms;314 comments|\"Demo pls\"", "mode": "stack", "t_gap": 0.55, "y": 330, "app": "play", "stamp": "now", "bg": "#fafafc", "fg": "#111111", "icon_bg": "#161618", "scale": 1, "font": "Inter", "height": 1920, "duration": 3.5} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500;600;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; --s: {{scale}};
+          -webkit-font-smoothing: antialiased; }
+  #wrap { position: absolute; inset: 0; }
+  .n { position: absolute; display: flex; align-items: center; gap: calc(var(--s) * 18px); width: calc(var(--s) * 620px);
+       padding: calc(var(--s) * 18px) calc(var(--s) * 24px) calc(var(--s) * 18px) calc(var(--s) * 18px);
+       border-radius: calc(var(--s) * 28px); background: {{bg}}; color: {{fg}};
+       box-shadow: inset 0 0 0 1px color-mix(in srgb, {{fg}} 6%, transparent), 0 2px 6px rgba(0,0,0,.10), 0 16px 40px rgba(0,0,0,.24); }
+  .ic { flex: none; width: calc(var(--s) * 62px); height: calc(var(--s) * 62px); border-radius: calc(var(--s) * 15px); background: {{icon_bg}};
+        display: flex; align-items: center; justify-content: center; }
+  .ic svg { width: 46%; height: 46%; }
+  .tx { flex: 1; min-width: 0; }
+  .hd { display: flex; justify-content: space-between; gap: 12px; font-size: calc(var(--s) * 24px); font-weight: 600; color: color-mix(in srgb, {{fg}} 80%, transparent); }
+  .st { font-weight: 500; color: color-mix(in srgb, {{fg}} 50%, transparent); }
+  .bd { font-size: calc(var(--s) * 30px); font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; white-space: nowrap;
+        overflow: hidden; text-overflow: ellipsis; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="wrap" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0"></div>
+</div>
+<script>
+  // iOS notification banners. mode "stack": pop in one by one, alternating right/left, and stay.
+  // mode "rain": they fall from above, tilted, and pile up (the "make notifications rain" beat).
+  const D = Number("{{duration}}"), S = Number("{{scale}}"), GAP = Number("{{t_gap}}"), Y0 = Number("{{y}}");
+  const MODE = "{{mode}}", H = Number("{{height}}");
+  const ICONS = { play: '<path d="M8 5.5v13l10.5-6.5z" fill="#fff"/>', bell: '<path d="M12 4a5 5 0 0 0-5 5v4l-1.6 2.6h13.2L17 13V9a5 5 0 0 0-5-5zM10 18.4a2 2 0 0 0 4 0" fill="none" stroke="#fff" stroke-width="1.9"/>',
+                  heart: '<path d="M12 19s-7-4.4-7-9.4A3.9 3.9 0 0 1 12 7.4a3.9 3.9 0 0 1 7 2.2C19 14.6 12 19 12 19z" fill="#fff"/>',
+                  chat: '<path d="M5 6h14v9H9l-4 3.5z" fill="#fff"/>' };
+  const items = "{{items}}".split(";").map(s => s.trim()).filter(Boolean).map(s => { const [a, b] = s.split("|"); return { t: (a || "").trim(), b: (b || "").trim() }; });
+  const wrap = document.getElementById("wrap");
+  const cards = items.map((it, i) => {
+    const n = document.createElement("div"); n.className = "n";
+    n.innerHTML = '<div class="ic"><svg viewBox="0 0 24 24">' + (ICONS["{{app}}"] || ICONS.play) + '</svg></div><div class="tx"><div class="hd"><span class="tt"></span><span class="st"></span></div><div class="bd"></div></div>';
+    n.querySelector(".tt").textContent = it.t; n.querySelector(".st").textContent = "{{stamp}}"; n.querySelector(".bd").textContent = it.b;
+    if (!it.t) n.querySelector(".hd").style.display = "none";
+    wrap.appendChild(n); return n;
+  });
+  const tl = gsap.timeline({ paused: true });
+  cards.forEach((n, i) => {
+    const w = n.offsetWidth, t = 0.05 + i * GAP;
+    if (MODE === "rain") {
+      const x = [300, 120, 380, 60, 250, 420][i % 6], y = Y0 + i * 118, r = [-5, 6, -3, 7, -6, 4][i % 6];
+      gsap.set(n, { left: x, top: y });
+      tl.fromTo(n, { y: -(y + 260), rotation: r * 3, opacity: 1 }, { y: 0, rotation: r, duration: 0.7, ease: "bounce.out" }, t);
+      tl.to(n, { y: 26, duration: Math.max(0.2, D - t - 0.9), ease: "sine.in" }, t + 0.7);
+    } else {
+      const x = i % 2 === 0 ? 1080 - 50 - w : 50, y = Y0 + i * (150 * S + 40);
+      gsap.set(n, { left: x, top: y, transformOrigin: i % 2 === 0 ? "80% 0%" : "20% 0%" });
+      tl.fromTo(n, { opacity: 0, y: -40, scale: 0.9, filter: "blur(8px)" },
+                   { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.5, ease: "back.out(1.5)" }, t);
+    }
+  });
+  tl.to(wrap, { opacity: 0, filter: "blur(6px)", duration: 0.24, ease: "power2.in" }, D - 0.26);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

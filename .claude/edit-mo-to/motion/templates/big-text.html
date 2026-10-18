@@ -1,0 +1,56 @@
+<!--defaults {"line1": "TEXT", "line2": "BEHIND YOU", "t_line2": 0.35, "color": "#2a2a2c", "color2": "", "shadow": 0.35, "y": 300, "size": 250, "size2": 0, "font": "Barlow Condensed", "height": 1920, "duration": 3} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;700;800&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif;
+          -webkit-font-smoothing: antialiased; }
+  #blk { position: absolute; left: 0; width: 1080px; top: {{y}}px; text-align: center; }
+  .ln { display: block; font-weight: 700; text-transform: uppercase; line-height: .86; letter-spacing: -0.01em;
+        white-space: nowrap; color: {{color}};
+        text-shadow: 0 6px 30px rgba(0,0,0,{{shadow}}), 0 2px 6px rgba(0,0,0,calc({{shadow}} * .6)); }
+  #l1 { font-size: {{size}}px; }
+  #l2 { margin-top: .02em; }
+  .ln:empty { display: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="blk" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <span id="l1" class="ln">{{line1}}</span><span id="l2" class="ln">{{line2}}</span>
+  </div>
+</div>
+<script>
+  // Big condensed words. Over a speaker, pair it with `motion_render.py cutout` on the track above,
+  // so the words sit BEHIND the person ("text behind you").
+  const D = Number("{{duration}}"), T2 = Number("{{t_line2}}"), SIZE = Number("{{size}}");
+  const l1 = document.getElementById("l1"), l2 = document.getElementById("l2");
+  if ("{{color2}}".trim()) l2.style.color = "{{color2}}";
+  const SAFE = 1000;
+  function fit() {
+    l1.style.fontSize = SIZE + "px";
+    l2.style.fontSize = (Number("{{size2}}") || SIZE * 0.56) + "px";
+    for (const el of [l1, l2]) {
+      if (el.scrollWidth > SAFE) el.style.fontSize = (parseFloat(el.style.fontSize) * SAFE / el.scrollWidth) + "px";
+    }
+  }
+  fit();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+
+  const tl = gsap.timeline({ paused: true });
+  tl.fromTo(l1, { y: -140, opacity: 0, scaleY: 1.25, filter: "blur(14px)" },
+                { y: 0, opacity: 1, scaleY: 1, filter: "blur(0px)", duration: 0.42, ease: "expo.out" }, 0);
+  tl.fromTo(l2, { y: 60, opacity: 0, filter: "blur(10px)" },
+                { y: 0, opacity: 1, filter: "blur(0px)", duration: 0.42, ease: "expo.out" }, T2);
+  tl.to("#blk", { scale: 1.03, duration: Math.max(0.2, D - 0.9), ease: "sine.inOut" }, 0.45);
+  tl.to("#blk", { opacity: 0, y: -24, filter: "blur(8px)", duration: 0.24, ease: "power2.in" }, D - 0.26);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

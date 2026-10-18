@@ -79,3 +79,15 @@ def test_kinetic_title_auto_fits_long_lines():
     assert held == []
     late = [f for f in rep["info"] if f["code"] == "canvas_overflow" and f.get("time", 0) > 0.5]
     assert late == []
+
+
+def test_stage_media_copies_real_files_only(tmp_path):
+    import motion_render as mr
+
+    clip = tmp_path / "clip.mp4"
+    clip.write_bytes(b"x")
+    work = tmp_path / "work"
+    work.mkdir()
+    out = mr._stage_media({"video1": str(clip), "video2": "placeholder.mp4", "label1": "BEFORE"}, work)
+    assert out == {"video1": "media_video1.mp4", "video2": "placeholder.mp4", "label1": "BEFORE"}
+    assert (work / "media_video1.mp4").exists()

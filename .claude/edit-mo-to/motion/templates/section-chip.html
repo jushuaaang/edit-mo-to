@@ -1,0 +1,52 @@
+<!--defaults {"number": "1", "label": "TEXT BEHIND YOU", "x": 60, "y": 230, "scale": 1, "bg": "#161618", "fg": "#ffffff", "font": "Barlow Semi Condensed", "height": 1920, "duration": 3} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500;600;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; --s: {{scale}};
+          -webkit-font-smoothing: antialiased; }
+  #row { position: absolute; left: {{x}}px; top: {{y}}px; display: flex; align-items: center; gap: calc(var(--s) * 14px); }
+  .chip { background: {{bg}}; color: {{fg}}; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 6px 18px rgba(0,0,0,.22); }
+  #num { width: calc(var(--s) * 96px); height: calc(var(--s) * 96px); border-radius: calc(var(--s) * 20px);
+         display: flex; align-items: center; justify-content: center; font-size: calc(var(--s) * 66px); font-weight: 600; }
+  #lab { height: calc(var(--s) * 64px); border-radius: calc(var(--s) * 14px); padding: 0 calc(var(--s) * 22px);
+         display: flex; align-items: center; font-size: calc(var(--s) * 36px); font-weight: 600; letter-spacing: .01em;
+         text-transform: uppercase; white-space: nowrap; }
+  #lab:empty { display: none; }
+  #num:empty { display: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="row" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="num" class="chip">{{number}}</div><div id="lab" class="chip">{{label}}</div>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), S = Number("{{scale}}"), X = Number("{{x}}");
+  const lab = document.getElementById("lab"), num = document.getElementById("num");
+  // the label never runs off the canvas: shrink its type to fit what is left of the row
+  function fit() {
+    lab.style.fontSize = "";
+    const avail = 1080 - X - 40 - (num.textContent.trim() ? (96 + 14) * S : 0);
+    if (lab.scrollWidth > avail) lab.style.fontSize = (parseFloat(getComputedStyle(lab).fontSize) * avail / lab.scrollWidth) + "px";
+  }
+  fit();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+
+  const tl = gsap.timeline({ paused: true });
+  tl.fromTo(num, { scale: 0.4, opacity: 0, filter: "blur(6px)" },
+                 { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.42, ease: "back.out(2)" }, 0);
+  tl.fromTo(lab, { clipPath: "inset(0% 100% 0% 0% round 14px)", x: -10 },
+                 { clipPath: "inset(0% 0% 0% 0% round 14px)", x: 0, duration: 0.5, ease: "power3.out" }, 0.22);
+  tl.to("#row", { opacity: 0, x: -14, filter: "blur(5px)", duration: 0.22, ease: "power2.in" }, D - 0.24);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

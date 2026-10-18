@@ -35,6 +35,22 @@ Every template here has a `height` var (default 1350, use 1920 for 9:16) and a `
 | pain-marker | pulsing pain point on the body + leader line + glass tag | label, x, y, side, dx, dy, color |
 | light-sweep | soft blue-white glint across a cut (0.5 s), a premium alternative to `color-flash` | tint, peak, angle, dir |
 
+## Creator effects kit (effects adapted from a "7 effects" creator reel, 2026-10-19)
+Effects and motion only. **Never copy a reference's colours or fonts:** every template takes `font` plus colour vars (`bg`, `fg`, `accent`, …), and the style agent sets them from the client's brand, the brief and the mood (e.g. Inter + navy for a 50+ health brand, a condensed display face for loud energy, a serif for luxury). Defaults are neutral placeholders. All are 9:16 at `height` 1920 (1350 for 4:5).
+| Template | Use for | Key vars |
+|---|---|---|
+| section-chip | numbered section header: square number pops, label chip wipes open ("3 · ORBIT"); lists, steps, "N reasons" | number, label, x, y, bg, fg, font |
+| big-text | huge 1–2 line words; line 1 drops in with motion blur, line 2 a beat later. **Text behind the speaker** when paired with `cutout` | line1, line2, t_line2, color, color2, shadow, y, size, font |
+| checklist | card of steps that tick off on their spoken words | title, items (a\|b\|c), t_checks (s,s,s), x, y, width, bg, fg, accent |
+| notify | phone notification banners: `stack` (pop in, alternate sides) or `rain` (fall tilted and pile up); results, reviews, orders, social proof | items (title\|body;…), mode, t_gap, y, app (play/bell/heart/chat), bg, fg, icon_bg |
+| prompt-bar | a question or AI prompt typed into an input bar, then sent; "I asked…", search, app ads | text, cps, t_start, y, width, bg, fg, accent |
+| title-card | hook title at the top or end card, with an optional comment-CTA chip (key word bold) | title, sub, chip, key, t_chip, y, bg, fg, chip_bg, chip_fg, font, font2 |
+| phone-cards | the user's own clips in phone frames: `float` (3 tilted cards pop in, drift), `orbit` (circle the head), `compare` (2 cards with BEFORE/AFTER chips and badges like "2:51" or "Week 6") | layout, video1–3 (paths), start1–3, label1/2, badge1/2, y, card_w, frame, chip_bg, chip_fg |
+
+**Text behind the speaker (and orbit behind the head):** `motion_render.py cutout <A-roll file> <out.mov> --in <src_in> --len <seconds>` makes the person alone on alpha (~40 s per second of footage on CPU, so keep the beat to 1–3 s). The editor puts the overlay on its overlay track and the cutout on a video track **above** it, at the same `at`, scale and x/y as that A-roll segment, so the words or cards pass behind the person. Place text so the head covers at most about a third of the letters.
+
+**Section rhythm:** between list sections, use a quick whip/blur transition on the cut (CapCut "Blur" or "Swipe", 0.3 s) and change the framing (wide ↔ punch-in), so each section reads as new.
+
 ## Sound effects
 - 19 sounds in `sfx\` (Pixabay licence: commercial use, no attribution): whoosh, whoosh-short, whoosh-cinematic, pop, click, click-soft, ping, chime, notification, sparkle, impact-bass-1/2, riser, glitch-1/2/3, typing, key-press, error.
 - Each template has a tuned default cue in `sfx_defaults.json`. Overlays opt in with `"sfx": "default"`.

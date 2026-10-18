@@ -12,6 +12,13 @@ CLI (prints JSON):
                                                  HyperFrames audit: lint, runtime errors, text overflow/overlap,
                                                  contrast. Held problems are errors/warnings; entrance blips are info
     preview <file.mov> <out.png> [seconds]       one frame composited over green (check transparency)
+    cutout <clip> <out.mov> [--in s] [--len s]   the person alone on alpha (HyperFrames u2net_human_seg,
+                                                 ~1.3 s/frame on CPU), for text/graphics BEHIND the speaker:
+                                                 place it on a track above those overlays, same at/scale/xy
+                                                 as the A-roll segment it was cut from
+
+Vars whose value is an existing media file (video/image path) are copied into the render, so templates
+can show the user's own clips (phone-cards).
 """
 import html
 import json
@@ -98,18 +105,32 @@ def _probe(path: Path) -> dict:
             "duration": float((d.get("format") or {}).get("duration") or 0)}
 
 
+MEDIA_EXT = {".mp4", ".mov", ".webm", ".m4v", ".png", ".jpg", ".jpeg", ".webp"}
+
+
+def _stage_media(variables: dict, work: Path) -> dict:
+    """Copy vars that point at real media files into the render folder; the template sees a relative name."""
+    out = dict(variables)
+    for k, v in variables.items():
+        if isinstance(v, str) and Path(v).suffix.lower() in MEDIA_EXT and Path(v).is_file():
+            name = f"media_{k}{Path(v).suffix.lower()}"
+            shutil.copy2(v, work / name)
+            out[k] = name
+    return out
+
+
 def render(name: str, out: Path, variables: dict | None = None, fps: int = 30) -> dict:
     out = Path(out).resolve()
     out.parent.mkdir(parents=True, exist_ok=True)
-    html_text = fill(template_text(name), variables or {})
     work = Path(tempfile.mkdtemp(prefix="emt-motion-", dir=os.environ.get("EMT_MOTION_TMP")))
     try:
+        html_text = fill(template_text(name), _stage_media(variables or {}, work))
         for f in (MOTION / "skeleton").iterdir():
             shutil.copy2(f, work / f.name)
         (work / "index.html").write_text(html_text, encoding="utf-8")
         env = {**os.environ, "HYPERFRAMES_SKIP_SKILLS": "1"}
         r = subprocess.run([str(HF_BIN), "render", str(work), "--format", "mov", "--fps", str(fps),
-                            "-o", str(out), "--quiet"], capture_output=True, text=True, env=env,
+                            "-o", str(out), "--quiet"], capture_output=True, text=True, encoding="utf-8", errors="replace", env=env,
                            shell=os.name == "nt")
         if r.returncode != 0 or not out.exists():
             raise RenderFailed(f"hyperframes render failed ({r.returncode}): {(r.stderr or r.stdout)[-1500:]}")
@@ -125,12 +146,12 @@ def check(name: str, variables: dict | None = None, snapshots_dir: Path | None =
     """Run HyperFrames' `check` (lint, runtime errors, layout overflow/overlap, WCAG contrast) on a filled
     template. Returns {ok, errors, warnings, info} with each finding's code, selector, time and message.
     Transient issues during entrance/exit animations come back as info; held ones as warnings/errors."""
-    html_text = fill(template_text(name), variables or {})
     defaults, _ = _split(template_text(name))
     dur = float({**defaults, **(variables or {})}["duration"])
     hold = [round(dur * f, 3) for f in (0.35, 0.5, 0.65)]
     work = Path(tempfile.mkdtemp(prefix="emt-check-", dir=os.environ.get("EMT_MOTION_TMP")))
     try:
+        html_text = fill(template_text(name), _stage_media(variables or {}, work))
         for f in (MOTION / "skeleton").iterdir():
             shutil.copy2(f, work / f.name)
         (work / "index.html").write_text(html_text, encoding="utf-8")
@@ -138,7 +159,7 @@ def check(name: str, variables: dict | None = None, snapshots_dir: Path | None =
         if snapshots_dir:
             args.append("--snapshots")
         env = {**os.environ, "HYPERFRAMES_SKIP_SKILLS": "1"}
-        r = subprocess.run(args, capture_output=True, text=True, env=env, shell=os.name == "nt", timeout=600)
+        r = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, shell=os.name == "nt", timeout=600)
         start = r.stdout.find("{")
         if start < 0:
             raise RenderFailed(f"hyperframes check gave no JSON ({r.returncode}): {(r.stderr or r.stdout)[-1500:]}")
@@ -180,6 +201,30 @@ def preview(mov: Path, png: Path, at: float | None = None) -> Path:
     return Path(png)
 
 
+def cutout(clip: Path, out: Path, start: float = 0.0, length: float | None = None) -> dict:
+    """Person-only transparent .mov of clip[start:start+length], at the clip's own frame rate."""
+    out = Path(out).resolve()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    work = Path(tempfile.mkdtemp(prefix="emt-cutout-", dir=os.environ.get("EMT_MOTION_TMP")))
+    try:
+        src = work / "src.mp4"
+        # keep the source frame rate, so the cutout's frames line up 1:1 with the A-roll it sits on
+        dur = ["-t", f"{length:.4f}"] if length else []
+        subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-ss", f"{start:.4f}", "-i", str(clip), *dur,
+                        "-an", "-c:v", "libx264", "-crf", "12", str(src)], check=True)
+        env = {**os.environ, "HYPERFRAMES_SKIP_SKILLS": "1", "CI": "1"}
+        r = subprocess.run([str(HF_BIN), "remove-background", str(src), "-o", str(out), "--quality", "best"],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, shell=os.name == "nt")
+        if r.returncode != 0 or not out.exists():
+            raise RenderFailed(f"remove-background failed ({r.returncode}): {(r.stderr or r.stdout)[-800:]}")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    info = _probe(out)
+    if not info["alpha"]:
+        raise RenderFailed(f"{out} has no alpha channel ({info['pix_fmt']})")
+    return {"file": str(out), "source": str(clip), "in": start, **info}
+
+
 def main(argv: list[str]) -> None:
     if not argv or argv[0] in ("-h", "--help"):
         raise SystemExit(__doc__)
@@ -213,6 +258,10 @@ def main(argv: list[str]) -> None:
             snaps = Path(args[i + 1])
             args = args[:i] + args[i + 2:]
         out = check(args[0], variables, snaps)
+    elif cmd == "cutout":
+        start = float(args[args.index("--in") + 1]) if "--in" in args else 0.0
+        length = float(args[args.index("--len") + 1]) if "--len" in args else None
+        out = cutout(Path(args[0]), Path(args[1]), start, length)
     elif cmd == "preview":
         out = {"png": str(preview(Path(args[0]), Path(args[1]), float(args[2]) if len(args) > 2 else None))}
     else:
