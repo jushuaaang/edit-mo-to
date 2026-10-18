@@ -53,10 +53,6 @@ plan + project folder + timelines:     (build gate; the plan.json path is enough
 scope: full | delta   changed: <clip #s / prompt #s / ops since the last QA>   (delta after a small fix)
 ```
 
-## Re-runs (keep them small)
-- **Prompt fixes:** post only the changed sentences of a prompt, with its # (or point to `{tmp}/reports/<job>/prompts.txt`), not the whole prompt and its lock blocks again.
-- **QA after a small fix:** dispatch `qa` with `scope: delta` and the `changed` list. Use a full run for the first pass at each gate, or when QA says the change reaches further.
-
 ## Gate wording (keep it short, one question per message)
 - Brief: "Send me the client's brief or instructions (PDF, doc, Notion link, or paste it), any reference videos, and the folder you made for this video."
 - Checklist: "Here's everything the brief requires. Anything missing or wrong?"

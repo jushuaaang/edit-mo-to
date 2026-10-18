@@ -50,8 +50,8 @@ You never make subtitles. The user captions with CapCut auto-caption, except in 
 - Test it:
   1. Run `check` with realistic and worst-case (long) text, and fix until there are no errors or warnings.
   2. Render at 2–3 durations.
-  2. Preview over green and over a real frame of the footage.
-  3. Check spelling, clipping, transparency, the font loading, and legibility at phone size.
+  3. Preview over green and over a real frame of the footage.
+  4. Check spelling, clipping, transparency, the font loading, and legibility at phone size.
 - Then add a row to `CATALOGUE.md` and add a `motion_render` defaults check, by running `"{python}" -m pytest tools/tests/test_motion_render.py -q` (the test checks that every template fills).
 
 ## Never
