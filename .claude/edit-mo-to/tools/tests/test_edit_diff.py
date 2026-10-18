@@ -1,0 +1,71 @@
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import edit_diff as ed  # noqa: E402
+
+
+def seg(track, src, at, dur, src_in=0.0, volume=1.0, scale=1.0, x=0.0, y=0.0, ttype="video", text=None):
+    return {"track": track, "track_type": ttype, "material_type": "texts" if text else "videos", "source": src,
+            "path": src, "at": at, "duration": dur, "src_in": src_in, "volume": volume, "speed": 1.0,
+            "scale": {"x": scale, "y": scale}, "transform": {"x": x, "y": y}, "text": text}
+
+
+def tl(segs, name="Timeline 01"):
+    return {"timeline": name, "duration": max(s["at"] + s["duration"] for s in segs), "segments": segs}
+
+
+def test_kinds():
+    assert ed.kind(seg("video_main", "D:/a.mp4", 0, 1)) == "a-roll"
+    assert ed.kind(seg("video_broll", "D:/b.mp4", 0, 1)) == "b-roll"
+    assert ed.kind(seg("overlay_ui", "D:/x/motion/T1_01_badge.mov", 0, 1)) == "overlay"
+    assert ed.kind(seg("sfx_a", "D:/sfx/pop.mp3", 0, 1, ttype="audio")) == "sfx"
+    assert ed.kind(seg("music", "D:/m.mp3", 0, 1, ttype="audio")) == "music"
+    assert ed.kind(seg("text", None, 0, 1, ttype="text", text="hi")) == "text"
+
+
+def test_no_edits_no_changes():
+    b = tl([seg("video_main", "a.mp4", 0, 3), seg("video_broll", "b.mp4", 1, 1)])
+    d = ed.diff(b, b)
+    assert d["changed"] == [] and d["removed"] == [] and d["added"] == [] and d["patterns"] == []
+
+
+def test_detects_trims_moves_volume_and_patterns():
+    built = tl([seg("video_main", "a.mp4", 0, 9),
+                seg("video_broll", "b1.mp4", 1.0, 2.0), seg("video_broll", "b2.mp4", 4.0, 2.0),
+                seg("video_broll", "b3.mp4", 7.0, 2.0),
+                seg("overlay_ui", "m/motion/c1.mov", 1.5, 2.0), seg("overlay_ui", "m/motion/c2.mov", 4.6, 2.0),
+                seg("music", "song.mp3", 0, 9, volume=0.1, ttype="audio")])
+    final = tl([seg("video_main", "a.mp4", 0, 9),
+                seg("video_broll", "b1.mp4", 1.0, 1.4), seg("video_broll", "b2.mp4", 4.0, 1.5),
+                seg("video_broll", "b3.mp4", 7.0, 1.2),
+                seg("overlay_ui", "m/motion/c1.mov", 1.0, 2.0), seg("overlay_ui", "m/motion/c2.mov", 4.0, 2.0),
+                seg("music", "song.mp3", 0, 9, volume=0.05, ttype="audio"),
+                seg("text", None, 0.2, 1.0, ttype="text", text="caption")])
+    d = ed.diff(built, final)
+    ids = {p["id"] for p in d["patterns"]}
+    assert "b-roll:shorter" in ids
+    assert "overlay:to-cut" in ids and "overlay:earlier" in ids
+    assert "music:quieter" in ids
+    assert d["caption_segments_added"] == 1 and d["added"] == []  # captions are counted, not learned from
+    music = next(c for c in d["changed"] if c["kind"] == "music")
+    assert music["volume_db"] == -6.0
+
+
+def test_removed_and_added():
+    built = tl([seg("video_main", "a.mp4", 0, 6), seg("overlay_ui", "m/motion/zoom.mov", 2, 1)])
+    final = tl([seg("video_main", "a.mp4", 0, 6), seg("video_broll", "mine.mp4", 3, 2)])
+    d = ed.diff(built, final)
+    assert d["removed"][0]["kind"] == "overlay" and d["added"][0]["file"] == "mine.mp4"
+    ids = {p["id"] for p in d["patterns"]}
+    assert {"overlay:removed", "b-roll:added"} <= ids
+
+
+def test_recurring_across_videos(tmp_path):
+    log = tmp_path / "p.jsonl"
+    rows = [{"video": "A", "patterns": [{"id": "b-roll:shorter", "text": "x"}]},
+            {"video": "B", "patterns": [{"id": "b-roll:shorter", "text": "y"}, {"id": "music:quieter", "text": "z"}]}]
+    log.write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    rec = ed.recurring(log)
+    assert [r["id"] for r in rec] == ["b-roll:shorter"] and rec[0]["videos"] == 2

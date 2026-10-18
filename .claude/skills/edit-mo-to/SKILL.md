@@ -61,6 +61,7 @@ The user's own editing workflow. You run it in the main conversation and own all
 - Python: `"{python}"`; tools in `{root}/.claude/edit-mo-to/tools/`:
   - `media_timing.py`: `vo <audio> [script.txt]`, `beats <audio>`
   - `speech_cuts.py`: `propose <clip>`, `apply <cuts.json>` (dead air and mistake cuts, step 5)
+  - `edit_diff.py`: `snapshot` (editor, after builds), `diff` and `history` (learning step: what the editor changed by hand)
   - `capcut_project.py`: `list <project>` (show timelines); the editor uses the rest.
   - `motion_render.py`: `list`, `render <template> <out.mov> --vars-file f.json`, `preview <mov> <png>`. Catalogue: `motion/CATALOGUE.md`.
   - `plan_preview.py <plan.json> <out.mp4>`: ffmpeg preview of a frame-based plan with overlays.
