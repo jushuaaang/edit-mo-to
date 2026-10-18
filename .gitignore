@@ -34,3 +34,8 @@ __pycache__/
 *.zip
 *.tar
 # (the 19 Pixabay SFX mp3s in motion/sfx are part of the workflow and stay tracked)
+
+# client-private notes stay on this computer only (the repo is public): briefs, links, talent, offers
+/.claude/edit-mo-to/clients/
+# hand-edit log names clients and videos
+/.claude/edit-mo-to/edit-patterns.jsonl

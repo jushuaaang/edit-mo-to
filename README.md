@@ -75,7 +75,7 @@ Good to know:
 After each video, Claude compares the project as it built it with how you finished it in CapCut: which clips you trimmed, moved, deleted or added, which graphics you moved, and what you made louder or quieter. It also reads every correction you typed. Habits that repeat across videos become rules. Claude shows you the list and **saves only what you approve**, so the next video starts closer to your style.
 
 - Your rules live in `.claude/edit-mo-to/preferences.md` (general) and `.claude/edit-mo-to/clients/` (per client).
-- They sync through GitHub, so every computer you use shares the same rules.
+- General rules sync through GitHub, so every computer you use shares them. **Client notes do not:** this repo is public, so `clients/` stays on each computer (it's in `.gitignore`). To use them on another computer, copy the folder over or keep it in a private cloud folder.
 - **A different editor with their own taste** should use their own copy of this repo (a fork), so the two styles don't mix.
 
 ## What's inside
@@ -157,6 +157,6 @@ Same steps as Windows, with these differences:
 Each computer has its own untracked `.claude/edit-mo-to/machine.json` (copy `machine.example.json`): `root`, `python`, `tmp`, `mcp_servers`, `capcut_drafts`. The Python tools read it through `tools/machine.py`; the skill and agents write these as `{root}`, `{python}`, `{tmp}` and `{capcut_drafts}`. Keys you leave out fall back to the platform default.
 
 ## Keeping computers in sync
-Rules, client notes and templates change as the workflow learns.
+Rules and templates change as the workflow learns (client notes stay on each computer).
 - **Before starting a video:** Claude runs `git pull` for you.
 - **After the learning step:** Claude commits and pushes the new rules. If the push is blocked, it gives you the command to run.

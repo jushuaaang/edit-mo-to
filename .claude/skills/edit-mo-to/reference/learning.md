@@ -12,7 +12,7 @@ The goal: next time, the agents work more like the editor without being told aga
 2. Turn the evidence into one-line rules, each tagged with the client and date, e.g. `- B-roll: no back-to-back clips of the same person [Zapply 2026-10-15]`.
    - A hand-edit pattern becomes a rule when it is recurring, or clear and repeated within this video. Write it as what to do next time ("B-roll cuts about 0:12 shorter than the VO span"), not as what happened.
    - **General or style rules** go in `{root}/.claude/edit-mo-to/preferences.md`, in the right section.
-   - **Client-only rules** go in `clients\<client>.md` (create it if new: product, talent, offer, claims, references, folder paths).
+   - **Client-only rules** go in `clients\<client>.md` (create it if new: product, talent, offer, claims, references, folder paths). Client notes stay on this computer only; the repo is public, so never put client names, links or briefs anywhere else in `.claude/` except as short tags. A style block worth reusing goes in `style-blocks.md` with the client details replaced by `[placeholders]`.
    - **Lasting changes to how an agent works** (a new required prompt block, a new layout) go in `{root}/.claude/agents/<style>.md`. Keep edits small and in that file's own style.
    - **Keep preferences lean:** merge a new rule into an existing one that says nearly the same thing, and replace rules it makes outdated (with the editor's OK), so the file doesn't grow every video.
 3. ⛔ Show the proposed additions as a table, `# | File | Add/Change | Why (quote or hand-edit evidence)`, and ask: "Save these so I work like this next time?" Apply only what the editor approves.

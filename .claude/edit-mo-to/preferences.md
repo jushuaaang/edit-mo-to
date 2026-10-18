@@ -74,7 +74,7 @@ Session tags: Cirelle fe9a0790 · GODA 6ec28f49 · Nuva 73daf057 · Nativia ac6e
 
 ## Claymation
 - Google Flow: image prompt first, then video prompt. **Fit the lines in the time** [Muslin-clay].
-- **Style and audio block in every clip,** in full, with each character's voice tone so voices never change (see `clients/muslin-cotton.md`) [Muslin-clay].
+- **Style and audio block in every clip,** in full, with each character's voice tone so voices never change (see `style-blocks.md`) [Muslin-clay].
 - **One speaker at a time;** the other keeps its mouth closed (overlapping mouths failed). Keep characters in the same setting [Muslin-clay].
 - **Named characters show their names** in two-character B-roll. Calendars show real numbers. A sleeping person has eyes closed, so drop "big stylized eyes" there [Muslin-clay].
 - **B-roll matches the reference video** and says which line it goes over [Muslin-clay].
