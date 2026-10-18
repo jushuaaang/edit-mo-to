@@ -39,6 +39,10 @@ def sfx_cues(overlays: list, end_us: int | None = None) -> list:
             continue
         cues = defaults.get(o["template"], []) if spec == "default" else spec
         vars_ = o.get("vars", {})
+        try:
+            vars_ = {**mr._split(mr.template_text(o["template"]))[0], **vars_}   # offsets may name a default
+        except (FileNotFoundError, ValueError):
+            pass
         for c in cues:
             cond = c.get("when")
             if cond:
@@ -46,14 +50,16 @@ def sfx_cues(overlays: list, end_us: int | None = None) -> list:
                 if str(vars_.get(key)) != val:
                     continue
             off = c.get("offset", 0)
-            off = float(vars_.get(off, 0)) if isinstance(off, str) else float(off)
-            at = US(o["from"]) + round(off * 1_000_000)
+            # an offset naming a list var ("0.9,1.6,2.4", e.g. cursor-ui's t_clicks) gives one cue per time
+            offs = [float(x) for x in str(vars_.get(off, 0)).split(",") if x.strip()] if isinstance(off, str) else [float(off)]
             ln = round(float(c.get("len", 0.6)) * 1_000_000)
             ov_end = US(o["to"])
-            if at >= ov_end:
-                continue
-            raw.append({"file": str(MOTION / "sfx" / f"{c['name']}.mp3"), "at_us": at, "len_us": ln,
-                        "volume": float(c.get("volume", 0.5))})
+            for off in offs:
+                at = US(o["from"]) + round(off * 1_000_000)
+                if at >= ov_end:
+                    continue
+                raw.append({"file": str(MOTION / "sfx" / f"{c['name']}.mp3"), "at_us": at, "len_us": ln,
+                            "volume": float(c.get("volume", 0.5))})
     raw.sort(key=lambda c: c["at_us"])
     # two whooshes landing together (a flash and a title on the same beat) sound muddy: keep the first
     kept = []

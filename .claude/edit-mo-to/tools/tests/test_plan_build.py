@@ -25,6 +25,13 @@ def test_offsets_can_follow_template_vars_and_conditions():
     assert [Path(c["file"]).stem for c in mirror] == ["pop"]
 
 
+def test_list_offsets_give_one_cue_per_time_and_fall_back_to_defaults():
+    cues = pb.sfx_cues([_ov("cursor-ui", 0, 120, t_clicks="0.5,1.5")])
+    assert [c["at_us"] for c in cues if Path(c["file"]).stem == "click"] == [500_000, 1_500_000]
+    dflt = pb.sfx_cues([_ov("cursor-ui", 0, 120)])
+    assert [c["at_us"] for c in dflt if Path(c["file"]).stem == "click"] == [900_000, 1_600_000, 2_400_000]
+
+
 def test_none_and_custom_cues():
     assert pb.sfx_cues([_ov("badge", 0, 30, sfx="none")]) == []
     cues = pb.sfx_cues([_ov("badge", 0, 30, sfx=[{"name": "sparkle", "offset": 0.1, "len": 1.0, "volume": 0.3}])])

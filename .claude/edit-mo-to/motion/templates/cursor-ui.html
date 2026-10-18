@@ -1,0 +1,167 @@
+<!--defaults {"mode": "ui", "title": "Your plan", "items": "Daily reminder|Subscribe and save|Free shipping", "on": "0|0|1", "button": "Add to cart", "button_done": "Added", "clicks": "1,2,button", "t_clicks": "0.9,1.6,2.4", "image": "", "points": "50,40;50,70", "cursor": "arrow", "zoom": 1.06, "x": 540, "y": 860, "width": 840, "bg": "#f5f5f7", "fg": "#141416", "accent": "#3a3d45", "accent_fg": "#ffffff", "font": "Inter", "scale": 1, "height": 1920, "duration": 3.6} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", -apple-system, sans-serif; --s: {{scale}};
+          -webkit-font-smoothing: antialiased; color: {{fg}}; }
+  #cam { position: absolute; top: {{y}}px; width: calc(var(--s) * {{width}}px); }
+  #panel { position: relative; background: {{bg}}; border-radius: calc(var(--s) * 40px); overflow: hidden;
+           box-shadow: inset 0 0 0 1px rgba(255,255,255,.6), 0 0 0 1px rgba(0,0,0,.06), 0 2px 6px rgba(0,0,0,.10), 0 22px 50px rgba(0,0,0,.26); }
+  #ui { padding: calc(var(--s) * 38px) calc(var(--s) * 44px) calc(var(--s) * 40px); }
+  #title { font-size: calc(var(--s) * 44px); font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; margin-bottom: calc(var(--s) * 14px); }
+  #title:empty { display: none; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--s) * 24px);
+         padding: calc(var(--s) * 24px) 0; border-top: 1px solid rgba(127,127,127,.2); }
+  .row:first-child { border-top: 0; }
+  .rl { font-size: calc(var(--s) * 36px); font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+  .tg { position: relative; flex: none; width: calc(var(--s) * 98px); height: calc(var(--s) * 58px); border-radius: 999px; background: rgba(127,127,127,.28); }
+  .th { position: absolute; top: calc(var(--s) * 5px); left: calc(var(--s) * 5px); width: calc(var(--s) * 48px); height: calc(var(--s) * 48px);
+        border-radius: 50%; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,.22), 0 0 0 .5px rgba(0,0,0,.06); }
+  #btn { position: relative; margin-top: calc(var(--s) * 26px); height: calc(var(--s) * 108px); border-radius: calc(var(--s) * 30px);
+         background: {{accent}}; color: {{accent_fg}}; display: grid; place-items: center; font-size: calc(var(--s) * 40px); font-weight: 700; letter-spacing: -0.01em; }
+  #btn span { grid-area: 1 / 1; white-space: nowrap; display: flex; align-items: center; gap: .4em; }
+  #btn svg { width: 1em; height: 1em; } #btn path { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  #btn:empty, .nobtn #btn { display: none; }
+  #shot { display: block; width: 100%; height: auto; }
+  #hit { position: absolute; inset: 0; pointer-events: none; }
+  .rip { position: absolute; width: calc(var(--s) * 84px); height: calc(var(--s) * 84px); margin: calc(var(--s) * -42px) 0 0 calc(var(--s) * -42px);
+         border-radius: 50%; border: calc(var(--s) * 4px) solid {{accent}}; opacity: 0; }
+  #cur { position: absolute; left: 0; top: 0; width: calc(var(--s) * 58px); height: calc(var(--s) * 58px); z-index: 5; }
+  #cur svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 3px 5px rgba(0,0,0,.30)); }
+  #cur.tap { width: calc(var(--s) * 74px); height: calc(var(--s) * 74px); margin: calc(var(--s) * -37px) 0 0 calc(var(--s) * -37px); }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="cam" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="panel"><div id="ui"><div id="title">{{title}}</div><div id="rows"></div>
+      <div id="btn"><span id="b1">{{button}}</span><span id="b2"><svg viewBox="0 0 24 24"><path d="M5.5 12.6l4.2 4.2L18.6 7.6"/></svg>{{button_done}}</span></div></div>
+      <div id="hit"></div></div>
+    <div id="cur"></div>
+  </div>
+</div>
+<script>
+  // A cursor (or fingertip) drives the UI: it travels to each target, presses, and the state changes on
+  // the click — toggles spring on, the button confirms. mode "image": the same cursor over a screenshot
+  // (image var = a real file; points = "x%,y%;…" in the screenshot).
+  const D = Number("{{duration}}"), S = Number("{{scale}}"), W = Number("{{width}}") * S, X = Number("{{x}}");
+  const ZOOM = Number("{{zoom}}") || 1, MODE = "{{mode}}", CUR = "{{cursor}}";
+  const dec = s => { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; };
+  const ITEMS = dec("{{items}}").split("|").map(s => s.trim()).filter(Boolean);
+  const ON = "{{on}}".split("|").map(v => v.trim() === "1");
+  const TIMES = "{{t_clicks}}".split(",").map(Number).filter(t => !isNaN(t));
+  const cam = document.getElementById("cam"), panel = document.getElementById("panel"), cur = document.getElementById("cur");
+  cam.style.left = Math.round(Math.max(24, Math.min(1080 - 24 - W, X - W / 2))) + "px";
+  cur.innerHTML = CUR === "tap"
+    ? '<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="rgba(255,255,255,.55)" stroke="rgba(255,255,255,.95)" stroke-width="2.5"/></svg>'
+    : '<svg viewBox="0 0 24 24"><path d="M3 2.2l16.4 10.2-7 1.3 4.1 7.6-3.2 1.7-4.1-7.6-5.4 4.7z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+  if (CUR === "tap") cur.classList.add("tap");
+
+  const targets = [];   // {el?, x, y} in panel px, resolved after layout
+  if (MODE === "image") {
+    document.getElementById("ui").remove();
+    const img = document.createElement("img"); img.id = "shot"; img.src = "{{image}}"; panel.prepend(img);
+    "{{points}}".split(";").forEach(p => { const [px, py] = p.split(",").map(Number); if (!isNaN(px)) targets.push({ px, py }); });
+  } else {
+    const rows = document.getElementById("rows");
+    ITEMS.forEach((t, i) => {
+      const r = document.createElement("div"); r.className = "row";
+      r.innerHTML = '<div class="rl"></div><div class="tg"><div class="th"></div></div>';
+      r.querySelector(".rl").textContent = t; rows.appendChild(r);
+    });
+    if (!dec("{{button}}").trim()) panel.classList.add("nobtn");
+    "{{clicks}}".split(",").map(s => s.trim()).forEach(c => {
+      const el = c === "button" ? document.getElementById("btn") : rows.children[Number(c) - 1];
+      if (el) targets.push({ el, kind: c === "button" ? "button" : "toggle" });
+    });
+  }
+  // rows: shrink a long label rather than clip it
+  const fit = (el, maxW) => { el.style.fontSize = ""; const w = el.scrollWidth; if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px"; };
+  const layout = () => {
+    const t = document.getElementById("title"); if (t) fit(t, W - 88 * S);
+    document.querySelectorAll(".rl").forEach(e => fit(e, W - 88 * S - 122 * S));
+    document.querySelectorAll("#btn span").forEach(e => fit(e, W - 140 * S));
+  };
+  const pos = t => {
+    if (t.el) {   // the press point: a toggle's thumb travel, the middle of a button
+      const pr = panel.getBoundingClientRect(), k = pr.width / panel.offsetWidth;
+      const a = (t.kind === "toggle" ? t.el.querySelector(".tg") : t.el).getBoundingClientRect();
+      return { x: (a.left - pr.left + a.width * (t.kind === "toggle" ? 0.62 : 0.5)) / k, y: (a.top - pr.top + a.height * 0.55) / k };
+    }
+    return { x: t.px / 100 * panel.offsetWidth, y: t.py / 100 * panel.offsetHeight };
+  };
+
+  // one timeline object, rebuilt in place once fonts and the screenshot have loaded, so every press point
+  // is measured on the final layout (the renderer holds the same reference)
+  const tl = gsap.timeline({ paused: true });
+  const make = () => {
+    tl.clear(); layout();
+    document.getElementById("hit").innerHTML = "";
+    gsap.set(cam, { clearProps: "opacity,transform,filter" });
+    gsap.set([panel, cur, ...document.querySelectorAll("#btn, #btn span, .row, .th, .tg")], { clearProps: "all" });
+    tl.fromTo(cam, { opacity: 0 }, { opacity: 1, duration: 0.18, ease: "power1.out" }, 0);
+    tl.fromTo(panel, { y: 34 * S, scale: 0.94, filter: "blur(6px)" }, { y: 0, scale: 1, filter: "blur(0px)", duration: 0.55, ease: "back.out(1.2)" }, 0);
+    const state = [];
+    document.querySelectorAll(".row").forEach((r, i) => {
+      tl.fromTo(r, { opacity: 0, y: 12 * S }, { opacity: 1, y: 0, duration: 0.36, ease: "expo.out" }, 0.12 + i * 0.06);
+      state[i] = !!ON[i];
+      if (ON[i]) { gsap.set(r.querySelector(".th"), { x: 40 * S }); gsap.set(r.querySelector(".tg"), { backgroundColor: "{{accent}}" }); }
+    });
+    if (MODE !== "image") gsap.set("#b2", { opacity: 0 });
+    // the cursor enters from the lower right, then visits each target and presses on its click time
+    const pts = targets.map(pos), n = Math.min(pts.length, TIMES.length);
+    if (!n) { cur.style.display = "none"; }
+    const pw = panel.offsetWidth, ph = panel.offsetHeight;
+    const hot = CUR === "tap" ? { x: 0, y: 0 } : { x: 3 / 24 * 58 * S, y: 2.2 / 24 * 58 * S };   // arrow tip
+    if (n) {
+      gsap.set(cur, { x: pw * 0.92 - hot.x, y: ph + 140 * S - hot.y, opacity: 0 });
+      tl.to(cur, { opacity: 1, duration: 0.2 }, Math.max(0.15, TIMES[0] - 0.75));
+    }
+    let prev = Math.max(0.2, (TIMES[0] || 0) - 0.7);
+    for (let i = 0; i < n; i++) {
+      const p = pts[i], t = TIMES[i], travel = Math.max(0.25, Math.min(0.6, t - prev - 0.08));
+      tl.to(cur, { x: p.x - hot.x, y: p.y - hot.y, duration: travel, ease: "power3.inOut" }, t - travel - 0.06);
+      // press: cursor dips, a thin ring opens where it clicked
+      tl.to(cur, { scale: 0.84, duration: 0.07, ease: "power2.in", transformOrigin: CUR === "tap" ? "50% 50%" : "5% 4%" }, t - 0.05);
+      tl.to(cur, { scale: 1, duration: 0.2, ease: "power2.out" }, t + 0.03);
+      const rip = document.createElement("div"); rip.className = "rip"; rip.style.left = p.x + "px"; rip.style.top = p.y + "px";
+      document.getElementById("hit").appendChild(rip);
+      tl.fromTo(rip, { scale: 0.3, opacity: 0.9 }, { scale: 1.5, opacity: 0, duration: 0.45, ease: "power2.out" }, t);
+      // the camera serves the state: a small push toward what was just clicked, eased back to centre
+      if (ZOOM > 1) {
+        tl.to(panel, { scale: ZOOM, transformOrigin: `${p.x / pw * 100}% ${p.y / ph * 100}%`, duration: 0.35, ease: "power2.out" }, t - 0.05);
+        if (i === n - 1 || TIMES[i + 1] - t > 0.9) tl.to(panel, { scale: 1, duration: 0.45, ease: "power2.inOut" }, Math.min(t + 0.45, D - 0.7));
+      }
+      const tg = targets[i];
+      if (tg.kind === "toggle") {
+        const r = tg.el, k = [...r.parentNode.children].indexOf(r), on = state[k];
+        state[k] = !on;
+        tl.to(r.querySelector(".th"), { x: on ? 0 : 40 * S, duration: 0.32, ease: "back.out(1.3)" }, t);
+        tl.to(r.querySelector(".tg"), { backgroundColor: on ? "rgba(127,127,127,.28)" : "{{accent}}", duration: 0.2, ease: "power1.out" }, t);
+      } else if (tg.kind === "button") {
+        tl.to("#btn", { scale: 0.96, duration: 0.08, ease: "power2.in" }, t - 0.04);
+        tl.to("#btn", { scale: 1, duration: 0.28, ease: "back.out(1.4)" }, t + 0.05);
+        tl.to("#b1", { opacity: 0, filter: "blur(6px)", y: -10 * S, duration: 0.16, ease: "power2.in" }, t + 0.02);
+        tl.fromTo("#b2", { opacity: 0, filter: "blur(6px)", y: 10 * S }, { opacity: 1, filter: "blur(0px)", y: 0, duration: 0.24, ease: "power2.out" }, t + 0.12);
+      }
+      prev = t;
+    }
+    if (n) tl.to(cur, { opacity: 0, duration: 0.2 }, Math.min(D - 0.45, TIMES[n - 1] + 0.6));
+    tl.to(cam, { opacity: 0, y: 12, scale: 0.97, filter: "blur(4px)", duration: 0.22, ease: "power2.in" }, D - 0.26);
+    tl.seek(0);
+  };
+  make();
+  const shot = document.getElementById("shot");
+  if (shot && !shot.complete) shot.addEventListener("load", make);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(make);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

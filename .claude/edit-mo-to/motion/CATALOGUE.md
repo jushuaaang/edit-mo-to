@@ -56,6 +56,7 @@ Effects and motion only: `font` and every colour are vars set from the client's 
 | Template | Use for | Key vars |
 |---|---|---|
 | data-viz | data that moves: `bars` fill while numbers count, then the winner takes the accent and the rest step back; `ring` (1–3 rings close around counting %); `line` draws left to right, the number and caption read the value under the head | mode, values (a\|b), labels, title, prefix, suffix, decimals, max, winner (max/last/first/index/none), t_start, count_dur, x, y, width, bg, fg, muted, accent, font |
+| cursor-ui | a cursor (`arrow`) or fingertip (`tap`) drives a product UI: travels, presses, and the state changes on the click (toggles spring on, the button confirms under a short blur), with a small camera push toward each click. `mode: image` puts the same cursor over a screenshot (a real file; `points` are x%,y%) | mode, title, items (a\|b\|c), on (0\|1\|…), button, button_done, clicks (1,2,button), t_clicks (s,s,s), image, points, cursor, zoom, x, y, width, bg, fg, accent, accent_fg, font |
 
 ## Sound effects
 - 19 sounds in `sfx\` (Pixabay licence: commercial use, no attribution): whoosh, whoosh-short, whoosh-cinematic, pop, click, click-soft, ping, chime, notification, sparkle, impact-bass-1/2, riser, glitch-1/2/3, typing, key-press, error.
