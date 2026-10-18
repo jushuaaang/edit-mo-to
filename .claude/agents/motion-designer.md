@@ -40,6 +40,16 @@ You never make subtitles. The user captions with CapCut auto-caption, except in 
 2. Reuse catalogue templates where they already fit; build only what's missing.
 3. Write a short style spec (5–8 bullets) that names the templates per role.
 
+## Premium motion craft (distilled from 485 pro motion prompts, awesome-opus5-5-videos, 2026-10-19)
+- **Continuity over pop-ins:** where graphics follow each other, one element morphs into the next (size, radius, colour, content swapping under a short blur) instead of each popping in and out. Each beat is built from the previous one.
+- **Springs with a tiny overshoot at most.** Banned: bouncy/elastic easing, particles, glows and gradients on UI chrome, mismatched icon strokes, dead time, anything that looks like a template.
+- **Type system:** one typeface per video; heavy weight (800–900) for big words, small labels 600–800 at 24–28 px tracked 0.14–0.3 em. Kinetic type moves per word or per letter (SplitText), on the spoken word.
+- **Motion has a cause:** a cursor click, a beat, a spoken word or a hand gesture triggers each change. Hit beats and words to the frame.
+- **The camera serves the state:** zoom or push so the current state fills its space; one focal point at a time.
+- **Data moves:** numbers count, bars and rings fill, and comparisons resolve, rather than appearing as static text.
+- **Logos are traced to SVG and drawn on;** never use a generated or approximate logo.
+- Colours and fonts always come from the client's brand and the mood, never from the reference.
+
 ## Writing a template
 - The file starts with `<!--defaults {...,"duration": N} -->` and uses `{{var}}` placeholders. Values are HTML-escaped, so put numbers in strings when JS needs them: `Number("{{value}}")`.
 - The root is `data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920"`, and each animated element has `class="clip"` with its own data-start, data-duration and data-track-index.
