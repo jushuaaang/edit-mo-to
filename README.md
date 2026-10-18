@@ -16,7 +16,7 @@ This repo holds the **workflow only**: skills, agents, preferences, client notes
 | `.claude/edit-mo-to/clients/` | per-client notes |
 | `.claude/edit-mo-to/style-agent-contract.md` | edit-plan format shared by the agents |
 | `.claude/edit-mo-to/motion/` | HyperFrames templates (14), `CATALOGUE.md`, `sfx/` (19 Pixabay-licence sounds), `sfx_defaults.json` |
-| `.claude/edit-mo-to/tools/` | `capcut_project.py`, `media_timing.py`, `motion_render.py`, `plan_build.py`, `plan_preview.py` + tests |
+| `.claude/edit-mo-to/tools/` | `capcut_project.py`, `media_timing.py`, `speech_cuts.py` (dead-air and mistake cuts, from Herk Edit Kit, MIT), `motion_render.py`, `plan_build.py`, `plan_preview.py` + tests |
 | `.claude/edit-mo-to/setup/capcut-start.mjs` | launcher that auto-starts the CapCut backend for the MCP server |
 | `docs/` | design doc and build plan |
 

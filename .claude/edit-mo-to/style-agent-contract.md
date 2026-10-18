@@ -10,6 +10,7 @@
 - `broll_source`: `client` | `ai` | `both`; `generator`: `google-flow` | `seedance` (only when AI clips are needed)
 - `client_broll_folder` (if any); `clips`: inventory (path, duration, fps), when they exist
 - `revision`: change requests + target timeline (edit-plan only, optional)
+- `aroll_cuts`: path(s) to `speech_cuts.py` `keep.json` files (talking-head A-roll with its own audio, optional). Its `segs` are that clip's A-roll in order: one plan clip each (same file, `src_in`/`src_out`/`at`, not muted), already back to back and frame-exact. Never re-cut inside them. Its re-timed `words`/`lines` are the timing for everything over that A-roll (B-roll, overlays, punch-ins).
 
 ## Before you write anything
 1. Read `{root}/.claude/edit-mo-to/preferences.md`: General, your style's section, the generator's section, and "Known generation failures". Follow them.

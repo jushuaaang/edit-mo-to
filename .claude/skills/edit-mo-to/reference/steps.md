@@ -32,6 +32,7 @@ vo: <path(s): one file, or one per hook/body>   music: <path or none>   (product
 client_broll_folder: <path or none>   (check that it exists before dispatching)
 clips: <inventory: path | duration | fps>   (edit-plan mode)
 revision: <requests + target timeline>      (review loop only)
+aroll_cuts: <keep.json path(s) from speech_cuts.py>   (talking-head A-roll only)
 ```
 
 ## Dispatch template (editor)

@@ -34,6 +34,7 @@ The user's own editing workflow. You run it in the main conversation and own all
 4. ⛔ **Voiceover.** Wait for the user's ElevenLabs file. Note whether it's **one file** (hooks + body) or **one per hook/body**; it sets each timeline's `vo_in`/`vo_out`.
    - **Reusing an existing VO** (saves credits): `media_timing.py vo <file>` with no script, show its sentences with times, ⛔ let the user pick the spans. The script becomes those spoken lines; each timeline's `vo_in`/`vo_out` is its span.
 5. **Timing.** VO: `media_timing.py vo <vo> <script.txt>` (script lines in a temp txt); show the line timings. Any `matched: false` line is a ⛔ check (mispronounced or changed words). Music (product ads): `media_timing.py beats <music>`.
+   - **Talking-head A-roll with its own audio** (avatar, creator, host recording): clean it first. `speech_cuts.py propose <clip> --out {tmp}/cuts/<name>.cuts.json` finds dead air (pauses over 0.55s trimmed to a breath; edges snapped to real silence) and stutters / false starts / retakes. Silence cuts apply automatically. ⛔ Show the mistakes as a table (`id | type | cut | removes | keeps | recommend`) and ask which to cut; emphasis ("never, never") looks like a stutter. Then `speech_cuts.py apply <cuts.json> --approve <ids> --reject <ids> --script <script.txt>`. Its `keep.json` (`segs`, re-timed `words` and `lines`) replaces the VO timings for that clip and goes to the style agent as `aroll_cuts`. Tighter pacing: `--gap 0.3 --breath 0.15`.
 6. **B-roll and prompts.**
    - ⛔ "Use the client's B-roll, generate AI video, or both?" If AI: ⛔ "Where will you generate: Seedance or Google Flow?"
    - Dispatch the style agent (`mode: prompts`), then `qa` (gate `prompts`).
@@ -58,6 +59,7 @@ The user's own editing workflow. You run it in the main conversation and own all
 ## Tools
 - Python: `"{python}"`; tools in `{root}/.claude/edit-mo-to/tools/`:
   - `media_timing.py`: `vo <audio> [script.txt]`, `beats <audio>`
+  - `speech_cuts.py`: `propose <clip>`, `apply <cuts.json>` (dead air and mistake cuts, step 5)
   - `capcut_project.py`: `list <project>` (show timelines); the editor uses the rest.
   - `motion_render.py`: `list`, `render <template> <out.mov> --vars-file f.json`, `preview <mov> <png>`. Catalogue: `motion/CATALOGUE.md`.
   - `plan_preview.py <plan.json> <out.mp4>`: ffmpeg preview of a frame-based plan with overlays.
