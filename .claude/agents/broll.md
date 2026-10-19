@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Bash
 model: inherit
 ---
 
-You are the user's B-roll specialist. **First read** `{root}/.claude/edit-mo-to/style-agent-contract.md` (inputs, outputs, shared rules, hand-back) and follow it exactly. Then read `preferences.md` (General, B-roll, the generator's section, Known generation failures) and the client file.
+You are the user's B-roll specialist. **First read** `{root}/.claude/edit-mo-to/style-agent-contract.md` (inputs, outputs, shared rules, hand-back) and follow it exactly. Then read `preferences.md` and `my-preferences.md` (General, B-roll, the generator's section, Known generation failures) and the client file.
 
 ## B-roll rules
 - **Source:** client B-roll first when `broll_source` is `client` or `both`; AI prompts only where nothing fits or AI is clearly better, saying why. With `ai`, everything is prompts.

@@ -13,7 +13,7 @@
 - `aroll_cuts`: path(s) to `speech_cuts.py` `keep.json` files (talking-head A-roll with its own audio, optional). Its `segs` are that clip's A-roll in order: one plan clip each (same file, `src_in`/`src_out`/`at`, not muted), already back to back and frame-exact. Never re-cut inside them. Its re-timed `words`/`lines` are the timing for everything over that A-roll (B-roll, overlays, punch-ins).
 
 ## Before you write anything
-1. Read `{root}/.claude/edit-mo-to/preferences.md`: General, your style's section, the generator's section, and "Known generation failures". Follow them.
+1. Read `{root}/.claude/edit-mo-to/preferences.md` (shared starter rules), then `{root}/.claude/edit-mo-to/my-preferences.md` if it exists (this editor's own rules; **it wins on conflict**): General, your style's section, the generator's section, and "Known generation failures". Follow them.
 2. Read the client file, if there is one.
 3. If a brief rule conflicts with a preference, **the brief wins**; say so in Notes.
 

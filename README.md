@@ -123,9 +123,9 @@ flowchart LR
 
 After each video, Claude looks at what you trimmed, moved, deleted or added, what you made louder or quieter, and every correction you typed. Habits that repeat become rules, and **only the ones you approve are saved**.
 
-- Your rules live in `.claude/edit-mo-to/preferences.md`, and they sync to every computer you use through GitHub.
-- **Client notes stay on each computer** (`.claude/edit-mo-to/clients/` is never uploaded, because this repo is public).
-- **A different editor with their own taste** should use their own copy of this repo (a fork), so the two styles don't mix.
+- **Your rules are yours:** they're saved in `.claude/edit-mo-to/my-preferences.md` on your computer and never uploaded. Everyone starts from the same shared starter rules (`preferences.md`); your own rules win where they differ.
+- **Client notes also stay on your computer** (`.claude/edit-mo-to/clients/`).
+- **Using a second computer?** Copy `my-preferences.md` and the `clients/` folder over.
 
 ## Words you'll see
 
@@ -157,10 +157,10 @@ Claude plans have a usage limit that resets every 5 hours. One measured example 
 | "Backend is down" or port 9001 errors | Tell Claude "start the CapCut backend"; it knows how |
 | `/edit-mo-to` or `/practice-muna` doesn't show up | Start the Claude Code session in your video folder, not somewhere else |
 | Graphics fail to render | Check your internet connection (graphics load their fonts online), then retry |
-| Claude can't push to GitHub | Run the `git push` command it gives you yourself |
+| Want the newest templates and fixes | Tell Claude "update edit-mo-to" (a safe `git pull`; your own rules and client notes are never touched) |
 
 <details>
-<summary><b>For the technically curious: what's inside, manual setup, syncing</b></summary>
+<summary><b>For the technically curious: what's inside, manual setup, updates</b></summary>
 
 ### What's inside
 | Path | What |
@@ -168,8 +168,9 @@ Claude plans have a usage limit that resets every 5 hours. One measured example 
 | `CLAUDE.md` | house rules Claude reads in this folder |
 | `.claude/skills/edit-mo-to/` | the `/edit-mo-to` skill: 12 gated steps, plus step detail and the learning step |
 | `.claude/agents/` | ugc, broll, claymation, pixar, product-ad (style), editor (CapCut builds), qa (checks), motion-designer (new looks and templates) |
-| `.claude/edit-mo-to/preferences.md` | everything learned about how the editor edits |
-| `.claude/edit-mo-to/edit-patterns.jsonl` | log of hand-edit patterns per video (the learning step reads it) |
+| `.claude/edit-mo-to/preferences.md` | shared starter rules everyone begins with |
+| `.claude/edit-mo-to/my-preferences.md` | your own learned rules (local only, gitignored; wins over the starter rules) |
+| `.claude/edit-mo-to/edit-patterns.jsonl` | your log of hand-edit patterns per video (local only, gitignored) |
 | `.claude/edit-mo-to/clients/` | per-client notes |
 | `.claude/edit-mo-to/style-agent-contract.md` | edit-plan format shared by the agents |
 | `.claude/edit-mo-to/motion/` | HyperFrames motion templates, `CATALOGUE.md`, `sfx/` (19 Pixabay-licence sounds), `sfx_defaults.json` |
@@ -241,9 +242,7 @@ Same steps as Windows, with these differences:
 ##### Machine paths
 Each computer has its own untracked `.claude/edit-mo-to/machine.json` (copy `machine.example.json`): `root`, `python`, `tmp`, `mcp_servers`, `capcut_drafts`. The Python tools read it through `tools/machine.py`; the skill and agents write these as `{root}`, `{python}`, `{tmp}` and `{capcut_drafts}`. Keys you leave out fall back to the platform default.
 
-### Keeping computers in sync
-Rules and templates change as the workflow learns (client notes stay on each computer).
-- **Before starting a video:** Claude runs `git pull` for you.
-- **After the learning step:** Claude commits and pushes the new rules. If the push is blocked, it gives you the command to run.
+### Getting updates
+The repo holds the shared workflow only: tools, agents, templates and starter rules. Nothing personal is ever uploaded, and Claude never pulls or pushes on its own. To get the newest version, tell Claude "update edit-mo-to": it runs `git pull --ff-only`, which never touches your `my-preferences.md`, client notes or videos.
 
 </details>

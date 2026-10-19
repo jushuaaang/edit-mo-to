@@ -9,8 +9,7 @@ The user's own editing workflow. You run it in the main conversation and own all
 
 **Before step 1:**
 - Resolve `{root}`, `{python}`, `{tmp}`, `{capcut_drafts}` from `.claude/edit-mo-to/machine.json` (see CLAUDE.md) and pass resolved paths to agents.
-- Sync: `git -C "{root}" pull --ff-only` (brings in what the other PC learned). If it fails, say so and continue.
-- Read `{root}/.claude/edit-mo-to/preferences.md` (General), then `clients/<client>.md` once you know the client, and `reference/steps.md` (gate wording, dispatch templates).
+- Read `{root}/.claude/edit-mo-to/preferences.md` (General) and `my-preferences.md` if it exists (the editor's own rules; it wins on conflict), then `clients/<client>.md` once you know the client, and `reference/steps.md` (gate wording, dispatch templates).
 
 ## Hard rules
 - **STOP at every ⛔ gate.** Ask and wait; never assume a choice the process says to ask about. A gate the user already answered (in the brief message or earlier: folder, B-roll source, generator, music, VO file) is answered: confirm it in the job card and go on. Ask the remaining questions of a step together, not one per message.
