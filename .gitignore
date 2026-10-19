@@ -39,3 +39,6 @@ __pycache__/
 /.claude/edit-mo-to/clients/
 # hand-edit log names clients and videos
 /.claude/edit-mo-to/edit-patterns.jsonl
+
+# rehearsal outputs (the editor's own footage)
+_rehearse/

@@ -37,5 +37,12 @@
   "logo-reveal":     [{"name": "riser", "offset": 0.0, "len": 1.2, "volume": 0.25},
                       {"name": "chime", "offset": 1.1, "len": 1.6, "volume": 0.35}],
   "product-3d":      [{"name": "whoosh-cinematic", "offset": 0.0, "len": 0.9, "volume": 0.3},
-                      {"name": "sparkle", "offset": 1.2, "len": 1.2, "volume": 0.25}]
+                      {"name": "sparkle", "offset": 1.2, "len": 1.2, "volume": 0.25}],
+  "big-text":       [{"name": "whoosh-short", "offset": 0.0, "len": 0.5, "volume": 0.35}, {"name": "impact-bass-1", "offset": 0.06, "len": 0.7, "volume": 0.35}],
+  "checklist":      [{"name": "pop", "offset": 0.0, "len": 0.5, "volume": 0.4}, {"name": "click", "offset": "t_checks", "len": 0.3, "volume": 0.45}],
+  "notify":         [{"name": "notification", "offset": 0.05, "len": 0.8, "volume": 0.4}, {"name": "notification", "offset": "t_gap", "len": 0.8, "volume": 0.35}],
+  "phone-cards":    [{"name": "whoosh-short", "offset": 0.0, "len": 0.5, "volume": 0.3}, {"name": "pop", "offset": 0.05, "len": 0.5, "volume": 0.4}, {"name": "pop", "offset": 0.21, "len": 0.5, "volume": 0.35}, {"name": "pop", "offset": 0.37, "len": 0.5, "volume": 0.3}],
+  "prompt-bar":     [{"name": "typing", "offset": "t_start", "len": 1.2, "volume": 0.25}],
+  "section-chip":   [{"name": "pop", "offset": 0.0, "len": 0.5, "volume": 0.45}, {"name": "click-soft", "offset": 0.22, "len": 0.3, "volume": 0.35}],
+  "title-card":     [{"name": "whoosh-short", "offset": 0.0, "len": 0.5, "volume": 0.35}, {"name": "pop", "offset": "t_chip", "len": 0.5, "volume": 0.4}]
 }

@@ -1,7 +1,7 @@
 """Render a plan's HyperFrames overlays, place their sound cues, and build its CapCut draft (frame-exact,
 integer-µs timing).
 
-usage: python plan_build.py plan.json [--render-only]
+usage: python plan_build.py plan.json [--render-only] [--force]   (renders only missing overlays/cutouts; --force redoes all)
        python plan_build.py plan.json --snap-beats beats.json [--tol 3] [--music-at FRAME] [--tracks ui,flash] [--out f]
             move each overlay's start onto the nearest music beat (media_timing.py beats output) when one is
             within --tol frames, keeping its length; --music-at = the timeline frame where the music starts;
@@ -10,8 +10,11 @@ usage: python plan_build.py plan.json [--render-only]
 
 Plan (frame numbers at 30 fps): see examples/cirelle_apple_ui_plan.json
   segs:     [file, src_in_seconds, from_frame, to_frame, scale]
-  overlays: {template, from, to, track: ui|title|flash, vars, sfx: "default" | "none" | [{name, offset, len, volume}]}
+  overlays: {template, from, to, track: ui|title|flash, vars, sfx: "default" | "none" | [{name, offset, len, volume}],
+             cutout: true}  cutout = the speaker is cut out of the A-roll under this overlay and placed above it,
+            so the graphic sits BEHIND the person (text behind you); the overlay must lie inside one seg
             sfx defaults per template: ../motion/sfx_defaults.json (files in ../motion/sfx/)
+  music:    {file, volume}   optional bed under the voice, from frame 0 to the end
 """
 import json
 import sys
@@ -112,6 +115,29 @@ def beat_snap(overlays: list, beats: list, tol: int = 3, music_at: int = 0, trac
     return moves
 
 
+def check_plan(plan: dict) -> list[str]:
+    """Problems CapCut would refuse, found before anything renders: overlays overlapping on one track,
+    tracks without a layer index, segs with gaps or overlaps."""
+    errs, by_track = [], {}
+    for i, o in enumerate(plan.get("overlays", []), 1):
+        if o["track"] not in plan.get("tracks", {}):
+            errs.append(f"overlay {i} ({o['template']}) uses track '{o['track']}', which has no index in plan.tracks")
+        if o["to"] <= o["from"]:
+            errs.append(f"overlay {i} ({o['template']}) ends before it starts")
+        by_track.setdefault(o["track"], []).append((o["from"], o["to"], i, o["template"]))
+    for t, items in by_track.items():
+        items.sort()
+        for (a0, a1, ai, at), (b0, b1, bi, bt) in zip(items, items[1:]):
+            if b0 < a1:
+                errs.append(f"track '{t}': overlay {ai} ({at}, {a0}-{a1}) overlaps overlay {bi} ({bt}, {b0}-{b1}); "
+                            f"move one to another track")
+    segs = sorted(plan.get("segs", []), key=lambda s: s[2])
+    for x, y in zip(segs, segs[1:]):
+        if y[2] != x[3]:
+            errs.append(f"segs {x[2]}-{x[3]} and {y[2]}-{y[3]} {'overlap' if y[2] < x[3] else 'leave a gap'}")
+    return errs
+
+
 def post(ep, body):
     import requests
 
@@ -131,6 +157,22 @@ def render_overlays(plan: dict, force: bool = False) -> None:
             continue
         info = mr.render(o["template"], Path(o["file"]), {**o["vars"], "duration": dur})
         print(f"rendered {i:02d} {o['template']:14s} {dur:.3f}s alpha={info['alpha']}")
+    for i, o in enumerate(plan["overlays"], 1):
+        if not o.get("cutout"):
+            continue
+        file, src_t, scale = cutout_source(plan, o)
+        o["cutout_file"], o["cutout_scale"] = str(mdir / f"{i:02d}_cutout.mov"), scale
+        if force or not Path(o["cutout_file"]).exists():
+            mr.cutout(Path(plan["clips_dir"] + file), Path(o["cutout_file"]), src_t, (US(o["to"]) - US(o["from"])) / 1e6)
+            print(f"cutout   {i:02d} from {file} @ {src_t:.3f}s")
+
+
+def cutout_source(plan: dict, o: dict) -> tuple[str, float, float]:
+    """The A-roll seg under a cutout overlay: (file, source second at the overlay's start, seg scale)."""
+    for file, src_in, a, b, scale in plan["segs"]:
+        if a <= o["from"] and o["to"] <= b:
+            return file, src_in + (US(o["from"]) - US(a)) / 1e6, scale
+    raise ValueError(f"cutout overlay {o.get('template')} {o['from']}-{o['to']} must sit inside one seg")
 
 
 def build(plan: dict) -> str:
@@ -148,6 +190,16 @@ def build(plan: dict) -> str:
                            "end": (US(o["to"]) - US(o["from"])) / 1e6, "target_start": US(o["from"]) / 1e6,
                            "track_name": f"overlay_{o['track']}", "relative_index": plan["tracks"][o["track"]],
                            "volume": 0, "width": 1080, "height": 1920})
+    for o in plan["overlays"]:  # cutouts above every overlay, framed exactly like their A-roll seg
+        if o.get("cutout_file"):
+            post("add_video", {"draft_id": did, "video_url": o["cutout_file"], "start": 0,
+                               "end": (US(o["to"]) - US(o["from"])) / 1e6, "target_start": US(o["from"]) / 1e6,
+                               "track_name": "overlay_cutout", "relative_index": plan["tracks"].get("cutout", 8),
+                               "scale_x": o["cutout_scale"], "scale_y": o["cutout_scale"], "volume": 0,
+                               "width": 1080, "height": 1920})
+    if plan.get("music"):
+        post("add_audio", {"draft_id": did, "audio_url": plan["music"]["file"], "start": 0, "end": end_us / 1e6,
+                           "target_start": 0, "volume": plan["music"].get("volume", 0.1), "track_name": "music"})
     for c in sfx_cues(plan["overlays"], end_us):
         post("add_audio", {"draft_id": did, "audio_url": c["file"], "start": 0, "end": c["len_us"] / 1e6,
                            "target_start": c["at_us"] / 1e6, "volume": c["volume"], "track_name": c["track"]})
@@ -169,7 +221,10 @@ def main(argv: list[str]) -> None:
         out.write_text(json.dumps(plan, indent=1, ensure_ascii=False), encoding="utf-8")
         print(json.dumps({"plan": str(out), "moved": moves}, ensure_ascii=False))
         return
-    render_overlays(plan, force="--render-only" in argv)
+    errs = check_plan(plan)
+    if errs:
+        sys.exit("plan problems:\n- " + "\n- ".join(errs))
+    render_overlays(plan, force="--force" in argv)  # only missing files, unless --force
     if "--render-only" in argv:
         return
     print(json.dumps({"draft": build(plan), "sfx_cues": len(sfx_cues(plan["overlays"]))}))
