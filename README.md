@@ -53,15 +53,15 @@ something needs me (a login, a restart, or installing CapCut).
    (Windows or Mac): the Python tools, HyperFrames, the CapCut backend and its MCP server,
    and a machine.json with this computer's paths.
 4. Run the test suite and tell me in plain words what passed and what didn't.
-5. Finish by telling me to test-drive it with /edit-mo-to:rehearse (I'll send a clip of me
+5. Finish by telling me to practise with /edit-mo-to:rehearse (I'll send a clip of me
    talking), then how to start my first real video.
 ```
 
 Setup takes about 15–30 minutes, mostly downloads. Afterwards, always start Claude Code **in your video folder**.
 
-## Test drive first: `/edit-mo-to:rehearse`
+## Practise first: `/edit-mo-to:rehearse`
 
-Just installed? Before a real client job, take it for a spin. Type **`/edit-mo-to:rehearse`** and send any raw clip of someone talking to the camera (15 seconds or more, straight from a phone). Claude turns it into a **10-second showcase edit** with everything it can do: dead air and stutters cut, punch-in zooms, kinetic text on the spoken words, big text *behind* the speaker, cards, your own clips in floating phone frames, sound effects and music. You get a preview video first, then the real CapCut project to open and play with. It also checks that every part of your install works.
+Just installed? Do a practice run before a real client. Type **`/edit-mo-to:rehearse`** and send any raw clip of someone talking to the camera (15 seconds or more, straight from a phone). Claude turns it into a practice job and walks you through **the same 12 steps as a real client video**: brief, checklist, script and storyboard, voiceover, clean-up, B-roll, the CapCut build with motion graphics, a review round, captions, music, export and the learning step. It's shrunk to a **10-second video**, so it takes about 15–25 minutes. At every stop you get a suggested answer and a one-line tip on what happens in a real job. You finish with a 10-second showcase edit, and it checks that every part of your install works.
 
 ## Your first video
 

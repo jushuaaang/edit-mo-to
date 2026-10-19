@@ -202,10 +202,62 @@ def prepare(raw: Path, out: Path, seconds: float = 10.0, start: float | None = N
         "palette": pal, "speaker": box, "other_moments": other,
         "music": {"file": str(out / "music.wav"), "beats": beats},
     }
+    res["job"] = write_job(raw, out, res, segs, win_words, pal)
     (out / "prepare.json").write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
     return {"prepare": str(out / "prepare.json"), "window": f"{to_sf(a)}–{to_sf(b)}", "frames": res["frames"],
             "text": res["text"], "dead_air_removed": res["removed"]["dead_air_s"],
-            "mistakes_cut": len(res["removed"]["mistakes"]), "palette": pal, "speaker": box}
+            "mistakes_cut": len(res["removed"]["mistakes"]), "palette": pal, "speaker": box, "job": res["job"]}
+
+
+def sentences(text: str) -> list[str]:
+    import re
+
+    return [s.strip() for s in re.split(r"(?<=[.!?])\s+", text.strip()) if s.strip()]
+
+
+def write_job(raw: Path, out: Path, res: dict, segs: list[dict], win_words: list[dict], pal: dict) -> dict:
+    """The practice job's files, laid out like a real client job, so each step of /edit-mo-to has its input:
+    brief.md (step 1), script.txt (step 3), keep.json = aroll_cuts (step 5), broll/ = the client's B-roll
+    library (step 6), music.wav (step 11)."""
+    from media_timing import align_lines
+
+    lines = sentences(res["text"])
+    (out / "script.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    keep = {"media": str(raw),
+            "segs": [{"src_in": s["src_in"], "src_out": round(s["src_in"] + (s["to"] - s["from"]) / FPS, 4),
+                      "at": round(s["from"] / FPS, 10), "from_frame": s["from"], "to_frame": s["to"]} for s in segs],
+            "words": [{k: w[k] for k in ("word", "start", "end")} for w in win_words]}
+    keep["lines"] = align_lines(keep["words"], lines)
+    keep["cut_duration"] = round(res["frames"] / FPS, 3)
+    (out / "keep.json").write_text(json.dumps(keep, ensure_ascii=False, indent=1), encoding="utf-8")
+    broll = out / "broll"
+    broll.mkdir(exist_ok=True)
+    clips = []
+    for i, t in enumerate(res["other_moments"], 1):
+        dst = broll / f"B{i:02d}_at-{t:.0f}s.mp4"
+        _ff("-ss", t, "-i", raw, "-t", 2.5, "-an", "-c:v", "libx264", "-crf", "18", "-preset", "veryfast", dst)
+        clips.append(str(dst))
+    secs = round(res["frames"] / FPS, 1)
+    brief = f"""# Practice brief (rehearsal)
+
+This is a practice job made from your own clip. No client sees it.
+
+**Video:** a {secs}-second talking-head ad (UGC style), 9:16, from `{raw.name}`.
+**Goal:** show the whole edit-mo-to range in {secs} seconds and still look like a premium edit.
+
+## Rules
+1. Hook in the first 2 seconds, on the first spoken words.
+2. Use the script word for word (script.txt): it is what was said in the clip.
+3. The clip's own audio is the voiceover.
+4. Motion graphics on the key words: kinetic text, text behind the speaker, one proof card, and an ending card with a call to action.
+5. Use the client's B-roll in `broll/` (moments from the same clip) where it helps.
+6. Colours from the footage: dark {pal['dark']}, light {pal['light']}, accent {pal['accent']}. Fonts: pick two that fit the mood.
+7. Never cover the speaker's face (except the text-behind beat).
+8. Soft music under the voice. Captions are added by the editor in CapCut at the end, never by Claude.
+"""
+    (out / "brief.md").write_text(brief, encoding="utf-8")
+    return {"brief": str(out / "brief.md"), "script": str(out / "script.txt"), "aroll_cuts": str(out / "keep.json"),
+            "broll": clips, "music": str(out / "music.wav")}
 
 
 def main(argv: list[str]) -> None:

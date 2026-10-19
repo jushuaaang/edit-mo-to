@@ -1,32 +1,38 @@
 ---
 name: edit-mo-to:rehearse
-description: Test-drive edit-mo-to on a new computer, or show off what it can do. The editor gives one raw video of someone talking; Claude cuts it to a 10-second showcase edit with the full motion-graphics range (kinetic type, text behind the speaker, punch-ins, cards, phone cards, sound design, music), previews it, then builds it in CapCut. Use when the user runs /edit-mo-to:rehearse, asks to rehearse, test-drive or demo the workflow, or wants to check a fresh install.
+description: Practice run of the full edit-mo-to workflow on the editor's own raw clip, shrunk to a 10-second video. Same 12 steps, same stops, same agents as a real client job, with a short "in a real job" tip at each stop, so a new user learns the workflow (and checks their install) before working on a real client. Use when the user runs /edit-mo-to:rehearse, or asks to rehearse, practise, test-drive or demo the workflow.
 ---
 
 # /edit-mo-to:rehearse
 
-A 10-second showcase of everything edit-mo-to can do, made from the editor's own raw video. It doubles as the install check: transcription, the dead-air cutter, the motion templates, the speaker cutout, the preview and the CapCut build all run once.
+A rehearsal is a **real `/edit-mo-to` job, only 10 seconds long.** Run the 12 steps of `{root}/.claude/skills/edit-mo-to/SKILL.md` exactly as written: the same order, the same ⛔ stops, the same agents (style agent, `editor`, `qa`, `motion-designer` if needed), the same tools and the same tables. Read that file and `reference/steps.md` first. Only the inputs change (table below), so the user feels the real workflow, just faster.
 
-**Paths:** `{root}`, `{python}`, `{tmp}`, `{capcut_drafts}` from `.claude/edit-mo-to/machine.json` (see CLAUDE.md). Tools are in `{root}/.claude/edit-mo-to/tools/`; run them with `PYTHONIOENCODING=utf-8 "{python}"`. Talk in plain, beginner-friendly words; stop at every ⛔.
+**At every ⛔ stop:**
+- Ask the real question, offer the suggested answer from the table (the user can just accept it), and keep it to one short message.
+- Add **one line** starting "In a real job:" that says what would happen with a client (e.g. "In a real job: you'd generate this voiceover in ElevenLabs and send me the file.").
+- Talk in plain, beginner-friendly words.
 
-## Steps
-1. ⛔ **Ask for the raw video:** "Send me a raw video to edit: any clip of you (or anyone) talking to the camera, straight from your phone, at least 15 seconds. Optional: your brand colours or logo, and the call to action you want at the end." Use their colours if given; otherwise the palette comes from the video.
-2. **Prepare:** `rehearse.py prepare "<raw video>"` (about 1 minute). It transcribes, cuts dead air and stutters, picks the best ~10 s (whole sentences), finds the speaker's face box, takes a palette from the footage and makes a license-free music bed with beats. Everything lands in `{root}/_rehearse/<name>/prepare.json`.
-   - ⛔ Show what it chose: the 10 s of text, the dead air removed and any stutters cut. Ask: "Edit this part, or pick another?" (`--start <seconds>` for another part).
-3. **Design the showcase plan:** write `{root}/_rehearse/<name>/plan.json` in the frame-based plan format (`plan_build.py` docstring; example `tools/examples/cirelle_apple_ui_plan.json`). Use `plan_segs`, `clips_dir`, `words`, `palette`, `speaker`, `other_moments` and `music` from prepare.json; set `motion_dir` to `{root}/_rehearse/<name>/motion/`. The goal is the full range in 10 s, and it must still look like a premium edit, not a demo reel:
-   - **0–1.5 s, hook:** `kinetic-type` on the first key words (on their word frames), a `light-sweep` or `color-flash` on frame 0, and a punch-in.
-   - **Text behind the speaker:** `big-text` with `"cutout": true` on the strongest noun or number, inside one seg, for 1–2 s.
-   - **Punch-ins:** split `plan_segs` at sentence or phrase breaks and alternate scale 1.0 / 1.12–1.2 on emphasis words; never two punch-ins in a row.
-   - **Proof beat:** one of `data-viz` / `glass-counter` (when a number is spoken), `checklist`, `notify` or `glass-card-v2`, matched to what is said.
-   - **The editor's own clips:** `phone-cards` (`float`) using the raw video at `other_moments` (`video1–3` = the raw file, `start1–3` = those times) for about 1.5 s.
-   - **Ending:** `title-card` or `morph-flow` with their CTA (or "Comment EDIT" when none was given) over the last 1.5–2 s.
-   - **Sound:** `"sfx": "default"` on every overlay; `"music": {"file": <music.wav>, "volume": 0.08}` under the voice.
-   - **Rules:** at most 2 graphics on screen at once; every graphic starts on a spoken word or a cut; nothing covers `speaker.face` (except the cutout beat, where the text is behind the head); two fonts at most, chosen for the mood of what is said; colours from the palette or their brand. Then `plan_build.py plan.json --snap-beats <beats.json> --tracks ui,flash` for the overlays not locked to a word (`"snap": false` on word-locked ones); write the beats list from prepare.json to `beats.json` first.
-   - **Tracks:** overlays on one track must never overlap in time; give extra layers their own track (e.g. `"tracks": {"ui": 5, "ui2": 4, "title": 6, "flash": 7, "cutout": 8}`). `plan_build.py` checks this before rendering.
-4. **Render and self-check:** `plan_build.py plan.json --render-only` (overlays and cutouts; about 3 minutes on CPU the first time; later runs render only missing files, so after a fix delete just that `.mov`, or use `--force` to redo all), then `plan_preview.py plan.json "{root}/_rehearse/<name>/preview.mp4" 0.5,2,4,6,8`. Read the five frames. Fix anything that covers the face, reads badly, clips, or looks like AI slop, then re-render only what changed.
-5. ⛔ **Show the preview:** send `preview.mp4` to the user, with a short table `Time | What you see | Capability` (one row per effect). Ask: "Build this in CapCut, or change something first?"
-6. **Build in CapCut:** ⛔ ask them to quit CapCut completely. Then `plan_build.py plan.json` (prints the draft), `capcut_project.py wait "<draft>"`, and `capcut_project.py compose "{capcut_drafts}/Rehearse – <name>" "Timeline 01 – Rehearse=<draft>"`, then `capcut_project.py import "{capcut_drafts}/Rehearse – <name>" "<raw video>" "<music.wav>"`. Snapshot it for the learning demo: `edit_diff.py snapshot "{capcut_drafts}/Rehearse – <name>" "Timeline 01 – Rehearse" "{root}/_rehearse/<name>/built.json"`. If the name is taken, add a number.
-7. **Hand-off:** "Open CapCut: the project is **Rehearse – <name>**. Change anything you like (trim a clip, move a graphic, change the music volume), then tell me 'done' and I'll show you what I would learn from your edits." On "done": `edit_diff.py diff "{root}/_rehearse/<name>/built.json" "{capcut_drafts}/Rehearse – <name>" "Timeline 01 – Rehearse"` and explain the patterns in plain words. In a rehearsal, save nothing to the preferences unless the user asks.
-8. **Install report:** a short checklist of what worked on this computer: transcription, dead-air cutter, motion templates, cutout, preview, CapCut build, learning diff. For anything that failed, give the one fix to try (the README's "Manual setup" has the details).
+**Speed:** everything is about 10 s, so keep agent jobs small, run independent agents in parallel, and skip nothing. A rehearsal takes about 15–25 minutes.
 
-Never add captions (in a real job the editor adds them in CapCut). Never upload or send the video anywhere.
+## Before step 1
+⛔ "Send me a raw video to practise on: any clip of you (or anyone) talking to the camera, at least 15 seconds, straight from your phone." When it arrives, run `PYTHONIOENCODING=utf-8 "{python}" "{root}/.claude/edit-mo-to/tools/rehearse.py" prepare "<raw video>"` (about 1 minute the first time). It lays out a practice job in `{root}/_rehearse/<name>/`: `brief.md`, `script.txt`, `keep.json`, `broll/`, `music.wav` and `prepare.json` (palette, the speaker's face box, word frames, beats). Say: "I made a practice job from your clip. Now we do exactly what we'd do for a client."
+
+## The 12 steps, rehearsal inputs
+| Step | Real job | Rehearsal input · suggested answer |
+|---|---|---|
+| 1 Brief | the client's brief, references, video folder | `brief.md` + folder `{root}/_rehearse/<name>/`. Show the brief; no reference video. |
+| 2 Checklist + style | every brief rule, style picked | build the checklist from `brief.md` (8 rules); style **UGC talking head** (`ugc`). Suggested: "Looks right." |
+| 3 Script + storyboard | the brief's script or one you write; "Storyboard first?" | the script is `script.txt` (what was said, word for word). Suggested storyboard answer: **yes**, 4–5 panels (`mode: storyboard`, real frames from the clip; graphics in the brief's colours). |
+| 4 Voiceover | the editor's ElevenLabs file | the clip's own audio is the voiceover. Suggested: "Use the clip's audio." |
+| 5 Timing + clean-up | `media_timing.py vo` and `speech_cuts.py` with the stutter stop | already run by `prepare`: show its line timings (`keep.json` `lines`), the dead air removed and any stutters, and ask the stutter question if there are any. `keep.json` is the `aroll_cuts`. |
+| 6 B-roll + prompts | "Client B-roll, AI, or both?", generator, prompts table, `qa` prompts gate | suggested: **client B-roll** (`broll/` = moments from the same clip). Run the style agent in `mode: prompts` and `qa` (gate `prompts`) as usual. Also write **one** sample AI prompt marked OPTIONAL, so they see what one looks like; nothing needs generating. |
+| 7 Build + QA | style agent `edit-plan`, `editor` build, `qa` build gate | the same, with this showcase brief for the style agent: in about 10 s, on the spoken words, use kinetic type for the hook, `big-text` with `"cutout": true` (text behind the speaker) on the key noun, punch-ins at phrase breaks, one proof card (`checklist`, `glass-counter`, `notify` or `glass-card-v2`), `phone-cards` with B-roll from `broll/`, and an ending `title-card` or `morph-flow` with a call to action, all with `"sfx": "default"`, at most 2 graphics at once, never over `speaker.face`. Project name **Rehearse – <name>**. Tell the `editor` to use its quick route for single-timeline talking-head edits (frame-based plan in the video folder, `plan_build.py`, then `wait` + `compose` + `import` + the learning snapshot), and to render `plan_preview.py` to `preview.mp4`, so the user watches the result in chat before opening CapCut. |
+| 8–9 Review loop | the editor reviews; changes as new timeline or in place | suggest one small change to practise the loop (e.g. "make the hook text bigger" or "swap one B-roll"); do it on a **new timeline**, as in a real job, including the "quit CapCut" stop. |
+| 10 Captions | the editor runs CapCut auto-caption | the same: "Run auto-caption on the 10 s and tell me when it's done." |
+| 11 Music | Suno prompt or no-copyright YouTube music | suggested: use `music.wav` (a practice bed made on this computer). Add it the real way (`editor` `add-music`: merged, keeps their captions). Also show a sample Suno prompt they could use next time. |
+| 12 Export + learning | the editor exports; the learning step | the same: they export, then run the learning step (`reference/learning.md`) on their hand edits. In a rehearsal, propose rules but save nothing unless they ask. |
+
+## After step 12
+A short wrap-up: what each step was for (one line each), what worked on this computer (transcription, dead-air cutter, templates, cutout, preview, CapCut build, captions, music merge, learning diff), and the one fix for anything that failed (the README's "Manual setup"). End with: "You're ready for a real client: type /edit-mo-to and send the brief."
+
+Never add captions; never upload or send the video anywhere.
