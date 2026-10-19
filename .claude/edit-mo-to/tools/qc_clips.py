@@ -195,6 +195,7 @@ def brand_seen(lines: list[tuple[str, float]], brand_words: list[str]) -> bool:
 def frame_times(duration: float, use: tuple[float, float], fps: float) -> tuple[list[float], list[float]]:
     sheet = [round(duration * (i + 0.5) / SHEET_FRAMES, 3) for i in range(SHEET_FRAMES)]
     a, b = use
+    b = min(b, duration - 2 / (fps or 30))  # a use span past the clip end must not seek past EOF
     last = max(a, b - 1 / (fps or 30))
     return sheet, [round(a, 3), round((a + b) / 2, 3), round(last, 3)]
 

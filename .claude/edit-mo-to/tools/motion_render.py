@@ -22,7 +22,8 @@ CLI (prints JSON):
 
 Vars whose value is an existing media file (video/image path) are copied into the render, so templates
 can show the user's own clips (phone-cards). Vars that point at an existing .svg file are replaced by the
-file's markup (scripts and event handlers removed), so logo-reveal can draw the real logo's paths.
+file's markup (scripts and event handlers removed), so logo-reveal can draw the real logo's paths. Vars that
+point at an existing .json or .txt file are replaced by its text (ugc-captions reads word timings + the script).
 """
 import html
 import json
@@ -109,6 +110,7 @@ def _probe(path: Path) -> dict:
             "duration": float((d.get("format") or {}).get("duration") or 0)}
 
 
+TEXT_EXT = {".json", ".txt"}  # vars pointing at these become the file's text (HTML-escaped like any value)
 MEDIA_EXT = {".mp4", ".mov", ".webm", ".m4v", ".png", ".jpg", ".jpeg", ".webp"}
 
 
@@ -165,11 +167,16 @@ def trace(png: Path, out: Path, threshold: int | None = None, invert: bool = Fal
 
 def _stage_media(variables: dict, work: Path) -> dict:
     """Copy vars that point at real media files into the render folder; the template sees a relative name.
-    A var pointing at an .svg file becomes that file's markup."""
+    A var pointing at an .svg file becomes that file's markup; at a .json/.txt file, that file's text."""
     out = dict(variables)
     for k, v in variables.items():
         if isinstance(v, str) and v.lower().endswith(".svg") and Path(v).is_file():
             out[k] = svg_markup(Path(v))
+            continue
+        if isinstance(v, str) and Path(v).suffix.lower() in TEXT_EXT and Path(v).is_file():
+            out[k] = Path(v).read_text(encoding="utf-8-sig")
+            if Path(v).suffix.lower() == ".json":  # one line, so the composition stays small for HyperFrames' lint
+                out[k] = json.dumps(json.loads(out[k]), ensure_ascii=False, separators=(",", ":"))
             continue
         if isinstance(v, str) and Path(v).suffix.lower() in MEDIA_EXT and Path(v).is_file():
             name = f"media_{k}{Path(v).suffix.lower()}"

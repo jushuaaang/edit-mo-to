@@ -76,3 +76,9 @@ Effects and motion only: `font` and every colour are vars set from the client's 
 - Text uses the script's words or brief-approved claims only, in the client's colours and fonts.
 
 If nothing here fits, or the user brings a reference style to match, ask the **motion-designer** agent to create new templates.
+
+## Captions as motion graphics (built 2026-10-19)
+Only when the user asks for burned-in captions instead of CapCut auto-caption (e.g. a language they don't speak). The whole caption track is ONE full-canvas overlay: place it at scale 1.0, x 0, y 0, starting at the VO time `t_from`, and set `duration` = `t_to - t_from`. Native look by default (white Inter SemiBold, soft shadow, no box, ~70% down); `font`, `fg`, `size` and `y` follow the brand.
+| Template | Use for | Key vars |
+|---|---|---|
+| ugc-captions | the full caption track from `media_timing.py vo` word timings. The script (`script_file`, one sentence per line) is the source of truth for the words: they take the ASR timings by character alignment, so ASR spellings (split apostrophes, "70 %") are fixed. Chunks cut at punctuation and pauses first, then `max_words`; never a one-word orphan; numbers stay with their unit; 1–2 lines, auto-fit. Each chunk pops on its first word (scale 0.92→1, 4 frames) and cuts to the next | words_file (.json path), script_file (.txt path, optional), t_from, t_to, duration, max_words, max_chars, pause, y, font, weight, size, fg, shadow, stroke, case (script/lower-start/upper), keep_case (comma list of words "lower-start" never lowercases, e.g. the brand), punct (end/all/keep), highlight (none/active-word), accent |

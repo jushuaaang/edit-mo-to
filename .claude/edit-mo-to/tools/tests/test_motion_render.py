@@ -118,3 +118,15 @@ def test_trace_keeps_holes_and_crops_to_the_ink(tmp_path):
     assert info["shapes"] == 2 and 'fill-rule="evenodd"' in text
     w, h = map(float, info["viewbox"].split()[2:])
     assert 200 <= w <= 212 and 200 <= h <= 212
+
+
+def test_text_file_vars_are_inlined_compact(tmp_path):
+    words = tmp_path / "vo.json"
+    words.write_text(json.dumps({"words": [{"word": "perché", "start": 0, "end": 0.4}]}, indent=2), encoding="utf-8")
+    script = tmp_path / "script.txt"
+    script.write_text("Perché l'integratore è più", encoding="utf-8")
+    out = mr._stage_media({"words_file": str(words), "script_file": str(script)}, tmp_path)
+    assert "\n" not in out["words_file"] and "perché" in out["words_file"]
+    assert out["script_file"] == "Perché l'integratore è più"
+    html = mr.fill(mr.template_text("ugc-captions"), out)
+    assert "perché" in html and "l&#x27;integratore" in html
