@@ -8,8 +8,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const vectcutDir = path.join(root, "VectCutAPI");
+// Windows: pythonw.exe has no console. python.exe with detached: true opens a
+// black console window even with windowsHide.
 const python = process.platform === "win32"
-  ? path.join(vectcutDir, ".venv", "Scripts", "python.exe")
+  ? path.join(vectcutDir, ".venv", "Scripts", "pythonw.exe")
   : path.join(vectcutDir, ".venv", "bin", "python");
 const PORT = 9001;
 

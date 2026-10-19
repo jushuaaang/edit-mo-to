@@ -178,12 +178,14 @@ def cutout_source(plan: dict, o: dict) -> tuple[str, float, float]:
 def build(plan: dict) -> str:
     did = post("create_draft", {"width": 1080, "height": 1920})["output"]["draft_id"]
     end_us = 0
+    # A-roll goes on "video", the default track create_draft makes: CapCut shows the bottom video track as
+    # the main track, so a separate "video_main" would sit above an empty main track.
     for file, src_in, a, b, scale in plan["segs"]:
         s_us = round(src_in * 1e6)
         end_us = max(end_us, US(b))
         post("add_video", {"draft_id": did, "video_url": plan["clips_dir"] + file, "start": s_us / 1e6,
                            "end": (s_us + US(b) - US(a)) / 1e6, "target_start": US(a) / 1e6,
-                           "track_name": "video_main", "relative_index": 0, "scale_x": scale, "scale_y": scale,
+                           "track_name": "video", "relative_index": 0, "scale_x": scale, "scale_y": scale,
                            "volume": 1.0, "width": 1080, "height": 1920})
     for o in plan["overlays"]:
         post("add_video", {"draft_id": did, "video_url": o["file"], "start": 0,

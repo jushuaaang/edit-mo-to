@@ -219,6 +219,7 @@ The install prompt in Step 1 follows these steps for you. They're here if you'd 
    copy "D:\Video Editing\.claude\edit-mo-to\setup\capcut-start.mjs" "%USERPROFILE%\mcp-servers\capcut-start.mjs"
    claude mcp add capcut --scope user -e CAPCUT_API_URL=http://localhost:9001 -- node "%USERPROFILE%\mcp-servers\capcut-start.mjs"
    ```
+   **VectCutAPI patch (all OSes):** at 269a404, `add_video` fails on the second clip when the draft has only one video track, which is what happens when the A-roll sits on CapCut's main track. In `add_video_track.py` (line 87) and `add_image_impl.py` (line 96), change `except NameError:` to `except (NameError, StopIteration):`.
 6. **Machine paths:** copy `.claude/edit-mo-to/machine.example.json` to `machine.json` and fill in this computer's paths (see "Machine paths" below).
 7. **Check:**
    ```
