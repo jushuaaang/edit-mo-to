@@ -1,12 +1,26 @@
 # edit-mo-to
 
-An AI video-editing partner for client ads, running in **Claude Code**. You give it the client's brief; it writes the script, plans the B-roll, writes the AI video prompts, and **builds the CapCut project for you**, with motion graphics, sound effects and clean cuts. You review, tweak and export. It learns your style from every video, so each one needs fewer fixes.
+**Your AI video-editing partner for client ads.** Send it a client's brief, and it writes the script, plans every shot, writes the AI video prompts, and **builds the CapCut project for you**: clean cuts, motion graphics, sound effects and music. You review, tweak and export. It learns your style from every video, so each one needs fewer fixes.
 
-Made for UGC ads, B-roll ads, claymation, Pixar-style stories and TikTok product ads.
+Made for UGC ads, B-roll ads, claymation, Pixar-style stories and TikTok product ads. Runs inside the Claude desktop app (Claude Code).
 
-## How it works
+![Some of the motion graphics it adds, shown here for a made-up brand](docs/images/motion-gallery.png)
+<sub>A few of its 30+ motion graphics, in a made-up brand's colours. Every video gets the colours and fonts of its own client.</sub>
 
-Orange steps are yours; blue steps are Claude's. Claude stops at every step that needs your answer, and nothing moves on until you say so.
+## What you need
+
+| | |
+|---|---|
+| **Claude** | the Claude desktop app with a paid plan (Pro works; Max if you edit every day) |
+| **CapCut** | CapCut desktop (tested with version 9.6) |
+| **A computer** | Windows or Mac, with about 2 GB free |
+| **Time** | about 30 minutes to install, once |
+
+You don't need to know any code. Claude installs everything else for you and asks before each step.
+
+## How a video gets made
+
+Orange steps are yours; blue steps are Claude's. Claude **stops and waits** at every step that needs your answer, and nothing moves on until you reply.
 
 ```mermaid
 flowchart TD
@@ -31,9 +45,9 @@ flowchart TD
     classDef claude fill:#d0ebff,stroke:#1c7ed6,color:#1a1a1a
 ```
 
-## Install on a new computer (one prompt)
+## Step 1 · Install (one copy-paste)
 
-1. Install the **Claude** desktop app and sign in (a paid plan; Max is best if you edit often).
+1. Install the **Claude** desktop app and sign in.
 2. Open the **Code** tab and start a new session (any folder is fine).
 3. Copy this prompt, paste it in, and press Enter:
 
@@ -57,36 +71,98 @@ something needs me (a login, a restart, or installing CapCut).
    talking), then how to start my first real video.
 ```
 
-Setup takes about 15–30 minutes, mostly downloads. Afterwards, always start Claude Code **in your video folder**.
+Afterwards, always start Claude Code **in your video folder** (for example `D:\Video Editing`).
 
-## Practise first: `/practice-muna`
+## Step 2 · Practise first: `/practice-muna`
 
-Just installed? Do a practice run before a real client. Type **`/practice-muna`** ("practise first") and send any raw clip of someone talking to the camera (15 seconds or more, straight from a phone). Claude turns it into a practice job and walks you through **the same 12 steps as a real client video**: brief, checklist, script and storyboard, voiceover, clean-up, B-roll, the CapCut build with motion graphics, a review round, captions, music, export and the learning step. It's shrunk to a **10-second video**, so it takes about 15–25 minutes. At every stop you get a suggested answer and a one-line tip on what happens in a real job. You finish with a 10-second showcase edit, and it checks that every part of your install works.
+"Practice muna" = practise first. Before your first client, do one practice run on a clip of yourself:
 
-## Your first video
+```mermaid
+flowchart LR
+    A["You send a clip of you<br/>talking (15 s or more)"]:::you --> B["Claude makes a<br/>practice job from it"]:::claude
+    B --> C["The same 12 steps<br/>as a real client video"]:::claude
+    C --> D["A 10-second showcase edit<br/>in CapCut + a check of your install"]:::claude
+    classDef you fill:#ffd8a8,stroke:#e8590c,color:#1a1a1a
+    classDef claude fill:#d0ebff,stroke:#1c7ed6,color:#1a1a1a
+```
 
-1. In the Claude app's **Code** tab, start a session in your video folder (for example `D:\Video Editing`).
+Type **`/practice-muna`** and send the clip. Every stop shows a suggested answer (just accept it) and a one-line tip on what happens in a real job. It takes about 15–25 minutes, and you finish knowing the whole workflow.
+
+## Step 3 · Your first real video
+
+1. Start a Claude Code session in your video folder.
 2. Make a folder for the video inside it (for example `D:\Video Editing\Glow Serum`) and put the client's files there.
-3. Type **`/edit-mo-to`** and paste the brief, or attach it. Say which folder you made. Tip: if you already know them, add the B-roll source (client clips, AI or both), the AI tool (Google Flow or Seedance) and the voiceover file, and Claude skips those questions.
-4. When the script is ready, Claude asks **"Storyboard first?"** Say yes for a new client or an AI-heavy ad: you get a storyboard page (every shot, with the real client footage and the real motion graphics) before any video is generated. Claude also gives you free Nano Banana image prompts for the AI shots; generate them in Google Flow if you want to see the real look, and those images become the start frames of the videos later.
-5. Answer Claude's questions as they come. Each one is a stop sign: nothing happens until you reply.
-6. When the project is built, **quit CapCut completely** before asking for changes (CapCut overwrites projects when it closes). Then open it, review, and either ask for changes ("make the hook faster", "swap clip 4") or edit it yourself.
-7. Add captions with CapCut's auto-caption, tell Claude, pick the music, and export.
+3. Type **`/edit-mo-to`** and paste or attach the brief. Say which folder you made.
+4. Answer each stop. Tip: put what you already know in your first message (B-roll source, AI tool, voiceover file), and Claude skips those questions.
+5. When the script is ready, Claude asks **"Storyboard first?"** Say yes for a new client or an AI-heavy ad: you see every shot and graphic before any video is generated.
+6. When the project is built, **quit CapCut completely** before asking for changes (CapCut overwrites projects when it closes). Then review it, and ask for changes or edit it yourself.
+7. Add captions with CapCut's auto-caption, pick the music, and export.
 
-Good to know:
-- **Deliverables appear in the chat as tables** (clip lists, prompts, plans), with times in `seconds:frames` (for example `7:12` = 7 seconds and 12 frames).
-- **You always do captions and the export.** Claude never adds captions.
-- **It never sends anything anywhere** or spends credits without asking you first.
+### What a stop looks like
+
+```text
+Claude:  Here's everything the brief requires (8 rules). Anything missing or wrong?
+You:     Looks right.
+Claude:  Use the client's B-roll, generate AI video, or both?
+You:     Client B-roll.
+```
+
+Lists and plans come as tables in the chat. Times are written `seconds:frames`: `7:12` means 7 seconds and 12 frames.
 
 ## It learns how *you* edit
 
-After each video, Claude compares the project as it built it with how you finished it in CapCut: which clips you trimmed, moved, deleted or added, which graphics you moved, and what you made louder or quieter. It also reads every correction you typed. Habits that repeat across videos become rules. Claude shows you the list and **saves only what you approve**, so the next video starts closer to your style.
+```mermaid
+flowchart LR
+    A["Claude builds<br/>the edit"]:::claude --> B["You fix things<br/>by hand in CapCut"]:::you
+    B --> C["Claude compares its version<br/>with yours"]:::claude
+    C --> D["It proposes new rules, e.g.<br/>'B-roll cuts a bit shorter'"]:::claude
+    D -->|you approve| E["Next video starts<br/>closer to your style"]:::claude
+    classDef you fill:#ffd8a8,stroke:#e8590c,color:#1a1a1a
+    classDef claude fill:#d0ebff,stroke:#1c7ed6,color:#1a1a1a
+```
 
-- Your rules live in `.claude/edit-mo-to/preferences.md` (general) and `.claude/edit-mo-to/clients/` (per client).
-- General rules sync through GitHub, so every computer you use shares them. **Client notes do not:** this repo is public, so `clients/` stays on each computer (it's in `.gitignore`). To use them on another computer, copy the folder over or keep it in a private cloud folder.
+After each video, Claude looks at what you trimmed, moved, deleted or added, what you made louder or quieter, and every correction you typed. Habits that repeat become rules, and **only the ones you approve are saved**.
+
+- Your rules live in `.claude/edit-mo-to/preferences.md`, and they sync to every computer you use through GitHub.
+- **Client notes stay on each computer** (`.claude/edit-mo-to/clients/` is never uploaded, because this repo is public).
 - **A different editor with their own taste** should use their own copy of this repo (a fork), so the two styles don't mix.
 
-## What's inside
+## Words you'll see
+
+| Word | Meaning |
+|---|---|
+| **Stop** (⛔) | Claude asks you something and waits for your answer |
+| **Brief** | the client's instructions for the video |
+| **A-roll** | the main footage: the person talking |
+| **B-roll** | footage shown over the voice: product shots, hands, places |
+| **VO** | voiceover: the spoken audio (often made in ElevenLabs) |
+| **Storyboard** | a page showing every planned shot and graphic before anything is made |
+| **Timeline** | one version of the edit inside the CapCut project (each hook gets its own) |
+| **Overlay / motion graphic** | animated text or cards placed on top of the video |
+| **Cutout** | the speaker cut out of the background, so text can sit *behind* them |
+| **QA** | Claude's quality check: brief rules, timing, faces clear, no AI-looking mistakes |
+
+## Usage limits
+
+Claude plans have a usage limit that resets every 5 hours. One measured example on the **Pro** plan: a `/practice-muna` run (a 10-second video, with two quality-fix rounds) used about **13%** of the 5-hour limit. A full client video uses much more. To stretch your limit:
+- start a **new Claude session for each video**;
+- answer several stops in one message;
+- skip the storyboard for repeat clients.
+
+## If something goes wrong
+
+| Problem | Fix |
+|---|---|
+| Claude says CapCut is open | Quit CapCut completely (check the system tray), then tell Claude to continue |
+| "Backend is down" or port 9001 errors | Tell Claude "start the CapCut backend"; it knows how |
+| `/edit-mo-to` or `/practice-muna` doesn't show up | Start the Claude Code session in your video folder, not somewhere else |
+| Graphics fail to render | Check your internet connection (graphics load their fonts online), then retry |
+| Claude can't push to GitHub | Run the `git push` command it gives you yourself |
+
+<details>
+<summary><b>For the technically curious: what's inside, manual setup, syncing</b></summary>
+
+### What's inside
 | Path | What |
 |---|---|
 | `CLAUDE.md` | house rules Claude reads in this folder |
@@ -101,11 +177,11 @@ After each video, Claude compares the project as it built it with how you finish
 | `.claude/edit-mo-to/setup/capcut-start.mjs` | launcher that auto-starts the CapCut backend for the MCP server |
 | `docs/` | design doc and build plan |
 
-## Manual setup
+### Manual setup
 
-The install prompt above follows these steps for you. They're here if you'd rather do it by hand, or need to fix something.
+The install prompt in Step 1 follows these steps for you. They're here if you'd rather do it by hand, or need to fix something.
 
-### Windows
+#### Windows
 
 1. **Install:**
    - CapCut desktop (tested with 9.6);
@@ -151,7 +227,7 @@ The install prompt above follows these steps for you. They're here if you'd rath
    ```
    The CapCut tests need the backend running on port 9001.
 
-### Mac
+#### Mac
 
 Same steps as Windows, with these differences:
 - Install with Homebrew: `brew install node python@3.12 ffmpeg gh`, plus CapCut desktop and Claude Code.
@@ -161,10 +237,12 @@ Same steps as Windows, with these differences:
 - **VectCutAPI on macOS:** at the tested commit, `desktop_companion.py` loads Windows APIs on import, so the server won't start. In `~/mcp-servers/VectCutAPI`, run `git mv desktop_companion.py _desktop_companion_win.py`, then copy `.claude/edit-mo-to/setup/vectcut-desktop_companion-shim.py` to `desktop_companion.py`. Drafts save normally; only CapCut window auto-reload is off (the workflow uses `auto_deploy: false` anyway).
 - The CapCut tests use `zapply/edited/hook2.mp4` and `for cloning.MP3` when present, and otherwise make synthetic stand-ins with ffmpeg in `{tmp}/_test_media`.
 
-### Machine paths
+##### Machine paths
 Each computer has its own untracked `.claude/edit-mo-to/machine.json` (copy `machine.example.json`): `root`, `python`, `tmp`, `mcp_servers`, `capcut_drafts`. The Python tools read it through `tools/machine.py`; the skill and agents write these as `{root}`, `{python}`, `{tmp}` and `{capcut_drafts}`. Keys you leave out fall back to the platform default.
 
-## Keeping computers in sync
+### Keeping computers in sync
 Rules and templates change as the workflow learns (client notes stay on each computer).
 - **Before starting a video:** Claude runs `git pull` for you.
 - **After the learning step:** Claude commits and pushes the new rules. If the push is blocked, it gives you the command to run.
+
+</details>
