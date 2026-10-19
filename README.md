@@ -174,7 +174,7 @@ Claude plans have a usage limit that resets every 5 hours. One measured example 
 | `.claude/edit-mo-to/clients/` | per-client notes |
 | `.claude/edit-mo-to/style-agent-contract.md` | edit-plan format shared by the agents |
 | `.claude/edit-mo-to/motion/` | HyperFrames motion templates, `CATALOGUE.md`, `sfx/` (19 Pixabay-licence sounds), `sfx_defaults.json` |
-| `.claude/edit-mo-to/tools/` | `capcut_project.py`, `media_timing.py`, `speech_cuts.py` (dead-air and mistake cuts, from Herk Edit Kit, MIT), `edit_diff.py` (learns from hand edits), `motion_render.py`, `plan_build.py`, `plan_preview.py` + tests |
+| `.claude/edit-mo-to/tools/` | `capcut_project.py` (CapCut projects), `media_timing.py` (word timings, beats), `speech_cuts.py` (dead-air and mistake cuts, from Herk Edit Kit, MIT), `storyboard.py` (storyboard page), `qc_clips.py` (batch QC of generated clips), `motion_render.py` (motion graphics, speaker cutout), `plan_build.py` / `plan_preview.py` (frame plans, checks, preview), `edit_diff.py` (learns from hand edits), `rehearse.py` (`/practice-muna` jobs), `playbook_scan.py` (Playbook folder scans), `machine.py` (per-computer paths) + tests |
 | `.claude/edit-mo-to/setup/capcut-start.mjs` | launcher that auto-starts the CapCut backend for the MCP server |
 | `docs/` | design doc and build plan |
 

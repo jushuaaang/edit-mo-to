@@ -41,7 +41,7 @@ The user's own editing workflow. You run it in the main conversation and own all
    - Dispatch the style agent (`mode: prompts`), then `qa` (gate `prompts`).
    - Show the table and prompts. Fix QA FAILs by re-dispatching (then delta `qa` on the fixed rows), or list unresolved ones for the user.
 7. ⛔ **Gather and build.**
-   - If AI clips are needed, wait until the user says where they are, then inventory them (ffprobe).
+   - If AI clips are needed, wait until the user says where they are, then QC the batch with `qc_clips.py run <clips folder> <expected.json>` (write `expected.json` from the prompts table: name, length, keywords, product/phone, use span). It checks length, size, baked-in text, product and phone visibility, and prints PASS/FLAG per clip; open the contact sheets of FLAG clips only, and ⛔ ask the user to regenerate real failures.
    - Dispatch the style agent (`mode: edit-plan`). Plan `overlays` use `motion\CATALOGUE.md` templates and the **editor renders them** during the build; only a graphic no template covers needs `motion-designer` first.
    - Dispatch `editor` (`action: build`, project name = product name, hooks as timelines, the plan, `import_files` = every file the user gave for this video). It imports them into the media panel and builds from the originals.
    - Run `qa` (gate `build`). If the project name is taken, ⛔ ask for another (e.g. "<Product> 2").
@@ -61,6 +61,9 @@ The user's own editing workflow. You run it in the main conversation and own all
 - Python: `"{python}"`; tools in `{root}/.claude/edit-mo-to/tools/`:
   - `media_timing.py`: `vo <audio> [script.txt]`, `beats <audio>`
   - `speech_cuts.py`: `propose <clip>`, `apply <cuts.json>` (dead air and mistake cuts, step 5)
+  - `qc_clips.py`: `run <clips folder> <expected.json>` (batch QC of generated clips, step 7)
+  - `plan_build.py` / `plan_preview.py`: frame-based plans (the editor's quick route), plan checks, preview mp4
+  - `rehearse.py prepare <clip>`: the `/practice-muna` practice job
   - `storyboard.py <storyboard.json>`: the storyboard sheet (step 3), one shareable HTML page
   - `edit_diff.py`: `snapshot` (editor, after builds), `diff` and `history` (learning step: what the editor changed by hand)
   - `capcut_project.py`: `list <project>` (show timelines); the editor uses the rest.
