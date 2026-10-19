@@ -46,7 +46,7 @@ The user's own editing workflow. You run it in the main conversation and own all
    - Dispatch `editor` (`action: build`, project name = product name, hooks as timelines, the plan, `import_files` = every file the user gave for this video). It imports them into the media panel and builds from the originals.
    - Run `qa` (gate `build`). If the project name is taken, ⛔ ask for another (e.g. "<Product> 2").
    - Show the editor's report and QA verdict. Send the user to CapCut only once QA passes, or with the remaining issues listed.
-8. **Transitions and effects** are in the edit plan where they fit the style and brief.
+8. **Transitions and effects** are in the edit plan where they fit the style and brief: few and subtle (3–5 of ≤0.3 s at section changes), each with a whoosh. To add them to a built timeline, the editor uses `capcut_project.py patch` op `transition` (copies a cached CapCut effect from a past project).
 9. ⛔ **Review loop.** The user reviews in CapCut and edits it themselves or gives changes. For each change, ⛔ ask which timeline, and new timeline or in place (in place makes a backup), and ⛔ ask them to quit CapCut completely (it rewrites projects on close and would drop our change; the tool refuses while CapCut.exe runs).
    - Then: style agent (`edit-plan` + `revision`), `editor` (`revise-new-timeline` | `revise-in-place`), `qa` (`build`, delta for small changes).
    - **Overlay tweaks** ("move the card up") stay in the main conversation: change the vars, re-render with `motion_render.py`, preview, then have the editor swap the files. No agent for small tweaks.

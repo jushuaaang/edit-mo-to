@@ -23,7 +23,7 @@ CLI (prints JSON):
                                                  video_overlay (or named) track, keeping captions and hand
                                                  edits byte-for-byte (auto-backup, refuses overlaps)
     patch <project> <name> <ops.json>            edit a (hand-edited) timeline in place, op by op: set / remove /
-                                                 insert / split / ripple, segments addressed by their CapCut id;
+                                                 insert / split / ripple / transition, segments by their CapCut id;
                                                  everything else stays byte-for-byte (auto-backup, writes
                                                  draft_content.json, validates before writing; --dry-run)
     segments <project> <name> [search_dir ...]   list what's on a timeline (layout, text, original files);
@@ -946,6 +946,37 @@ class _Patcher:
                     moved += 1
         return {"op": "ripple", "at": at, "delta": delta, "moved": moved}
 
+    def transition(self, op: dict) -> dict:
+        """Put a CapCut transition on the cut after segment `id` (CapCut stores it on the outgoing
+        segment). The transition material is copied by name from another draft that used it, so its
+        effect files are already in CapCut's cache; segment times never move (CapCut overlaps them)."""
+        t, seg = self._locate(op["id"])
+        segs = sorted(t["segments"], key=lambda s: s["target_timerange"]["start"])
+        i = segs.index(seg)
+        if i + 1 >= len(segs) or segs[i + 1]["target_timerange"]["start"] != _span(seg)[1]:
+            raise ValueError(f"segment {seg['id']} has no clip right after it to transition into")
+        src = Path(op["from_draft"])
+        src = _content_file(src) if src.is_dir() else src
+        found = [m for m in _read(src).get("materials", {}).get("transitions", []) if m.get("name") == op["name"]]
+        if not found:
+            raise KeyError(f"no transition named {op['name']!r} in {src}")
+        m = copy.deepcopy(found[0])
+        if m.get("path") and not Path(m["path"]).exists():
+            raise FileNotFoundError(f"{op['name']!r} effect files are not in CapCut's cache ({m['path']})")
+        m["id"] = _new_id()
+        if "duration" in op:
+            m["duration"] = int(op["duration"])
+        by = self._by_id()
+        refs = [r for r in seg.get("extra_material_refs") or [] if by.get(r, (None,))[0] != "transitions"]
+        dropped = set(seg.get("extra_material_refs") or []) - set(refs)
+        self.mats["transitions"] = [x for x in self.mats.get("transitions", []) if x.get("id") not in dropped]
+        self.mats["transitions"].append(m)
+        # CapCut's order: speeds, placeholder_infos, hsl, transitions, canvases, ...
+        after = [k for k, r in enumerate(refs) if by.get(r, (None,))[0] in ("speeds", "placeholder_infos", "hsl")]
+        refs.insert(after[-1] + 1 if after else 0, m["id"])
+        seg["extra_material_refs"] = refs
+        return {"op": "transition", "id": seg["id"], "name": m["name"], "duration": m["duration"]}
+
     # --- checks --------------------------------------------------------------------------
     def validate(self) -> None:
         for t in self.c.get("tracks", []):
@@ -970,6 +1001,8 @@ def patch_timeline(project: Path, name: str, ops, dry_run: bool = False) -> dict
          volume, like (segment id to copy the shape from), name]}   (a missing track is created)
         {"op": "split", "id", "at", [name (for the right half)]}
         {"op": "ripple", "at", "delta", [except: ids]}   shift every segment starting at/after `at`
+        {"op": "transition", "id", "name", "from_draft", [duration]}   CapCut transition on the cut after
+         segment `id`, copied by name from another draft (its effect must be in CapCut's cache)
     All ops are applied in memory and the result is checked (no overlaps) before anything is written.
     Writes the timeline's draft_content.json (newest) + draft_info.json, and the root files for the main
     timeline. Backs the timeline up first."""
@@ -989,7 +1022,7 @@ def patch_timeline(project: Path, name: str, ops, dry_run: bool = False) -> dict
     done = []
     for i, op in enumerate(ops):
         fn = getattr(p, op.get("op", ""), None)
-        if op.get("op") not in ("set", "remove", "insert", "split", "ripple") or fn is None:
+        if op.get("op") not in ("set", "remove", "insert", "split", "ripple", "transition") or fn is None:
             raise ValueError(f"op {i}: unknown op {op.get('op')!r}")
         try:
             done.append({"n": i, **fn(op)})
@@ -1108,6 +1141,10 @@ def backup_timeline(project: Path, name: str) -> Path:
     _ensure_timelines_layout(project)
     tid = _find(project, name)["id"]
     dst = project / BACKUP_DIR / f"{tid}.bak-{time.strftime('%Y%m%d-%H%M%S')}"
+    n = 1
+    while dst.exists():  # two writes in the same second
+        n += 1
+        dst = dst.with_name(f"{dst.name.split('_')[0]}_{n}")
     shutil.copytree(project / "Timelines" / tid, dst)
     (dst / "timeline_name.txt").write_text(name, encoding="utf-8")
     return dst

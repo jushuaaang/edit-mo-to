@@ -40,10 +40,10 @@ Proven defaults that every editor starts with. Agents read **General** plus thei
 
 ## UGC
 - **Structure:** several hooks (variants) + body + CTA. **Timeline 01 = hook 1 + body + CTA; each other hook gets its own hook-only timeline.**
-- **Host A-roll:** lip-synced to the VO, 4–8 s clips, cut on VO pauses. B-roll covers the VO between host shots.
+- **Host A-roll:** lip-synced to the VO, cut on VO pauses. B-roll covers the VO between host shots. Generate host clips **long (8 s)** so one take covers a whole line, then cut it into pieces on speech pauses with UGC jump cuts. **Never fill a gap with a still or freeze frame**: it reads as lag.
 - **Generate reference images first:** headshot, full body, setting.
 - **Wardrobe line in every live clip.**
-- **Lip-sync:** drift of 8+ frames is visible. First retime the clip in CapCut; regenerate only for big mismatches.
+- **Lip-sync:** drift of 8+ frames is visible. Generators ignore the VO's pace, so time each host clip's own guide speech (whisper, in the VO's language), set `src_in` per jump-cut piece, and keep speed within 0.85–1.15×. Words that still drift go under B-roll, never a speed-up past 1.15×. Regenerate only for big mismatches.
 
 ## B-roll
 - **Mostly the client's B-roll;** generate AI only where nothing fits, and ask first.
@@ -73,6 +73,7 @@ Proven defaults that every editor starts with. Agents read **General** plus thei
 - **On-screen graphics are HyperFrames motion overlays** from `motion/CATALOGUE.md`, in the client's colours and fonts.
 - **Reference videos teach effects, not looks:** adapt their editing effects and motion; choose colours and fonts fresh for each client and mood.
 - **Clean timelines:** overlays and their SFX start on a video cut or a spoken word.
+- **Transitions:** few and subtle: 3–5 of ≤0.3 s, only at section changes (hook → body, start of a benefit run, back to the host); every other cut stays straight. Each gets a short whoosh centred on the cut, under the VO. On an existing timeline, add them with `capcut_project.py patch` op `transition` (copies a CapCut effect by name from a past project whose effect is cached).
 - **Zoom-ins for emphasis only,** never two in a row.
 - **Import first, then edit:** the editor's files appear in the media panel under their real names.
 - **Mirroring is manual:** list clips that read backwards.

@@ -199,3 +199,49 @@ def test_refuses_while_capcut_running(project, monkeypatch):
 def test_unknown_segment_is_a_clear_error(project):
     with pytest.raises(ValueError, match="no segment with id"):
         cp.patch_timeline(project, "Timeline 01", [{"op": "set", "id": "nope", "volume": 0.1}])
+
+
+def _transition_source(tmp_path, effect_file):
+    src = tmp_path / "other_draft"
+    src.mkdir()
+    (src / "draft_content.json").write_text(json.dumps({"materials": {"transitions": [
+        {"id": "T-OLD", "type": "transition", "name": "Blur Focus", "effect_id": "749", "resource_id": "749",
+         "path": str(effect_file), "duration": 466666, "is_overlap": True}]}}), encoding="utf-8")
+    return src
+
+
+def test_transition_copies_material_onto_outgoing_segment_without_moving_times(project, tmp_path):
+    effect = tmp_path / "effect_749"
+    effect.mkdir()
+    src = _transition_source(tmp_path, effect)
+    before = _load(project)
+    cp.patch_timeline(project, "Timeline 01", [
+        {"op": "transition", "id": "a1", "name": "Blur Focus", "from_draft": str(src), "duration": 200_000}])
+    after = _load(project)
+    (tr,) = after["materials"]["transitions"]
+    assert tr["name"] == "Blur Focus" and tr["duration"] == 200_000 and tr["id"] != "T-OLD"
+    refs = _seg_by(after, "a1")["extra_material_refs"]
+    assert refs == ["a1-sp", tr["id"], "a1-cv"]  # after speeds, before canvases (CapCut's order)
+    for sid in ("a1", "a2", "b1", "s1"):
+        assert _seg_by(after, sid)["target_timerange"] == _seg_by(before, sid)["target_timerange"]
+    assert after["duration"] == before["duration"]
+
+
+def test_transition_replaces_an_existing_one_and_refuses_last_clip(project, tmp_path):
+    effect = tmp_path / "effect_749"
+    effect.mkdir()
+    src = _transition_source(tmp_path, effect)
+    op = {"op": "transition", "id": "a1", "name": "Blur Focus", "from_draft": str(src)}
+    cp.patch_timeline(project, "Timeline 01", [op])
+    cp.patch_timeline(project, "Timeline 01", [dict(op, duration=300_000)])
+    c = _load(project)
+    assert [t["duration"] for t in c["materials"]["transitions"]] == [300_000]
+    with pytest.raises(ValueError, match="no clip right after"):
+        cp.patch_timeline(project, "Timeline 01", [dict(op, id="a2")])
+
+
+def test_transition_refuses_effect_missing_from_cache(project, tmp_path):
+    src = _transition_source(tmp_path, tmp_path / "not_downloaded")
+    with pytest.raises(ValueError, match="not in CapCut's cache"):
+        cp.patch_timeline(project, "Timeline 01", [
+            {"op": "transition", "id": "a1", "name": "Blur Focus", "from_draft": str(src)}])
