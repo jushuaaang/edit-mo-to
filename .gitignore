@@ -40,5 +40,5 @@ __pycache__/
 # hand-edit log names clients and videos
 /.claude/edit-mo-to/edit-patterns.jsonl
 
-# rehearsal outputs (the editor's own footage)
-_rehearse/
+# /practice-muna outputs (the editor's own footage)
+_practice/

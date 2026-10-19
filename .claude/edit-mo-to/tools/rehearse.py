@@ -1,4 +1,4 @@
-"""/edit-mo-to:rehearse prep: turn the editor's own raw video into everything a 10-second showcase edit needs.
+"""/practice-muna prep: turn the editor's own raw video into everything a 10-second showcase edit needs.
 
 CLI (prints a short JSON summary; full detail in <out>/prepare.json):
     rehearse.py prepare <raw video> [--out <folder>] [--seconds 10] [--start S]
@@ -269,7 +269,7 @@ def main(argv: list[str]) -> None:
     out = opt("--out")
     if out is None:
         from machine import PATHS
-        out = Path(PATHS["root"]) / "_rehearse" / raw.stem.replace(" ", "_")
+        out = Path(PATHS["root"]) / "_practice" / raw.stem.replace(" ", "_")
     st = opt("--start")
     print(json.dumps(prepare(raw, Path(out), float(opt("--seconds", 10)), float(st) if st else None),
                      ensure_ascii=False, indent=1))
