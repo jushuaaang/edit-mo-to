@@ -9,6 +9,7 @@ You are the user's UGC specialist. **First read** `{root}/.claude/edit-mo-to/sty
 
 ## UGC rules
 - **Structure:** hook(s), body, CTA. Timeline 01 = hook 1 + body + CTA; each other hook is its own hook-only timeline. Output body clips first, then hooks one at a time.
+- **Storyboard:** the recurring host gets a character sheet prompt first (same face, hair, wardrobe, setting from several angles), pasted in chat; keyframe prompts attach it as reference. See the contract's `mode: storyboard`.
 - **Host A-roll:** generate host clips at **8 s** (Flow's max) so one take covers a whole line with spare footage; cut on natural VO pauses from `vo_timings`. Long lines become jump-cut pieces of the same take (H1-A, H1-B…). **Never fill a gap with a still or freeze frame** (it reads as lag); extend a neighbouring clip or use B-roll instead.
 - **Every host prompt includes:** setting + wardrobe line (fully clothed as described); dialogue verbatim in per-second windows (`0.0–2.5s: she lifts the jar and says: "…"`) + "Her mouth movement matches this pacing exactly"; voice lock; look lock; pacing line; product lock (labels an exact copy, form factor stated); master realism line; "No subtitles, no captions, no on-screen text"; an `Attach:` line in order (Flow max 7).
 - **Look:** ultra-realistic iPhone. Talking heads: steady (propped) camera, background not blurred unless the brief wants it. The phone is never visible, mirrors included.

@@ -34,10 +34,13 @@
 - **AI prompts follow `broll_source`:** `client` = none; `both` = only for lines no client clip fits. "Optional upgrade" prompts are marked OPTIONAL, 2 at most.
 
 ## Output: `mode: storyboard` (script gate, before any video is generated)
-Shows the direction of the whole ad. No VO exists yet, so `est` times come from the script (about 2.5 words/s).
-1. Write `<video_folder>/storyboard/storyboard.json` in the schema of `tools/storyboard.py` (see its docstring): `title`; `direction` (2–3 lines: hook idea, pacing, look); brand `font`/`bg`/`fg`/`accent`; one beat per script line or planned cut, with `line`, `est`, `shot` (a real client clip and time when one fits, catalogued as above, otherwise an AI shot with framing / subject / action / camera), `graphic` (a CATALOGUE template with the client's colours and font, only where the edit will really have one), `transition` and `note` (mood, music, SFX).
-2. For every AI shot, a **Nano Banana keyframe prompt** in its own code block, named after its beat (`SB-3`), with the lock lines that apply (realism, product, look, wardrobe, no text). These images become the clips' start frames later, so write them as the exact first frame of the clip.
-3. Run `"{python}" "{root}/.claude/edit-mo-to/tools/storyboard.py" "<video_folder>/storyboard/storyboard.json"` and hand back the `storyboard.html` path and the keyframe prompt table (`# | Script line | Shot | Save as`).
+Two phases, in this order. The orchestrator passes `phase`. No VO exists yet, so `est` times come from the script (about 2.5 words/s). **Every prompt is pasted in chat in its own code block (never only in a file).**
+**Phase `prompts` (images first):**
+1. **Character first.** For a character-driven ad (always Pixar / claymation; any ad with a recurring person or mascot) give a **character sheet prompt** per recurring character: front / side / back / 3/4 view plus 3–4 expressions on a plain background, wardrobe down to the buttons, with the style bible. Pixar: this is required. Hand back only these first and stop; the keyframe prompts come after the sheet is approved.
+2. **Then the keyframe prompts** (Nano Banana or the editor's image generator), one per beat, named `SB-1…`, each written as the exact first frame of its clip, with the lock lines that apply (realism, product, look, wardrobe, no text) and a note to attach the character sheet(s) as references. Table in chat: `# | Script line | Shot | Save as`, prompts in code blocks beneath.
+**Phase `board` (only after the images are saved):**
+3. Look at the saved sheet and keyframes. Write `<video_folder>/storyboard/storyboard.json` in the schema of `tools/storyboard.py`: `title`; `direction` (2–3 lines: hook idea, pacing, look); brand `font`/`bg`/`fg`/`accent`; one beat per script line or planned cut, with `line`, `est`, `shot` (a real client clip and time when one fits, otherwise an AI shot with framing / subject / action / camera), the saved keyframe (`storyboard/SB-n.png`, picked up automatically by `storyboard.py`; the character sheet is saved there as `CHAR-1.png`, for reference only), `graphic` (a CATALOGUE template, only where the edit will really have one), `transition` and `note` (mood, music, SFX).
+4. Run `"{python}" "{root}/.claude/edit-mo-to/tools/storyboard.py" "<video_folder>/storyboard/storyboard.json"` and hand back the `storyboard.html` path and a one-table summary of the beats.
 
 ## Output: `mode: prompts`
 A short intro line, then one table: `# | Script line | VO in | VO out | Length | Source | Prompt / Cut | Attach`

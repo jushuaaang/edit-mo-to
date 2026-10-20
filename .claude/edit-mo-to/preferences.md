@@ -5,7 +5,8 @@ Proven defaults that every editor starts with. Agents read **General** plus thei
 ## General
 - **Follow the client brief to the letter.** Every rule in it is tracked and checked.
 - **Step by step:** stop at every gate until the editor says go on.
-- **Deliverables go in chat as tables, never in a .md file.** Prompts go in copyable code blocks, with the look written into the prompt.
+- **Deliverables go in chat as tables, never in a .md file.** **Always paste every prompt in chat** (storyboard, character sheet, keyframe, video), each in its own copyable code block, with the look written into the prompt; never only in a file or a path to one.
+- **Storyboard order:** generate the images first (character sheet first for Pixar / character ads, then the storyboard keyframes), and build the whole storyboard only once the images are saved.
 - **Timecodes are `seconds:frames`** at 30 fps (`1:29` = 1 s 29 f); past 60 s, `m:ss:ff`. Never decimals.
 - **Full file paths and names**, including the full folder.
 - **Map every clip to its script line.**

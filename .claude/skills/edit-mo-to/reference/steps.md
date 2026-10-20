@@ -21,7 +21,7 @@ If the style is mixed (e.g. UGC host + heavy B-roll), pick the main one and pass
 
 ## Dispatch template (style agents)
 ```
-mode: storyboard | prompts | edit-plan
+mode: storyboard (phase: prompts | board) | prompts | edit-plan
 client: <client file stem or "new">   product: <Product>
 video_folder: <path>
 brief_checklist: <the table>
@@ -59,7 +59,9 @@ scope: full | delta   changed: <clip #s / prompt #s / ops since the last QA>   (
 - Checklist: "Here's everything the brief requires. Anything missing or wrong?"
 - Script approval: "Approve this script, or tell me what to change."
 - Storyboard: "Want a storyboard first, so you see my direction before any video is made? (Recommended for new clients and AI-heavy ads.)"
-- Storyboard approval: "Here's the storyboard. Approve this direction, or tell me what to change. Generate the keyframes and tell me when they're saved if you want to see the real look."
+- Character sheet: "Generate the character sheet from this prompt and send it to me (or tell me when it's saved)."
+- Keyframes: "Now generate the storyboard images from these prompts and tell me when they're saved in <folder>/storyboard/."
+- Storyboard approval: "Here's the full storyboard built from your images. Approve this direction, or tell me what to change."
 - VO: "Generate the voiceover in ElevenLabs and send me the file."
 - B-roll source: "Use the client's B-roll, generate AI videos, or both?"
 - Generator: "Where will you generate: Seedance or Google Flow?"
