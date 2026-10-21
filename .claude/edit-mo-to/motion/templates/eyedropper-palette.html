@@ -1,0 +1,72 @@
+<!--defaults {"colors": "#6f8b99:SHIRT;#0b100f:WALL;#929aa2:CAP;#8b7a83:SKIN", "points": "30,66;12,40;55,28;48,48", "title": "SAMPLED", "tag": "GRADE", "y": 1500, "width": 920, "bg": "#efeadf", "fg": "#17181b", "muted": "#5c5950", "dropper": "#17181b", "font": "Inter", "mono": "JetBrains Mono", "t_start": 0.3, "hop": 0.7, "height": 1920, "duration": 4} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;800&family={{mono}}:wght@500;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; -webkit-font-smoothing: antialiased; }
+  #stage { position: absolute; inset: 0; }
+  /* tray: (540, y) = top-centre. points = x%,y% of the frame where the dropper samples; colours = hex:LABEL pairs, sampled by the editor from the real frame */
+  #tray { position: absolute; left: 50%; top: {{y}}px; width: {{width}}px; transform: translateX(-50%); padding: 22px 28px 28px; border-radius: 22px; background: {{bg}}; color: {{fg}}; box-shadow: 0 16px 40px rgba(0,0,0,.35); }
+  #hd { display: flex; justify-content: space-between; font-family: "{{mono}}", monospace; font-weight: 700; font-size: 20px; letter-spacing: .2em; color: {{muted}}; margin-bottom: 18px; }
+  #grid { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 18px; }
+  .slot { height: 150px; border-radius: 14px; border: 3px dashed rgba(0,0,0,.18); display: flex; flex-direction: column; justify-content: flex-end; padding: 12px 14px; position: relative; overflow: hidden; }
+  .slot .sw { position: absolute; inset: 0; transform-origin: 50% 100%; transform: scaleY(0); }
+  .slot .hex, .slot .nm { position: relative; font-family: "{{mono}}", monospace; font-weight: 700; opacity: 0; }
+  .hex { font-size: 24px; } .nm { font-size: 17px; letter-spacing: .14em; opacity: 0; }
+  #dots i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-left: 6px; background: rgba(0,0,0,.18); }
+  #drop { position: absolute; left: 0; top: 0; width: 120px; height: 120px; opacity: 0; filter: drop-shadow(0 6px 10px rgba(0,0,0,.4)); }
+  #ring { position: absolute; left: 0; top: 0; width: 96px; height: 96px; margin: -48px 0 0 -48px; border-radius: 50%; border: 5px solid #fff; opacity: 0; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="stage" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="tray"><div id="hd"><span>{{title}}</span><span>{{tag}} <span id="dots"></span></span></div><div id="grid"></div></div>
+    <div id="ring"></div>
+    <svg id="drop" viewBox="0 0 24 24" fill="none" stroke="{{dropper}}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 3.5a2.1 2.1 0 0 0-3 0L14 7l-1-1-1.5 1.5 5 5L18 11l-1-1 3.5-3.5a2.1 2.1 0 0 0 0-3z" fill="{{dropper}}"/><path d="M12.5 8.5L4 17v3h3l8.5-8.5"/></svg>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), T0 = Number("{{t_start}}"), HOP = Number("{{hop}}"), H = Number("{{height}}");
+  const cols = "{{colors}}".split(";").map(s => s.trim()).filter(Boolean).map(s => { const [c, n] = s.split(":"); return { c: c.trim(), n: (n || "").trim() }; });
+  const pts = "{{points}}".split(";").map(s => s.split(",").map(Number));
+  const grid = document.getElementById("grid"); grid.style.setProperty("--n", cols.length);
+  const dots = document.getElementById("dots");
+  const rl = h => { const v = parseInt(h.replace("#", ""), 16); return [v >> 16, (v >> 8) & 255, v & 255].map(c => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }).reduce((s, c, i) => s + c * [0.2126, 0.7152, 0.0722][i], 0); };
+  cols.forEach(o => {
+    const s = document.createElement("div"); s.className = "slot";
+    s.innerHTML = '<div class="sw" style="background:' + o.c + '"></div><div class="hex">' + o.c.toUpperCase() + '</div><div class="nm">' + o.n + '</div>';
+    const L = rl(o.c), ink = (L + 0.05) / 0.0125 > 1.05 / (L + 0.05) ? "#0b0c0e" : "#ffffff"; s.querySelector(".hex").style.color = ink; s.querySelector(".nm").style.color = ink;
+    grid.appendChild(s);
+    const d = document.createElement("i"); dots.appendChild(d);
+  });
+  const slots = [...grid.children], tl = gsap.timeline({ paused: true });
+  const P = (i) => { const p = pts[Math.min(i, pts.length - 1)] || [50, 50]; return [p[0] / 100 * 1080, p[1] / 100 * H]; };
+  const tray = document.getElementById("tray"), drop = document.getElementById("drop"), ring = document.getElementById("ring");
+  tl.from(tray, { y: 60, opacity: 0, duration: 0.35, ease: "power3.out" }, 0);
+  const p0 = P(0);
+  // the dropper's tip (bottom-left of the icon) lands on each point; the sample ring pulses, then its swatch fills in the tray
+  gsap.set(drop, { x: p0[0] - 0, y: p0[1] - 120, opacity: 0 });
+  cols.forEach((o, i) => {
+    const [px, py] = P(i), t = T0 + i * HOP * 1.6;
+    if (i === 0) tl.to(drop, { opacity: 1, duration: 0.15 }, t - 0.15);
+    tl.to(drop, { x: px, y: py - 120 + 14, duration: HOP * 0.55, ease: "power2.inOut" }, t);
+    const tc = t + HOP * 0.55;
+    tl.fromTo(ring, { x: px, y: py, scale: 0.5, opacity: 1 }, { x: px, y: py, scale: 1.3, opacity: 0, duration: 0.4, ease: "power2.out" }, tc);
+    tl.to(slots[i].querySelector(".sw"), { scaleY: 1, duration: 0.3, ease: "power3.out" }, tc + 0.1);
+    tl.to(slots[i], { borderColor: "transparent", duration: 0.1 }, tc + 0.1);
+    tl.to(slots[i].querySelectorAll(".hex,.nm"), { opacity: 1, duration: 0.2, stagger: 0.05 }, tc + 0.3);
+    tl.to(dots.children[i], { backgroundColor: o.c, duration: 0.2 }, tc + 0.3);
+  });
+  tl.to(drop, { opacity: 0, y: "-=40", duration: 0.25, ease: "power2.in" }, T0 + cols.length * HOP * 1.6 + 0.2);
+  tl.to("#stage", { opacity: 0, duration: 0.18, ease: "power1.in" }, D - 0.2);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

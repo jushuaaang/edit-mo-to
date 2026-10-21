@@ -82,3 +82,23 @@ Only when the user asks for burned-in captions instead of CapCut auto-caption (e
 | Template | Use for | Key vars |
 |---|---|---|
 | ugc-captions | the full caption track from `media_timing.py vo` word timings. The script (`script_file`, one sentence per line) is the source of truth for the words: they take the ASR timings by character alignment, so ASR spellings (split apostrophes, "70 %") are fixed. Chunks cut at punctuation and pauses first, then `max_words`; never a one-word orphan; numbers stay with their unit; 1–2 lines, auto-fit. Each chunk pops on its first word (scale 0.92→1, 4 frames) and cuts to the next | words_file (.json path), script_file (.txt path, optional), t_from, t_to, duration, max_words, max_chars, pause, y, font, weight, size, fg, shadow, stroke, case (script/lower-start/upper), keep_case (comma list of words "lower-start" never lowercases, e.g. the brand), punct (end/all/keep), highlight (none/active-word), accent |
+
+## Countdown (built 2026-10-20, Facelove photo quiz)
+| Template | Use for | Key vars |
+|---|---|---|
+| countdown | small round solid badge, white bold digit, one ring sweep per second; `start` to 1 (no 0), `step_dur` each; on from frame 0, no slide-in. Sits on (x, y) = badge centre, default screen centre, e.g. the gap between two side-by-side photos. Set `duration` = start x step_dur | start, step_dur, x, y, size, fg, bg, accent, font, duration |
+
+## Reel effects kit (adapted from a "20 effects in 20 seconds" creator reel, 2026-10-21)
+Effects and motion only: `font` and every colour are vars set from the client's brand and the mood; defaults are neutral. 9:16 at `height` 1920. Reel effects that need no new template: kinetic hook = `kinetic-type` (`rise`) or `kinetic-title`; title card = `title-card`; giant captions = `big-text`; kicked-in section list = `section-chip`; picture-in-picture clips = `phone-cards`; fake social feed = `notify`.
+| Template | Use for | Key vars |
+|---|---|---|
+| receipt-printer | a paper slip prints out of a slot in stepped bursts: kicker, big title, TOTAL line, torn top edge; for "terms", "what you get", "the damage" | kicker, kicker_r, sub, title, total_label, total, x, y (slot), width, paper, ink, slot, font, size |
+| knockout-caption | words in solid blocks that wipe open one under the other, last block larger (`size_last`); a keyword-caption look. Words land on `times` (s,s,…) | words (a\|b\|c), times, bg, fg, font, weight, size, size_last, gap, x, y, align, max_width |
+| gravity-drop | letters fall in under gravity with a tiny squash and 6px settle (no bounce), then an italic serif word fades in above | text, sub, fg, sub_color, font, font2, size, size_sub, y, stagger |
+| odometer | mechanical counter in a labelled panel: each digit rolls up to its target, last digit lands last; durations, counts, "0:25 of raw footage" | value, from, label, x, y, size, bg, fg, accent, t_start, spin, stagger |
+| live-markup | hand-drawn loop draws itself around a face or product with a handwritten label and leader line; pair with a B&W grade on the cut for the reel's look | label, x, y, rx, ry, tilt, lx, ly, color, label_color, font, size, t_start, t_draw |
+| comment-cta | comment box types a keyword, posts it (heart fills), and a creator reply slides in under; the "comment EDIT" lead magnet CTA | keyword, placeholder, you, reply_user, reply_text, initial, x, y, width, t_start, t_post, t_reply, bg, fg, accent, heart |
+| eyedropper-palette | eyedropper hops to points on the frame and each sample fills a swatch (hex + label) in a tray; palette/grade reveal. The editor supplies the real hexes (sample the frame with ffmpeg/PIL) and the point positions | colors (#hex:LABEL;…), points (x%,y%;…), title, tag, y, width, bg, fg, hop, t_start |
+| film-strip | projector look: sprocket strips scroll down both edges with a warm flicker, grain and vignette; the footage underneath is untouched, so pair with a sepia/warm grade for a "memory" or "old take" beat | strip, hole, width, pitch, speed, tint, flicker, grain |
+
+Not built (need footage manipulation, not an overlay): grade-slider before/after wipe, mood curtain, picture-dive nested frames, contact-sheet and magazine cover with a cut-out head. Do these with a CapCut effect/mask, a `cutout` clip above `big-text`, or `phone-cards`.

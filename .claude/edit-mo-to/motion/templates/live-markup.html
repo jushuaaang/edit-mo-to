@@ -1,0 +1,55 @@
+<!--defaults {"label": "markup", "x": 540, "y": 760, "rx": 230, "ry": 270, "tilt": -6, "lx": 300, "ly": 330, "color": "#ef5d6b", "label_color": "", "stroke": 9, "font": "Caveat", "size": 96, "t_start": 0.15, "t_draw": 0.7, "height": 1920, "duration": 2.8} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", cursive; -webkit-font-smoothing: antialiased; }
+  #stage { position: absolute; inset: 0; }
+  svg { position: absolute; inset: 0; width: 1080px; height: {{height}}px; overflow: visible; }
+  .ink { fill: none; stroke: {{color}}; stroke-width: {{stroke}}; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 3px 6px rgba(0,0,0,.35)); }
+  #lab { position: absolute; left: {{lx}}px; top: {{ly}}px; transform: translate(-50%, -50%) rotate(-4deg); font-weight: 600; font-size: {{size}}px; line-height: 1; white-space: nowrap; color: {{color}};
+         text-shadow: 0 3px 8px rgba(0,0,0,.35); clip-path: inset(0 100% 0 0); }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="stage" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <svg viewBox="0 0 1080 {{height}}"><path id="ring" class="ink" d="M0 0"/><path id="lead" class="ink" d="M0 0"/></svg>
+    <div id="lab">{{label}}</div>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), T0 = Number("{{t_start}}"), TD = Number("{{t_draw}}");
+  const cx = Number("{{x}}"), cy = Number("{{y}}"), rx = Number("{{rx}}"), ry = Number("{{ry}}"), tilt = Number("{{tilt}}") * Math.PI / 180;
+  const lx = Number("{{lx}}"), ly = Number("{{ly}}");
+  if ("{{label_color}}") document.getElementById("lab").style.color = "{{label_color}}";
+  // hand-drawn loop: 1.12 turns with a drifting radius so the end overshoots the start, like a pen circling a face
+  let pts = [];
+  const N = 90, start = -2.2;
+  for (let i = 0; i <= N; i++) {
+    const u = i / N, a = start + u * Math.PI * 2 * 1.12, w = 1 + 0.035 * Math.sin(u * 9) + 0.05 * u;
+    const px = Math.cos(a) * rx * w, py = Math.sin(a) * ry * w;
+    pts.push([cx + px * Math.cos(tilt) - py * Math.sin(tilt), cy + px * Math.sin(tilt) + py * Math.cos(tilt)]);
+  }
+  document.getElementById("ring").setAttribute("d", "M" + pts.map(p => p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" L"));
+  // leader: a curved pen line from under the label to the top of the loop
+  const ex = cx + (lx < cx ? -rx * 0.5 : rx * 0.5), ey = cy - ry * 0.93, sx = lx, sy = ly + 54;
+  document.getElementById("lead").setAttribute("d", "M" + sx + " " + sy + " Q" + (sx + (ex - sx) * 0.1) + " " + (ey - 40) + " " + ex + " " + ey);
+  const tl = gsap.timeline({ paused: true });
+  const ring = document.getElementById("ring"), lead = document.getElementById("lead");
+  const L1 = ring.getTotalLength(), L2 = lead.getTotalLength();
+  gsap.set(ring, { strokeDasharray: L1, strokeDashoffset: L1 }); gsap.set(lead, { strokeDasharray: L2, strokeDashoffset: L2 });
+  tl.to("#lab", { clipPath: "inset(0 0% 0 0)", duration: 0.4, ease: "power2.out" }, T0);
+  tl.to(lead, { strokeDashoffset: 0, duration: 0.35, ease: "power1.inOut" }, T0 + 0.3);
+  tl.to(ring, { strokeDashoffset: 0, duration: TD, ease: "power2.inOut" }, T0 + 0.5);
+  tl.to("#stage", { opacity: 0, duration: 0.16, ease: "power1.in" }, D - 0.17);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

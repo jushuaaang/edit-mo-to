@@ -5,7 +5,7 @@
 Made for UGC ads, B-roll ads, claymation, Pixar-style stories and TikTok product ads. Runs inside the Claude desktop app (Claude Code).
 
 ![Some of the motion graphics it adds, shown here for a made-up brand](docs/images/motion-gallery.png)
-<sub>A few of its 30+ motion graphics, in a made-up brand's colours. Every video gets the colours and fonts of its own client.</sub>
+<sub>A few of its 40+ motion graphics, in a made-up brand's colours. Every video gets the colours and fonts of its own client.</sub>
 
 ## What you need
 
@@ -173,7 +173,7 @@ Claude plans have a usage limit that resets every 5 hours. One measured example 
 | `.claude/edit-mo-to/edit-patterns.jsonl` | your log of hand-edit patterns per video (local only, gitignored) |
 | `.claude/edit-mo-to/clients/` | per-client notes |
 | `.claude/edit-mo-to/style-agent-contract.md` | edit-plan format shared by the agents |
-| `.claude/edit-mo-to/motion/` | HyperFrames motion templates, `CATALOGUE.md`, `sfx/` (19 Pixabay-licence sounds), `sfx_defaults.json` |
+| `.claude/edit-mo-to/motion/` | 40+ HyperFrames motion templates (incl. receipt printer, odometer, live markup, comment CTA, eyedropper palette, film strip), `CATALOGUE.md`, `sfx/` (19 Pixabay-licence sounds), `sfx_defaults.json` |
 | `.claude/edit-mo-to/tools/` | `capcut_project.py` (CapCut projects), `media_timing.py` (word timings, beats), `speech_cuts.py` (dead-air and mistake cuts, from Herk Edit Kit, MIT), `storyboard.py` (storyboard page), `qc_clips.py` (batch QC of generated clips), `motion_render.py` (motion graphics, speaker cutout), `plan_build.py` / `plan_preview.py` (frame plans, checks, preview), `edit_diff.py` (learns from hand edits), `rehearse.py` (`/practice-muna` jobs), `playbook_scan.py` (Playbook folder scans), `machine.py` (per-computer paths) + tests |
 | `.claude/edit-mo-to/setup/capcut-start.mjs` | launcher that auto-starts the CapCut backend for the MCP server |
 | `docs/` | design doc and build plan |

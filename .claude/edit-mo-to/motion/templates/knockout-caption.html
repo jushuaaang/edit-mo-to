@@ -1,0 +1,47 @@
+<!--defaults {"words": "knockout|captions.", "times": "", "bg": "#1e2a24", "fg": "#f4efe4", "font": "Inter", "weight": 800, "size": 84, "size_last": 120, "gap": 10, "y": 1120, "align": "center", "x": 540, "max_width": 960, "height": 1920, "duration": 2.4} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@{{weight}}&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; -webkit-font-smoothing: antialiased; }
+  #stage { position: absolute; inset: 0; }
+  #col { position: absolute; top: {{y}}px; left: {{x}}px; display: flex; flex-direction: column; gap: {{gap}}px; transform: translateX(-50%); width: max-content; max-width: {{max_width}}px; }
+  .w { width: max-content; max-width: {{max_width}}px; padding: .12em .34em .2em; background: {{bg}}; color: {{fg}}; font-weight: {{weight}};
+       line-height: 1.05; white-space: nowrap; border-radius: 8px; box-shadow: 0 8px 22px rgba(0,0,0,.28); transform-origin: left center; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="stage" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0"><div id="col"></div></div>
+</div>
+<script>
+  const D = Number("{{duration}}"), MW = Number("{{max_width}}");
+  const words = "{{words}}".split("|").map(s => s.trim()).filter(Boolean);
+  const times = "{{times}}".split(",").map(s => parseFloat(s)).filter(n => !isNaN(n));
+  const col = document.getElementById("col"), A = "{{align}}";
+  col.style.alignItems = A === "left" ? "flex-start" : A === "right" ? "flex-end" : "center";
+  const tl = gsap.timeline({ paused: true });
+  const els = words.map((t, i) => {
+    const e = document.createElement("div"); e.className = "w"; e.textContent = t;
+    e.style.fontSize = (i === words.length - 1 && words.length > 1 ? {{size_last}} : {{size}}) + "px"; col.appendChild(e); return e;
+  });
+  // auto-fit each block to the safe width (measured with the real font)
+  function fit() { els.forEach(e => { const w = e.getBoundingClientRect().width; if (w > MW) e.style.fontSize = (parseFloat(e.style.fontSize) * MW / w) + "px"; }); }
+  fit(); if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+  // text is knocked out of its block: the block wipes open left to right while the word settles up into it
+  els.forEach((e, i) => {
+    const t = times[i] !== undefined ? times[i] : i * Math.min(0.5, (D - 1) / Math.max(1, words.length));
+    tl.fromTo(e, { clipPath: "inset(0 100% 0 0)", y: 14 }, { clipPath: "inset(0 0% 0 0)", y: 0, duration: 0.22, ease: "expo.out" }, t);
+    tl.fromTo(e, { scale: 0.94 }, { scale: 1, duration: 0.26, ease: "back.out(1.4)" }, t);
+  });
+  tl.to("#stage", { opacity: 0, duration: 0.14, ease: "power1.in" }, D - 0.15);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

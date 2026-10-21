@@ -1,0 +1,70 @@
+<!--defaults {"placeholder": "Add a comment...", "keyword": "EDIT", "you": "you", "reply_user": "creator", "reply_text": "Sent. Check your DMs.", "initial": "Y", "x": 540, "y": 240, "width": 900, "t_start": 0.3, "cps": 9, "t_post": 1.9, "t_reply": 2.6, "bg": "#ffffff", "fg": "#111114", "muted": "#686870", "accent": "#111114", "heart": "#ee4560", "font": "Inter", "height": 1920, "duration": 4.6} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500;700;800&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; -webkit-font-smoothing: antialiased; }
+  #stage { position: absolute; inset: 0; }
+  /* (x, y) = top-centre of the input pill */
+  #wrap { position: absolute; left: {{x}}px; top: {{y}}px; width: {{width}}px; transform: translateX(-50%); }
+  .pill { position: relative; display: flex; align-items: center; gap: 22px; height: 112px; padding: 0 22px; border-radius: 56px; background: {{bg}}; color: {{fg}}; box-shadow: 0 10px 30px rgba(0,0,0,.26); }
+  .av { flex: none; width: 68px; height: 68px; border-radius: 50%; background: #7d8d86; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 30px; }
+  .av.b { background: #4a5b7a; }
+  #field { flex: 1; font-size: 40px; font-weight: 500; white-space: nowrap; overflow: hidden; }
+  #ph { color: {{muted}}; } #ty { font-weight: 800; letter-spacing: .01em; } #caret { display: inline-block; width: 3px; height: 1em; margin-left: 2px; vertical-align: -.12em; background: {{fg}}; }
+  #send { flex: none; width: 68px; height: 68px; border-radius: 50%; background: #d8d8dc; display: flex; align-items: center; justify-content: center; }
+  #send svg { width: 32px; height: 32px; fill: none; stroke: #fff; stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
+  /* posted state */
+  #post { position: absolute; inset: 0; display: flex; align-items: center; gap: 22px; padding: 0 28px 0 22px; opacity: 0; }
+  #post .who { font-size: 22px; font-weight: 700; } #post .who s { text-decoration: none; color: {{muted}}; font-weight: 500; margin-left: 8px; }
+  #post .txt { font-size: 40px; font-weight: 800; line-height: 1.05; }
+  #post .col { flex: 1; } #heart { flex: none; width: 46px; height: 46px; }
+  #reply { margin-top: 16px; display: flex; align-items: center; gap: 20px; padding: 18px 28px 18px 18px; border-radius: 44px; background: {{bg}}; color: {{fg}}; width: max-content; max-width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,.26); opacity: 0; margin-left: 40px; }
+  #reply .av { width: 56px; height: 56px; font-size: 24px; } #reply .who { font-size: 20px; font-weight: 700; } #reply .who s { text-decoration: none; color: {{muted}}; font-weight: 500; margin-left: 8px; }
+  #reply .txt { font-size: 34px; font-weight: 700; line-height: 1.1; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="stage" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="wrap">
+      <div class="pill" id="pill">
+        <div class="av">{{initial}}</div>
+        <div id="field"><span id="ph">{{placeholder}}</span><span id="ty"></span><span id="caret"></span></div>
+        <div id="send"><svg viewBox="0 0 24 24"><path d="M12 19V6M6 11l6-6 6 6"/></svg></div>
+        <div id="post"><div class="av">{{initial}}</div><div class="col"><div class="who">{{you}}<s>now</s></div><div class="txt">{{keyword}}</div></div>
+          <svg id="heart" viewBox="0 0 24 24"><path id="hp" d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z" fill="none" stroke="{{muted}}" stroke-width="2"/></svg></div>
+      </div>
+      <div id="reply"><div class="av b">{{reply_user}}</div><div><div class="who">{{reply_user}}<s>now</s></div><div class="txt">{{reply_text}}</div></div></div>
+    </div>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), T0 = Number("{{t_start}}"), CPS = Number("{{cps}}"), TP = Number("{{t_post}}"), TR = Number("{{t_reply}}");
+  const word = "{{keyword}}", ty = document.getElementById("ty"), ph = document.getElementById("ph");
+  document.querySelector("#reply .av").textContent = ("{{reply_user}}"[0] || "").toUpperCase();
+  const tl = gsap.timeline({ paused: true }), n = word.length, st = { k: 0 };
+  tl.from("#wrap", { y: -40, opacity: 0, duration: 0.3, ease: "power3.out" }, 0);
+  // typing is driven by one counter so it stays seek-safe; the placeholder clears on the first key
+  tl.to(st, { k: n, duration: n / CPS, ease: "none", onUpdate() { const k = Math.floor(st.k); ty.textContent = word.slice(0, k); ph.style.display = k > 0 ? "none" : ""; } }, T0);
+  tl.to("#send", { backgroundColor: "{{accent}}", duration: 0.12 }, T0 + 0.05);
+  tl.to("#caret", { opacity: 0, duration: 0.01 }, TP);
+  tl.to("#send", { scale: 0.88, duration: 0.07, yoyo: true, repeat: 1, ease: "power1.inOut" }, TP - 0.14);
+  // posting: the typed pill becomes the posted comment (crossfade under a tiny blur, no pop)
+  tl.to("#field,#send", { opacity: 0, duration: 0.1 }, TP);
+  tl.to("#pill > .av", { opacity: 0, duration: 0.1 }, TP);
+  tl.fromTo("#post", { opacity: 0, filter: "blur(4px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.2, ease: "power2.out" }, TP + 0.02);
+  tl.to("#hp", { fill: "{{heart}}", stroke: "{{heart}}", duration: 0.15 }, TR + 0.5);
+  tl.fromTo("#heart", { scale: 1 }, { scale: 1.25, duration: 0.14, yoyo: true, repeat: 1, ease: "power2.out", transformOrigin: "50% 50%" }, TR + 0.5);
+  tl.fromTo("#reply", { y: -24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: "power3.out" }, TR);
+  tl.to("#stage", { opacity: 0, duration: 0.18, ease: "power1.in" }, D - 0.2);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

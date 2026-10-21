@@ -1,0 +1,51 @@
+<!--defaults {"start": "5", "step_dur": "1.0", "x": 540, "y": 960, "size": 132, "fg": "#ffffff", "bg": "#242427", "accent": "#ffd9b8", "font": "Inter", "height": 1920, "duration": 5} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@800&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; -webkit-font-smoothing: antialiased; }
+  /* centre of the badge sits on (x, y); size = badge diameter in px */
+  #b { position: absolute; left: {{x}}px; top: {{y}}px; width: {{size}}px; height: {{size}}px; margin: calc({{size}}px / -2) 0 0 calc({{size}}px / -2);
+       border-radius: 50%; background: {{bg}}; box-shadow: inset 0 0 0 1px rgba(255,255,255,.10), 0 8px 24px rgba(0,0,0,.28); }
+  #ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+  #ring circle { fill: none; stroke-width: 5; }
+  #trk { stroke: rgba(255,255,255,.14); }
+  #arc { stroke: {{accent}}; stroke-linecap: round; }
+  .d { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: {{fg}};
+       font-weight: 800; font-size: calc({{size}}px * 0.56); line-height: 1; font-variant-numeric: tabular-nums; opacity: 0; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="b" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <svg id="ring" viewBox="0 0 100 100"><circle id="trk" cx="50" cy="50" r="45"/><circle id="arc" cx="50" cy="50" r="45"/></svg>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), N = Math.max(1, Math.round(Number("{{start}}"))), SD = Number("{{step_dur}}");
+  const b = document.getElementById("b"), arc = document.getElementById("arc");
+  const C = 2 * Math.PI * 45;
+  arc.style.strokeDasharray = C; arc.style.strokeDashoffset = C;
+  const tl = gsap.timeline({ paused: true });
+  // badge is on screen from frame 0 (no slide-in); each second is one digit, no 0
+  for (let i = 0; i < N; i++) {
+    const t = i * SD, el = document.createElement("div");
+    el.className = "d"; el.textContent = String(N - i); b.appendChild(el);
+    tl.fromTo(el, { opacity: i === 0 ? 1 : 0, scale: i === 0 ? 0.85 : 0.72 }, { opacity: 1, scale: 1, duration: 0.14, ease: "back.out(1.6)" }, t);
+    if (i < N - 1) tl.to(el, { opacity: 0, scale: 1.08, duration: 0.08, ease: "power1.in" }, t + SD - 0.08);
+    // ring sweeps once per second, full circle by the next tick
+    tl.fromTo(arc, { strokeDashoffset: C }, { strokeDashoffset: 0, duration: SD - 0.1, ease: "none" }, t);
+    // tiny badge tick on each new number
+    tl.fromTo(b, { scale: 1.06 }, { scale: 1, duration: 0.18, ease: "power2.out" }, t);
+  }
+  tl.to(b, { opacity: 0, duration: 0.1, ease: "power1.in" }, Math.max(0, Math.min(D, N * SD) - 0.1));
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>
