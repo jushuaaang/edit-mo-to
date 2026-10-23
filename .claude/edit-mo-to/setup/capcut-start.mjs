@@ -30,6 +30,8 @@ if (!(await isListening(PORT))) {
     cwd: vectcutDir,
     detached: true,
     windowsHide: true,
+    // VectCutAPI prints Chinese status lines; on Windows' cp1252 stdout that crashes keyframe saves.
+    env: { ...process.env, PYTHONIOENCODING: "utf-8" },
     stdio: "ignore",
   });
   child.unref();

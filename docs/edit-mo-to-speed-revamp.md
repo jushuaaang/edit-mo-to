@@ -158,7 +158,74 @@ write results under "Windows findings" below with the numbers):
 
 ## Windows findings
 
-(The Windows session writes here.)
+Measured 2026-10-23 (Task 15) on the Windows PC.
+
+**1. Hardware.** Intel Core i7-3770K @ 3.5 GHz (2012, Ivy Bridge; 4 cores / 8 threads), 15.9 GB RAM, NVIDIA GTX 970
+(driver 32.0.15.8266). Disks: C: 480 GB SSD (`{tmp}`, CapCut drafts), D: 500 GB SSD (`D:\Video Editing`), F: 250 GB HDD
+(not used by the workflow). Everything the workflow touches is on an SSD, so disk type is not the cause. The CPU is a
+2012 part, several times slower per thread than the Mac M4, which is the main reason for the slowdown (render capture,
+Whisper, ffmpeg, Python start-up).
+
+**2. Overlay render** (3 s `badge`). Before: 22.7 s / 23.6 s, 10.5 MB. After (`--workers 1` + slim ProRes): 16.7 s / 16.3 s,
+6.8 MB (-36%). Re-run with the worktree `machine.json` (`render_workers: 1`, `render_concurrency: 4`): 22.0 s (cold)
+then 16.3 s, 6.8 MB, the same as the new default because those values are the defaults. Mac M4: 7.3 s -> 5.0 s.
+HyperFrames uses `drawelement` capture here (5 clip-boundary frames fall back to screenshots); capture, about 11 s,
+dominates.
+
+**3. Speech** (20.8 s VO `Advance Exchange life/voice over.mp3`, `--no-cache`, wall time including model load):
+
+| `asr_device` | run 1 | run 2 |
+|---|---|---|
+| `auto` (CUDA attempt, then CPU int8) | 18.0 s | 17.1 s |
+| `cpu` (no CUDA attempt) | 18.5 s | 18.9 s |
+
+`ctranslate2.get_cuda_device_count()` is 1, but the GTX 970 (Maxwell) has no efficient float16 and `cublas64_12.dll` is
+not installed, so the CUDA load fails and faster-whisper falls back to CPU int8. The failed attempt costs next to
+nothing, so `cpu` is not faster; it makes the outcome deterministic and independent of how the CUDA load fails. What
+would actually help is installing the CUDA 12 libraries (float32 on the GPU); not done. New `machine.json` key
+`asr_device` (`auto` default, `cpu`, `cuda`), read in `media_timing.transcribe`, with a unit test.
+
+**4. Build area and Defender.** Exclusions cannot be read without administrator rights ("Must be an administrator to
+view exclusions"), and changing them is a security setting, so neither was done: **not measured (needs admin)**. The
+README's Windows section gives the editor the one-time command to run as administrator. One timed
+`build_project.py build` of a synthetic one-timeline plan (two 2 s clips of 1080x1920, a VO, real VectCutAPI, no
+exclusion change): **12.0 s** without overlays, **16.8 s** with one `badge` overlay (the overlay render is most of the
+difference). Build time here is dominated by VectCutAPI calls and the overlay render, not by file scanning, so Defender
+is unlikely to be the main cost; the editor's own before/after is the number to trust if they add the exclusion.
+
+**5. Agent waits on Windows.** Parsed read-only from the Claude transcripts in
+`C:\Users\Keytech\.claude\projects\D--Video-Editing\` (Agent `tool_use` to its `tool_result`, `totalDurationMs`).
+Only foreground runs report a duration; background runs after 2026-10-20 did not, so these are the last measurable runs.
+
+| Agent run (last before the revamp) | Windows wall time | tool calls | Mac comparison |
+|---|---|---|---|
+| editor, build, Facelove (1 timeline, 2026-10-20) | 88 s | 9 | Wondermint build 12 min, Nativia 13 min |
+| editor, build, Luvain (2026-10-19) | 194 s | 18 | |
+| editor, build, Fascora (4 timelines, first build on this PC, 2026-10-16) | 3337 s (56 min) | 59 | |
+| editor, revise-in-place (Facelove, 2026-10-20) | 15-97 s | 4-14 | Nativia apply 46 s |
+| editor, add-music (Facelove, 2026-10-20) | 50 s | 8 | |
+| qa, build gate, Facelove (2026-10-20) | 119 s | 19 | Wondermint 8 min, Nativia 4.2 min |
+| qa, build gate, Fascora (2026-10-16) | 676 s | 57 | |
+| qa, prompts gate, Facelove (2026-10-20) | 82 s | 10 | Wondermint rounds 13 / 7.5 / 9 min |
+| ugc edit-plan, Facelove (2026-10-20) | 228 s | 27 | Wondermint edit plan 7 min |
+| ugc edit-plan, Fascora (4 timelines, 2026-10-16) | 891 s | 67 | |
+| broll edit-plan, Exchange Life talking-head (2026-10-15) | 1070 s | 118 | |
+| broll edit-plan, Exchange Life VO trial (2026-10-15) | 827 s | 50 | |
+| **New workflow: broll edit-plan dry run (Zapply, 7 lines, 31 s VO, 36 clips, 2026-10-23)** | **181 s** | **22** | 0 ffprobe calls |
+
+No `pixar`, `claymation` or `product-ad` runs exist in the Windows transcripts. Old waits scale with tool calls (about
+5-15 s each, more on big jobs), which is what the revamp attacks; the new dry run did 22 calls in 181 s (about 8 s per
+call). The Windows per-call cost is not worse than the Mac's; the large Mac totals came from many calls and fix
+rounds on bigger jobs.
+
+**6. `machine.json` for this PC** (set in the worktree's untracked copy only; the editor adds these lines after the
+merge): `"asr": "faster-whisper"`, `"asr_device": "cpu"`, `"render_workers": 1`, `"render_concurrency": 4`
+(8 threads / 2, capped at 4).
+
+**7. Other.** VectCutAPI: any keyframe returned an empty draft with `success: true` because a Chinese `print` in
+`pyJianYingDraft/track.py` crashes on cp1252 stdout; it works with `PYTHONIOENCODING=utf-8`. The launcher
+`setup/capcut-start.mjs` now sets that variable when it starts the backend (see README, Windows). Text CLIs printed
+cp1252 (fixed earlier in `cdad614`).
 
 ## Next steps
 

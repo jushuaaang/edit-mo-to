@@ -118,7 +118,8 @@ def _transcribe_faster_whisper(audio: Path) -> list[dict]:
         segments, _ = BatchedInferencePipeline(model).transcribe(_load_16k(audio), batch_size=8, word_timestamps=True)
         return [{"word": w.word.strip(), "start": w.start, "end": w.end} for s in segments for w in s.words]
 
-    if _cuda_count() > 0:
+    device = PATHS.get("asr_device", "auto")  # "cpu" skips the CUDA attempt (and its failed model load) entirely
+    if device != "cpu" and _cuda_count() > 0:
         import ctranslate2
 
         # older GPUs (GTX 9xx) have no efficient float16; float32 on the GPU still beats the CPU
@@ -126,7 +127,8 @@ def _transcribe_faster_whisper(audio: Path) -> list[dict]:
         try:
             return run("cuda", compute)
         except (RuntimeError, ValueError):  # CUDA libraries (cublas) missing or unusable: use the CPU
-            pass
+            if device == "cuda":
+                raise
     return run("cpu", "int8")
 
 

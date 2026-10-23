@@ -2,6 +2,7 @@
  "_note": "Copy to machine.json (untracked) and adjust. Keys you leave out use the platform default from tools/machine.py.",
  "_optional": {
   "asr": "faster-whisper (default) or mlx on Apple silicon",
+  "asr_device": "auto (default), cpu (skip the CUDA attempt, for GPUs without float16/cublas) or cuda (fail instead of falling back)",
   "render_workers": "hyperframes --workers per overlay render (default 1)",
   "render_concurrency": "overlay renders side by side (default min(4, cpu/2))"
  },

@@ -230,6 +230,20 @@ The install prompt in Step 1 follows these steps for you. They're here if you'd 
    ```
    The CapCut tests need the backend running on port 9001.
 
+##### Windows: speed settings
+- **Defender exclusions (one time, optional).** Real-time scanning of the build area and the Python venv slows every build. Run this once in PowerShell **as administrator** yourself (Claude does not change security settings), with your own paths from `machine.json` (`<tmp>` and `<root>\.claude\edit-mo-to\tools\.venv`):
+  ```
+  Add-MpPreference -ExclusionPath "C:\Users\Keytech\mcp-servers\tmp","D:\Video Editing\.claude\edit-mo-to\tools\.venv"
+  ```
+  Check with `Get-MpPreference | select -Expand ExclusionPath`. Not measured on the reference PC (needs admin).
+- **Speech on older NVIDIA cards.** On a GTX 9xx card, `faster-whisper` sees the GPU but has no float16 and `cublas64_12.dll` is missing, so the CUDA load fails and it falls back to CPU. Set `"asr_device": "cpu"` in `machine.json` to skip the failed attempt, or install the CUDA 12 libraries (cuBLAS and cuDNN 9) and keep `auto`. `"cuda"` forces the GPU and errors if it cannot load.
+- **`machine.json` keys for speed:** `asr` (`faster-whisper` or `mlx`), `asr_device` (`auto`, `cpu`, `cuda`), `render_workers` (HyperFrames `--workers` per overlay render, default 1), `render_concurrency` (overlay renders side by side, default `min(4, cores / 2)`). Reference PC (i7-3770K, GTX 970): `"asr": "faster-whisper", "asr_device": "cpu", "render_workers": 1, "render_concurrency": 4`.
+- **Starting VectCutAPI.** It must run with `PYTHONIOENCODING=utf-8`, otherwise any keyframe returns an empty draft with `success: true` (a Chinese status line crashes on the Windows console encoding). `capcut-start.mjs`, the launcher the `capcut` MCP server runs, now sets it when it starts the backend. If you installed it earlier, copy the updated file over the old one, then stop the running backend (`pythonw.exe` listening on port 9001, in Task Manager) and restart Claude Code, or say "start the CapCut backend":
+  ```
+  copy "D:\Video Editing\.claude\edit-mo-to\setup\capcut-start.mjs" "%USERPROFILE%\mcp-servers\capcut-start.mjs"
+  ```
+  If you start it by hand instead: `set PYTHONIOENCODING=utf-8`, then `.venv\Scripts\pythonw.exe capcut_server.py` in `VectCutAPI`.
+
 #### Mac
 
 Same steps as Windows, with these differences:
@@ -241,7 +255,7 @@ Same steps as Windows, with these differences:
 - The CapCut tests use `zapply/edited/hook2.mp4` and `for cloning.MP3` when present, and otherwise make synthetic stand-ins with ffmpeg in `{tmp}/_test_media`.
 
 ##### Machine paths
-Each computer has its own untracked `.claude/edit-mo-to/machine.json` (copy `machine.example.json`): `root`, `python`, `tmp`, `mcp_servers`, `capcut_drafts`. The Python tools read it through `tools/machine.py`; the skill and agents write these as `{root}`, `{python}`, `{tmp}` and `{capcut_drafts}`. Keys you leave out fall back to the platform default.
+Each computer has its own untracked `.claude/edit-mo-to/machine.json` (copy `machine.example.json`): `root`, `python`, `tmp`, `mcp_servers`, `capcut_drafts`, plus the optional speed keys `asr`, `asr_device`, `render_workers`, `render_concurrency` (see "Windows: speed settings"). The Python tools read it through `tools/machine.py`; the skill and agents write these as `{root}`, `{python}`, `{tmp}` and `{capcut_drafts}`. Keys you leave out fall back to the platform default.
 
 ### Getting updates
 The repo holds the shared workflow only: tools, agents, templates and starter rules. Nothing personal is ever uploaded, and Claude never pulls or pushes on its own. To get the newest version, tell Claude "update edit-mo-to": it runs `git pull --ff-only`, which never touches your `my-preferences.md`, client notes or videos.

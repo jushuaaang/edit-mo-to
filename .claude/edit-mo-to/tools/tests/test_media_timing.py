@@ -118,6 +118,32 @@ def test_backend_selection(monkeypatch, tmp_path):
     assert seen["path_or_hf_repo"] == "mlx-community/whisper-large-v3-turbo" and seen["word_timestamps"] is True
 
 
+def test_asr_device_cpu_skips_cuda(monkeypatch, tmp_path):
+    import types
+
+    loads = []
+
+    class FakeModel:
+        def __init__(self, name, device, compute_type):
+            loads.append(device)
+
+    class FakePipeline:
+        def __init__(self, model):
+            pass
+
+        def transcribe(self, audio, **kw):
+            word = types.SimpleNamespace(word=" Hi", start=0.0, end=0.3)
+            return [types.SimpleNamespace(words=[word])], None
+
+    monkeypatch.setitem(sys.modules, "faster_whisper", types.SimpleNamespace(WhisperModel=FakeModel, BatchedInferencePipeline=FakePipeline))
+    monkeypatch.setattr(mt, "_load_16k", lambda p: None)
+    monkeypatch.setattr(mt, "_cuda_count", lambda: 1)
+    monkeypatch.setitem(mt.PATHS, "asr", "faster-whisper")
+    monkeypatch.setitem(mt.PATHS, "asr_device", "cpu")
+    assert mt.transcribe(tmp_path / "a.wav", cache=False) == [{"word": "Hi", "start": 0.0, "end": 0.3}]
+    assert loads == ["cpu"]  # never tried cuda
+
+
 def test_compact_cli_writes_utf8(tmp_path):
     """stdout must be UTF-8 even when the console default is cp1252 (em dash used to come out as 0x97)."""
     import subprocess

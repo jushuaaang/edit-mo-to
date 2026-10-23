@@ -30,6 +30,7 @@ _DEFAULTS.update({
     "mcp_servers": str(HOME / "mcp-servers"),
     "tmp": str(HOME / "mcp-servers" / "tmp"),
     "asr": "faster-whisper",  # speech backend: "faster-whisper" (CUDA when present) or "mlx" (Apple silicon)
+    "asr_device": "auto",  # faster-whisper device: "auto" (CUDA when it works, else CPU), "cpu" or "cuda"
     "render_workers": 1,  # hyperframes --workers per overlay render: 1 skips the ~1.7 s calibration launch
     "render_concurrency": min(4, max(1, (os.cpu_count() or 2) // 2)),  # overlay renders side by side
 })
