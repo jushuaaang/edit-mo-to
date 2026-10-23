@@ -214,7 +214,7 @@ def test_render_many_results_and_copies_use_plain_paths(tmp_path):
     assert res[1]["copied_from"] == res[0]["file"]
 
 
-def test_cutout_is_slimmed_and_returns_a_plain_path(tmp_path, monkeypatch):
+def test_cutout_is_not_slimmed_and_returns_a_plain_path(tmp_path, monkeypatch):
     slimmed = []
 
     def run(args, **kw):
@@ -225,4 +225,4 @@ def test_cutout_is_slimmed_and_returns_a_plain_path(tmp_path, monkeypatch):
     monkeypatch.setattr(mr, "_probe", lambda p: {"alpha": True, "pix_fmt": "yuva444p12le", "duration": 1.0})
     monkeypatch.setattr(mr, "slim", lambda p: slimmed.append(Path(p).name) or {"before": 9, "after": 3, "ratio": 0.33})
     res = mr.cutout(tmp_path / "clip.mp4", tmp_path / "c.mov", 0.0, 1.0)
-    assert slimmed == ["c.mov"] and "\\" not in res["file"] and not res["file"].startswith("//?/")
+    assert slimmed == [] and "\\" not in res["file"] and not res["file"].startswith("//?/")

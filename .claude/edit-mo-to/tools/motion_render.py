@@ -355,10 +355,8 @@ def preview(mov: Path, png: Path, at: float | None = None) -> Path:
     return Path(png)
 
 
-def cutout(clip: Path, out: Path, start: float = 0.0, length: float | None = None, slim: bool = True) -> dict:
-    """Person-only transparent .mov of clip[start:start+length], at the clip's own frame rate. slim re-encodes
-    it like an overlay render (remove-background writes 12-bit ProRes at the clip's size: ~150 MB a second at 4K)."""
-    slim_fn = globals()["slim"]
+def cutout(clip: Path, out: Path, start: float = 0.0, length: float | None = None) -> dict:
+    """Person-only transparent .mov of clip[start:start+length], at the clip's own frame rate."""
     out = Path(out).resolve()
     out.parent.mkdir(parents=True, exist_ok=True)
     work = Path(tempfile.mkdtemp(prefix="emt-cutout-", dir=os.environ.get("EMT_MOTION_TMP")))
@@ -378,8 +376,7 @@ def cutout(clip: Path, out: Path, start: float = 0.0, length: float | None = Non
     info = _probe(out)
     if not info["alpha"]:
         raise RenderFailed(f"{out} has no alpha channel ({info['pix_fmt']})")
-    if slim:
-        slim_fn(out)
+    # never slimmed: 10-bit ProRes loses detail on real footage (53.9 dB composited, below the 58 dB bar)
     return {"file": plain_path(out), "source": str(clip), "in": start, **info, "bytes": out.stat().st_size}
 
 
