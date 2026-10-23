@@ -118,24 +118,51 @@ def test_backend_selection(monkeypatch, tmp_path):
     assert seen["path_or_hf_repo"] == "mlx-community/whisper-large-v3-turbo" and seen["word_timestamps"] is True
 
 
-def test_asr_device_cpu_skips_cuda(monkeypatch, tmp_path):
+def _fake_whisper(loads, calls):
     import types
 
-    loads = []
+    word = types.SimpleNamespace(word=" Hi", start=0.0, end=0.3)
 
     class FakeModel:
         def __init__(self, name, device, compute_type):
             loads.append(device)
+
+        def transcribe(self, audio, **kw):
+            calls.append(("model", kw))
+            return [types.SimpleNamespace(words=[word])], None
 
     class FakePipeline:
         def __init__(self, model):
             pass
 
         def transcribe(self, audio, **kw):
-            word = types.SimpleNamespace(word=" Hi", start=0.0, end=0.3)
+            calls.append(("batched", kw))
             return [types.SimpleNamespace(words=[word])], None
+    return types.SimpleNamespace(WhisperModel=FakeModel, BatchedInferencePipeline=FakePipeline)
 
-    monkeypatch.setitem(sys.modules, "faster_whisper", types.SimpleNamespace(WhisperModel=FakeModel, BatchedInferencePipeline=FakePipeline))
+
+def test_cpu_keeps_the_unbatched_call_and_cuda_batches(monkeypatch, tmp_path):
+    # the batched pipeline always applies VAD, which moved word starts by up to 5 frames on CPU
+    loads, calls = [], []
+    monkeypatch.setitem(sys.modules, "faster_whisper", _fake_whisper(loads, calls))
+    monkeypatch.setattr(mt, "_load_16k", lambda p: None)
+    monkeypatch.setitem(mt.PATHS, "asr", "faster-whisper")
+    monkeypatch.setitem(mt.PATHS, "asr_device", "auto")
+    monkeypatch.setattr(mt, "_cuda_count", lambda: 0)
+    assert mt.transcribe(tmp_path / "a.wav", cache=False) == [{"word": "Hi", "start": 0.0, "end": 0.3}]
+    assert calls == [("model", {"word_timestamps": True, "vad_filter": False})] and loads == ["cpu"]
+    calls.clear()
+    monkeypatch.setattr(mt, "_cuda_count", lambda: 1)
+    import types
+    monkeypatch.setitem(sys.modules, "ctranslate2", types.SimpleNamespace(get_supported_compute_types=lambda d: {"float32"}))
+    mt.transcribe(tmp_path / "a.wav", cache=False)
+    assert calls[0][0] == "batched" and loads[-1] == "cuda"
+
+
+def test_asr_device_cpu_skips_cuda(monkeypatch, tmp_path):
+    loads = []
+
+    monkeypatch.setitem(sys.modules, "faster_whisper", _fake_whisper(loads, []))
     monkeypatch.setattr(mt, "_load_16k", lambda p: None)
     monkeypatch.setattr(mt, "_cuda_count", lambda: 1)
     monkeypatch.setitem(mt.PATHS, "asr", "faster-whisper")

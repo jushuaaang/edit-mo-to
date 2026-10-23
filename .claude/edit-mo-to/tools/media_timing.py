@@ -115,7 +115,12 @@ def _transcribe_faster_whisper(audio: Path) -> list[dict]:
 
     def run(device: str, compute: str) -> list[dict]:
         model = WhisperModel("small.en", device=device, compute_type=compute)
-        segments, _ = BatchedInferencePipeline(model).transcribe(_load_16k(audio), batch_size=8, word_timestamps=True)
+        if device == "cpu":
+            # the batched pipeline always applies VAD, which moves word starts (the cut points) by up to 5 frames,
+            # for ~8% speed on a CPU: keep the plain call there
+            segments, _ = model.transcribe(_load_16k(audio), word_timestamps=True, vad_filter=False)
+        else:
+            segments, _ = BatchedInferencePipeline(model).transcribe(_load_16k(audio), batch_size=8, word_timestamps=True)
         return [{"word": w.word.strip(), "start": w.start, "end": w.end} for s in segments for w in s.words]
 
     device = PATHS.get("asr_device", "auto")  # "cpu" skips the CUDA attempt (and its failed model load) entirely
