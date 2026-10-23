@@ -106,3 +106,50 @@ def test_cli_propose_and_decline(tmp_path, capsys):
     lr.main(["propose", "--patterns", str(d), "--notes", str(n), "--root", str(root)])
     out = json.loads(capsys.readouterr().out)
     assert len(out["proposals"]) == 1 and out["dropped"][0]["rule"] == "A note rule"
+
+
+REAL = """## General
+- **Follow the client brief to the letter.** Every rule in it is tracked and checked.
+- **Map every clip to its script line.**
+- **Never reuse a clip**, hooks included.
+- **Default 9:16**, 1080x1920, 30 fps project. Generated clips can be 24 fps, so watch frame counts.
+- **Never add captions**; the editor does them with CapCut auto-caption. All on-screen text goes in during the edit.
+"""
+
+
+def test_rephrased_known_rules_match_and_new_ones_do_not(tmp_path):
+    (tmp_path / "preferences.md").write_text(REAL, encoding="utf-8")
+    existing = lr.existing_rules(tmp_path)
+    for rule in ("Never reuse a clip, including hooks", "Map each clip to its script line",
+                 "Follow the client brief exactly, every rule in it is tracked and checked",
+                 "Never add captions, the editor adds them with CapCut auto-caption",
+                 "Default to 9:16 at 30 fps"):
+        assert lr.is_known(rule, existing), rule
+    for rule in ("Keep the CTA on screen to the end", "Hook clips must be under 2 seconds",
+                 "Zoom punch-in on every product reveal", "Colour grade B-roll warmer to match the A-roll"):
+        assert lr.is_known(rule, existing) is None, rule
+
+
+def test_malformed_declined_lines_are_skipped(tmp_path):
+    (tmp_path / "learning-declined.jsonl").write_text('{"rule": "Good one"}\nnot json\n{"x": 1}\n\n', encoding="utf-8")
+    assert lr.existing_rules(tmp_path) == ["Good one"]
+
+
+def test_save_collapses_newlines(tmp_path):
+    p = lr.save("line one\nline two", "B-roll\nextra", tmp_path)
+    text = p.read_text(encoding="utf-8")
+    assert "- line one line two" in text and "## B-roll extra" in text
+
+
+def test_propose_accepts_real_edit_diff_output(tmp_path):
+    import edit_diff as ed
+    from test_edit_diff import seg, tl
+    built = tl([seg("b-roll", f"/c/b{i}.mp4", i * 3, 3.0) for i in range(4)])
+    final = tl([seg("b-roll", f"/c/b{i}.mp4", i * 3, 2.0) for i in range(4)])
+    res = ed.diff(built, final)
+    res["recurring"] = [{"id": "b-roll:shorter", "videos": 2, "examples": []}]  # as `diff --log` adds it
+    d = tmp_path / "diff.json"
+    d.write_text(json.dumps(res), encoding="utf-8")
+    lr.main(["propose", "--patterns", str(d), "--root", str(tmp_path)])
+    assert any(p["rule"].startswith("B-roll: cut about") for p in
+               lr.propose(json.loads(d.read_text())["patterns"], [], tmp_path)["proposals"])

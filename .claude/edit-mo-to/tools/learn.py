@@ -22,16 +22,29 @@ def normalise(rule: str) -> set[str]:
     s = re.sub(r"\[[^\]]*\]", " ", rule.lower())  # [client date] tags
     s = re.sub(r"\d+", "#", s)
     s = re.sub(r"[^a-z#\s]", " ", s)
-    return {w for w in s.split() if w not in STOP}
+    return {_stem(w) for w in s.split() if w not in STOP}
 
 
-def _jaccard(a: set[str], b: set[str]) -> float:
-    return len(a & b) / len(a | b) if a | b else 0.0
+def _stem(w: str) -> str:
+    """Light stemming: drop a trailing ing/es/ed/s on words longer than 4 letters (adds -> add)."""
+    if len(w) > 4:
+        for suf in ("ing", "es", "ed", "s"):
+            if w.endswith(suf) and len(w) - len(suf) >= 3:
+                return w[:-len(suf)]
+    return w
+
+
+def _similar(a: set[str], b: set[str], threshold: float) -> bool:
+    """Jaccard >= threshold, or one rule almost wholly inside the other (a short paraphrase of a long rule)."""
+    if not a or not b:
+        return False
+    both, small = len(a & b), min(len(a), len(b))
+    return both / len(a | b) >= threshold or (small >= 3 and both / small >= 0.8)
 
 
 def _matches(rule: str, existing: list[str], threshold: float) -> list[str]:
     n = normalise(rule)
-    return [e for e in existing if n and _jaccard(n, normalise(e)) >= threshold]
+    return [e for e in existing if _similar(n, normalise(e), threshold)]
 
 
 def is_known(rule: str, existing: list[str], threshold: float = 0.6) -> str | None:
@@ -49,7 +62,13 @@ def _declined(root: Path) -> list[str]:
     p = root / DECLINED
     if not p.exists():
         return []
-    return [json.loads(l)["rule"] for l in p.read_text(encoding="utf-8").splitlines() if l.strip()]
+    out = []
+    for l in p.read_text(encoding="utf-8").splitlines():
+        try:
+            out.append(json.loads(l)["rule"])
+        except (ValueError, KeyError, TypeError):
+            continue  # a hand-edited or half-written line must not stop the learning step
+    return out
 
 
 def existing_rules(root: Path) -> list[str]:
@@ -153,6 +172,7 @@ def _add_bullet(text: str, section: str | None, rule: str) -> str:
 
 
 def save(rule: str, section: str, root: Path, client: str | None = None) -> Path:
+    rule, section = " ".join(rule.split()), " ".join(section.split())
     if client:
         path = root / "clients" / (re.sub(r"[^\w.-]", "-", client.strip().lower()) + ".md")
         path.parent.mkdir(parents=True, exist_ok=True)
