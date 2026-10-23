@@ -39,7 +39,7 @@ B_ROLL_TRACKS = {"video_top", "video_bottom", "video_overlay"}
 
 
 def _norm(path) -> str:
-    p = str(path).replace("\\", "/")
+    p = pt.mr.plain_path(path)
     return p.casefold() if sys.platform == "win32" else p
 
 
@@ -108,6 +108,26 @@ def _match_clips(clips: list[dict], segs: list[dict]) -> dict[int, dict]:
     return out
 
 
+CUTOUT_TRACK = "overlay_cutout"
+
+
+def _match_cutouts(overlays: list[dict], segs: list[dict]) -> dict[int, dict]:
+    """Overlay index -> its cutout segment (the person cut out above a `cutout: true` overlay), matched on the
+    cutout file, else on the overlay's start."""
+    used, out = set(), {}
+    for i, o in enumerate(overlays):
+        if not o.get("cutout"):
+            continue
+        cands = [j for j, s in enumerate(segs) if j not in used and o.get("cutout_file") and s.get("source")
+                 and _norm(s["source"]) == _norm(o["cutout_file"])]
+        cands = cands or [j for j, s in enumerate(segs) if j not in used and abs(s["at"] - o["at"]) <= TOL]
+        if cands:
+            j = min(cands, key=lambda j: abs(segs[j]["at"] - o["at"]))
+            used.add(j)
+            out[i] = segs[j]
+    return out
+
+
 def _match_overlays(overlays: list[dict], segs: list[dict]) -> dict[int, dict]:
     used, out = set(), {}
     for i, o in enumerate(overlays):
@@ -153,7 +173,9 @@ def check_build(plan: dict, project: Path, timelines: list[str] | None = None, c
         segs = dump.get("segments", [])
         by_kind = {k: [s for s in segs if _kind(s) == k] for k in ("clip", "overlay", "audio", "text")}
         matched = _match_clips(clips, by_kind["clip"])
-        matched_ov = _match_overlays(overlays, by_kind["overlay"])
+        cut_segs = [s for s in by_kind["overlay"] if s["track"] == CUTOUT_TRACK]
+        matched_ov = _match_overlays(overlays, [s for s in by_kind["overlay"] if s["track"] != CUTOUT_TRACK])
+        matched_cut = _match_cutouts(overlays, cut_segs)
 
         keep_c, keep_o = set(range(len(clips))), set(range(len(overlays)))
         window = None
@@ -206,6 +228,9 @@ def check_build(plan: dict, project: Path, timelines: list[str] | None = None, c
                 o = overlays[i]
                 s = matched_ov.get(i)
                 label = f"overlay {i + 1} {o['template']} (planned {to_sf(o['at'])})"
+                if o.get("cutout") and i not in matched_cut:
+                    add("present", f"{label}: its cutout (the person above it) is missing from '{CUTOUT_TRACK}'",
+                        "rebuild the timeline, or place the cutout_file over the overlay")
                 if s is None:
                     add("present", f"{label}: missing from the overlay tracks", "render and place the overlay")
                 elif abs(s["duration"] - o["duration"]) > TOL:
@@ -214,7 +239,7 @@ def check_build(plan: dict, project: Path, timelines: list[str] | None = None, c
 
         # extras: video segments nobody planned
         if "extras" in ran:
-            used = {id(s) for s in matched.values()} | {id(s) for s in matched_ov.values()}
+            used = {id(s) for m in (matched, matched_ov, matched_cut) for s in m.values()}
             for s in by_kind["clip"] + by_kind["overlay"]:
                 if id(s) not in used and in_window(s):
                     add("extras", f"unplanned segment on '{s['track']}' at {to_sf(s['at'])}, length "

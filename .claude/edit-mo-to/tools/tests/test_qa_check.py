@@ -295,3 +295,14 @@ def test_expanded_product_ad_plan_keeps_music_level_quiet():
     loud["timelines"][0]["music_volume"] = 0.8
     assert p["style"] == "product-ad"
     assert "music_level" not in _checks(_run(plan={**loud, "style": p["style"]}))
+
+
+def test_cutout_segment_matches_its_planned_overlay():
+    plan = copy.deepcopy(PLAN)
+    plan["timelines"][0]["overlays"][0].update(cutout=True, cutout_file="//?/D:/m/a_cutout_30f.mov", file="D:/m/big.mov")
+    d = _dump()
+    d["segments"].append(_seg("overlay_cutout", "D:/m/a_cutout_30f.mov", 1.5, 1.0, volume=0.0))
+    r = _run(plan=plan, dumps={"A": d})
+    assert "extras" not in _checks(r) and r["verdict"] == "PASS"
+    d = _dump()   # the cutout missing from the timeline is a present FAIL
+    assert any("cutout" in x["evidence"] for x in _run(plan=plan, dumps={"A": d})["rows"] if x["check"] == "present")
