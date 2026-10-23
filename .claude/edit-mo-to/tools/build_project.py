@@ -211,10 +211,23 @@ def _motion_dir(plan: dict) -> Path:
     return Path(base) / "motion" if base else TMP / "build" / "motion"
 
 
+def _reusable(path: Path) -> bool:
+    """An earlier render is reused only when it probes with alpha and a length (a crashed or half-written
+    render is made again)."""
+    if not Path(path).exists():
+        return False
+    try:
+        info = mr._probe(Path(path))
+    except Exception:  # noqa: BLE001
+        return False
+    return bool(info.get("alpha")) and (info.get("duration") or 0) > 0
+
+
 def render_assets(plan: dict, timelines: list[dict], render_fn=mr.render) -> dict:
     """Render every overlay of these timelines that has no "file" in ONE render_many call (parallel, same
     template+vars+length rendered once), then their cutouts; writes "file" / "cutout_file" into the plan's
-    overlay dicts. File names carry the job key, so an unchanged overlay is reused on a rerun."""
+    overlay dicts. File names carry the job key, so an unchanged overlay is reused on a rerun (when it probes with
+    alpha and a length)."""
     mdir = _motion_dir(plan)
     jobs, owners = [], []
     for tl in timelines:
@@ -223,7 +236,7 @@ def render_assets(plan: dict, timelines: list[dict], render_fn=mr.render) -> dic
                 continue
             v = {**o.get("vars", {}), "duration": (US(fr["to"]) - US(fr["from"])) / 1e6}
             out = mdir / f"{_slug(tl['name'])}_{n:02d}_{o['template']}_{mr.job_key(o['template'], v, v['duration'])[:8]}.mov"
-            if out.exists():
+            if _reusable(out):
                 o["file"] = out.as_posix()
                 continue
             jobs.append({"template": o["template"], "out": str(out), "vars": v})
@@ -238,7 +251,7 @@ def render_assets(plan: dict, timelines: list[dict], render_fn=mr.render) -> dic
                 continue
             c, src_t, length = _cutout_span(tl, fr)
             out = mdir / f"{_slug(tl['name'])}_{n:02d}_cutout_{mr.job_key('cutout', {'file': c['file']}, src_t)[:6]}_{fr['to'] - fr['from']}f.mov"
-            if not out.exists():
+            if not _reusable(out):
                 mr.cutout(Path(c["file"]), out, src_t, length)
                 cutouts += 1
             o["cutout_file"] = out.as_posix()
@@ -274,7 +287,9 @@ def build_timeline(plan: dict, timeline: dict, post=post, render=True) -> dict:
         if kb:
             post("add_video_keyframe", kb)
             counts["keyframes"] += len(c["keyframes"])
-    for e in timeline.get("effects", []) or []:
+    # a clip's own `effect` runs over that clip's span
+    clip_fx = [{"name": c["effect"], "at": c["at"], "duration": clip_frames(c)[1] / 30} for c in clips if c.get("effect")]
+    for e in (timeline.get("effects", []) or []) + clip_fx:
         post("add_effect", effect_body(did, e))
         counts["effects"] += 1
     for o in frames:

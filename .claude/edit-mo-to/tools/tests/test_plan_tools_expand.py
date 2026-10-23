@@ -47,7 +47,10 @@ def test_unknown_track_and_fractional_frame_are_rejected():
 def test_plan_table_has_one_row_per_clip_in_seconds_frames():
     p = pt.expand(_p2(timelines=[{"name": "T01", "seq": [{"clips": [["a.mp4", 7, 0, 107]]}]}]))
     t = pt.plan_table(p)
-    assert t.splitlines()[0].startswith("# | Timeline | At | Len | File") and "| 0:00 | 3:17 |" in t
+    lines = t.splitlines()
+    assert lines[0].startswith("| # | Timeline | At | Len | File") and lines[0].endswith(" |")
+    assert lines[1] == "|" + "---|" * 10 and len(lines) == 3
+    assert lines[2].startswith("| 1 | T01 | 0:00 | 3:17 |") and lines[2].endswith(" |")
 
 
 def test_timeline_vo_and_music_override_the_top_level_ones():

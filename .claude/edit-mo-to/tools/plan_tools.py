@@ -161,16 +161,17 @@ def expand(plan2: dict) -> dict:
 
 
 def plan_table(plan: dict) -> str:
-    rows = ["# | Timeline | At | Len | File | Src in–out | Speed | Layout | Transition/Effect | Line"]
+    head = ["#", "Timeline", "At", "Len", "File", "Src in–out", "Speed", "Layout", "Transition/Effect", "Line"]
+    rows = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     n = 0
     for tl in plan["timelines"]:
         for c in tl["clips"]:
             n += 1
             ln = _clip_len(c)
             fx = " ".join(str(x) for x in (c.get("transition"), c.get("effect")) if x)
-            rows.append(" | ".join([str(n), tl["name"], to_sf(c["at"]), to_sf(ln), c["file"],
-                                    f"{to_sf(c['src_in'])}–{to_sf(c['src_out'])}", f"{c['speed']:g}x",
-                                    str(c.get("layout") or c["track"]), fx, str(c.get("line", ""))]))
+            rows.append("| " + " | ".join(_cell(x) for x in [
+                n, tl["name"], to_sf(c["at"]), to_sf(ln), c["file"], f"{to_sf(c['src_in'])}–{to_sf(c['src_out'])}",
+                f"{c['speed']:g}x", c.get("layout") or c["track"], fx, c.get("line", "")]) + " |")
     return "\n".join(rows)
 
 

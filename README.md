@@ -231,9 +231,9 @@ The install prompt in Step 1 follows these steps for you. They're here if you'd 
    The CapCut tests need the backend running on port 9001.
 
 ##### Windows: speed settings
-- **Defender exclusions (one time, optional).** Real-time scanning of the build area and the Python venv slows every build. Run this once in PowerShell **as administrator** yourself (Claude does not change security settings), with your own paths from `machine.json` (`<tmp>` and `<root>\.claude\edit-mo-to\tools\.venv`):
+- **Defender exclusions (one time, optional).** Real-time scanning of the build area and the Python venv slows every build. Run this once in PowerShell **as administrator** yourself (Claude does not change security settings), with your paths from `machine.json` in place of `{tmp}` and `{root}` (`python3 .claude/edit-mo-to/tools/machine.py` prints them):
   ```
-  Add-MpPreference -ExclusionPath "C:\Users\Keytech\mcp-servers\tmp","D:\Video Editing\.claude\edit-mo-to\tools\.venv"
+  Add-MpPreference -ExclusionPath "{tmp}","{root}\.claude\edit-mo-to\tools\.venv"
   ```
   Check with `Get-MpPreference | select -Expand ExclusionPath`. Not measured on the reference PC (needs admin).
 - **Speech on older NVIDIA cards.** On a GTX 9xx card, `faster-whisper` sees the GPU but has no float16 and `cublas64_12.dll` is missing, so the CUDA load fails and it falls back to CPU. Set `"asr_device": "cpu"` in `machine.json` to skip the failed attempt, or install the CUDA 12 libraries (cuBLAS and cuDNN 9) and keep `auto`. `"cuda"` forces the GPU and errors if it cannot load.

@@ -343,3 +343,43 @@ def test_music_draft_uses_the_canvas(monkeypatch):
     monkeypatch.setattr(bp.cp, "wait_for_draft", lambda p, t=30: Path(p))
     bp.music_draft(372, "/m.mp3", 0.1, post=post, canvas=(1080, 1080))
     assert calls[0][1] == {"width": 1080, "height": 1080} and round(calls[1][1]["end"] * 1e6) == bp.US(372)
+
+
+def test_render_assets_rerenders_an_existing_file_without_alpha_or_length(tmp_path, monkeypatch):
+    plan = {"project": "_unit", "base": str(tmp_path), "timelines": [{"name": "T", "clips": [], "overlays": [
+        {"template": "badge", "vars": {"text": "A"}, "at": 0.0, "duration": 1.0, "track": "ui", "sfx": "none"},
+        {"template": "badge", "vars": {"text": "B"}, "at": 1.0, "duration": 1.0, "track": "ui", "sfx": "none"}]}]}
+    rendered = []
+
+    def fake_render(template, out, variables):
+        rendered.append(variables["text"])
+        Path(out).parent.mkdir(parents=True, exist_ok=True)
+        Path(out).write_bytes(b"mov")
+        return {"file": str(out)}
+    bp.render_assets(plan, plan["timelines"], render_fn=fake_render)
+    assert sorted(rendered) == ["A", "B"]
+    for o in plan["timelines"][0]["overlays"]:
+        del o["file"]
+    good = {"alpha": True, "duration": 1.0}
+    monkeypatch.setattr(bp.mr, "_probe", lambda p: good if "_01_" in Path(p).name else {"alpha": False, "duration": 1.0})
+    rendered.clear()
+    bp.render_assets(plan, plan["timelines"], render_fn=fake_render)
+    assert rendered == ["B"]   # A reused, B (no alpha) rendered again
+    monkeypatch.setattr(bp.mr, "_probe", lambda p: {"alpha": True, "duration": 0.0})
+    for o in plan["timelines"][0]["overlays"]:
+        del o["file"]
+    rendered.clear()
+    bp.render_assets(plan, plan["timelines"], render_fn=fake_render)
+    assert sorted(rendered) == ["A", "B"]
+
+
+def test_clip_effect_becomes_an_effect_over_the_clip(monkeypatch):
+    calls, post = _post_recorder()
+    monkeypatch.setattr(bp.cp, "wait_for_draft", lambda p, t=30: Path(p))
+    tl = {**PLAN["timelines"][0], "effects": [], "overlays": [],
+          "clips": [{**CLIP, "at": 0.0, "duration": 2.0}, {**CLIP, "file": "/b.mp4", "at": 2.0, "duration": 1.5,
+                                                          "src_out": 1.5, "effect": "Shake"}]}
+    res = bp.build_timeline(PLAN, tl, post=post, render=False)
+    fx = [b for e, b in calls if e == "add_effect"]
+    assert len(fx) == 1 and fx[0]["effect_type"] == "Shake" and fx[0]["params"] == []
+    assert fx[0]["start"] == 2.0 and round(fx[0]["end"] * 1e6) == 3500000 and res["counts"]["effects"] == 1
