@@ -196,7 +196,9 @@ def _whole(x: float) -> bool:
 
 
 def _clip_len(c: dict) -> float:
-    return (c["src_out"] - c["src_in"]) / c.get("speed", 1.0)
+    """Timeline length in whole frames' worth of seconds: expand rounds src_out to a frame, so a sped clip's
+    exact length can sit a fraction of a frame off the length the plan asked for."""
+    return round((c["src_out"] - c["src_in"]) / c.get("speed", 1.0) * 30) / 30
 
 
 def _scale_errors(c: dict, info: dict, where: str) -> list[str]:
@@ -273,8 +275,6 @@ def check(plan: dict, limits: dict | None = None, probe=probe_media, silent=edge
             for k in ("at", "src_in", "src_out"):
                 if not _whole(c[k]):
                     errs.append(f"{where}: {k} {c[k]} is not a whole frame at 30 fps")
-            if not _whole(_clip_len(c)):
-                errs.append(f"{where}: length {round(_clip_len(c), 4)} s is not a whole frame at 30 fps")
             m = media(c["file"])
             if isinstance(m, Exception):
                 errs.append(f"{where}: cannot read {c['file']}: {m}")
@@ -292,14 +292,16 @@ def check(plan: dict, limits: dict | None = None, probe=probe_media, silent=edge
                                 f"use another take or mark it shared")
             seen.append((T, ci, c))
         main = sorted(((c, i) for i, c in enumerate(clips, 1) if c.get("track") == "video_main"), key=lambda x: x[0]["at"])
-        for (a, _), (b, bi) in zip(main, main[1:]):
-            end = a["at"] + _clip_len(a)
-            if b["at"] > end + EPS:
-                errs.append(f"{T} clip {bi}: gap on the main track; the previous clip ends at {round(end, 4)}, "
+        end_f = None   # furthest end so far, in frames: a nested clip must not hide a later overlap
+        for b, bi in main:
+            at_f = round(b["at"] * 30)
+            if end_f is not None and at_f > end_f:
+                errs.append(f"{T} clip {bi}: gap on the main track; the previous clip ends at {round(end_f / 30, 4)}, "
                             f"this one starts at {b['at']}")
-            elif b["at"] < end - EPS:
-                errs.append(f"{T} clip {bi}: overlaps the previous main-track clip (it ends {round(end, 4)}, "
+            elif end_f is not None and at_f < end_f:
+                errs.append(f"{T} clip {bi}: overlaps the previous main-track clip (it ends {round(end_f / 30, 4)}, "
                             f"this one starts {b['at']})")
+            end_f = max(end_f or 0, at_f + round(_clip_len(b) * 30))
         end_s = max((c["at"] + _clip_len(c) for c in clips), default=0.0)
         if limits.get("min_s") and end_s < limits["min_s"] - EPS:
             errs.append(f"{T} vo: timeline ends at {round(end_s, 3)} s, below the minimum {limits['min_s']} s")
@@ -325,10 +327,12 @@ def check(plan: dict, limits: dict | None = None, probe=probe_media, silent=edge
             by_track.setdefault(o["track"], []).append((o["at"], o["at"] + o["duration"], oi))
         for track, items in by_track.items():
             items.sort()
-            for (_, a1, _), (b0, _, bi) in zip(items, items[1:]):
-                if b0 < a1 - EPS:
+            reach = None   # furthest end so far: a nested overlay must not hide a later overlap
+            for b0, b1, bi in items:
+                if reach is not None and b0 < reach - EPS:
                     errs.append(f"{T} overlay {bi}: overlaps the previous overlay on track '{track}'; "
                                 f"move one to another track")
+                reach = b1 if reach is None else max(reach, b1)
         for xi, x in enumerate(tl.get("texts", []), 1):
             if limits.get("no_text"):
                 errs.append(f"{T} text {xi}: this job allows no text on screen")

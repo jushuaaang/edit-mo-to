@@ -105,3 +105,23 @@ def test_edge_silent_on_real_audio(tmp_path):
                     "[0:a]atrim=0:1[a];[1:a]atrim=0:1[b];[2:a]atrim=0:1[c];[a][b][c]concat=n=3:v=0:a=1",
                     str(wav)], check=True)
     assert pt.edge_silent(str(wav), 0.5) and not pt.edge_silent(str(wav), 1.5) and pt.edge_silent(str(wav), 2.5)
+
+
+def test_nested_overlay_overlap_is_reported():
+    ov = lambda at, ln: ["badge", at, ln, {"text": "X", "top": 300}, "ui", "none", {"on": "word"}]
+    plan = _p2([_tl(clips=[["a.mp4", 0, 0, 150]], overlays=[ov(0, 100), ov(10, 10), ov(50, 10)])])
+    errs = pt.check(plan, probe=PROBE, silent=QUIET)
+    assert any(e.startswith("T1 overlay 2") for e in errs) and any(e.startswith("T1 overlay 3") for e in errs)
+
+
+def test_nested_main_clip_overlap_is_reported():
+    plan = _p2([_tl(clips=[["a.mp4", 0, 0, 100], ["b.mp4", 0, 10, 10, {"track": "main"}], ["c.mp4", 0, 50, 10]])])
+    errs = pt.check(plan, probe=PROBE, silent=QUIET)
+    assert any(e.startswith("T1 clip 2") and "overlaps" in e for e in errs)
+    assert any(e.startswith("T1 clip 3") and "overlaps" in e for e in errs)
+
+
+def test_sped_clip_with_fractional_source_length_is_clean():
+    plan = _p2([_tl(clips=[["a.mp4", 0, 0, 60, {"speed": 0.9}], ["b.mp4", 0, 60, 61, {"speed": 0.9}],
+                           ["c.mp4", 0, 121, 30]])])
+    assert pt.check(plan, probe=PROBE, silent=QUIET) == []
