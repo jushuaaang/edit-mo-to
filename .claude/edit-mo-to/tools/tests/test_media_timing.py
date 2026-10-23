@@ -90,3 +90,29 @@ def test_transcribe_uses_cache(tmp_path, monkeypatch):
     assert mt.transcribe(clip) == words  # served from cache, whisper never runs
     clip.write_bytes(b"edited file")  # new size -> new key, so a changed file is re-transcribed
     assert mt._cache_path(clip) != path
+
+
+def test_compact_lines_and_words():
+    rep = {"lines": [{"line": "Hi there", "start_sf": "0:00", "end_sf": "0:20", "matched": True}],
+           "words": [{"word": "Hi", "start": 0.0, "end": 0.3}], "total": "0:20"}
+    out = mt.compact(rep)
+    assert "# lines" in out and "# words" in out
+    assert "1|0:00|0:20|1|Hi there" in out and "Hi|0|9" in out
+
+
+def test_backend_selection(monkeypatch, tmp_path):
+    import types
+
+    seen = {}
+
+    def fake_transcribe(path, **kw):
+        seen.update(kw)
+        return {"segments": [{"words": [{"word": " Hi", "start": 0.0, "end": 0.3}, {"word": "there ", "start": 0.4, "end": 0.8}]}]}
+
+    monkeypatch.setitem(sys.modules, "mlx_whisper", types.SimpleNamespace(transcribe=fake_transcribe))
+    monkeypatch.setitem(mt.PATHS, "asr", "mlx")
+    audio = tmp_path / "a.wav"
+    audio.write_bytes(b"x")
+    words = mt.transcribe(audio, cache=False)
+    assert words == [{"word": "Hi", "start": 0.0, "end": 0.3}, {"word": "there", "start": 0.4, "end": 0.8}]
+    assert seen["path_or_hf_repo"] == "mlx-community/whisper-large-v3-turbo" and seen["word_timestamps"] is True

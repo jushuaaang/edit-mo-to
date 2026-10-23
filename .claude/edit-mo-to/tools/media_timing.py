@@ -4,6 +4,8 @@ CLI (prints JSON):
     vo <audio> [script.txt] [--fps 30]   word timestamps; with a script (one line per script line)
                                          returns each line's start/end/duration. Transcripts are
                                          cached in {tmp}/transcripts (--no-cache to redo)
+    vo ... --compact                     same, as pipe text (lines n|start_sf|end_sf|matched|text, words
+                                         word|start_f|end_f in frames): far fewer tokens for agents
     beats <audio> [--fps 30]             tempo and beat times, for cutting product ads to music
 """
 import json
@@ -11,6 +13,8 @@ import re
 import sys
 from difflib import SequenceMatcher
 from pathlib import Path
+
+from machine import PATHS
 
 MATCH_THRESHOLD = 0.6
 NUMBERS = {str(i): w for i, w in enumerate(
@@ -97,16 +101,50 @@ def _cache_path(audio: Path) -> Path:
     return TMP / "transcripts" / f"{Path(audio).stem[:40]}_{key}.json"
 
 
-def transcribe(audio: Path, cache: bool = True) -> list[dict]:
+def _cuda_count() -> int:
+    try:
+        import ctranslate2
+
+        return int(ctranslate2.get_cuda_device_count())
+    except Exception:
+        return 0
+
+
+def _transcribe_faster_whisper(audio: Path) -> list[dict]:
+    from faster_whisper import BatchedInferencePipeline, WhisperModel
+
+    def run(device: str, compute: str) -> list[dict]:
+        model = WhisperModel("small.en", device=device, compute_type=compute)
+        segments, _ = BatchedInferencePipeline(model).transcribe(_load_16k(audio), batch_size=8, word_timestamps=True)
+        return [{"word": w.word.strip(), "start": w.start, "end": w.end} for s in segments for w in s.words]
+
+    if _cuda_count() > 0:
+        import ctranslate2
+
+        # older GPUs (GTX 9xx) have no efficient float16; float32 on the GPU still beats the CPU
+        compute = "float16" if "float16" in ctranslate2.get_supported_compute_types("cuda") else "float32"
+        try:
+            return run("cuda", compute)
+        except (RuntimeError, ValueError):  # CUDA libraries (cublas) missing or unusable: use the CPU
+            pass
+    return run("cpu", "int8")
+
+
+def _transcribe_mlx(audio: Path) -> list[dict]:
+    import mlx_whisper
+
+    res = mlx_whisper.transcribe(str(audio), path_or_hf_repo="mlx-community/whisper-large-v3-turbo", word_timestamps=True)
+    return [{"word": w["word"].strip(), "start": w["start"], "end": w["end"]}
+            for s in res["segments"] for w in s.get("words", [])]
+
+
+def transcribe(audio: Path, cache: bool = True, backend: str | None = None) -> list[dict]:
     """Word timings. Cached, so a clip is transcribed once per job (vo, speech_cuts, re-runs)."""
     cached = _cache_path(audio) if cache else None
     if cached and cached.exists():
         return json.loads(cached.read_text(encoding="utf-8"))
-    from faster_whisper import WhisperModel
-
-    model = WhisperModel("small.en", device="cpu", compute_type="int8")
-    segments, _ = model.transcribe(_load_16k(audio), word_timestamps=True, vad_filter=False)
-    words = [{"word": w.word.strip(), "start": w.start, "end": w.end} for s in segments for w in s.words]
+    backend = backend or PATHS.get("asr", "faster-whisper")
+    words = _transcribe_mlx(audio) if backend == "mlx" else _transcribe_faster_whisper(audio)
     if cached:
         cached.parent.mkdir(parents=True, exist_ok=True)
         cached.write_text(json.dumps(words, ensure_ascii=False), encoding="utf-8")
@@ -143,6 +181,17 @@ def vo_report(words: list[dict], lines: list[str] | None, fps: int = 30) -> dict
     return out
 
 
+def compact(report: dict, fps: int = 30) -> str:
+    """Pipe text of a vo report: lines n|start_sf|end_sf|matched|text, words word|start_f|end_f."""
+    out = []
+    if "lines" in report:
+        out.append("# lines")
+        out += [f"{i}|{l['start_sf']}|{l['end_sf']}|{int(l['matched'])}|{l['line']}" for i, l in enumerate(report["lines"], 1)]
+    out.append("# words")
+    out += [f"{w['word']}|{round(w['start'] * fps)}|{round(w['end'] * fps)}" for w in report.get("words", [])]
+    return "\n".join(out)
+
+
 def main(argv: list[str]) -> None:
     fps = 30
     if "--fps" in argv:
@@ -150,7 +199,8 @@ def main(argv: list[str]) -> None:
         fps = int(argv[i + 1])
         argv = argv[:i] + argv[i + 2:]
     cache = "--no-cache" not in argv
-    argv = [a for a in argv if a != "--no-cache"]
+    as_compact = "--compact" in argv
+    argv = [a for a in argv if a not in ("--no-cache", "--compact")]
     cmd, args = argv[0], argv[1:]
     if cmd == "vo":
         words = transcribe(Path(args[0]), cache)
@@ -162,7 +212,7 @@ def main(argv: list[str]) -> None:
         out = beats(Path(args[0]), fps)
     else:
         raise SystemExit(__doc__)
-    print(json.dumps(out, ensure_ascii=False, indent=2))
+    print(compact(out, fps) if as_compact and cmd == "vo" else json.dumps(out, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

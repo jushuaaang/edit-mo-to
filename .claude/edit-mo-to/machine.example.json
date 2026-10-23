@@ -1,5 +1,10 @@
 {
  "_note": "Copy to machine.json (untracked) and adjust. Keys you leave out use the platform default from tools/machine.py.",
+ "_optional": {
+  "asr": "faster-whisper (default) or mlx on Apple silicon",
+  "render_workers": "hyperframes --workers per overlay render (default 1)",
+  "render_concurrency": "overlay renders side by side (default min(4, cpu/2))"
+ },
  "_windows": {
   "root": "D:/Video Editing",
   "python": "D:/Video Editing/.claude/edit-mo-to/tools/.venv/Scripts/python.exe",
