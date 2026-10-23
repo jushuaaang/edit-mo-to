@@ -139,8 +139,36 @@ def test_client_rows_skip_lock_rules_but_check_their_span():
 
 def test_split_line_rows_together_cover_the_line():
     timings = {"lines": [{"start": 0.0, "end": 4.0}, {"start": 4.0, "end": 8.0}, {"start": 8.0, "end": 9.8}]}
-    a, b = dict(CLIENT, vo_out_f=270), dict(CLIENT, id="C-2", vo_in_f=270, file="D:/Footage/b.mp4")
+    a = dict(CLIENT, vo_out_f=270, out_f=42)
+    b = dict(CLIENT, id="C-2", vo_in_f=270, file="D:/Footage/b.mp4", in_f=0, out_f=24)
     assert pt.check_prompts({**SPEC2, "prompts": [a, b]}, SCRIPT, timings) == []
     gap = dict(b, vo_out_f=280)
     assert any("line 3" in e for e in pt.check_prompts({**SPEC2, "prompts": [a, gap]}, SCRIPT, timings))
     assert any("cut point" in e for e in pt.check_prompts({**SPEC2, "prompts": [a, dict(b, vo_in_f=250)]}, SCRIPT, None))
+
+
+def test_product_ad_client_rows_need_no_script_and_follow_beats():
+    pa = {**SPEC2, "style": "product-ad", "prompts": [
+        {"id": "2", "kind": "client", "file": "D:/F/sole.mp4", "in_f": 0, "out_f": 60, "at_f": 90},
+        {"id": "1", "kind": "client", "file": "D:/F/lift.mp4", "in_f": 30, "out_f": 120, "at_f": 0}]}
+    assert pt.check_prompts(pa, [], None) == []
+    rows = [l for l in pt.render_prompts(pa, [], None).splitlines() if l.startswith("| 1 ") or l.startswith("| 2 ")]
+    assert [r.split(" | ")[0] for r in rows] == ["| 1", "| 2"] and "D:/F/lift.mp4" in rows[0]
+    assert any("in_f" in e for e in pt.check_prompts({**pa, "prompts": [dict(pa["prompts"][0], out_f=0)]}, [], None))
+
+
+def test_client_cut_length_must_match_the_vo_span():
+    errs = pt.check_prompts({**SPEC2, "prompts": [dict(CLIENT, out_f=40)]}, SCRIPT, None)   # 28-frame cut, 54-frame span
+    assert any("C-1" in e and "cut" in e for e in errs)
+    assert pt.check_prompts({**SPEC2, "prompts": [dict(CLIENT, fps=25, in_f=0, out_f=45)]}, SCRIPT, None) == []  # 1.8 s
+
+
+def test_ugc_host_block_says_the_words_once():
+    host = dict(SPEC2["prompts"][0], action='0.0-4.0s: she lifts the bottle and says: "Meet Nativia, the vitamin I never skip."')
+    block = pt.render_prompts({**SPEC2, "prompts": [host]}, SCRIPT, None).split("```")[1]
+    assert block.count("the vitamin I never skip") == 1 and "Dialogue:" not in block
+    split = dict(host, action='0.0-1.5s: she says: "Meet Nativia," 1.5-4.0s: she smiles: "the vitamin I never skip."')
+    assert "Dialogue:" not in pt.render_prompts({**SPEC2, "prompts": [split]}, SCRIPT, None).split("```")[1]
+    plain = pt.render_prompts(SPEC2, SCRIPT, None).split("```")[1]   # action without the quote: Dialogue printed
+    assert plain.count("Meet Nativia, the vitamin I never skip.") == 1 and "Dialogue:" in plain
+    assert pt.check_prompts({**SPEC2, "prompts": [host]}, SCRIPT, None) == []

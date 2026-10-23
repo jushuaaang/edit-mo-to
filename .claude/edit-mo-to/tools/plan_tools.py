@@ -420,14 +420,21 @@ def check_prompts(spec: dict, script_lines: list[str], timings: dict | None) -> 
         if _kind(p) == CLIENT:
             if not p.get("file"):
                 errs.append(f"{w}: client row needs the clip's file")
-            if not all(isinstance(p.get(k), int) for k in ("in_f", "out_f")) or p["out_f"] <= p["in_f"]:
+            cut_ok = all(isinstance(p.get(k), int) for k in ("in_f", "out_f")) and p["out_f"] > p["in_f"]
+            if not cut_ok:
                 errs.append(f"{w}: client row needs whole-frame in_f < out_f (the cut in the clip)")
+            if style == "product-ad":      # no script, no VO: placed on the beats in the edit plan
+                continue
             if _line_text(script_lines, p) is None:
                 errs.append(f"{w}: line {p.get('line')!r} is not in the script ({len(script_lines)} lines)")
             if p.get("vo_in_f") is None or p.get("vo_out_f") is None:
                 errs.append(f"{w}: vo_in_f and vo_out_f are required")
             else:
                 video.append(p)
+                cut_f = (p["out_f"] - p["in_f"]) * FPS / p.get("fps", FPS) if cut_ok else None
+                if cut_f is not None and abs(cut_f - (p["vo_out_f"] - p["vo_in_f"])) > 2:
+                    errs.append(f"{w}: cut {p['in_f']}-{p['out_f']} is {round(cut_f)} timeline frames, not the "
+                                f"{p['vo_out_f'] - p['vo_in_f']}-frame VO span (±2)")
             continue
         have = p.get("locks", [])
         missing = [k for k in required if k not in have]
@@ -514,13 +521,23 @@ def _cell(t) -> str:
     return str(t).replace("|", "\\|").replace("\n", " ")
 
 
+def _words(t: str) -> list[str]:
+    return re.findall(r"[\w']+", (t or "").lower())
+
+
+def _quoted_in(dialogue: str, action: str) -> bool:
+    """True when every word of the dialogue appears, in order, in the action's per-second windows."""
+    it = iter(_words(action))
+    return bool(_words(dialogue)) and all(w in it for w in _words(dialogue))
+
+
 def _block(spec: dict, p: dict) -> str:
     parts = ["Start on @Image1."] if _is_seedance(spec) and _kind(p) == "video" else []
     for label, key in (("Subject", "subject"), ("Setting", "setting"), ("Action", "action"),
                        ("Camera", "camera"), ("Look", "look")):
         if p.get(key):
             parts.append(f"{label}: {p[key]}")
-    if p.get("dialogue"):
+    if p.get("dialogue") and not _quoted_in(p["dialogue"], p.get("action", "")):   # the words once per prompt
         parts.append(f"Dialogue: {p['dialogue']}")
     parts += [_lock_text(spec, p, k) for k in p.get("locks", [])]
     if p.get("attach"):
@@ -534,8 +551,11 @@ def _block(spec: dict, p: dict) -> str:
 def render_prompts(spec: dict, script_lines: list[str], timings: dict | None) -> str:
     """The prompts deliverable: table(s), one fenced block per prompt with locks in full, then notes."""
     prompts = spec.get("prompts", [])
-    vids = sorted((p for p in prompts if _kind(p) in ("video", CLIENT)),    # script order, AI and client rows
-                  key=lambda p: (p["line"] if isinstance(p.get("line"), int) else 10 ** 6, p.get("vo_in_f") or 0))
+    rows = [p for p in prompts if _kind(p) in ("video", CLIENT)]
+    if spec.get("style") == "product-ad":   # no script: beat order when every row has an at_f, else spec order
+        vids = sorted(rows, key=lambda p: p["at_f"]) if all(isinstance(p.get("at_f"), int) for p in rows) else rows
+    else:                                   # script order, AI and client rows together
+        vids = sorted(rows, key=lambda p: (p["line"] if isinstance(p.get("line"), int) else 10 ** 6, p.get("vo_in_f") or 0))
     imgs = [p for p in prompts if _kind(p) in IMAGE_KINDS]
     out: list[str] = []
     if vids:
