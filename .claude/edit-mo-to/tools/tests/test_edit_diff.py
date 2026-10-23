@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -93,3 +94,28 @@ def test_diff_last_sees_only_hand_edits(project, capsys):
     ed.main(["diff", "--last", str(project), "Timeline 01"])
     res = json.loads(capsys.readouterr().out)
     assert [(c["kind"], c["length"]) for c in res["changed"]] == [("b-roll", -1.0)]
+
+
+def test_diff_last_missing_snapshot_is_a_json_error(project, capsys):
+    import pytest
+    with pytest.raises(SystemExit) as e:
+        ed.main(["diff", "--last", str(project), "Timeline 01"])
+    assert e.value.code == 1
+    assert "no last-write snapshot" in json.loads(capsys.readouterr().out)["error"]
+
+
+def test_diff_last_hash_named_clip_is_not_removed_plus_added(project, tmp_path, capsys):
+    from test_capcut_patch import cp, _load
+    clip = tmp_path / "client" / "V01.mp4"
+    clip.parent.mkdir()
+    clip.write_bytes(b"x")
+    folder = project / "Timelines" / "TL1"
+    c = _load(project)
+    m = next(m for m in c["materials"]["videos"] if m["id"] == "mb1")
+    m["path"] = f"D:/proj/assets/video_{cp._vectcut_hash(clip.as_posix())}.mp4"
+    (folder / "draft_content.json").write_text(json.dumps(c), encoding="utf-8")
+    os.utime(folder / "draft_content.json", (1_700_000_000, 1_700_000_000))  # not "just edited by CapCut"
+    cp.patch_timeline(project, "Timeline 01", [{"op": "set", "id": "a1", "volume": 0.8}])
+    ed.main(["diff", "--last", str(project), "Timeline 01", str(clip.parent)])
+    res = json.loads(capsys.readouterr().out)
+    assert res["removed"] == [] and res["added"] == [] and res["changed"] == []

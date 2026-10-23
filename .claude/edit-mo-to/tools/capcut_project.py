@@ -505,9 +505,8 @@ def compose(target: Path, timelines: list[tuple[str, Path]], link_originals: boo
     _mark_own_write(target)
     if link:
         report["media"] = globals()["link_originals"](target)
-    for n in names:
-        _save_last(target, n)
-    return {"project": str(target), "timelines": [{"name": e["name"], "id": e["id"]} for e in entries], **report}
+    saved = [_save_last(target, n) for n in names]
+    return {"project": str(target), "last_snapshot": all(saved), "timelines": [{"name": e["name"], "id": e["id"]} for e in entries], **report}
 
 
 def add_timeline(project: Path, name: str, draft: Path) -> dict:
@@ -520,8 +519,8 @@ def add_timeline(project: Path, name: str, draft: Path) -> dict:
     pj = _project_json(project)
     pj["timelines"].append(_timeline_entry(name, content["id"]))
     _save_project_json(project, pj)
-    _save_last(project, name)
-    return {"name": name, "id": content["id"], **report}
+    saved = _save_last(project, name)
+    return {"name": name, "id": content["id"], "last_snapshot": saved, **report}
 
 
 def duplicate_timeline(project: Path, source_name: str, new_name: str) -> dict:
@@ -559,8 +558,8 @@ def replace_timeline(project: Path, name: str, draft: Path) -> dict:
     if tl["main"]:
         _write_root(project, content)
     _save_project_json(project, _project_json(project))
-    _save_last(project, name)
-    return {"name": name, "id": tl["id"], "backup": str(backup), **report}
+    saved = _save_last(project, name)
+    return {"name": name, "id": tl["id"], "backup": str(backup), "last_snapshot": saved, **report}
 
 
 def add_tracks(project: Path, name: str, draft: Path, track_type: str = "audio") -> dict:
@@ -608,8 +607,8 @@ def add_tracks(project: Path, name: str, draft: Path, track_type: str = "audio")
     if tl["main"]:
         _write_root(project, timeline)
     _save_project_json(project, _project_json(project))
-    _save_last(project, name)
-    return {"name": name, "id": tl["id"], "backup": str(backup), "tracks_added": len(new_tracks), **report}
+    saved = _save_last(project, name)
+    return {"name": name, "id": tl["id"], "backup": str(backup), "last_snapshot": saved, "tracks_added": len(new_tracks), **report}
 
 
 def _span(seg: dict) -> tuple[int, int]:
@@ -723,8 +722,9 @@ def add_overlay(project: Path, name: str, draft: Path, track_name: str = "video_
     if tl["main"]:
         _write_newest_content(project, timeline)
     _save_project_json(project, _project_json(project))
-    _save_last(project, name)
-    return {"name": name, "id": tl["id"], "track": track_name, "backup": str(backup), "segments_added": added,
+    saved = _save_last(project, name)
+    return {"name": name, "id": tl["id"], "track": track_name, "backup": str(backup), "last_snapshot": saved,
+            "segments_added": added,
             "duration": timeline["duration"] / 1e6, "duration_changed": timeline["duration"] != old_duration,
             **report}
 
@@ -1058,8 +1058,8 @@ def patch_timeline(project: Path, name: str, ops, dry_run: bool = False) -> dict
     if tl["main"]:
         _write_newest_content(project, content)
     _save_project_json(project, _project_json(project))
-    _save_last(project, name)
-    return {**result, "backup": str(backup)}
+    saved = _save_last(project, name)
+    return {**result, "backup": str(backup), "last_snapshot": saved}
 
 
 def _vectcut_hash(url: str) -> str:
@@ -1158,15 +1158,25 @@ def last_path(project: Path, name: str) -> Path:
     return Path(project) / BACKUP_DIR / f"{name}.last.json"
 
 
-def _save_last(project: Path, name: str) -> None:
+def _save_last(project: Path, name: str) -> bool:
     """Snapshot the timeline right after one of our writes, so the learning step can tell the editor's
-    hand edits from our own patches. Never breaks the write it follows."""
+    hand edits from our own patches. Never breaks the write it follows. On failure the old snapshot is
+    removed (a stale one would hide our own patches as hand edits) and False is returned."""
+    out = last_path(project, name)
+    tmp = out.with_name(out.name + ".tmp")
     try:
-        out = last_path(project, name)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps(segments(project, name), ensure_ascii=False), encoding="utf-8")
+        tmp.write_text(json.dumps(segments(project, name), ensure_ascii=False), encoding="utf-8")
+        tmp.replace(out)  # atomic: a truncated snapshot is never read
+        return True
     except Exception as e:  # the write already succeeded; a missing snapshot only costs the learning diff
         print(f"warning: could not save the last-write snapshot of {name!r}: {e}", file=sys.stderr)
+        for f in (tmp, out):
+            try:
+                f.unlink(missing_ok=True)
+            except OSError:
+                pass
+        return False
 
 
 def backup_timeline(project: Path, name: str) -> Path:

@@ -9,7 +9,8 @@ CLI (prints JSON):
         cross-video log, and `recurring` lists patterns seen in 2+ videos (strong rule candidates).
     diff --last <project> <timeline> [client folder ...] [--log patterns.jsonl --video <name>]
         Same, but `built` is the snapshot capcut_project saved at the last write we made to the timeline,
-        so only the editor's hand edits show up (our own patches do not).
+        so only the editor's hand edits show up (our own patches do not). Client folders are ignored here:
+        the snapshot was resolved without them, and both sides must resolve sources the same way.
     history [patterns.jsonl]
         Patterns that recur across videos.
 
@@ -224,16 +225,22 @@ def main(argv: list[str]) -> None:
                        encoding="utf-8")
         res = {"saved": str(out)}
     elif cmd == "diff":
-        from capcut_project import segments
-
-        from capcut_project import last_path
+        from capcut_project import last_path, segments
 
         last = "--last" in argv
         if last:
             argv.remove("--last")
         log, video = _opt(argv, "--log"), _opt(argv, "--video")
         if last:
-            argv.insert(0, str(last_path(Path(argv[0]), argv[1])))
+            snap = last_path(Path(argv[0]), argv[1])
+            if not snap.exists():
+                print(json.dumps({"error": f"no last-write snapshot at {snap}; the timeline was not written by "
+                                            "capcut_project since snapshots began, or the snapshot failed"}, indent=1))
+                raise SystemExit(1)
+            argv.insert(0, str(snap))
+            # The snapshot was resolved without client folders, so resolve the final side the same way;
+            # otherwise a hash-named clip would show as removed + added.
+            del argv[3:]
         built = json.loads(Path(argv[0]).read_text(encoding="utf-8"))
         final = segments(Path(argv[1]), argv[2], [Path(p) for p in argv[3:]])
         res = diff(built, final)

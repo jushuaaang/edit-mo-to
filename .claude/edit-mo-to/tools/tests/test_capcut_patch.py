@@ -268,6 +268,15 @@ def test_save_last_failure_does_not_break_the_write(project, monkeypatch, capsys
         raise ValueError("unknown placeholder")
     monkeypatch.setattr(cp, "segments", boom)
     out = cp.patch_timeline(project, "Timeline 01", [{"op": "set", "id": "a1", "volume": 0.8}])
-    assert out["ops_applied"] == 1 and _seg_by(_load(project), "a1")["volume"] == 0.8
+    assert out["ops_applied"] == 1 and out["last_snapshot"] is False and _seg_by(_load(project), "a1")["volume"] == 0.8
     assert not cp.last_path(project, "Timeline 01").exists()
     assert "last-write snapshot" in capsys.readouterr().err
+
+
+def test_failed_snapshot_removes_the_stale_one_and_says_so(project, monkeypatch):
+    cp.patch_timeline(project, "Timeline 01", [{"op": "set", "id": "a1", "volume": 0.8}])
+    assert cp.last_path(project, "Timeline 01").exists()
+    monkeypatch.setattr(cp, "segments", lambda *a, **k: (_ for _ in ()).throw(ValueError("boom")))
+    out = cp.patch_timeline(project, "Timeline 01", [{"op": "set", "id": "a1", "volume": 0.7}])
+    assert out["last_snapshot"] is False and not cp.last_path(project, "Timeline 01").exists()
+    assert not list((project / cp.BACKUP_DIR).glob("*.tmp"))
