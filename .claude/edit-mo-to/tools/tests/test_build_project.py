@@ -143,6 +143,34 @@ def test_build_stops_without_stop_iteration_patch(monkeypatch):
         bp.build({**PLAN, "timelines": [{**PLAN["timelines"][0], "overlays": []}]}, render=False)
 
 
+
+def test_build_writes_overlay_files_back_and_makes_overlay_sheets(tmp_path, monkeypatch):
+    import sheets
+    calls, post = _post_recorder()
+    monkeypatch.setattr(bp, "stop_iteration_patched", lambda path=None: True)
+    monkeypatch.setattr(bp.cp, "wait_for_draft", lambda p, t=30: Path(p))
+    monkeypatch.setattr(bp.cp, "compose", lambda project, pairs, link_originals=True:
+                        {"project": str(project), "timelines": {n: "id" for n, _ in pairs}})
+    monkeypatch.setattr(bp.cp, "import_media", lambda project, files: {"added": list(files), "missing": []})
+    monkeypatch.setattr(bp.cp, "segments", lambda project, name, dirs=(): {"timeline": name, "segments": []})
+    monkeypatch.setattr(sheets, "clip_sheets", lambda plan, tl, out: {"sheets": [{"path": str(out / "clips_1.png")}]})
+    made = []
+    monkeypatch.setattr(sheets, "overlay_sheets", lambda plan, tl, out: made.append(tl) or
+                        {"sheets": [{"path": str(out / "overlays_1.png")}]})
+    plan = json.loads(json.dumps({**PLAN, "project": "_unit_build", "base": tmp_path.as_posix()}))
+    for o in plan["timelines"][0]["overlays"]:      # what the agent's plan.json holds before a build
+        o.pop("file")
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(plan), encoding="utf-8")
+    for n, o in enumerate(plan["timelines"][0]["overlays"], 1):   # prebuilt by an earlier render
+        o["file"] = (tmp_path / f"ov{n}.mov").as_posix()
+    res = bp.build(plan, job="_unit_build", post=post, render=False, plan_path=plan_path)
+    written = json.loads(plan_path.read_text(encoding="utf-8"))
+    assert [o["file"] for o in written["timelines"][0]["overlays"]] == [(tmp_path / "ov1.mov").as_posix(),
+                                                                       (tmp_path / "ov2.mov").as_posix()]
+    assert not (tmp_path / "plan.json.tmp").exists()
+    assert made == ["Timeline 01"] and any(p.endswith("overlays_1.png") for p in res["sheets"])
+
 # ---------- integration (real VectCutAPI) ----------
 
 def _api_up():

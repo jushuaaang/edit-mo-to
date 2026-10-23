@@ -6,7 +6,8 @@ CLI (prints JSON only):
         per timeline, compose them into {capcut_drafts}/<plan.project>, import the plan's sources plus the
         --import files, snapshot each timeline to <base>/.edit-mo-to/built/<timeline>.json, write clip sheets
         to {tmp}/reports/<job>/sheets/ and the placed-clips table to {tmp}/reports/<job>/build_report.txt.
-        --no-render uses each overlay's "file" as given.
+        Writes the rendered overlay "file" (and "cutout_file") paths back into plan.json, so sheets.py overlays
+        and QA see the overlays. --no-render uses each overlay's "file" as given.
     timeline <plan.json> "<name>"
         build one timeline as a draft (for revise-new-timeline / revise-in-place); prints the draft folder
     music <plan.json> "<name>" --music f --volume v
@@ -352,9 +353,18 @@ def report_table(timelines: list[dict]) -> str:
     return "\n".join(rows) + "\n"
 
 
-def build(plan: dict, import_files=(), timelines=None, job=None, post=post, render=True) -> dict:
+def save_plan(plan: dict, path: Path) -> None:
+    """Write the plan back (temp file + replace, so a crash never leaves half a plan.json)."""
+    path = Path(path)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(plan, indent=1, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(path)
+
+
+def build(plan: dict, import_files=(), timelines=None, job=None, post=post, render=True, plan_path=None) -> dict:
     """The whole project: overlays rendered once for all timelines, one draft per timeline, compose, import,
-    snapshots, sheets and the report. Returns the short summary (≤ 25 lines as printed)."""
+    snapshots, clip and overlay sheets and the report. With `plan_path`, the plan (now carrying each overlay's
+    rendered "file") is written back there. Returns the short summary (≤ 25 lines as printed)."""
     import sheets
 
     tls = _pick(plan, timelines)
@@ -366,6 +376,8 @@ def build(plan: dict, import_files=(), timelines=None, job=None, post=post, rend
     t0 = time.time()
     rendered = render_assets(plan, tls) if render else {"rendered": 0, "jobs": 0, "cutouts": 0}
     t_render = time.time() - t0
+    if plan_path:
+        save_plan(plan, plan_path)
     built = [(tl["name"], build_timeline(plan, tl, post=post, render=False)) for tl in tls]
     project = Path(PATHS["capcut_drafts"]) / plan["project"]
     comp = cp.compose(project, [(n, Path(b["draft"])) for n, b in built], link_originals=True)
@@ -381,6 +393,8 @@ def build(plan: dict, import_files=(), timelines=None, job=None, post=post, rend
             failures.append(f"snapshot {tl['name']}: {e}")
         try:
             sheet_paths += [s["path"] for s in sheets.clip_sheets(plan, tl["name"], reports / "sheets")["sheets"]]
+            if tl.get("overlays"):
+                sheet_paths += [s["path"] for s in sheets.overlay_sheets(plan, tl["name"], reports / "sheets")["sheets"]]
         except Exception as e:  # noqa: BLE001
             failures.append(f"sheets {tl['name']}: {e}")
     report = reports / "build_report.txt"
@@ -437,7 +451,8 @@ def main(argv: list[str]) -> None:
             else:
                 i += 1
         tls = [t.strip() for t in opt("--timelines", "").split(",") if t.strip()] or None
-        print(_dump_short(build(plan, imports, tls, opt("--job"), render="--no-render" not in rest)))
+        print(_dump_short(build(plan, imports, tls, opt("--job"), render="--no-render" not in rest,
+                                plan_path=plan_path)))
     elif cmd == "timeline" and rest:
         print(json.dumps({"draft": timeline(plan, rest[0])}, ensure_ascii=False))
     elif cmd == "music" and rest and opt("--music"):
