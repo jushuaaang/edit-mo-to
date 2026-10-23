@@ -383,3 +383,17 @@ def test_clip_effect_becomes_an_effect_over_the_clip(monkeypatch):
     fx = [b for e, b in calls if e == "add_effect"]
     assert len(fx) == 1 and fx[0]["effect_type"] == "Shake" and fx[0]["params"] == []
     assert fx[0]["start"] == 2.0 and round(fx[0]["end"] * 1e6) == 3500000 and res["counts"]["effects"] == 1
+
+
+def test_render_assets_writes_plain_paths_and_counts_copies(tmp_path):
+    ovs = [{"template": "badge", "vars": {"text": t}, "at": float(i), "duration": 1.0, "track": "ui", "sfx": "none"}
+           for i, t in enumerate(["A", "B", "A"])]
+    plan = {"project": "_unit", "base": str(tmp_path), "timelines": [{"name": "T", "clips": [], "overlays": ovs}]}
+
+    def fake_render(template, out, variables):
+        Path(out).parent.mkdir(parents=True, exist_ok=True)
+        Path(out).write_bytes(b"mov")
+        return {"file": chr(92) * 2 + "?" + chr(92) + str(Path(out).resolve())}
+    res = bp.render_assets(plan, plan["timelines"], render_fn=fake_render)
+    assert res["rendered"] == 2 and res["copied"] == 1 and res["jobs"] == 3
+    assert all(not o["file"].startswith(("//?/", chr(92))) and "\\" not in o["file"] for o in ovs)

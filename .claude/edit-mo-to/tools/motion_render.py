@@ -59,6 +59,15 @@ class RenderFailed(RuntimeError):
     pass
 
 
+def plain_path(p) -> str:
+    """A path as plain forward-slash text: Windows' long-path prefix (which Path.resolve() sometimes adds) is
+    dropped, so the same file is always written the same way (plan.json, reports, dedupe counts)."""
+    s = str(p).replace(chr(92), "/")
+    if s.startswith("//?/UNC/"):
+        return "//" + s[len("//?/UNC/"):]
+    return s[len("//?/"):] if s.startswith("//?/") else s
+
+
 def _split(template: str) -> tuple[dict, str]:
     m = DEFAULTS_RE.match(template)
     if not m:
@@ -246,7 +255,7 @@ def render(name: str, out: Path, variables: dict | None = None, fps: int = 30, w
         raise RenderFailed(f"{out} has no alpha channel ({info['pix_fmt']})")
     if slim:
         slim_fn(out)
-    return {"file": str(out), "template": name, **info, "bytes": out.stat().st_size}
+    return {"file": plain_path(out), "template": name, **info, "bytes": out.stat().st_size}
 
 
 def job_key(template: str, variables: dict, duration: float) -> str:
@@ -281,7 +290,9 @@ def render_many(jobs: list[dict], concurrency: int | None = None, render_fn=rend
         out = Path(jobs[i]["out"])
         out.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(jobs[src]["out"], out)
-        results[i] = {**results[src], "file": str(out.resolve()), "copied_from": str(Path(jobs[src]["out"]).resolve())}
+        results[i] = {**results[src], "file": plain_path(out.resolve()), "copied_from": plain_path(results[src]["file"])}
+    for r in results:
+        r["file"] = plain_path(r["file"])
     return results
 
 
@@ -344,8 +355,10 @@ def preview(mov: Path, png: Path, at: float | None = None) -> Path:
     return Path(png)
 
 
-def cutout(clip: Path, out: Path, start: float = 0.0, length: float | None = None) -> dict:
-    """Person-only transparent .mov of clip[start:start+length], at the clip's own frame rate."""
+def cutout(clip: Path, out: Path, start: float = 0.0, length: float | None = None, slim: bool = True) -> dict:
+    """Person-only transparent .mov of clip[start:start+length], at the clip's own frame rate. slim re-encodes
+    it like an overlay render (remove-background writes 12-bit ProRes at the clip's size: ~150 MB a second at 4K)."""
+    slim_fn = globals()["slim"]
     out = Path(out).resolve()
     out.parent.mkdir(parents=True, exist_ok=True)
     work = Path(tempfile.mkdtemp(prefix="emt-cutout-", dir=os.environ.get("EMT_MOTION_TMP")))
@@ -365,7 +378,9 @@ def cutout(clip: Path, out: Path, start: float = 0.0, length: float | None = Non
     info = _probe(out)
     if not info["alpha"]:
         raise RenderFailed(f"{out} has no alpha channel ({info['pix_fmt']})")
-    return {"file": str(out), "source": str(clip), "in": start, **info}
+    if slim:
+        slim_fn(out)
+    return {"file": plain_path(out), "source": str(clip), "in": start, **info, "bytes": out.stat().st_size}
 
 
 def main(argv: list[str]) -> None:

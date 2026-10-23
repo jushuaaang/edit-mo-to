@@ -193,3 +193,36 @@ def test_slim_failure_leaves_original(tmp_path):
     with pytest.raises(mr.RenderFailed):
         mr.slim(f)
     assert f.read_bytes() == b"not a movie" and not list(tmp_path.glob("*.tmp.mov"))
+
+
+def test_plain_path_drops_the_windows_long_path_prefix():
+    bs = chr(92)   # a backslash
+    assert mr.plain_path(bs * 2 + "?" + bs + "D:" + bs + "Video Editing" + bs + "a.mov") == "D:/Video Editing/a.mov"
+    assert mr.plain_path("//?/D:/Video Editing/m/a.mov") == "D:/Video Editing/m/a.mov"
+    assert mr.plain_path(bs * 2 + "?" + bs + "UNC" + bs + "srv" + bs + "share" + bs + "a.mov") == "//srv/share/a.mov"
+    assert mr.plain_path(Path("D:/x/y.mov")) == "D:/x/y.mov" and mr.plain_path("/tmp/a.mov") == "/tmp/a.mov"
+
+
+def test_render_many_results_and_copies_use_plain_paths(tmp_path):
+    def fake(name, out, variables=None, **kw):
+        Path(out).write_bytes(b"x")
+        return {"file": "//?/" + Path(out).resolve().as_posix(), "alpha": True}
+
+    jobs = [{"template": "badge", "out": tmp_path / f"{i}.mov", "vars": {"text": "SAME", "duration": 3}} for i in range(2)]
+    res = mr.render_many(jobs, concurrency=2, render_fn=fake)
+    assert not any("?" in r["file"] or "\\" in r["file"] for r in res)
+    assert res[1]["copied_from"] == res[0]["file"]
+
+
+def test_cutout_is_slimmed_and_returns_a_plain_path(tmp_path, monkeypatch):
+    slimmed = []
+
+    def run(args, **kw):
+        if "remove-background" in args:
+            Path(args[args.index("-o") + 1]).write_bytes(b"mov")
+        return subprocess.CompletedProcess(args, 0, "", "")
+    monkeypatch.setattr(mr.subprocess, "run", run)
+    monkeypatch.setattr(mr, "_probe", lambda p: {"alpha": True, "pix_fmt": "yuva444p12le", "duration": 1.0})
+    monkeypatch.setattr(mr, "slim", lambda p: slimmed.append(Path(p).name) or {"before": 9, "after": 3, "ratio": 0.33})
+    res = mr.cutout(tmp_path / "clip.mp4", tmp_path / "c.mov", 0.0, 1.0)
+    assert slimmed == ["c.mov"] and "\\" not in res["file"] and not res["file"].startswith("//?/")

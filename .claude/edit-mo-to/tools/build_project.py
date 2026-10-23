@@ -233,17 +233,18 @@ def render_assets(plan: dict, timelines: list[dict], render_fn=mr.render) -> dic
     for tl in timelines:
         for n, (o, fr) in enumerate(zip(tl.get("overlays", []), overlays_to_frames(tl)), 1):
             if o.get("file"):
+                o["file"] = mr.plain_path(o["file"])   # plans written before paths were normalised
                 continue
             v = {**o.get("vars", {}), "duration": (US(fr["to"]) - US(fr["from"])) / 1e6}
             out = mdir / f"{_slug(tl['name'])}_{n:02d}_{o['template']}_{mr.job_key(o['template'], v, v['duration'])[:8]}.mov"
             if _reusable(out):
-                o["file"] = out.as_posix()
+                o["file"] = mr.plain_path(out)
                 continue
             jobs.append({"template": o["template"], "out": str(out), "vars": v})
             owners.append(o)
     results = mr.render_many(jobs, render_fn=render_fn) if jobs else []
     for o, r in zip(owners, results):
-        o["file"] = Path(r["file"]).as_posix()
+        o["file"] = mr.plain_path(r["file"])
     cutouts = 0
     for tl in timelines:
         for n, (o, fr) in enumerate(zip(tl.get("overlays", []), overlays_to_frames(tl)), 1):
@@ -254,8 +255,9 @@ def render_assets(plan: dict, timelines: list[dict], render_fn=mr.render) -> dic
             if not _reusable(out):
                 mr.cutout(Path(c["file"]), out, src_t, length)
                 cutouts += 1
-            o["cutout_file"] = out.as_posix()
-    return {"rendered": len({r.get("copied_from") or r["file"] for r in results}), "jobs": len(jobs),
+            o["cutout_file"] = mr.plain_path(out)
+    copied = sum(1 for r in results if r.get("copied_from"))   # render_many dedupes same template+vars+length
+    return {"rendered": len(results) - copied, "copied": copied, "jobs": len(jobs),
             "cutouts": cutouts}
 
 
@@ -322,7 +324,7 @@ def build_timeline(plan: dict, timeline: dict, post=post, render=True) -> dict:
         counts["sfx"] += 1
     _save(did, post, hint=KEYFRAME_HINT if counts["keyframes"] else "")
     draft = cp.wait_for_draft(Path(BUILD) / did)
-    return {"draft": str(draft), "end_frame": end_f, "counts": counts}
+    return {"draft": mr.plain_path(draft), "end_frame": end_f, "counts": counts}
 
 
 def _save(did: str, post, hint: str = "") -> None:
@@ -400,6 +402,8 @@ def _base(plan: dict, job=None) -> Path:
 def save_built(plan: dict, tl: dict, name: str | None = None, job=None) -> Path:
     """The plan with only this timeline (renamed to the project timeline `name`), atomically."""
     name = name or tl["name"]
+    tl = {**tl, "overlays": [{**o, **{k: mr.plain_path(o[k]) for k in ("file", "cutout_file") if o.get(k)}}
+                             for o in tl.get("overlays", [])]}
     one = {**{k: v for k, v in plan.items() if k != "timelines"}, "timelines": [{**tl, "name": name}]}
     path = built_plan_path(_base(plan, job), name)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -423,13 +427,13 @@ def mark_built(plan: dict, name: str, as_name: str | None = None) -> dict:
             continue
         prev = next((x for x in old if x.get("file") and all(x.get(k) == o.get(k) for k in OVERLAY_KEY)), None)
         if prev:
-            o["file"] = prev["file"]
+            o["file"] = mr.plain_path(prev["file"])
             if prev.get("cutout_file"):
-                o["cutout_file"] = prev["cutout_file"]
+                o["cutout_file"] = mr.plain_path(prev["cutout_file"])
             carried += 1
         else:
             unrendered.append(f"ov{n} {o.get('template', '')}")
-    return {"built_plan": str(save_built(plan, tl, as_name)), "carried": carried, "unrendered": unrendered}
+    return {"built_plan": mr.plain_path(save_built(plan, tl, as_name)), "carried": carried, "unrendered": unrendered}
 
 
 def build(plan: dict, import_files=(), timelines=None, job=None, post=post, render=True, plan_path=None) -> dict:
@@ -445,7 +449,7 @@ def build(plan: dict, import_files=(), timelines=None, job=None, post=post, rend
     reports = TMP / "reports" / job
     reports.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
-    rendered = render_assets(plan, tls) if render else {"rendered": 0, "jobs": 0, "cutouts": 0}
+    rendered = render_assets(plan, tls) if render else {"rendered": 0, "copied": 0, "jobs": 0, "cutouts": 0}
     t_render = time.time() - t0
     if plan_path and render:   # --no-render changed nothing in the plan
         save_plan(plan, plan_path)
@@ -480,11 +484,12 @@ def build(plan: dict, import_files=(), timelines=None, job=None, post=post, rend
     manual += [f"check {f} isn't sideways" for f in comp.get("rotation_unchecked", [])]
     failures += [f"import: missing {f}" for f in imported["missing"]]
     counts = {k: sum(b["counts"][k] for _, b in built) for k in built[0][1]["counts"]} if built else {}
-    return {"project": comp["project"], "timelines": comp["timelines"],
+    return {"project": mr.plain_path(comp["project"]), "timelines": comp["timelines"],
             "end_frames": {n: b["end_frame"] for n, b in built}, "counts": counts,
             "rendered": rendered, "render_s": round(t_render, 1), "total_s": round(time.time() - t0, 1),
             "imported": len(imported["added"]), "rotation_fixed": len(comp.get("rotation_fixed", [])),
-            "sheets": sheet_paths, "report": str(report), "failures": failures, "manual": manual}
+            "sheets": [mr.plain_path(x) for x in sheet_paths], "report": mr.plain_path(report), "failures": failures,
+            "manual": manual}
 
 
 def timeline(plan: dict, name: str, post=post, as_name: str | None = None) -> str:
