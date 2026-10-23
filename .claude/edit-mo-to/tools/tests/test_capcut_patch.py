@@ -245,3 +245,29 @@ def test_transition_refuses_effect_missing_from_cache(project, tmp_path):
     with pytest.raises(ValueError, match="not in CapCut's cache"):
         cp.patch_timeline(project, "Timeline 01", [
             {"op": "transition", "id": "a1", "name": "Blur Focus", "from_draft": str(src)}])
+
+
+def test_patch_writes_last_snapshot_matching_segments(project):
+    cp.patch_timeline(project, "Timeline 01", [{"op": "set", "id": "a1", "volume": 0.8}])
+    last = cp.last_path(project, "Timeline 01")
+    assert last == project / cp.BACKUP_DIR / "Timeline 01.last.json"
+    assert json.loads(last.read_text(encoding="utf-8")) == cp.segments(project, "Timeline 01")
+
+
+def test_patch_dry_run_does_not_touch_last(project):
+    cp.patch_timeline(project, "Timeline 01", [{"op": "ripple", "at": 0, "delta": S}], dry_run=True)
+    assert not cp.last_path(project, "Timeline 01").exists()
+    cp.patch_timeline(project, "Timeline 01", [{"op": "set", "id": "a1", "volume": 0.8}])
+    snap = cp.last_path(project, "Timeline 01").read_bytes()
+    cp.patch_timeline(project, "Timeline 01", [{"op": "ripple", "at": 0, "delta": S}], dry_run=True)
+    assert cp.last_path(project, "Timeline 01").read_bytes() == snap
+
+
+def test_save_last_failure_does_not_break_the_write(project, monkeypatch, capsys):
+    def boom(*a, **k):
+        raise ValueError("unknown placeholder")
+    monkeypatch.setattr(cp, "segments", boom)
+    out = cp.patch_timeline(project, "Timeline 01", [{"op": "set", "id": "a1", "volume": 0.8}])
+    assert out["ops_applied"] == 1 and _seg_by(_load(project), "a1")["volume"] == 0.8
+    assert not cp.last_path(project, "Timeline 01").exists()
+    assert "last-write snapshot" in capsys.readouterr().err

@@ -4,6 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import edit_diff as ed  # noqa: E402
+from test_capcut_patch import project  # noqa: E402,F401  (synthetic CapCut project fixture)
 
 
 def seg(track, src, at, dur, src_in=0.0, volume=1.0, scale=1.0, x=0.0, y=0.0, ttype="video", text=None):
@@ -69,3 +70,26 @@ def test_recurring_across_videos(tmp_path):
     log.write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
     rec = ed.recurring(log)
     assert [r["id"] for r in rec] == ["b-roll:shorter"] and rec[0]["videos"] == 2
+
+
+def test_diff_last_with_no_hand_edits_is_empty(project, capsys):
+    from test_capcut_patch import cp
+    # our own patch is snapshotted, so it is not read as a hand edit
+    cp.patch_timeline(project, "Timeline 01", [{"op": "set", "id": "a2", "scale": 1.6, "speed": 0.93}])
+    ed.main(["diff", "--last", str(project), "Timeline 01"])
+    res = json.loads(capsys.readouterr().out)
+    assert res["changed"] == [] and res["patterns"] == []
+
+
+def test_diff_last_sees_only_hand_edits(project, capsys):
+    from test_capcut_patch import cp, _load, S
+    cp.patch_timeline(project, "Timeline 01", [{"op": "set", "id": "a2", "scale": 1.6}])
+    # the editor trims a clip in CapCut afterwards (written straight to the content file, no snapshot)
+    folder = project / "Timelines" / "TL1"
+    c = _load(project)
+    seg = next(s for t in c["tracks"] for s in t["segments"] if s["id"] == "b1")
+    seg["target_timerange"]["duration"] = S
+    (folder / "draft_content.json").write_text(json.dumps(c), encoding="utf-8")
+    ed.main(["diff", "--last", str(project), "Timeline 01"])
+    res = json.loads(capsys.readouterr().out)
+    assert [(c["kind"], c["length"]) for c in res["changed"]] == [("b-roll", -1.0)]

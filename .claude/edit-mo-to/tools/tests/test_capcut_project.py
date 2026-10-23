@@ -604,7 +604,7 @@ def test_add_overlay_refuses_overlap_and_changes_nothing(tmp_path, drafts, base_
     with pytest.raises(ValueError, match="overlap"):
         cp.add_overlay(target, "Timeline 02 - Hook 1", _shifted_draft(tmp_path, base_draft, 2_000_000), "video_main")
     assert (folder / "draft_content.json").read_bytes() == before
-    assert not (target / cp.BACKUP_DIR).exists()
+    assert not [p for p in (target / cp.BACKUP_DIR).iterdir() if not p.name.endswith(".last.json")]  # no backup made
 
 
 def test_add_overlay_refuses_missing_track(tmp_path, drafts, base_draft):
@@ -681,3 +681,31 @@ def test_compose_can_link_originals(tmp_path, drafts):
     cp.compose(target, [("T1", drafts[0])], link_originals=True)
     v = json.loads((target / "draft_info.json").read_text(encoding="utf-8"))["materials"]["videos"][0]
     assert v["path"] == CLIP and CLIP in {i["file_Path"] for i in _meta_imports(target)}
+
+
+def test_replace_writes_last_snapshot(tmp_path, drafts, base_draft):
+    target = _composed(tmp_path, drafts)
+    main = next(t for t in cp.list_timelines(target) if t["main"])
+    assert cp.last_path(target, main["name"]).exists()  # compose snapshots every timeline
+    new_src = tmp_path / "src_new"
+    shutil.copytree(base_draft, new_src)
+    c = json.loads((new_src / "draft_info.json").read_text(encoding="utf-8"))
+    c["duration"] = 123456
+    (new_src / "draft_info.json").write_text(json.dumps(c), encoding="utf-8")
+    cp.replace_timeline(target, main["name"], new_src)
+    last = cp.last_path(target, main["name"])
+    assert last == target / cp.BACKUP_DIR / f"{main['name']}.last.json"
+    snap = json.loads(last.read_text(encoding="utf-8"))
+    assert snap == cp.segments(target, main["name"]) and snap["duration"] == pytest.approx(0.123456)
+
+
+def test_add_timeline_and_add_tracks_write_last_snapshot(tmp_path, drafts, base_draft, audio_draft):
+    target = _composed(tmp_path, drafts)
+    src = tmp_path / "src_c"
+    shutil.copytree(base_draft, src)
+    cp.add_timeline(target, "Timeline 03", src)
+    assert json.loads(cp.last_path(target, "Timeline 03").read_text(encoding="utf-8")) == cp.segments(target, "Timeline 03")
+    _old(target / "draft_info.json")
+    cp.add_tracks(target, "Timeline 03", audio_draft, "audio")
+    snap = json.loads(cp.last_path(target, "Timeline 03").read_text(encoding="utf-8"))
+    assert snap == cp.segments(target, "Timeline 03") and any(s["track_type"] == "audio" for s in snap["segments"])

@@ -7,6 +7,9 @@ CLI (prints JSON):
         At the learning step: every hand edit (trimmed, moved, removed, added, volume, speed, reframed)
         plus plain-language patterns with counts. With --log, the patterns are appended to the
         cross-video log, and `recurring` lists patterns seen in 2+ videos (strong rule candidates).
+    diff --last <project> <timeline> [client folder ...] [--log patterns.jsonl --video <name>]
+        Same, but `built` is the snapshot capcut_project saved at the last write we made to the timeline,
+        so only the editor's hand edits show up (our own patches do not).
     history [patterns.jsonl]
         Patterns that recur across videos.
 
@@ -223,7 +226,14 @@ def main(argv: list[str]) -> None:
     elif cmd == "diff":
         from capcut_project import segments
 
+        from capcut_project import last_path
+
+        last = "--last" in argv
+        if last:
+            argv.remove("--last")
         log, video = _opt(argv, "--log"), _opt(argv, "--video")
+        if last:
+            argv.insert(0, str(last_path(Path(argv[0]), argv[1])))
         built = json.loads(Path(argv[0]).read_text(encoding="utf-8"))
         final = segments(Path(argv[1]), argv[2], [Path(p) for p in argv[3:]])
         res = diff(built, final)
