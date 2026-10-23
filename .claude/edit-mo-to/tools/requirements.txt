@@ -2,3 +2,4 @@ faster-whisper==1.2.1
 librosa
 pytest
 requests
+Pillow
