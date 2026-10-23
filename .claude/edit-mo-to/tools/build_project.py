@@ -7,9 +7,15 @@ CLI (prints JSON only):
         --import files, snapshot each timeline to <base>/.edit-mo-to/built/<timeline>.json, write clip sheets
         to {tmp}/reports/<job>/sheets/ and the placed-clips table to {tmp}/reports/<job>/build_report.txt.
         Writes the rendered overlay "file" (and "cutout_file") paths back into plan.json, so sheets.py overlays
-        and QA see the overlays. --no-render uses each overlay's "file" as given.
-    timeline <plan.json> "<name>"
-        build one timeline as a draft (for revise-new-timeline / revise-in-place); prints the draft folder
+        and QA see the overlays, and the plan each timeline was built from (with those paths) to
+        <base>/.edit-mo-to/built/<timeline>.plan.json: the old_plan of a later revise-in-place.
+        --no-render uses each overlay's "file" as given (plan.json is then left as it is).
+    timeline <plan.json> "<name>" [--as "<project timeline>"]
+        build one timeline as a draft (for revise-new-timeline / revise-in-place); prints the draft folder and
+        writes the built plan copy under the project timeline's name (--as, default <name>)
+    mark-built <plan.json> "<name>" [--as "<project timeline>"]
+        after a successful patch: the revised plan becomes the timeline's built plan copy; overlays without a
+        "file" take it from the previous copy when template, vars, time, length and track are unchanged
     music <plan.json> "<name>" --music f --volume v
         a music-only draft as long as that timeline (for add-tracks ... audio); prints the draft folder
 
@@ -361,6 +367,50 @@ def save_plan(plan: dict, path: Path) -> None:
     tmp.replace(path)
 
 
+def built_plan_path(base: Path, name: str) -> Path:
+    """Where the plan a timeline was last built or patched from lives (next to its edit_diff snapshot)."""
+    return Path(base) / ".edit-mo-to" / "built" / f"{name}.plan.json"
+
+
+def _base(plan: dict, job=None) -> Path:
+    return Path(plan["base"]) if plan.get("base") else TMP / "reports" / (job or _slug(plan.get("project", "job")))
+
+
+def save_built(plan: dict, tl: dict, name: str | None = None, job=None) -> Path:
+    """The plan with only this timeline (renamed to the project timeline `name`), atomically."""
+    name = name or tl["name"]
+    one = {**{k: v for k, v in plan.items() if k != "timelines"}, "timelines": [{**tl, "name": name}]}
+    path = built_plan_path(_base(plan, job), name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    save_plan(one, path)
+    return path
+
+
+OVERLAY_KEY = ("template", "vars", "at", "duration", "track", "cutout")
+
+
+def mark_built(plan: dict, name: str, as_name: str | None = None) -> dict:
+    """After a patch: the revised plan's timeline becomes the built copy. Overlays the revision left unchanged
+    keep the rendered file of the previous copy; changed ones without a file are listed as unrendered."""
+    as_name = as_name or name
+    tl = json.loads(json.dumps(_pick(plan, [name])[0]))
+    old_p = built_plan_path(_base(plan), as_name)
+    old = json.loads(old_p.read_text(encoding="utf-8"))["timelines"][0].get("overlays", []) if old_p.exists() else []
+    carried, unrendered = 0, []
+    for n, o in enumerate(tl.get("overlays", []), 1):
+        if o.get("file"):
+            continue
+        prev = next((x for x in old if x.get("file") and all(x.get(k) == o.get(k) for k in OVERLAY_KEY)), None)
+        if prev:
+            o["file"] = prev["file"]
+            if prev.get("cutout_file"):
+                o["cutout_file"] = prev["cutout_file"]
+            carried += 1
+        else:
+            unrendered.append(f"ov{n} {o.get('template', '')}")
+    return {"built_plan": str(save_built(plan, tl, as_name)), "carried": carried, "unrendered": unrendered}
+
+
 def build(plan: dict, import_files=(), timelines=None, job=None, post=post, render=True, plan_path=None) -> dict:
     """The whole project: overlays rendered once for all timelines, one draft per timeline, compose, import,
     snapshots, clip and overlay sheets and the report. With `plan_path`, the plan (now carrying each overlay's
@@ -376,7 +426,7 @@ def build(plan: dict, import_files=(), timelines=None, job=None, post=post, rend
     t0 = time.time()
     rendered = render_assets(plan, tls) if render else {"rendered": 0, "jobs": 0, "cutouts": 0}
     t_render = time.time() - t0
-    if plan_path:
+    if plan_path and render:   # --no-render changed nothing in the plan
         save_plan(plan, plan_path)
     built = [(tl["name"], build_timeline(plan, tl, post=post, render=False)) for tl in tls]
     project = Path(PATHS["capcut_drafts"]) / plan["project"]
@@ -391,6 +441,10 @@ def build(plan: dict, import_files=(), timelines=None, job=None, post=post, rend
             snap.write_text(json.dumps(cp.segments(project, tl["name"], [base]), ensure_ascii=False), encoding="utf-8")
         except Exception as e:  # noqa: BLE001  (a missing snapshot only weakens the learning step)
             failures.append(f"snapshot {tl['name']}: {e}")
+        try:
+            save_built(plan, tl, job=job)
+        except OSError as e:
+            failures.append(f"built plan {tl['name']}: {e}")
         try:
             sheet_paths += [s["path"] for s in sheets.clip_sheets(plan, tl["name"], reports / "sheets")["sheets"]]
             if tl.get("overlays"):
@@ -412,9 +466,13 @@ def build(plan: dict, import_files=(), timelines=None, job=None, post=post, rend
             "sheets": sheet_paths, "report": str(report), "failures": failures, "manual": manual}
 
 
-def timeline(plan: dict, name: str, post=post) -> str:
-    """One timeline as a draft (renders its missing overlays first); returns the draft folder."""
-    return build_timeline(plan, _pick(plan, [name])[0], post=post)["draft"]
+def timeline(plan: dict, name: str, post=post, as_name: str | None = None) -> str:
+    """One timeline as a draft (renders its missing overlays first), plus its built plan copy under the
+    project timeline's name; returns the draft folder."""
+    tl = _pick(plan, [name])[0]
+    draft = build_timeline(plan, tl, post=post)["draft"]
+    save_built(plan, tl, as_name or name)
+    return draft
 
 
 def music_draft(end_frame: int, music: str, volume: float, post=post) -> str:
@@ -454,7 +512,9 @@ def main(argv: list[str]) -> None:
         print(_dump_short(build(plan, imports, tls, opt("--job"), render="--no-render" not in rest,
                                 plan_path=plan_path)))
     elif cmd == "timeline" and rest:
-        print(json.dumps({"draft": timeline(plan, rest[0])}, ensure_ascii=False))
+        print(json.dumps({"draft": timeline(plan, rest[0], as_name=opt("--as"))}, ensure_ascii=False))
+    elif cmd == "mark-built" and rest:
+        print(json.dumps(mark_built(plan, rest[0], opt("--as")), ensure_ascii=False))
     elif cmd == "music" and rest and opt("--music"):
         tl = _pick(plan, [rest[0]])[0]
         print(json.dumps({"draft": music_draft(end_frame(tl), opt("--music"), float(opt("--volume", 0.1)))},

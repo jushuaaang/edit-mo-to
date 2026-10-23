@@ -45,7 +45,7 @@ job: <Product, no spaces>   project: <Product>
 plan: {tmp}/reports/<job>/plan.json   (build, revise-new-timeline; add-music: the plan the timeline was built from)
 import_files: <every clip, VO, music, B-roll file the user gave for this video>   (build)
 timeline: <name>   new_timeline_name: <name>   (revisions)
-old_plan: <plan.json the timeline was built from>   new_plan: <the revised plan.json>   (revise-in-place)
+old_plan: <base>/.edit-mo-to/built/<timeline>.plan.json   new_plan: {tmp}/reports/<job>/plan.json (re-expanded)   (revise-in-place)
 segments: <capcut_project segments dump of the timeline>   (revise-in-place, optional: the editor makes it)
 music: <path>   music_volume: 0.1   timelines: [<names>]   (add-music only)
 client: <client>   video: <video name>   (for the hand-edit log)
@@ -82,4 +82,4 @@ scope: full | delta   changed: <clip #s per timeline, ovN / prompt ids / ops sin
 ## Revision requests
 Turn each request into: target timeline, mode (new or in place), new timeline name ("Timeline 0N – <Hook/Body> rev k"), and the exact changes (clip #, what to swap, new times). Pass these to the style agent as `revision`. Small timing or swap changes don't need new prompts unless new AI clips are required. If they are, go back to step 6 for just those clips.
 
-When dispatching `revise-in-place`, don't ask the editor to back up first: `replace` and `patch` already back the timeline up and return the path (an extra request makes two backups). Pass `old_plan` (the plan the timeline was last built or patched from) and `new_plan` (the revised one): small timing, swap and scale changes then go in as `patch` ops, keeping the user's edits.
+When dispatching `revise-in-place`, don't ask the editor to back up first: `replace` and `patch` already back the timeline up and return the path (an extra request makes two backups). Pass `old_plan` = `<base>/.edit-mo-to/built/<timeline>.plan.json` (what the timeline was last built or patched from; `build_project` writes it, and the editor refreshes it with `mark-built` after each patch) and `new_plan` = the re-expanded `plan.json`. Expand always overwrites `plan.json`, so it can never be the old plan: small timing, swap and scale changes then go in as `patch` ops, keeping the user's edits.

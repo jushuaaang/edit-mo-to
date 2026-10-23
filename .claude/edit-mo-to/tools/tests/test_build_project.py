@@ -144,9 +144,8 @@ def test_build_stops_without_stop_iteration_patch(monkeypatch):
 
 
 
-def test_build_writes_overlay_files_back_and_makes_overlay_sheets(tmp_path, monkeypatch):
+def _stub_project(monkeypatch, made):
     import sheets
-    calls, post = _post_recorder()
     monkeypatch.setattr(bp, "stop_iteration_patched", lambda path=None: True)
     monkeypatch.setattr(bp.cp, "wait_for_draft", lambda p, t=30: Path(p))
     monkeypatch.setattr(bp.cp, "compose", lambda project, pairs, link_originals=True:
@@ -154,22 +153,73 @@ def test_build_writes_overlay_files_back_and_makes_overlay_sheets(tmp_path, monk
     monkeypatch.setattr(bp.cp, "import_media", lambda project, files: {"added": list(files), "missing": []})
     monkeypatch.setattr(bp.cp, "segments", lambda project, name, dirs=(): {"timeline": name, "segments": []})
     monkeypatch.setattr(sheets, "clip_sheets", lambda plan, tl, out: {"sheets": [{"path": str(out / "clips_1.png")}]})
-    made = []
     monkeypatch.setattr(sheets, "overlay_sheets", lambda plan, tl, out: made.append(tl) or
                         {"sheets": [{"path": str(out / "overlays_1.png")}]})
+
+
+def _agent_plan(tmp_path):
+    """PLAN as the agent's plan.json holds it (no overlay files yet), saved to tmp_path/plan.json."""
     plan = json.loads(json.dumps({**PLAN, "project": "_unit_build", "base": tmp_path.as_posix()}))
-    for o in plan["timelines"][0]["overlays"]:      # what the agent's plan.json holds before a build
+    for o in plan["timelines"][0]["overlays"]:
         o.pop("file")
     plan_path = tmp_path / "plan.json"
     plan_path.write_text(json.dumps(plan), encoding="utf-8")
+    return plan, plan_path
+
+
+def test_build_writes_the_built_plan_per_timeline_and_overlay_sheets(tmp_path, monkeypatch):
+    made = []
+    _stub_project(monkeypatch, made)
+    _, post = _post_recorder()
+    plan, plan_path = _agent_plan(tmp_path)
     for n, o in enumerate(plan["timelines"][0]["overlays"], 1):   # prebuilt by an earlier render
         o["file"] = (tmp_path / f"ov{n}.mov").as_posix()
     res = bp.build(plan, job="_unit_build", post=post, render=False, plan_path=plan_path)
-    written = json.loads(plan_path.read_text(encoding="utf-8"))
-    assert [o["file"] for o in written["timelines"][0]["overlays"]] == [(tmp_path / "ov1.mov").as_posix(),
-                                                                       (tmp_path / "ov2.mov").as_posix()]
-    assert not (tmp_path / "plan.json.tmp").exists()
+    built = json.loads(bp.built_plan_path(tmp_path, "Timeline 01").read_text(encoding="utf-8"))
+    assert [t["name"] for t in built["timelines"]] == ["Timeline 01"]
+    assert [o["file"] for o in built["timelines"][0]["overlays"]] == [(tmp_path / "ov1.mov").as_posix(),
+                                                                     (tmp_path / "ov2.mov").as_posix()]
+    assert "file" not in json.loads(plan_path.read_text(encoding="utf-8"))["timelines"][0]["overlays"][0]  # render False
+    assert not list(tmp_path.rglob("*.tmp"))
     assert made == ["Timeline 01"] and any(p.endswith("overlays_1.png") for p in res["sheets"])
+
+
+def test_build_with_render_writes_overlay_files_into_plan_json(tmp_path, monkeypatch):
+    _stub_project(monkeypatch, [])
+    _, post = _post_recorder()
+    plan, plan_path = _agent_plan(tmp_path)
+
+    def fake_render(p, tls):
+        for n, o in enumerate(tls[0]["overlays"], 1):
+            o["file"] = (tmp_path / f"r{n}.mov").as_posix()
+        return {"rendered": 2, "jobs": 2, "cutouts": 0}
+    monkeypatch.setattr(bp, "render_assets", fake_render)
+    bp.build(plan, job="_unit_build", post=post, render=True, plan_path=plan_path)
+    written = json.loads(plan_path.read_text(encoding="utf-8"))
+    assert [o["file"] for o in written["timelines"][0]["overlays"]] == [(tmp_path / "r1.mov").as_posix(),
+                                                                       (tmp_path / "r2.mov").as_posix()]
+
+
+def test_ops_from_built_copy_to_revised_plan_and_mark_built(tmp_path, monkeypatch):
+    import plan_tools as pt
+    _stub_project(monkeypatch, [])
+    _, post = _post_recorder()
+    plan, plan_path = _agent_plan(tmp_path)
+    for n, o in enumerate(plan["timelines"][0]["overlays"], 1):
+        o["file"] = (tmp_path / f"ov{n}.mov").as_posix()
+    bp.build(plan, job="_unit_build", post=post, render=False)
+    old = json.loads(bp.built_plan_path(tmp_path, "Timeline 01").read_text(encoding="utf-8"))
+    revised = json.loads(plan_path.read_text(encoding="utf-8"))          # re-expanded: no overlay files
+    revised["timelines"][0]["clips"][0]["src_out"] = 1.5                  # clip 1: 2.0 s -> 1.5 s
+    revised["timelines"][0]["overlays"][1]["vars"] = {"text": "BUY"}      # overlay 2 changed
+    dump = {"segments": [{"id": "SEG_A", "track": "video", "source": "/a.mp4", "src_in": 0.0, "at": 0.0}]}
+    r = pt.ops(old, revised, "Timeline 01", dump)
+    assert r["ops"] == [{"op": "set", "id": "SEG_A", "duration": 1500000, "src_duration": 1500000}]
+    m = bp.mark_built(revised, "Timeline 01")
+    after = json.loads(Path(m["built_plan"]).read_text(encoding="utf-8"))["timelines"][0]["overlays"]
+    assert after[0]["file"] == (tmp_path / "ov1.mov").as_posix() and "file" not in after[1]
+    assert m["carried"] == 1 and m["unrendered"] == ["ov2 cta"]
+
 
 # ---------- integration (real VectCutAPI) ----------
 
