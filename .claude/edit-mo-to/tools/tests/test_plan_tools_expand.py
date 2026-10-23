@@ -72,3 +72,15 @@ def test_text_rows_expand_and_shift_with_their_block():
     assert tx[2]["at"] == 2.5 and tx[2]["bg"] == "#123456" and tx[2]["style"] == "cta"
     with pytest.raises(ValueError, match="style"):
         pt.expand(_p2(timelines=[{"name": "T", "seq": [{"clips": [["a.mp4", 0, 0, 30]], "texts": [["X", 0, 30, "huge"]]}]}]))
+
+
+def test_brand_fills_only_vars_whose_default_is_the_same_kind():
+    # badge declares accent with an empty default and renders it as text: a colour there shows "#ff0000 NEW"
+    p = pt.expand(_p2(timelines=[{"name": "T", "seq": [{"clips": [["a.mp4", 0, 0, 30]],
+                                                        "overlays": [["badge", 0, 30, {"text": "NEW"}, "ui", "none"],
+                                                                     ["glass-card-v2", 0, 30, {"title": "X"}, "title", "none"]]}]}]))
+    badge, card = (o["vars"] for o in p["timelines"][0]["overlays"])
+    assert "accent" not in badge and badge["bg"] == "#000000" and badge["fg"] == "#ffffff" and badge["font"] == "Inter"
+    assert card["accent"] == "#ff0000" and card["font"] == "Inter"
+    assert pt._brand_fits("accent", "#123", "rgba(8,12,30,0.86)") and not pt._brand_fits("font", "#fff", "Inter")
+    assert not pt._brand_fits("font", "Inter", "#ffffff")

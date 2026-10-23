@@ -76,6 +76,17 @@ def _clip(row: list, shift: int, base: str, block: str | None, where: str) -> di
     return c
 
 
+COLOUR_RE = re.compile(r"\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\))\s*")
+FONT_RE = re.compile(r"\s*[A-Za-z][A-Za-z0-9 '\-]*\s*")
+
+
+def _brand_fits(key: str, value, default) -> bool:
+    """A brand value fills a template var only when the var's default is the same kind of value: a colour for
+    bg/fg/accent, a font family for font (badge's `accent` defaults to "" and renders as text)."""
+    kind = FONT_RE if key == "font" else COLOUR_RE
+    return all(isinstance(x, str) and kind.fullmatch(x) for x in (value, default))
+
+
 def _overlay(row: list, shift: int, brand: dict, block: str | None, where: str) -> dict:
     if len(row) < 6:
         raise ValueError(f"{where}: overlay row needs [template, at_f, len_f, vars, track, sfx, opts?]")
@@ -85,7 +96,7 @@ def _overlay(row: list, shift: int, brand: dict, block: str | None, where: str) 
     declared = mr.list_templates().get(template, {}).get("defaults", {})
     v = dict(variables)
     for k in BRAND_KEYS:
-        if k in brand and k in declared and k not in v:
+        if k in brand and k in declared and k not in v and _brand_fits(k, brand[k], declared[k]):
             v[k] = brand[k]
     o = {"template": template, "vars": v, "at": sec(at_f + shift), "duration": sec(len_f),
          "track": track, "sfx": sfx, **opts}
