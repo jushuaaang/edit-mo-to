@@ -52,5 +52,7 @@
   "live-markup":    [{"name": "whoosh-short", "offset": 0.65, "len": 0.5, "volume": 0.25}],
   "comment-cta":    [{"name": "typing", "offset": "t_start", "len": 0.9, "volume": 0.25}, {"name": "click", "offset": "t_post", "len": 0.37, "volume": 0.45}, {"name": "notification", "offset": "t_reply", "len": 0.8, "volume": 0.4}],
   "eyedropper-palette": [{"name": "pop", "offset": 0.0, "len": 0.5, "volume": 0.35}, {"name": "click-soft", "offset": 0.95, "len": 0.3, "volume": 0.35}],
-  "film-strip":     [{"name": "whoosh-short", "offset": 0.0, "len": 0.5, "volume": 0.25}]
+  "film-strip":     [{"name": "whoosh-short", "offset": 0.0, "len": 0.5, "volume": 0.25}],
+  "arrow-clock":    [{"name": "whoosh-short", "offset": 0.05, "len": 0.5, "volume": 0.35}, {"name": "click-soft", "offset": "t_clock", "len": 0.3, "volume": 0.35}],
+  "arrow-down":     [{"name": "pop", "offset": 0.0, "len": 0.5, "volume": 0.45}]
 }

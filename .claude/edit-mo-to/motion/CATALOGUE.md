@@ -64,6 +64,13 @@ Effects and motion only: `font` and every colour are vars set from the client's 
 
 **Hit the beat:** for music-cut ads, `tools/plan_build.py plan.json --snap-beats beats.json --tol 3 [--music-at FRAME] [--tracks ui,flash]` moves each overlay's start onto the nearest beat (from `media_timing.py beats`) when one is within the tolerance, keeping its length. Overlays locked to a spoken word or a cut get `"snap": false`.
 
+## Nativia kit (built 2026-10-21)
+Reference-style red hand-drawn arrows (effects only; colours are Nativia's). No text in either. Canvas coordinates are the 1080x1920 frame.
+| Template | Use for | Key vars |
+|---|---|---|
+| arrow-clock | H1 hook over the bottom pane: red marker arrow draws in from the lower left, tip on the product with a short bounce, plus an analog clock (cream face, espresso hands, gold ring) that scales in top right with hands spinning ~0.6 s then settling ("in minutes") | arrow_x, arrow_y (tip), arrow_angle (deg, 0 = points right, -38 = up-right), arrow_len, clock_x, clock_y, clock_size, color, face, ink, ring, t_clock, duration (2.2) |
+| arrow-down | End CTA: bold red arrow pointing down, pops in then bounces 2-3x; sits above the `cta` button | x, y (arrow tip), size, color, bounce (count), duration (1.6) |
+
 ## Sound effects
 - 19 sounds in `sfx\` (Pixabay licence: commercial use, no attribution): whoosh, whoosh-short, whoosh-cinematic, pop, click, click-soft, ping, chime, notification, sparkle, impact-bass-1/2, riser, glitch-1/2/3, typing, key-press, error.
 - Each template has a tuned default cue in `sfx_defaults.json`. Overlays opt in with `"sfx": "default"`.

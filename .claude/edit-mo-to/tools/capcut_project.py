@@ -794,7 +794,7 @@ class _Patcher:
                     return t, s
         raise KeyError(f"no segment with id {sid!r} on this timeline")
 
-    def _track(self, name: str, like_type: str | None = None) -> dict:
+    def _track(self, name: str, like_type: str | None = None, before: str | None = None) -> dict:
         found = [t for t in self.c.get("tracks", []) if t.get("name") == name]
         if len(found) > 1:
             raise ValueError(f"more than one track named {name!r}")
@@ -807,7 +807,11 @@ class _Patcher:
             raise KeyError(f"no track named {name!r} and no {like_type} track to copy its shape from")
         new = {k: copy.deepcopy(v) for k, v in src.items() if k != "segments"}
         new.update(id=_new_id(), name=name, segments=[])
-        self.c["tracks"].append(new)
+        at = next((i for i, t in enumerate(self.c["tracks"]) if before and t.get("name") == before), None)
+        if at is None:
+            self.c["tracks"].append(new)
+        else:  # keep the stacking order: the new track goes just under `before`
+            self.c["tracks"].insert(at, new)
         return new
 
     # --- material helpers ------------------------------------------------------------------
@@ -859,10 +863,15 @@ class _Patcher:
                 clip.setdefault("transform", {})["x"] = op["x"]
             if "y" in op:
                 clip.setdefault("transform", {})["y"] = op["y"]
+        if "flip" in op and clip is not None:
+            clip.setdefault("flip", {"horizontal": False, "vertical": False})["horizontal"] = bool(op["flip"])
         if "volume" in op:
             seg["volume"] = op["volume"]
             if op["volume"]:
                 seg["last_nonzero_volume"] = op["volume"]
+        for key in ("render_index", "track_render_index"):  # stacking order of video tracks
+            if key in op:
+                seg[key] = int(op[key])
 
     def _repoint(self, seg: dict, path: str) -> None:
         info = _probe_media(path)
@@ -894,7 +903,7 @@ class _Patcher:
     def insert(self, op: dict) -> dict:
         info = _probe_media(op["file"])
         like_type = "audio" if info["kind"] == "audio" else "video"
-        track = self._track(op["track"], like_type)
+        track = self._track(op["track"], like_type, op.get("track_before"))
         if op.get("like"):
             _, template = self._locate(op["like"])
         else:
@@ -998,7 +1007,8 @@ def patch_timeline(project: Path, name: str, ops, dry_run: bool = False) -> dict
         {"op": "set", "id", [file], [start, duration, src_start, src_duration, speed, scale, x, y, volume]}
         {"op": "remove", "id"}
         {"op": "insert", "track", "file", "start", "duration", [src_start, src_duration, speed, scale, x, y,
-         volume, like (segment id to copy the shape from), name]}   (a missing track is created)
+         volume, like (segment id to copy the shape from), name, render_index, track_render_index,
+         track_before (a missing track is created just before this track name)]}
         {"op": "split", "id", "at", [name (for the right half)]}
         {"op": "ripple", "at", "delta", [except: ids]}   shift every segment starting at/after `at`
         {"op": "transition", "id", "name", "from_draft", [duration]}   CapCut transition on the cut after

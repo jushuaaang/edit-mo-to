@@ -1,0 +1,71 @@
+<!--defaults {"arrow_x": 560, "arrow_y": 1400, "arrow_angle": -38, "arrow_len": 400, "clock_x": 880, "clock_y": 1080, "clock_size": 220, "color": "#e23b3b", "face": "#fff6ea", "ink": "#2b1a14", "ring": "#d9a441", "t_clock": 0.35, "height": 1920, "duration": 2.2} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; }
+  svg { position: absolute; overflow: visible; }
+  #arrowSvg { left: 0; top: 0; width: 1080px; height: {{height}}px; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="pin" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <svg id="arrowSvg" viewBox="0 0 1080 {{height}}">
+      <defs><filter id="sh" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#000" flood-opacity="0.35"/></filter></defs>
+      <g id="ag" filter="url(#sh)">
+        <g id="abounce">
+          <path id="shaft" pathLength="1" fill="none" stroke="{{color}}" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+          <path id="head" pathLength="1" fill="none" stroke="{{color}}" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </g>
+    </svg>
+    <svg id="clock" viewBox="-100 -100 200 200" style="left:calc({{clock_x}}px - {{clock_size}}px / 2); top:calc({{clock_y}}px - {{clock_size}}px / 2); width:{{clock_size}}px; height:{{clock_size}}px;">
+      <defs><filter id="csh" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000" flood-opacity="0.35"/></filter></defs>
+      <g filter="url(#csh)"><circle r="92" fill="{{face}}" stroke="{{ring}}" stroke-width="6"/></g>
+      <g id="ticks"></g>
+      <g id="hh"><line x1="0" y1="8" x2="0" y2="-46" stroke="{{ink}}" stroke-width="9" stroke-linecap="round"/></g>
+      <g id="mh"><line x1="0" y1="10" x2="0" y2="-68" stroke="{{ink}}" stroke-width="6" stroke-linecap="round"/></g>
+      <circle r="7" fill="{{ink}}"/><circle r="3" fill="{{ring}}"/>
+    </svg>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), TC = Number("{{t_clock}}");
+  const TX = Number("{{arrow_x}}"), TY = Number("{{arrow_y}}"), ANG = Number("{{arrow_angle}}"), L = Number("{{arrow_len}}");
+  // arrow in local space: tip at (0,0), pointing +x, shaft sweeps in from the left with a marker wobble
+  const a = L;
+  document.getElementById("shaft").setAttribute("d", `M ${-a} 34 C ${-a*0.72} -40, ${-a*0.45} 46, ${-a*0.2} 6 S ${-a*0.04} 0, -6 0`);
+  document.getElementById("head").setAttribute("d", `M -88 -66 C -62 -48, -30 -18, 0 0 C -34 6, -62 24, -84 70`);
+  const ag = document.getElementById("ag");
+  ag.setAttribute("transform", `translate(${TX} ${TY}) rotate(${ANG})`);
+  const ticks = document.getElementById("ticks");
+  for (let i = 0; i < 12; i++) {
+    const big = i % 3 === 0;
+    const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    l.setAttribute("x1", 0); l.setAttribute("x2", 0); l.setAttribute("y1", -80); l.setAttribute("y2", big ? -66 : -72);
+    l.setAttribute("stroke", "{{ink}}"); l.setAttribute("stroke-width", big ? 5 : 3); l.setAttribute("stroke-linecap", "round");
+    l.setAttribute("transform", `rotate(${i * 30})`); ticks.appendChild(l);
+  }
+  const tl = gsap.timeline({ paused: true });
+  // arrow draws: shaft then head, then a short bounce along its own direction
+  gsap.set("#shaft,#head", { strokeDasharray: 1, strokeDashoffset: 1 });
+  tl.to("#shaft", { strokeDashoffset: 0, duration: 0.5, ease: "power2.out" }, 0.05);
+  tl.to("#head", { strokeDashoffset: 0, duration: 0.18, ease: "power2.out" }, 0.5);
+  tl.fromTo("#abounce", { x: 0 }, { x: 22, duration: 0.1, ease: "power2.out" }, 0.62);
+  tl.to("#abounce", { x: 0, duration: 0.35, ease: "elastic.out(1,0.45)" }, 0.72);
+  tl.to("#abounce", { x: 10, duration: 0.45, ease: "sine.inOut", yoyo: true, repeat: 1 }, 1.15);
+  // clock: scale+fade in, hands spin fast ~0.6 s, settle on 10:10
+  tl.fromTo("#clock", { opacity: 0, scale: 0.6, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(1.6)" }, TC);
+  tl.fromTo("#mh", { rotation: 0, svgOrigin: "0 0" }, { rotation: 1860, svgOrigin: "0 0", duration: 0.75, ease: "power3.out" }, TC + 0.1);
+  tl.fromTo("#hh", { rotation: 0, svgOrigin: "0 0" }, { rotation: 305, svgOrigin: "0 0", duration: 0.75, ease: "power3.out" }, TC + 0.1);
+  tl.to("#pin", { opacity: 0, duration: 0.2, ease: "power2.in" }, D - 0.22);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

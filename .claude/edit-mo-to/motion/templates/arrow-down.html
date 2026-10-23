@@ -1,0 +1,44 @@
+<!--defaults {"x": 540, "y": 1380, "size": 220, "color": "#e23b3b", "bounce": 3, "height": 1920, "duration": 1.6} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; }
+  #pin { position: absolute; inset: 0; }
+  #wrap { position: absolute; left: calc({{x}}px - {{size}}px / 2); top: calc({{y}}px - {{size}}px); width: {{size}}px; height: {{size}}px; }
+  svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 8px 10px rgba(0,0,0,.38)); }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="pin" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <!-- (x, y) is the arrow TIP; the arrow sits above it -->
+    <div id="wrap">
+      <svg viewBox="0 0 100 100">
+        <path d="M 38 4 C 36 22, 40 40, 38 56 L 14 52 C 28 68, 42 82, 50 96 C 58 82, 72 68, 86 52 L 62 56 C 64 40, 60 22, 62 4 Z"
+              fill="{{color}}" stroke="{{color}}" stroke-width="6" stroke-linejoin="round"/>
+      </svg>
+    </div>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), N = Math.max(1, Math.round(Number("{{bounce}}"))), S = Number("{{size}}");
+  const tl = gsap.timeline({ paused: true });
+  tl.fromTo("#wrap", { opacity: 0, scale: 0.5, y: -S * 0.25, transformOrigin: "50% 100%" }, { opacity: 1, scale: 1, y: 0, duration: 0.3, ease: "back.out(2.2)" }, 0);
+  const per = 0.34, start = 0.35, amp = S * 0.14;
+  for (let i = 0; i < N; i++) {
+    const t = start + i * per * 2;
+    if (t + per * 2 > D - 0.25) break;
+    tl.to("#wrap", { y: amp, duration: per, ease: "power2.in" }, t);
+    tl.to("#wrap", { y: 0, duration: per, ease: "power2.out" }, t + per);
+  }
+  tl.to("#pin", { opacity: 0, duration: 0.2, ease: "power2.in" }, D - 0.22);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>
