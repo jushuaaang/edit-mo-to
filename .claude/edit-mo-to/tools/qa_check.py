@@ -22,6 +22,7 @@ sys.path.insert(0, str(TOOLS))
 import capcut_project as cp  # noqa: E402
 import plan_tools as pt  # noqa: E402
 from media_timing import to_sf  # noqa: E402
+from plan_common import clip_volume  # noqa: E402
 
 F = 1 / 30
 TOL = 2 * F + 1e-6            # clip time and length tolerance: 2 frames
@@ -62,7 +63,7 @@ def _expected_track(c: dict) -> str:
 
 
 def _expected_volume(c: dict) -> float:
-    return 0.0 if c.get("mute", True) else 10 ** (c.get("gain_db", 0) / 20)
+    return float(clip_volume(c))
 
 
 def _in_changed(spec: list[str], n: int, kind: str) -> bool:

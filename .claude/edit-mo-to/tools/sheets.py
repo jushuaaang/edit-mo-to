@@ -86,7 +86,7 @@ def overlay_sheets(plan: dict, timeline: str, out_dir: Path) -> dict:
     for n, o in enumerate(tl.get("overlays", []), 1):
         t = o["at"] + o["duration"] / 2
         under = next((c for c in tl["clips"]
-                      if c["at"] <= t < c["at"] + (c["src_out"] - c["src_in"]) / _speed(c)), None)
+                      if c["at"] <= t < c["at"] + pt._clip_len(c)), None)
         f = out_dir / "frames" / f"ov{n}.png"
         lbl = f"ov{n}"
         try:

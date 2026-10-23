@@ -33,7 +33,7 @@ import capcut_project as cp  # noqa: E402
 import motion_render as mr  # noqa: E402
 from machine import BUILD, PATHS, TMP  # noqa: E402
 from media_timing import to_sf  # noqa: E402
-from plan_common import US, sfx_cues  # noqa: E402,F401  (SFX_TRACKS are the cue tracks sfx_cues assigns)
+from plan_common import US, clip_len_f, clip_volume, sfx_cues  # noqa: E402,F401  (SFX_TRACKS are the cue tracks sfx_cues assigns)
 
 API = "http://localhost:9001"
 TRACK_INDEX = {"video_main": 0, "video_top": 1, "video_bottom": 2, "video_overlay": 1}
@@ -76,7 +76,7 @@ def _canvas(plan: dict) -> tuple[int, int]:
 
 def clip_frames(clip: dict) -> tuple[int, int]:
     """(at frame, timeline length in frames) of a clip; a sped clip keeps a whole-frame length."""
-    return _f(clip["at"]), round((clip["src_out"] - clip["src_in"]) * 30 / (clip.get("speed") or 1.0))
+    return _f(clip["at"]), clip_len_f(clip)
 
 
 def end_frame(timeline: dict) -> int:
@@ -106,7 +106,7 @@ def clip_body(draft_id: str, clip: dict, canvas: tuple[int, int]) -> dict:
     s_us = round(clip["src_in"] * 1e6)
     e_us = s_us + round((US(at_f + len_f) - US(at_f)) * speed)
     track = clip.get("track", "video_main")
-    vol = 0 if clip.get("mute", True) else 10 ** (clip.get("gain_db", 0) / 20)
+    vol = clip_volume(clip)
     scale = clip.get("scale", 1.0)
     b = {"draft_id": draft_id, "video_url": clip["file"], "start": _s(s_us), "end": _s(e_us),
          "target_start": _s(US(at_f)), "track_name": "video" if track == "video_main" else track,

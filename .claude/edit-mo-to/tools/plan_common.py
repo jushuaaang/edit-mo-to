@@ -18,6 +18,21 @@ def US(frame: int) -> int:
     return round(frame * 1_000_000 / 30)
 
 
+def clip_len_f(clip: dict) -> int:
+    """A contract clip's timeline length in whole frames: its `duration` (expand writes len_f / 30), else, for
+    plans written before clips carried one, the source span over speed (a frame off for some slow clips)."""
+    if clip.get("duration") is not None:
+        return round(clip["duration"] * 30)
+    return round((clip["src_out"] - clip["src_in"]) * 30 / (clip.get("speed") or 1.0))
+
+
+def clip_volume(clip: dict) -> float:
+    """A contract clip's linear volume: 0 when muted, else `volume` (default 1) times the `gain_db` gain."""
+    if clip.get("mute", True):
+        return 0
+    return float(clip.get("volume", 1.0)) * 10 ** (clip.get("gain_db", 0) / 20)
+
+
 def sfx_cues(overlays: list, end_us: int | None = None) -> list:
     """Sound cues for the overlays: resolved file, start, trimmed length, volume and a track, so that no two
     cues overlap on one track (VectCutAPI refuses overlaps) and none runs past end_us."""

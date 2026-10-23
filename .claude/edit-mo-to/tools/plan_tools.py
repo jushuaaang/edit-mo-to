@@ -25,6 +25,7 @@ sys.path.insert(0, str(TOOLS))
 import motion_render as mr  # noqa: E402
 from machine import TMP  # noqa: E402
 from media_timing import to_sf  # noqa: E402
+from plan_common import clip_len_f, clip_volume  # noqa: E402
 
 TRACKS = {"main": "video_main", "top": "video_top", "bottom": "video_bottom", "overlay": "video_overlay"}
 TRACKS_DUMP = {"video_main": "video"}  # track names capcut_project.segments reports, where they differ
@@ -61,7 +62,7 @@ def _clip(row: list, shift: int, base: str, block: str | None, where: str) -> di
         raise ValueError(f"{where}: unknown track {track!r}; use {sorted(TRACKS)}")
     speed = float(opts.get("speed", 1.0))
     c = {"file": _join(base, file), "src_in": sec(src_in_f), "src_out": sec(round(src_in_f + len_f * speed)),
-         "at": sec(at_f), "speed": speed, "track": TRACKS[track], "x": 0.0, "y": 0.0, "scale": 1.0,
+         "at": sec(at_f), "duration": sec(len_f), "speed": speed, "track": TRACKS[track], "x": 0.0, "y": 0.0, "scale": 1.0,
          "transition": None, "effect": None, "mute": opts.get("mute", True)}
     c.update({k: v for k, v in opts.items() if k not in CLIP_DERIVED})
     if c["transition"]:
@@ -165,7 +166,7 @@ def plan_table(plan: dict) -> str:
     for tl in plan["timelines"]:
         for c in tl["clips"]:
             n += 1
-            ln = round((c["src_out"] - c["src_in"]) * 30 / c["speed"]) / 30
+            ln = _clip_len(c)
             fx = " ".join(str(x) for x in (c.get("transition"), c.get("effect")) if x)
             rows.append(" | ".join([str(n), tl["name"], to_sf(c["at"]), to_sf(ln), c["file"],
                                     f"{to_sf(c['src_in'])}–{to_sf(c['src_out'])}", f"{c['speed']:g}x",
@@ -222,9 +223,9 @@ def _whole(x: float) -> bool:
 
 
 def _clip_len(c: dict) -> float:
-    """Timeline length in whole frames' worth of seconds: expand rounds src_out to a frame, so a sped clip's
-    exact length can sit a fraction of a frame off the length the plan asked for."""
-    return round((c["src_out"] - c["src_in"]) / c.get("speed", 1.0) * 30) / 30
+    """Timeline length in seconds of whole frames: the clip's `duration` (len_f), the same length the build
+    places (plan_common.clip_len_f)."""
+    return clip_len_f(c) / 30
 
 
 def _scale_errors(c: dict, info: dict, where: str) -> list[str]:
@@ -612,8 +613,8 @@ def _facts(c: dict) -> dict:
     """A contract clip as whole frames plus the patch units it maps to."""
     speed = float(c.get("speed") or 1.0)
     at_f = round(c["at"] * 30)
-    len_f = round((c["src_out"] - c["src_in"]) / speed * 30)
-    vol = 0 if c.get("mute", True) else 10 ** (c.get("gain_db", 0) / 20)
+    len_f = clip_len_f(c)
+    vol = clip_volume(c)
     dur = _us(at_f + len_f) - _us(at_f)
     return {"file": c["file"], "track": c.get("track", "video_main"), "src_in_f": round(c["src_in"] * 30),
             "start": _us(at_f), "duration": dur, "src_duration": round(dur * speed), "speed": speed,
