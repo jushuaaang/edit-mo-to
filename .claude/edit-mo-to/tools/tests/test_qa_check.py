@@ -204,3 +204,56 @@ def test_cli_prompts_prints_the_dict(tmp_path, capsys):
     assert e.value.code == 1
     out = json.loads(capsys.readouterr().out)
     assert out["rows"][0]["check"] == "prompts" and out["verdict"].startswith("FAIL")
+
+
+def _api_up():
+    import requests
+    try:
+        requests.post("http://localhost:9001/create_draft", json={"width": 1080, "height": 1920}, timeout=3)
+        return True
+    except requests.RequestException:
+        return False
+
+
+def test_layout_units_match_a_real_vectcut_draft(monkeypatch):
+    """x/y/scale in the plan -> VectCutAPI draft -> capcut_project.segments -> check_build `layout`, no conversion."""
+    import shutil
+    import subprocess
+    import time
+    import build_project as bp
+    import capcut_project as cp
+    from machine import PATHS, TMP
+    if not _api_up():
+        pytest.skip("VectCutAPI not running on :9001")
+    monkeypatch.setattr(cp, "_capcut_running", lambda: False)
+    src = TMP / "_test_fixture" / "qa_check" / "layout.mp4"
+    if not src.exists():
+        src.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-f", "lavfi", "-i",
+                        "testsrc2=size=1080x1920:rate=30:duration=6", "-pix_fmt", "yuv420p", str(src)], check=True)
+    f = src.as_posix()
+    name = f"_test_qa_layout_{time.strftime('%Y%m%d-%H%M%S')}"
+    tl = {"name": "L", "vo": None, "vo_in": 0.0, "vo_out": 2.0, "vo_volume": 1.0, "music": None, "music_volume": 0.1,
+          "clips": [_clip(f, 0.0, 0.0, 2.0, x=0.25, scale=1.2),
+                    _clip(f, 3.0, 0.0, 2.0, track="video_top", layout="split-top", y=0.5)],
+          "overlays": [], "texts": [], "manual": []}
+    plan = _plan([tl], project=name)
+    made = None
+    project = Path(PATHS["capcut_drafts"]) / name
+    try:
+        draft = bp.build_timeline(plan, tl, render=False)["draft"]
+        made = Path(draft)
+        cp.compose(project, [("L", Path(draft))])
+        dump = cp.segments(project, "L", [src.parent])
+        main_seg = next(s for s in dump["segments"] if s["track"] == "video")
+        split = next(s for s in dump["segments"] if s["track"] == "video_top")
+        assert (main_seg["transform"]["x"], main_seg["scale"]["x"]) == pytest.approx((0.25, 1.2), abs=0.01)
+        assert split["transform"]["y"] == pytest.approx(0.5, abs=0.01) and split["mask"]
+        r = qc.check_build(plan, project, segments_fn=lambda p, n, s: dump, probe=PROBE, silent=QUIET,
+                           limits={})
+        assert not [x for x in r["rows"] if x["check"] == "layout"], r["rows"]
+    finally:
+        if project.exists() and project.name.startswith("_test_"):
+            shutil.rmtree(project, ignore_errors=True)
+        if made and made.exists() and made.parent.name == Path(bp.BUILD).name:
+            shutil.rmtree(made, ignore_errors=True)
