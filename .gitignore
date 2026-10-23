@@ -42,6 +42,7 @@ __pycache__/
 
 # each editor's own learned rules and hand-edit log (never uploaded)
 .claude/edit-mo-to/my-preferences.md
+.claude/edit-mo-to/learning-declined.jsonl
 .claude/edit-mo-to/edit-patterns.jsonl
 
 # /practice-muna outputs (the editor's own footage)
