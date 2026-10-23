@@ -66,6 +66,7 @@ rules the editor declined. That is why it re-proposes known rules.
 - `--workers 1` removes the calibration: 5.0 s, pixels identical within measurement (83 dB PSNR).
   Rendering 3–6 overlays side by side (separate processes): ~2.3 s per overlay. 45 overlays: 5.2 min → ~1.8 min.
   `--batch` gives the same gain but needs template changes; it does not keep a warm Chrome.
+- After (Windows PC, 3 s `badge`, `motion_render.py render`, two runs each): old behaviour (no `--workers`, no slim) 22.7 s / 23.6 s, 10.5 MB; new default (`--workers 1` + slim) 16.7 s / 16.3 s, 6.8 MB (-36%). HyperFrames logs `drawelement` capture here (not `screenshot`; 5 clip-boundary frames fall back to screenshots), with capture ~11 s dominating. Slim PSNR vs unslimmed: 73 dB.
 - Nativia rendered 47 overlays where only 13 were unique (same template + vars): dedupe before rendering.
 - ProRes 4444 re-encode (`prores_ks -profile:v 4444 -qscale:v 6 -alpha_bits 8`): files −38% to −48%
   (16.8 → 10.4 MB, 14.3 → 7.4 MB), error 0.1–0.3 of one 8-bit step, 0.4 s per file. Lighter for CapCut playback.

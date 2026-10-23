@@ -1,4 +1,6 @@
 import json
+import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -130,3 +132,64 @@ def test_text_file_vars_are_inlined_compact(tmp_path):
     assert out["script_file"] == "Perché l'integratore è più"
     html = mr.fill(mr.template_text("ugc-captions"), out)
     assert "perché" in html and "l&#x27;integratore" in html
+
+
+GSAP_CDN = "https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"
+
+
+def test_fill_points_gsap_at_the_local_copy():
+    html = mr.fill(f'<!--defaults {{"duration": 2}} --><script src="{GSAP_CDN}"></script>', {})
+    assert 'src="gsap.min.js"' in html and "jsdelivr" not in html
+    assert (mr.MOTION / "skeleton" / "gsap.min.js").exists()
+
+
+def test_job_key_ignores_var_order_and_sees_media_paths():
+    a = mr.job_key("badge", {"text": "A", "bg": "#000"}, 3.0)
+    b = mr.job_key("badge", {"bg": "#000", "text": "A"}, 3.0)
+    assert a == b and a != mr.job_key("badge", {"text": "A", "bg": "#000"}, 3.5)
+    assert mr.job_key("phone-cards", {"video1": "/a.mp4"}, 3) != mr.job_key("phone-cards", {"video1": "/b.mp4"}, 3)
+
+
+def test_render_many_renders_duplicates_once(tmp_path):
+    calls = []
+
+    def fake(name, out, variables=None, **kw):
+        calls.append(name)
+        Path(out).write_bytes(b"x")
+        return {"file": str(out), "alpha": True}
+
+    jobs = [{"template": "badge", "out": tmp_path / f"{i}.mov", "vars": {"text": "SAME", "duration": 3}} for i in range(3)]
+    jobs.append({"template": "badge", "out": tmp_path / "d.mov", "vars": {"text": "OTHER", "duration": 3}})
+    res = mr.render_many(jobs, concurrency=2, render_fn=fake)
+    assert len(calls) == 2 and all(Path(j["out"]).exists() for j in jobs) and sum("copied_from" in r for r in res) == 2
+
+
+def _psnr(a: Path, b: Path) -> float:
+    r = subprocess.run(["ffmpeg", "-nostdin", "-i", str(a), "-i", str(b), "-lavfi", "psnr", "-f", "null", "-"],
+                       capture_output=True, text=True)
+    m = re.search(r"average:(\S+)", r.stderr)
+    assert m, r.stderr[-500:]
+    return float("inf") if m.group(1) == "inf" else float(m.group(1))
+
+
+@pytest.mark.slow
+def test_slim_keeps_alpha_and_pixels(tmp_path):      # real render of badge at 2 s, path with a space
+    out = tmp_path / "with space" / "b.mov"
+    out.parent.mkdir()
+    mr.render("badge", out, {"text": "SLIM", "duration": 2}, slim=False)
+    ref = tmp_path / "ref.mov"
+    shutil.copy2(out, ref)
+    before = out.stat().st_size
+    info = mr.slim(out)
+    assert info["after"] < before * 0.75 and mr._probe(out)["alpha"]
+    psnr = _psnr(ref, out)
+    print("PSNR", psnr)
+    assert psnr >= 58
+
+
+def test_slim_failure_leaves_original(tmp_path):
+    f = tmp_path / "x.mov"
+    f.write_bytes(b"not a movie")
+    with pytest.raises(mr.RenderFailed):
+        mr.slim(f)
+    assert f.read_bytes() == b"not a movie" and not list(tmp_path.glob("*.tmp.mov"))

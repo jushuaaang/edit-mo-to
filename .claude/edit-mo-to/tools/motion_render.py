@@ -7,7 +7,11 @@ alpha of these .mov files on an overlay track.
 
 CLI (prints JSON):
     list                                         templates and their variables/defaults
-    render <template> <out.mov> [--vars '<json>' | --vars-file f.json]
+    render <template> <out.mov> [--vars '<json>' | --vars-file f.json] [--no-slim] [--workers N]
+                                                 one worker by default (machine.json render_workers; 0 = HyperFrames'
+                                                 own choice), then a slim ProRes 4444 re-encode (about 40% smaller)
+    render-many <jobs.json> [--concurrency N]    [{"template","out","vars"}...]; identical jobs render once and are
+                                                 copied; the rest run side by side (machine.json render_concurrency)
     check <template> [--vars '<json>' | --vars-file f.json] [--snapshots dir]
                                                  HyperFrames audit: lint, runtime errors, text overflow/overlap,
                                                  contrast. Held problems are errors/warnings; entrance blips are info
@@ -25,6 +29,8 @@ can show the user's own clips (phone-cards). Vars that point at an existing .svg
 file's markup (scripts and event handlers removed), so logo-reveal can draw the real logo's paths. Vars that
 point at an existing .json or .txt file are replaced by its text (ugc-captions reads word timings + the script).
 """
+import concurrent.futures
+import hashlib
 import html
 import json
 import os
@@ -40,6 +46,7 @@ TEMPLATES = MOTION / "templates"
 HF_BIN = MOTION / "node_modules" / ".bin" / ("hyperframes.cmd" if os.name == "nt" else "hyperframes")
 DEFAULTS_RE = re.compile(r"\A\s*<!--defaults\s+(\{.*?\})\s*-->\s*", re.S)
 PLACEHOLDER_RE = re.compile(r"\{\{\s*([a-zA-Z0-9_]+)\s*\}\}")
+GSAP_CDN = "https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"  # copied into skeleton/, so renders work offline
 
 
 HELD_DEFECTS = {"canvas_overflow", "text_box_overflow", "clipped_text", "content_overlap", "text_occluded"}
@@ -81,7 +88,7 @@ def fill(template: str, variables: dict) -> str:
             v = int(v)
         return html.escape(str(v), quote=True)
 
-    return PLACEHOLDER_RE.sub(sub, body)
+    return PLACEHOLDER_RE.sub(sub, body).replace(GSAP_CDN, "gsap.min.js")
 
 
 def template_text(name: str) -> str:
@@ -185,9 +192,39 @@ def _stage_media(variables: dict, work: Path) -> dict:
     return out
 
 
-def render(name: str, out: Path, variables: dict | None = None, fps: int = 30) -> dict:
+def slim(mov: Path) -> dict:
+    """Re-encode a render as a lighter ProRes 4444 (about 40% smaller, within 0.3 of one 8-bit step), in place.
+    Writes <mov>.slim.tmp.mov beside it, then replaces the original; on failure the original stays."""
+    mov = Path(mov)
+    tmp = mov.with_name(mov.name + ".slim.tmp.mov")
+    before = mov.stat().st_size
+    try:
+        r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(mov), "-c:v", "prores_ks",
+                            "-profile:v", "4444", "-vendor", "apl0", "-pix_fmt", "yuva444p10le", "-qscale:v", "6",
+                            "-alpha_bits", "8", "-an", str(tmp)], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace")
+        if r.returncode != 0 or not tmp.exists():
+            raise RenderFailed(f"slim re-encode of {mov} failed ({r.returncode}): {r.stderr[-800:]}")
+        os.replace(tmp, mov)
+    finally:
+        tmp.unlink(missing_ok=True)
+    after = mov.stat().st_size
+    return {"before": before, "after": after, "ratio": round(after / before, 3) if before else None}
+
+
+def _config_int(key: str) -> int:
+    from machine import load
+    return int(load()[key])
+
+
+def render(name: str, out: Path, variables: dict | None = None, fps: int = 30, workers: int | None = None,
+           slim: bool = True) -> dict:
+    """Render one overlay. workers None = machine.json render_workers (default 1: skips HyperFrames' ~1.7 s
+    worker-calibration browser launch); 0 = don't pass --workers. slim re-encodes the result smaller."""
+    slim_fn = globals()["slim"]
     out = Path(out).resolve()
     out.parent.mkdir(parents=True, exist_ok=True)
+    workers = _config_int("render_workers") if workers is None else workers
     work = Path(tempfile.mkdtemp(prefix="emt-motion-", dir=os.environ.get("EMT_MOTION_TMP")))
     try:
         html_text = fill(template_text(name), _stage_media(variables or {}, work))
@@ -195,8 +232,10 @@ def render(name: str, out: Path, variables: dict | None = None, fps: int = 30) -
             shutil.copy2(f, work / f.name)
         (work / "index.html").write_text(html_text, encoding="utf-8")
         env = {**os.environ, "HYPERFRAMES_SKIP_SKILLS": "1"}
-        r = subprocess.run([str(HF_BIN), "render", str(work), "--format", "mov", "--fps", str(fps),
-                            "-o", str(out), "--quiet"], capture_output=True, text=True, encoding="utf-8", errors="replace", env=env,
+        args = [str(HF_BIN), "render", str(work), "--format", "mov", "--fps", str(fps), "-o", str(out), "--quiet"]
+        if workers:
+            args += ["--workers", str(workers)]
+        r = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env,
                            shell=os.name == "nt")
         if r.returncode != 0 or not out.exists():
             raise RenderFailed(f"hyperframes render failed ({r.returncode}): {(r.stderr or r.stdout)[-1500:]}")
@@ -205,7 +244,45 @@ def render(name: str, out: Path, variables: dict | None = None, fps: int = 30) -
     info = _probe(out)
     if not info["alpha"]:
         raise RenderFailed(f"{out} has no alpha channel ({info['pix_fmt']})")
-    return {"file": str(out), "template": name, **info}
+    if slim:
+        slim_fn(out)
+    return {"file": str(out), "template": name, **info, "bytes": out.stat().st_size}
+
+
+def job_key(template: str, variables: dict, duration: float) -> str:
+    """Same template + vars + duration (media vars by path) -> same key, so the render can be shared."""
+    blob = json.dumps([template, variables, float(duration)], sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha1(blob.encode("utf-8")).hexdigest()
+
+
+def render_many(jobs: list[dict], concurrency: int | None = None, render_fn=render) -> list[dict]:
+    """Render jobs [{"template", "out", "vars"}] side by side (one subprocess each). Jobs with the same
+    job_key render once; the rest get a copy and "copied_from" in their result. One result per job, in order."""
+    if concurrency is None:
+        concurrency = _config_int("render_concurrency")
+    firsts: dict[str, int] = {}
+    dupes: dict[int, int] = {}
+    for i, j in enumerate(jobs):
+        v = j.get("vars") or {}
+        dur = v["duration"] if "duration" in v else list_templates()[j["template"]]["defaults"].get("duration", 0)
+        k = job_key(j["template"], v, float(dur))
+        if k in firsts:
+            dupes[i] = firsts[k]
+        else:
+            firsts[k] = i
+    results: list[dict | None] = [None] * len(jobs)
+    todo = [i for i in range(len(jobs)) if i not in dupes]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
+        futs = {pool.submit(render_fn, jobs[i]["template"], Path(jobs[i]["out"]), jobs[i].get("vars") or {}): i
+                for i in todo}
+        for f in concurrent.futures.as_completed(futs):
+            results[futs[f]] = f.result()
+    for i, src in dupes.items():
+        out = Path(jobs[i]["out"])
+        out.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(jobs[src]["out"], out)
+        results[i] = {**results[src], "file": str(out.resolve()), "copied_from": str(Path(jobs[src]["out"]).resolve())}
+    return results
 
 
 def check(name: str, variables: dict | None = None, snapshots_dir: Path | None = None) -> dict:
@@ -307,7 +384,17 @@ def main(argv: list[str]) -> None:
             i = args.index("--vars-file")
             variables = json.loads(Path(args[i + 1]).read_text(encoding="utf-8"))
             args = args[:i] + args[i + 2:]
-        out = render(args[0], Path(args[1]), variables)
+        workers = None
+        if "--workers" in args:
+            i = args.index("--workers")
+            workers = int(args[i + 1])
+            args = args[:i] + args[i + 2:]
+        no_slim = "--no-slim" in args
+        args = [a for a in args if a != "--no-slim"]
+        out = render(args[0], Path(args[1]), variables, workers=workers, slim=not no_slim)
+    elif cmd == "render-many":
+        conc = int(args[args.index("--concurrency") + 1]) if "--concurrency" in args else None
+        out = render_many(json.loads(Path(args[0]).read_text(encoding="utf-8-sig")), conc)
     elif cmd == "check":
         variables = {}
         snaps = None

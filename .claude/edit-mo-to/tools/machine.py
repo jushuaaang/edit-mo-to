@@ -6,6 +6,7 @@ platform's default below.
 usage: python machine.py   prints the resolved paths as JSON
 """
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -28,6 +29,8 @@ _DEFAULTS.update({
     "root": str(ROOT),
     "mcp_servers": str(HOME / "mcp-servers"),
     "tmp": str(HOME / "mcp-servers" / "tmp"),
+    "render_workers": 1,  # hyperframes --workers per overlay render: 1 skips the ~1.7 s calibration launch
+    "render_concurrency": min(4, max(1, (os.cpu_count() or 2) // 2)),  # overlay renders side by side
 })
 
 
