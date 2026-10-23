@@ -99,10 +99,26 @@ def _effect(row: list, shift: int, where: str) -> dict:
             "duration": sec(_frame(len_f, f"{where} len_f"))}
 
 
+TEXT_STYLES = ("badge", "word", "cta")   # the editor's add_text presets (build_project.TEXT_STYLES)
+
+
+def _text(row: list, shift: int, block: str | None, where: str) -> dict:
+    if len(row) < 4:
+        raise ValueError(f"{where}: text row needs [text, at_f, len_f, style, opts?]")
+    text, at_f, len_f, style = row[:4]
+    if style not in TEXT_STYLES:
+        raise ValueError(f"{where}: unknown text style {style!r}; use {list(TEXT_STYLES)}")
+    t = {"text": text, "at": sec(_frame(at_f, f"{where} at_f") + shift), "duration": sec(_frame(len_f, f"{where} len_f")),
+         "style": style, **(row[4] if len(row) > 4 else {})}
+    if block:
+        t["block"] = block
+    return t
+
+
 def _timeline(tl: dict, plan2: dict) -> dict:
     base, brand, blocks = plan2.get("base", ""), plan2.get("brand", {}), plan2.get("blocks", {})
     name = tl["name"]
-    clips, overlays, effects = [], [], []
+    clips, overlays, effects, texts = [], [], [], []
     for n, item in enumerate(tl.get("seq", []), 1):
         shift = _frame(item.get("at_f", 0), f"{name} seq {n} at_f")
         block = item.get("use")
@@ -116,10 +132,12 @@ def _timeline(tl: dict, plan2: dict) -> dict:
         clips += [_clip(r, shift, base, block, where) for r in body.get("clips", [])]
         overlays += [_overlay(r, shift, brand, block, where) for r in body.get("overlays", [])]
         effects += [_effect(r, shift, where) for r in body.get("effects", [])]
+        texts += [_text(r, shift, block, where) for r in body.get("texts", [])]
     end_f = max((c["_end_f"] for c in clips), default=0)
     for c in clips:
         del c["_end_f"]
-    vo, music = plan2.get("vo"), plan2.get("music")
+    vo = tl["vo"] if "vo" in tl else plan2.get("vo")              # a timeline's own VO / music wins
+    music = tl["music"] if "music" in tl else plan2.get("music")
     out = {"name": name,
            "vo": _join(base, vo["file"]) if vo else None,
            "vo_in": sec(_frame(tl.get("vo_in_f", 0), f"{name} vo_in_f")),
@@ -127,7 +145,7 @@ def _timeline(tl: dict, plan2: dict) -> dict:
            "vo_volume": vo.get("volume", 1.0) if vo else 1.0,
            "music": _join(base, music["file"]) if music else None,
            "music_volume": music.get("volume", 0.1) if music else 0.1,
-           "clips": clips, "overlays": overlays, "texts": [], "manual": tl.get("manual", [])}
+           "clips": clips, "overlays": overlays, "texts": texts, "manual": tl.get("manual", [])}
     if effects:
         out["effects"] = effects
     return out
@@ -357,6 +375,7 @@ REQUIRED_LOCKS = {
     "product-ad": ["product", "notext"],
 }
 IMAGE_KINDS = {"keyframe", "character"}
+CLIENT = "client"   # a picked client clip: a table row (file + cut), no prompt block, no lock rules
 FPS = 30
 
 
@@ -398,6 +417,18 @@ def check_prompts(spec: dict, script_lines: list[str], timings: dict | None) -> 
     video = []
     for p in spec.get("prompts", []):
         w = f"prompt {p.get('id', '?')}"
+        if _kind(p) == CLIENT:
+            if not p.get("file"):
+                errs.append(f"{w}: client row needs the clip's file")
+            if not all(isinstance(p.get(k), int) for k in ("in_f", "out_f")) or p["out_f"] <= p["in_f"]:
+                errs.append(f"{w}: client row needs whole-frame in_f < out_f (the cut in the clip)")
+            if _line_text(script_lines, p) is None:
+                errs.append(f"{w}: line {p.get('line')!r} is not in the script ({len(script_lines)} lines)")
+            if p.get("vo_in_f") is None or p.get("vo_out_f") is None:
+                errs.append(f"{w}: vo_in_f and vo_out_f are required")
+            else:
+                video.append(p)
+            continue
         have = p.get("locks", [])
         missing = [k for k in required if k not in have]
         if missing:
@@ -431,11 +462,6 @@ def check_prompts(spec: dict, script_lines: list[str], timings: dict | None) -> 
             errs.append(f"{w}: vo_in_f and vo_out_f are required")
             continue
         span = o - i
-        tl = (timings or {}).get("lines", [])
-        if isinstance(p.get("line"), int) and 1 <= p["line"] <= len(tl):
-            ti, to = round(tl[p["line"] - 1]["start"] * FPS), round(tl[p["line"] - 1]["end"] * FPS)
-            if abs(i - ti) > 2 or abs(o - to) > 2:
-                errs.append(f"{w}: VO span {i}-{o} is not within ±2 frames of line {p['line']} ({ti}-{to})")
         if gl is not None and abs(gl * FPS - span) > 2:
             if gl * FPS < span:
                 errs.append(f"{w}: generated {gl} s is shorter than the {span}-frame VO span")
@@ -445,6 +471,7 @@ def check_prompts(spec: dict, script_lines: list[str], timings: dict | None) -> 
                 u = _span_f(p["use"])
                 if u is None or abs(u - span) > 2:
                     errs.append(f"{w}: use {p['use']!r} must be s:ff-s:ff and match the VO span within ±2 frames")
+    errs += _line_cover_errors(video, timings)
     last: dict = {}
     for p in video:
         if p.get("optional") or not isinstance(p.get("line"), int) or p.get("vo_in_f") is None or p.get("vo_out_f") is None:
@@ -453,6 +480,33 @@ def check_prompts(spec: dict, script_lines: list[str], timings: dict | None) -> 
         if prev and p["vo_in_f"] < prev["vo_out_f"] - 2:
             errs.append(f"prompts {prev['id']} and {p['id']} share line {p['line']} without a cut point between words")
         last[p["line"]] = p
+    return errs
+
+
+def _line_cover_errors(rows: list[dict], timings: dict | None) -> list[str]:
+    """Rows on one script line (AI prompts and client cuts) must together cover its VO span within ±2 frames,
+    each inside it; a single row's span must match the line. Optional rows are checked on their own."""
+    tl = (timings or {}).get("lines", [])
+    errs, groups = [], {}
+    for p in rows:
+        n = p.get("line")
+        if isinstance(n, int) and 1 <= n <= len(tl) and p.get("vo_in_f") is not None and p.get("vo_out_f") is not None:
+            groups.setdefault((n, p["id"]) if p.get("optional") else (n,), []).append(p)
+    for key, ps in groups.items():
+        n = key[0]
+        ti, to = round(tl[n - 1]["start"] * FPS), round(tl[n - 1]["end"] * FPS)
+        i, o = min(p["vo_in_f"] for p in ps), max(p["vo_out_f"] for p in ps)
+        if len(ps) == 1 and (abs(i - ti) > 2 or abs(o - to) > 2):
+            errs.append(f"prompt {ps[0]['id']}: VO span {i}-{o} is not within ±2 frames of line {n} ({ti}-{to})")
+        elif len(ps) > 1:
+            ids = ", ".join(p["id"] for p in ps)
+            covered = sum(p["vo_out_f"] - p["vo_in_f"] for p in ps)
+            if abs(i - ti) > 2 or abs(o - to) > 2 or covered < (o - i) - 2 * len(ps):
+                errs.append(f"prompts {ids}: together cover {i}-{o} ({covered} frames), not line {n} "
+                            f"({ti}-{to}) within ±2 frames")
+            for p in ps:
+                if p["vo_in_f"] < ti - 2 or p["vo_out_f"] > to + 2:
+                    errs.append(f"prompt {p['id']}: VO span {p['vo_in_f']}-{p['vo_out_f']} runs outside line {n} ({ti}-{to})")
     return errs
 
 
@@ -480,7 +534,8 @@ def _block(spec: dict, p: dict) -> str:
 def render_prompts(spec: dict, script_lines: list[str], timings: dict | None) -> str:
     """The prompts deliverable: table(s), one fenced block per prompt with locks in full, then notes."""
     prompts = spec.get("prompts", [])
-    vids = [p for p in prompts if _kind(p) == "video"]
+    vids = sorted((p for p in prompts if _kind(p) in ("video", CLIENT)),    # script order, AI and client rows
+                  key=lambda p: (p["line"] if isinstance(p.get("line"), int) else 10 ** 6, p.get("vo_in_f") or 0))
     imgs = [p for p in prompts if _kind(p) in IMAGE_KINDS]
     out: list[str] = []
     if vids:
@@ -494,6 +549,15 @@ def render_prompts(spec: dict, script_lines: list[str], timings: dict | None) ->
             if p.get("optional"):
                 cut += " (optional)"
             line = _line_text(script_lines, p)
+            if _kind(p) == CLIENT:
+                fps = round(p.get("fps", FPS))   # in_f/out_f count the clip's own frames
+                src = f"{p['slot']}: {p['file']}" if p.get("slot") else p.get("file", "")
+                cut = f"{to_sf(p['in_f'] / fps, fps)}–{to_sf(p['out_f'] / fps, fps)}" + (f" ({fps:g} fps)" if fps != FPS else "")
+                out.append("| " + " | ".join(_cell(c) for c in (
+                    p["id"], f"{p.get('line', '')}: {line}" if line else p.get("line", ""),
+                    to_sf(i / FPS) if i is not None else "", to_sf(o / FPS) if o is not None else "",
+                    length, src, cut, "")) + " |")
+                continue
             out.append("| " + " | ".join(_cell(c) for c in (
                 f"{p['id']} (generate)", f"{p.get('line', '')}: {line}" if line else p.get("line", ""),
                 to_sf(i / FPS) if i is not None else "", to_sf(o / FPS) if o is not None else "",
@@ -507,7 +571,7 @@ def render_prompts(spec: dict, script_lines: list[str], timings: dict | None) ->
                 p["id"], f"{p.get('line', '')}: {line}" if line else p.get("line", ""),
                 p.get("subject") or p.get("action") or "", f"{p['id']}.png")) + " |")
         out.append("")
-    for p in prompts:
+    for p in (q for q in prompts if _kind(q) != CLIENT):
         out += [f"**{p['id']}**", "```", _block(spec, p), "```", ""]
     notes = spec.get("notes")
     if notes:

@@ -135,6 +135,32 @@ def effect_body(draft_id: str, effect: dict) -> dict:
             "end": _s(US(a + _f(effect["duration"]))), "params": [], "track_name": "effect_01"}
 
 
+# editor.md's add_text presets (VectCutAPI's defaults are red Chinese-font text with no box)
+TEXT_STYLES = {
+    "badge": {"font_color": "#FFFFFF", "bold": True, "font_size": 10, "background_alpha": 1,
+              "background_round_radius": 0.3, "transform_y": 0.6},
+    "word": {"font_color": "#FFFFFF", "bold": True, "font_size": 14, "background_alpha": 0, "shadow_enabled": True,
+             "transform_y": 0},
+    "cta": {"font_color": "#FFFFFF", "bold": True, "font_size": 10, "background_alpha": 1,
+            "background_round_radius": 0.3, "transform_y": -0.55},
+}
+TEXT_BG = "#E53935"   # badge / cta box when neither the text nor the brand gives a colour
+
+
+def text_body(draft_id: str, text: dict, plan: dict) -> dict:
+    """A contract text row -> add_text body styled by its preset; `bg` (else the brand accent) colours the box,
+    `font` is passed only when the row gives one."""
+    a = _f(text["at"])
+    b = {"draft_id": draft_id, "text": text["text"], "start": _s(US(a)), "end": _s(US(a + _f(text["duration"]))),
+         "track_name": "text_main", "width": _canvas(plan)[0], "height": _canvas(plan)[1],
+         **TEXT_STYLES[text.get("style", "badge")]}
+    if b["background_alpha"]:
+        b["background_color"] = text.get("bg") or (plan.get("brand") or {}).get("accent") or TEXT_BG
+    if text.get("font"):
+        b["font"] = text["font"]
+    return b
+
+
 def vo_body(draft_id: str, timeline: dict, end_frame: int) -> dict:
     """The timeline's own VO span, ending on its last video frame (never the file length: CapCut rounds a
     partial frame up and leaves a black tail), and never past vo_out."""
@@ -211,7 +237,7 @@ def render_assets(plan: dict, timelines: list[dict], render_fn=mr.render) -> dic
 def build_timeline(plan: dict, timeline: dict, post=post, render=True) -> dict:
     """One timeline -> one saved VectCutAPI draft. Order: create_draft, overlays (they create the overlay
     track before the second add_video, which sidesteps the one-video-track StopIteration bug), main-track
-    clips, other video tracks, keyframes, effects, cutouts, VO, music, SFX cues, save_draft, wait."""
+    clips, other video tracks, keyframes, effects, cutouts, texts, VO, music, SFX cues, save_draft, wait."""
     if render:
         render_assets(plan, [timeline])
     canvas = _canvas(plan)
@@ -221,7 +247,8 @@ def build_timeline(plan: dict, timeline: dict, post=post, render=True) -> dict:
     if missing:
         raise ValueError(f"{timeline['name']}: overlays without a rendered file: {missing}")
     did = post("create_draft", {"width": canvas[0], "height": canvas[1]})["output"]["draft_id"]
-    counts = {"overlays": 0, "clips": 0, "keyframes": 0, "effects": 0, "cutouts": 0, "vo": 0, "music": 0, "sfx": 0}
+    counts = {"overlays": 0, "clips": 0, "keyframes": 0, "effects": 0, "cutouts": 0, "texts": 0, "vo": 0, "music": 0,
+              "sfx": 0}
     for o in frames:
         post("add_video", _overlay_body(did, o, canvas))
         counts["overlays"] += 1
@@ -251,6 +278,9 @@ def build_timeline(plan: dict, timeline: dict, post=post, render=True) -> dict:
                            "scale_y": cb["scale_y"], "transform_x": cb["transform_x"],
                            "transform_y": cb["transform_y"], "volume": 0, "width": canvas[0], "height": canvas[1]})
         counts["cutouts"] += 1
+    for t in timeline.get("texts", []) or []:
+        post("add_text", text_body(did, t, plan))
+        counts["texts"] += 1
     if timeline.get("vo"):
         post("add_audio", vo_body(did, timeline, end_f))
         counts["vo"] = 1

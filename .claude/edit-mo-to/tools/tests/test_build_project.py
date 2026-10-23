@@ -206,3 +206,27 @@ def test_build_two_timelines_end_to_end(monkeypatch):
     finally:
         if project.exists() and project.name.startswith("_test_"):
             shutil.rmtree(project, ignore_errors=True)
+
+
+def test_text_body_styles_like_the_editor_presets():
+    plan = {**PLAN, "brand": {"accent": "#0E2F5A"}}
+    w = bp.text_body("d", {"text": "SOFT", "at": 1.0, "duration": 0.5, "style": "word"}, plan)
+    assert w["text"] == "SOFT" and w["start"] == 1.0 and w["end"] == 1.5 and w["font_size"] == 14
+    assert w["background_alpha"] == 0 and w["shadow_enabled"] is True and w["transform_y"] == 0 and w["bold"] is True
+    b = bp.text_body("d", {"text": "NEW", "at": 0.0, "duration": 1.0, "style": "badge"}, plan)
+    assert b["background_color"] == "#0E2F5A" and b["background_alpha"] == 1 and b["font_size"] == 10
+    assert b["transform_y"] == 0.6 and b["background_round_radius"] == 0.3 and b["font_color"] == "#FFFFFF"
+    c = bp.text_body("d", {"text": "SHOP", "at": 0.0, "duration": 1.0, "style": "cta", "bg": "#111111", "font": "Inter"},
+                     {**PLAN})
+    assert c["transform_y"] == -0.55 and c["background_color"] == "#111111" and c["font"] == "Inter"
+    assert bp.text_body("d", {"text": "X", "at": 0, "duration": 1, "style": "badge"}, PLAN)["background_color"] == "#E53935"
+
+
+def test_build_timeline_adds_texts_before_audio(monkeypatch):
+    calls, post = _post_recorder()
+    monkeypatch.setattr(bp.cp, "wait_for_draft", lambda p, t=30: Path(p))
+    tl = {**PLAN["timelines"][0], "texts": [{"text": "SOFT", "at": 0.0, "duration": 1.0, "style": "word"}]}
+    res = bp.build_timeline(PLAN, tl, post=post, render=False)
+    eps = [e for e, _ in calls]
+    assert eps.count("add_text") == 1 and eps.index("add_text") < eps.index("add_audio")
+    assert res["counts"]["texts"] == 1

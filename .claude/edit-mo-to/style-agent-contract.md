@@ -7,7 +7,8 @@
 - `video_folder`: the per-video folder (clips, VO, music)
 - `brief_checklist`: every brief rule, quoted
 - `script`: approved script, one line per row, labelled hook/body/CTA (or "none — music only"); `script_file`: the same lines in a txt, one per line (for `plan_tools.py`)
-- `vo_timings`: `media_timing.py vo --compact` text (`# lines` as `n|start_sf|end_sf|matched|text`, `# words` as `word|start_f|end_f` in frames), or `beats` for product ads; `vo_json`: the `media_timing.py vo` JSON file, when given (for `--timings`)
+- `timings_compact` (the `vo_timings` the rules below read): `media_timing.py vo --compact` text (`# lines` as `n|start_sf|end_sf|matched|text`, `# words` as `word|start_f|end_f` in frames), or `beats` for product ads
+- `timings`: the `media_timing.py vo` JSON file of the same VO, for the tools' `--timings` (they read JSON only)
 - `broll_source`: `client` | `ai` | `both`; `generator`: `google-flow` | `seedance` (only when AI clips are needed)
 - `client_broll_folder` (if any); `inventory`: `{tmp}/reports/<job>/inv/inventory.json` (every clip's path, duration, fps, width, height, rotation and 6-frame strip, plus contact sheets), when client clips exist; `clips`: older inline inventory (path, duration, fps)
 - `limits`: `{tmp}/reports/<job>/limits.json` (`min_s`, `max_s`, `caption_band_px`, `no_text`, only the keys the brief fixes), when given
@@ -64,17 +65,17 @@ Write `{tmp}/reports/<job>/prompts2.json` (the compact prompt spec), expand it, 
 
 - `style`: `ugc` | `broll` | `claymation` | `pixar` | `product-ad`. Required locks per style (`REQUIRED_LOCKS` in `plan_tools.py`): ugc = realism, product, notext, voice, look, pacing; broll = realism, notext; claymation and pixar = style_bible, notext, voice; product-ad = product, notext. Other lock names (e.g. `wardrobe`) are allowed; every listed lock needs its text in `locks` or `lock_overrides`.
 - `locks`: each lock text written **once, in full, following the brief and the client** (they are your words, not a template). `lock_overrides` replaces one lock's text for one prompt (e.g. the shorter clay B-roll style line). `prompts.txt` always holds them in full; never shorten them.
-- Per prompt: `id` (`AI-n`, `S1`, `C1`…), `line` (script line number), `vo_in_f`/`vo_out_f` (the line's VO span in frames, within ±2 frames of `vo_timings`), `gen_len_s` (the generated length; when it is longer than the span, `use` = the part to keep as `s:ff-s:ff`, matching the span), then only what is unique: `setting`, `subject`, `action` (second windows), `camera`, `look`, `dialogue` (only the spoken words, a verbatim part of the script line; timing windows go in `action`), `attach` (keys of the top-level `attach`, in order), `locks`, `negative`, `optional` (OPTIONAL upgrades). Image prompts (character sheets, keyframes) get `"kind": "character"` or `"keyframe"` and appear in a `# | Script line | Shot | Save as` table.
+- Per prompt: `id` (`AI-n`, `S1`, `C1`…), `line` (script line number), `vo_in_f`/`vo_out_f` (the line's VO span in frames, within ±2 frames of `vo_timings`), `gen_len_s` (the generated length; when it is longer than the span, `use` = the part to keep as `s:ff-s:ff`, matching the span), then only what is unique: `setting`, `subject`, `action` (second windows), `camera`, `look`, `dialogue` (only the spoken words, a verbatim part of the script line; timing windows go in `action`), `attach` (keys of the top-level `attach`, in order), `locks`, `negative`, `optional` (OPTIONAL upgrades). Lines covered by several rows (AI and client) must together cover the line's span, each inside it. Image prompts (character sheets, keyframes) get `"kind": "character"` or `"keyframe"` and appear in a `# | Script line | Shot | Save as` table.
 - Each prompt block comes out in the fixed order Subject · Setting · Action · Camera · Look · Dialogue · Locks · Attach · Negative. Seedance video prompts start "Start on @Image1." automatically.
 - Two prompts for one line need a cut point between words (the second's `vo_in_f` ≥ the first's `vo_out_f`). Flow: ≤ 7 attachments, `gen_len_s` 4–8. Seedance: `gen_len_s` ≥ 4.
-- **Client clips** (broll `client`/`both`): the expanded table holds AI prompts only, so put each picked client clip in `notes`, one line each: `# · line n · <full path> · cut s:ff–s:ff` (state the clip's own fps if not 30; split or grid shots put the slot first: `TOP: <path>`, `BOTTOM: <path>`, `GRID 2/4: <path>`).
+- **Client clips** (`broll_source` `client`/`both`): one entry each in `prompts`, `{"id": "1", "kind": "client", "line": 3, "file": "<full path>", "in_f": 12, "out_f": 66, "vo_in_f": 240, "vo_out_f": 294}` (`in_f`/`out_f` = the cut in the clip's own frames; add `"fps": 25` when the clip isn't 30 fps; split or grid shots add `"slot": "TOP"` / `"BOTTOM"` / `"GRID 2/4"`). They become table rows in script order with the AI rows (Source = the full path, slot first; Prompt / Cut = the cut in `seconds:frames`, fps stated if not 30), with no prompt block; `check-prompts` checks their line and VO span and skips the lock, attach and length rules.
 - `notes`: brief rules applied, conflicts, decisions for the user.
 
 Then run:
-1. `"{python}" "{root}/.claude/edit-mo-to/tools/plan_tools.py" prompts "{tmp}/reports/<job>/prompts2.json" --script "<script_file>" [--timings "<vo_json>"] --out "{tmp}/reports/<job>/prompts.txt"`
-2. `"{python}" "{root}/.claude/edit-mo-to/tools/plan_tools.py" check-prompts "{tmp}/reports/<job>/prompts2.json" --script "<script_file>" [--timings "<vo_json>"]`
+1. `"{python}" "{root}/.claude/edit-mo-to/tools/plan_tools.py" prompts "{tmp}/reports/<job>/prompts2.json" --script "<script_file>" [--timings "<timings>"] --out "{tmp}/reports/<job>/prompts.txt"`
+2. `"{python}" "{root}/.claude/edit-mo-to/tools/plan_tools.py" check-prompts "{tmp}/reports/<job>/prompts2.json" --script "<script_file>" [--timings "<timings>"]`
 
-Fix every error and re-run both until `check-prompts` prints `ok: true`. `--timings` takes the `media_timing.py vo` JSON, not the compact text; leave it out when there is no `vo_json` (product ads: no script, so no `--script` either). Hand back both paths.
+Fix every error and re-run both until `check-prompts` prints `ok: true`. `--timings` takes the `timings` JSON, never the compact text; leave it out when the dispatch has none (product ads: no script, so no `--script` either). Hand back both paths.
 
 ## Output: `mode: edit-plan`
 Write `{tmp}/reports/<job>/plan2.json` (the compact frame plan), expand it, check it, fix until clean. **Never type `plan.json` or the table yourself.** A body shared by several timelines is written once as `blocks.BODY` and placed with `use`.
@@ -97,8 +98,9 @@ Write `{tmp}/reports/<job>/plan2.json` (the compact frame plan), expand it, chec
 - **Clip row:** `[file, src_in_f, at_f, len_f]` or `[file, src_in_f, at_f, len_f, opts]`, `opts` only for non-defaults: `track` (`main` | `top` | `bottom` | `overlay`), `scale`, `x`, `y`, `speed`, `mute` (default true), `transition` + `transition_f` (default 9), `effect`, `line`, `layout` (`split-top` | `split-bottom` | `grid`), `kf` = `[[t_f, scale, x, y], …]` (keyframes), `volume`, `gain_db`, `allow_scale` (scale above 2.0). `len_f` is the timeline length; the source span is `len_f × speed`.
 - **Overlay row:** `[template, at_f, len_f, vars, track, sfx]` or with a 7th `opts` (`cutout`, `on` (`word` | `beat`, for an overlay that starts on a spoken word or a beat instead of a cut), `why`, `snap`). `track` ∈ `ui` | `title` | `flash`; `sfx` ∈ `default` | `none` | a list. Brand vars (`font`, colours) are filled from `brand` when the template declares them and the row doesn't set them.
 - **Effect row:** `[name, at_f, len_f]`.
+- **Text row** (plain CapCut text, `texts` in a `seq` item or block, shifted like clips): `[text, at_f, len_f, style]` or with a 5th `opts` (`bg` box colour, else the brand accent; `font`). `style` ∈ `badge` | `word` | `cta` (the editor's presets).
 - Files are relative to `base` (absolute allowed). Every time is a **whole frame** at 30 fps. Rows in a `use` are shifted by its `at_f`; rows in a plain `seq` item are timeline frames.
-- `vo` and `music` (`{"file", "volume"}` or null) apply to every timeline. Hooks recorded as separate VO files: one `plan2_<hook>.json` per VO file, each expanded and checked on its own; say so in the hand-back.
+- `vo` and `music` (`{"file", "volume"}` or null) apply to every timeline; a timeline's own `vo` / `music` (same shape, or null) overrides them, so hooks recorded as separate VO files stay in one plan2.
 
 Then run:
 1. `"{python}" "{root}/.claude/edit-mo-to/tools/plan_tools.py" expand "{tmp}/reports/<job>/plan2.json" --out "{tmp}/reports/<job>/plan.json" --table "{tmp}/reports/<job>/plan_table.txt"`
@@ -115,8 +117,8 @@ Rules for the plan's content:
   - `{"cutout": true}` in an overlay's opts puts the speaker in front of it (text behind you, orbit behind the head); keep those beats 1–3 s. Every text is a claim: only brief- or product-page-supported claims.
   - Each overlay's `at_f` lands on a video cut (a clip's `at_f`), exact to the frame, so it and its SFX hit with the cut.
   - Keep clear of faces and the product label, and leave the bottom ~400px free for captions (except CTA/end card at the very end).
-  - Plain CapCut `texts` are a fallback only; `plan2` has no text rows, so a text that must be plain CapCut text goes in `manual`.
-- **VO per timeline:** one ElevenLabs file may hold hooks and body; it isn't sliced. `vo_in_f`/`vo_out_f` are **source frames in the VO file**; the editor places that span at timeline 0, so `at_f = line_start_f_in_vo - vo_in_f`. Separate VO files per hook: one plan2 per file (above), `vo_in_f` 0, `vo_out_f` = file length.
+  - `texts` (plain CapCut text rows) are a fallback only.
+- **VO per timeline:** one ElevenLabs file may hold hooks and body; it isn't sliced. `vo_in_f`/`vo_out_f` are **source frames in the VO file**; the editor places that span at timeline 0, so `at_f = line_start_f_in_vo - vo_in_f`. Separate VO files per hook: set `vo` on each hook's timeline, `vo_in_f` 0, `vo_out_f` = file length.
 - `music.volume` 0.1 ≈ −20 dB under the VO; 0.6–1.0 for music-only product ads.
 - Times are whole frames; the expander writes the 10-decimal seconds (3.5666666667, not 3.5667) that VectCutAPI needs, so never round by hand.
 - **Split screen:** `track` `top`/`bottom`, `y` +0.5/−0.5, `layout` `split-top`/`split-bottom`. x/y are in half-canvas units (VectCutAPI `transform_x/y`), +y up. Each 9:16 pane is cropped to 1080×960 by the editor's mask; if that fails it adds a `manual` note.
@@ -126,10 +128,11 @@ Rules for the plan's content:
 - `manual`: anything the tools can't do (mirroring, effects not in the list); the editor passes it to the user.
 
 ### The contract plan (`plan.json`, written by `expand`; build and QA read it)
-`project`, `fps`, `width`, `height`, `base`, `brand`, and `timelines[]` with `name`, `vo` (abs path or null), `vo_in`/`vo_out` (source seconds in the VO file), `vo_volume`, `music`, `music_volume`, `clips[]`, `overlays[]`, `effects[]` (when any), `texts` (always `[]`), `manual[]`.
+`project`, `fps`, `width`, `height`, `base`, `brand`, and `timelines[]` with `name`, `vo` (abs path or null), `vo_in`/`vo_out` (source seconds in the VO file), `vo_volume`, `music`, `music_volume`, `clips[]`, `overlays[]`, `effects[]` (when any), `texts[]`, `manual[]`.
 - clip: `file` (abs), `src_in`, `src_out`, `at` (seconds, exact n/30 with 10 decimals), `speed`, `track` (`video_main` | `video_top` | `video_bottom` | `video_overlay`), `x`, `y`, `scale`, `transition`, `effect`, `mute`, plus any opts given (`line`, `layout`, `gain_db`, `volume`, `allow_scale`, …), `transition_duration`, `keyframes` (`[{t, scale, x, y}]`) and `block` (the shared block it came from). Timeline length = `(src_out - src_in)/speed`.
 - overlay: `template`, `vars`, `at`, `duration`, `track`, `sfx`, plus its opts (`cutout`, `on`, `why`, `snap`) and `block`.
 - effect: `name`, `at`, `duration`.
+- text: `text`, `at`, `duration`, `style` (`badge` | `word` | `cta`), plus its opts (`bg`, `font`) and `block`. Never a caption.
 
 ## Hand-back (all style agents)
 - `prompts` and `edit-plan` modes: final message ≤ 20 lines: the paths (`prompts2.json` + `prompts.txt`, or `plan2.json` + `plan.json` + `plan_table.txt`), the last `check` / `check-prompts` output, decisions for the user, brief rules that could not be met (with the exact fix). No tables and no prompts in the message: the main session shows `prompts.txt` and `plan_table.txt` (and pastes every prompt in chat in full).

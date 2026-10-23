@@ -48,3 +48,24 @@ def test_plan_table_has_one_row_per_clip_in_seconds_frames():
     p = pt.expand(_p2(timelines=[{"name": "T01", "seq": [{"clips": [["a.mp4", 7, 0, 107]]}]}]))
     t = pt.plan_table(p)
     assert t.splitlines()[0].startswith("# | Timeline | At | Len | File") and "| 0:00 | 3:17 |" in t
+
+
+def test_timeline_vo_and_music_override_the_top_level_ones():
+    p = pt.expand(_p2(music={"file": "m.mp3", "volume": 0.2}, timelines=[
+        {"name": "H1", "seq": [{"clips": [["a.mp4", 0, 0, 30]]}]},
+        {"name": "H2", "vo": {"file": "H2.mp3", "volume": 0.9}, "music": None, "seq": [{"clips": [["b.mp4", 0, 0, 30]]}]}]))
+    t1, t2 = p["timelines"]
+    assert t1["vo"] == "/v/vo.mp3" and t1["music"] == "/v/m.mp3" and t1["music_volume"] == 0.2
+    assert t2["vo"] == "/v/H2.mp3" and t2["vo_volume"] == 0.9 and t2["music"] is None
+
+
+def test_text_rows_expand_and_shift_with_their_block():
+    body = {"clips": [["b.mp4", 0, 0, 60]], "texts": [["SOFT", 0, 30, "word"], ["SHOP NOW", 30, 30, "cta", {"bg": "#123456"}]]}
+    p = pt.expand(_p2(blocks={"BODY": body}, timelines=[
+        {"name": "T", "seq": [{"clips": [["h.mp4", 0, 0, 45]], "texts": [["NEW", 0, 15, "badge"]]}, {"use": "BODY", "at_f": 45}]}]))
+    tx = p["timelines"][0]["texts"]
+    assert tx[0] == {"text": "NEW", "at": 0.0, "duration": 0.5, "style": "badge"}
+    assert tx[1] == {"text": "SOFT", "at": 1.5, "duration": 1.0, "style": "word", "block": "BODY"}
+    assert tx[2]["at"] == 2.5 and tx[2]["bg"] == "#123456" and tx[2]["style"] == "cta"
+    with pytest.raises(ValueError, match="style"):
+        pt.expand(_p2(timelines=[{"name": "T", "seq": [{"clips": [["a.mp4", 0, 0, 30]], "texts": [["X", 0, 30, "huge"]]}]}]))

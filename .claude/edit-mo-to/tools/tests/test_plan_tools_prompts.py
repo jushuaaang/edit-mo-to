@@ -110,3 +110,37 @@ def test_cli_prompts_and_check_prompts(tmp_path):
     out = tmp_path / "prompts.txt"
     r = subprocess.run([sys.executable, tool, "prompts", str(spec), "--script", str(script), "--out", str(out)], capture_output=True, text=True)
     assert r.returncode == 0 and "AI-2" in out.read_text(encoding="utf-8")
+
+
+CLIENT = {"id": "C-1", "kind": "client", "line": 3, "file": "D:/Footage/pour.mp4", "in_f": 12, "out_f": 66,
+          "vo_in_f": 240, "vo_out_f": 294}
+
+
+def test_client_rows_render_in_script_order_without_a_code_block():
+    spec = {**SPEC2, "prompts": [CLIENT, *SPEC2["prompts"], dict(CLIENT, id="C-2", line=1, vo_in_f=60, vo_out_f=120,
+                                                                    file="D:/Footage/jar.mp4", slot="TOP")]}
+    out = pt.render_prompts(spec, SCRIPT, None)
+    rows = [l for l in out.splitlines() if l.startswith("| ") and "(generate)" in l or l.startswith("| C-")]
+    assert [r.split(" | ")[0] for r in rows] == ["| AI-1 (generate)", "| C-2", "| AI-2 (generate)", "| C-1"]
+    c1 = next(r for r in rows if r.startswith("| C-1"))
+    assert "D:/Footage/pour.mp4" in c1 and "0:12–2:06" in c1 and "8:00" in c1
+    assert "TOP: D:/Footage/jar.mp4" in out and len(out.split("```")[1::2]) == 2 and "**C-1**" not in out
+
+
+def test_client_rows_skip_lock_rules_but_check_their_span():
+    spec = {**SPEC2, "prompts": [*SPEC2["prompts"], CLIENT]}
+    assert pt.check_prompts(spec, SCRIPT, None) == []
+    timings = {"lines": [{"start": 0.0, "end": 4.0}, {"start": 4.0, "end": 8.0}, {"start": 8.0, "end": 9.8}]}
+    assert pt.check_prompts(spec, SCRIPT, timings) == []
+    off = {**SPEC2, "prompts": [dict(CLIENT, vo_out_f=320)]}
+    assert any("C-1" in e and "line 3" in e for e in pt.check_prompts(off, SCRIPT, timings))
+    assert any("in_f" in e for e in pt.check_prompts({**SPEC2, "prompts": [dict(CLIENT, out_f=None)]}, SCRIPT, None))
+
+
+def test_split_line_rows_together_cover_the_line():
+    timings = {"lines": [{"start": 0.0, "end": 4.0}, {"start": 4.0, "end": 8.0}, {"start": 8.0, "end": 9.8}]}
+    a, b = dict(CLIENT, vo_out_f=270), dict(CLIENT, id="C-2", vo_in_f=270, file="D:/Footage/b.mp4")
+    assert pt.check_prompts({**SPEC2, "prompts": [a, b]}, SCRIPT, timings) == []
+    gap = dict(b, vo_out_f=280)
+    assert any("line 3" in e for e in pt.check_prompts({**SPEC2, "prompts": [a, gap]}, SCRIPT, timings))
+    assert any("cut point" in e for e in pt.check_prompts({**SPEC2, "prompts": [a, dict(b, vo_in_f=250)]}, SCRIPT, None))
