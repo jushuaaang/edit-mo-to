@@ -1138,7 +1138,7 @@ def segments(project: Path, name: str, search_dirs=()) -> dict:
             masks = [by_id[r][1] for r in s.get("extra_material_refs") or []
                      if r in by_id and by_id[r][0] in ("common_mask", "masks")]
             out.append({
-                "track": t.get("name") or t.get("type"), "track_type": t.get("type"), "material_type": kind,
+                "id": s.get("id"), "track": t.get("name") or t.get("type"), "track_type": t.get("type"), "material_type": kind,
                 "source": _original_source(m, index) if m.get("path") or m.get("remote_url") else None,
                 "path": m.get("path"), "remote_url": m.get("remote_url"),
                 "size": f"{m['width']}x{m['height']}" if m.get("width") and m.get("height") else None,

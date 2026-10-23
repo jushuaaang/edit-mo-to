@@ -9,6 +9,9 @@ CLI (prints JSON):
                          expand the compact prompt spec into the table(s) and one full prompt block per prompt
     check-prompts <prompts2.json> [--script script.txt] [--timings vo.json]
                          locks, dialogue, length vs VO span, attachments, generator limits; exit code 1 when any
+    ops <old_plan.json> <new_plan.json> "<timeline>" --segments dump.json [--out ops.json]
+                         clip differences between two contract plans as `capcut_project.py patch` ops (µs);
+                         dump.json is `capcut_project.py segments` of the built timeline
 """
 import hashlib
 import json
@@ -24,6 +27,7 @@ from machine import TMP  # noqa: E402
 from media_timing import to_sf  # noqa: E402
 
 TRACKS = {"main": "video_main", "top": "video_top", "bottom": "video_bottom", "overlay": "video_overlay"}
+TRACKS_DUMP = {"video_main": "video"}  # track names capcut_project.segments reports, where they differ
 BRAND_KEYS = ("font", "bg", "fg", "accent")
 CLIP_DERIVED = {"track", "speed", "mute", "kf", "transition_f"}  # opts that are converted, not copied as given
 
@@ -511,6 +515,104 @@ def render_prompts(spec: dict, script_lines: list[str], timings: dict | None) ->
     return "\n".join(out)
 
 
+def _norm_path(p: str) -> str:
+    p = p.replace("\\", "/")
+    return p.casefold() if re.match(r"^[A-Za-z]:/", p) else p
+
+
+def _us(frame: int) -> int:
+    return round(frame * 1e6 / 30)
+
+
+def _facts(c: dict) -> dict:
+    """A contract clip as whole frames plus the patch units it maps to."""
+    speed = float(c.get("speed") or 1.0)
+    at_f = round(c["at"] * 30)
+    len_f = round((c["src_out"] - c["src_in"]) / speed * 30)
+    vol = 0 if c.get("mute", True) else 10 ** (c.get("gain_db", 0) / 20)
+    dur = _us(at_f + len_f) - _us(at_f)
+    return {"file": c["file"], "track": c.get("track", "video_main"), "src_in_f": round(c["src_in"] * 30),
+            "start": _us(at_f), "duration": dur, "src_duration": round(dur * speed), "speed": speed,
+            "scale": c.get("scale", 1.0), "x": c.get("x", 0.0), "y": c.get("y", 0.0), "volume": vol,
+            "src_start": round(c["src_in"] * 1e6), "at": c["at"], "src_in": c["src_in"]}
+
+
+def _pair_rows(old: list[dict], new: list[dict]) -> tuple[list, list, list]:
+    """Old and new clip rows with the same track, file and source frame belong together (in time order)."""
+    groups: dict = {}
+    for side, rows in (("o", old), ("n", new)):
+        for r in sorted(rows, key=lambda r: r["start"]):
+            groups.setdefault((r["track"], _norm_path(r["file"]), r["src_in_f"]), {"o": [], "n": []})[side].append(r)
+    pairs, gone, added = [], [], []
+    for g in groups.values():
+        k = min(len(g["o"]), len(g["n"]))
+        pairs += list(zip(g["o"][:k], g["n"][:k]))
+        gone += g["o"][k:]
+        added += g["n"][k:]
+    return pairs, gone, added
+
+
+def _find_segment(row: dict, segs: list[dict], used: set) -> dict | None:
+    want = TRACKS_DUMP.get(row["track"], row["track"])
+    best = [s for s in segs if s["id"] not in used and s.get("track") == want and s.get("source")
+            and _norm_path(s["source"]) == _norm_path(row["file"]) and s.get("src_in") is not None
+            and abs(s["src_in"] * 30 - row["src_in_f"]) <= 1 + 1e-6]
+    return min(best, key=lambda s: abs(s["at"] - row["at"]), default=None)
+
+
+def ops(old_plan: dict, new_plan: dict, timeline: str, dump: dict) -> dict:
+    """Clip differences between the built plan and the revised plan as `capcut_project.py patch` ops, with
+    each old clip row found on the built timeline (`dump` = capcut_project.segments) by track, source path and
+    source frame. Only clips are diffed: overlays and SFX go through add-overlay / add-tracks. A row that
+    needs an op but whose segment cannot be found goes to "unmapped" and gets no op (nothing is guessed);
+    unchanged rows are never reported."""
+    def clips(plan):
+        found = [t for t in plan.get("timelines", []) if t.get("name") == timeline]
+        if not found:
+            raise ValueError(f"no timeline named {timeline!r} in the plan; have {[t.get('name') for t in plan.get('timelines', [])]}")
+        return [_facts(c) for c in found[0].get("clips", [])]
+
+    pairs, gone, added = _pair_rows(clips(old_plan), clips(new_plan))
+    segs = [s for s in dump.get("segments", []) if s.get("id")]
+    used: set = set()
+    out, unmapped = [], []
+
+    def label(r):
+        return f"{r['file']} src_in {r['src_in']} at {r['at']}"
+
+    def locate(r):
+        seg = _find_segment(r, segs, used)
+        if seg is None:
+            unmapped.append({"row": label(r), "why": "no segment on the timeline with this source and source frame "
+                                                     "(placeholder path, moved or removed by hand)"})
+        else:
+            used.add(seg["id"])
+        return seg
+
+    for o, n in sorted(pairs, key=lambda p: p[0]["start"]):
+        changed = {}
+        if n["start"] != o["start"]:
+            changed["start"] = n["start"]
+        if (n["duration"], n["speed"]) != (o["duration"], o["speed"]):
+            changed.update(duration=n["duration"], src_duration=n["src_duration"])
+        if n["speed"] != o["speed"]:
+            changed["speed"] = n["speed"]
+        changed.update({k: n[k] for k in ("scale", "x", "y", "volume") if n[k] != o[k]})
+        if changed:
+            seg = locate(o)
+            if seg:
+                out.append({"op": "set", "id": seg["id"], **changed})
+    for o in sorted(gone, key=lambda r: r["start"]):
+        seg = locate(o)
+        if seg:
+            out.append({"op": "remove", "id": seg["id"]})
+    for n in sorted(added, key=lambda r: r["start"]):
+        out.append({"op": "insert", "track": TRACKS_DUMP.get(n["track"], n["track"]), "file": n["file"],
+                    "start": n["start"], "duration": n["duration"], "src_start": n["src_start"],
+                    "speed": n["speed"], "scale": n["scale"], "x": n["x"], "y": n["y"], "volume": n["volume"]})
+    return {"ops": out, "unmapped": unmapped}
+
+
 def main(argv: list[str]) -> None:
     if not argv or argv[0] in ("-h", "--help"):
         raise SystemExit(__doc__)
@@ -530,6 +632,16 @@ def main(argv: list[str]) -> None:
         errs = check(json.loads(Path(args[0]).read_text(encoding="utf-8")), limits)
         print(json.dumps({"ok": not errs, "errors": errs}, indent=1, ensure_ascii=False))
         raise SystemExit(1 if errs else 0)
+    elif cmd == "ops":
+        def arg(k):
+            return args[args.index(k) + 1] if k in args else None
+        if len(args) < 3 or not arg("--segments"):
+            raise SystemExit(__doc__)
+        load = lambda f: json.loads(Path(f).read_text(encoding="utf-8"))  # noqa: E731
+        res = ops(load(args[0]), load(args[1]), args[2], load(arg("--segments")))
+        out_p = Path(arg("--out") or Path(args[1]).with_name("ops.json"))
+        out_p.write_text(json.dumps(res, indent=1, ensure_ascii=False), encoding="utf-8")
+        out = {"ops_file": str(out_p), "ops": len(res["ops"]), "unmapped": res["unmapped"]}
     elif cmd in ("prompts", "check-prompts"):
         def opt(k):
             return args[args.index(k) + 1] if k in args else None
