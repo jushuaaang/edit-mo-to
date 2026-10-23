@@ -22,15 +22,18 @@ If the style is mixed (e.g. UGC host + heavy B-roll), pick the main one and pass
 ## Dispatch template (style agents)
 ```
 mode: storyboard (phase: prompts | board) | prompts | edit-plan
-client: <client file stem or "new">   product: <Product>
+client: <client file stem or "new">   product: <Product>   job: <Product, no spaces>
+pack: {tmp}/reports/<job>/pack_<style>.md
 video_folder: <path>
 brief_checklist: <the table>
-script: <numbered lines with Hook/Body/CTA labels>
-vo_timings: <lines table + the words list from media_timing vo>  (or beats for product ads)
+script: <numbered lines with Hook/Body/CTA labels>   script_file: <the same lines in a txt, one per line>
+timings_compact: {tmp}/reports/<job>/timings.txt   (media_timing vo --compact; or beats for product ads)
+timings: {tmp}/reports/<job>/timings.json          (the JSON, for the tools' --timings)
+limits: {tmp}/reports/<job>/limits.json
 broll_source: client | ai | both     generator: google-flow | seedance
-vo: <path(s): one file, or one per hook/body>   music: <path or none>   (product ads: music is required)
+vo: <path(s): one file, or one per hook/body>   music: <path or none>   (product ads: music is required; others: none until step 11)
 client_broll_folder: <path or none>   (check that it exists before dispatching)
-clips: <inventory: path | duration | fps>   (edit-plan mode)
+inventory: {tmp}/reports/<job>/inv/inventory.json   (when client B-roll exists)
 revision: <requests + target timeline>      (review loop only)
 aroll_cuts: <keep.json path(s) from speech_cuts.py>   (talking-head A-roll only)
 ```
@@ -38,20 +41,25 @@ aroll_cuts: <keep.json path(s) from speech_cuts.py>   (talking-head A-roll only)
 ## Dispatch template (editor)
 ```
 action: build | revise-new-timeline | revise-in-place | add-music
-plan: <edit-plan JSON from the style agent>   (not needed for add-music)
-music: <path>   music_volume: 0.1   timelines: [<names>]   (add-music only)
-project: <Product>   timeline: <name>   new_timeline_name: <name>
+job: <Product, no spaces>   project: <Product>
+plan: {tmp}/reports/<job>/plan.json   (build, revise-new-timeline; add-music: the plan the timeline was built from)
 import_files: <every clip, VO, music, B-roll file the user gave for this video>   (build)
+timeline: <name>   new_timeline_name: <name>   (revisions)
+old_plan: <plan.json the timeline was built from>   new_plan: <the revised plan.json>   (revise-in-place)
+segments: <capcut_project segments dump of the timeline>   (revise-in-place, optional: the editor makes it)
+music: <path>   music_volume: 0.1   timelines: [<names>]   (add-music only)
+client: <client>   video: <video name>   (for the hand-edit log)
 ```
 
 ## Dispatch template (qa)
 ```
 gate: script | prompts | build
-style: <style>   client: <client>
-brief_checklist / script / vo_timings: <as above>
-prompts: <style agent output>          (prompts gate)
-plan + project folder + timelines:     (build gate; the plan.json path is enough)
-scope: full | delta   changed: <clip #s / prompt #s / ops since the last QA>   (delta after a small fix)
+style: <style>   client: <client>   job: <Product, no spaces>
+pack / brief_checklist / script / script_file / timings_compact / timings / limits: <as above>
+prompts: <prompts2.json + prompts.txt paths>          (prompts gate)
+plan: <plan.json path>   project: {capcut_drafts}/<Product>   timelines: <names>   client_folder: <path>   (build gate)
+qa_check: {tmp}/reports/<job>/qa_check.json   (build gate, when the skill ran qa_check.py)
+scope: full | delta   changed: <clip #s per timeline, ovN / prompt ids / ops since the last QA>   (delta after a small fix)
 ```
 
 ## Gate wording (keep it short, one question per message)
@@ -74,4 +82,4 @@ scope: full | delta   changed: <clip #s / prompt #s / ops since the last QA>   (
 ## Revision requests
 Turn each request into: target timeline, mode (new or in place), new timeline name ("Timeline 0N – <Hook/Body> rev k"), and the exact changes (clip #, what to swap, new times). Pass these to the style agent as `revision`. Small timing or swap changes don't need new prompts unless new AI clips are required. If they are, go back to step 6 for just those clips.
 
-When dispatching `revise-in-place`, don't ask the editor to back up first: `replace` already backs the timeline up and returns the path (an extra request makes two backups).
+When dispatching `revise-in-place`, don't ask the editor to back up first: `replace` and `patch` already back the timeline up and return the path (an extra request makes two backups). Pass `old_plan` (the plan the timeline was last built or patched from) and `new_plan` (the revised one): small timing, swap and scale changes then go in as `patch` ops, keeping the user's edits.

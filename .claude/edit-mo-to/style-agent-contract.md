@@ -95,7 +95,7 @@ Write `{tmp}/reports/<job>/plan2.json` (the compact frame plan), expand it, chec
     "manual": ["check lip-sync in review"]}]}
 ```
 
-- **Clip row:** `[file, src_in_f, at_f, len_f]` or `[file, src_in_f, at_f, len_f, opts]`, `opts` only for non-defaults: `track` (`main` | `top` | `bottom` | `overlay`), `scale`, `x`, `y`, `speed`, `mute` (default true), `transition` + `transition_f` (default 9), `effect`, `line`, `layout` (`split-top` | `split-bottom` | `grid`), `kf` = `[[t_f, scale, x, y], …]` (keyframes), `volume`, `gain_db`, `allow_scale` (scale above 2.0). `len_f` is the timeline length; the source span is `len_f × speed`.
+- **Clip row:** `[file, src_in_f, at_f, len_f]` or `[file, src_in_f, at_f, len_f, opts]`, `opts` only for non-defaults: `track` (`main` | `top` | `bottom` | `overlay`), `scale`, `x`, `y`, `speed`, `mute` (default true), `transition` + `transition_f` (default 9), `effect`, `line`, `layout` (`split-top` | `split-bottom` | `grid`), `kf` = `[[t_f, scale, x, y], …]` (keyframes), `volume`, `gain_db`, `allow_scale` (scale above 2.0), `shared` (true for a source several timelines may legitimately reuse, e.g. host A-roll the hook timelines share; skips the cross-timeline reuse check). `len_f` is the timeline length; the source span is `len_f × speed`.
 - **Overlay row:** `[template, at_f, len_f, vars, track, sfx]` or with a 7th `opts` (`cutout`, `on` (`word` | `beat`, for an overlay that starts on a spoken word or a beat instead of a cut), `why`, `snap`). `track` ∈ `ui` | `title` | `flash`; `sfx` ∈ `default` | `none` | a list. Brand vars (`font`, colours) are filled from `brand` when the template declares them and the row doesn't set them.
 - **Effect row:** `[name, at_f, len_f]`.
 - **Text row** (plain CapCut text, `texts` in a `seq` item or block, shifted like clips): `[text, at_f, len_f, style]` or with a 5th `opts` (`bg` box colour, else the brand accent; `font`). `style` ∈ `badge` | `word` | `cta` (the editor's presets).
@@ -129,7 +129,7 @@ Rules for the plan's content:
 
 ### The contract plan (`plan.json`, written by `expand`; build and QA read it)
 `project`, `fps`, `width`, `height`, `base`, `brand`, and `timelines[]` with `name`, `vo` (abs path or null), `vo_in`/`vo_out` (source seconds in the VO file), `vo_volume`, `music`, `music_volume`, `clips[]`, `overlays[]`, `effects[]` (when any), `texts[]`, `manual[]`.
-- clip: `file` (abs), `src_in`, `src_out`, `at` (seconds, exact n/30 with 10 decimals), `speed`, `track` (`video_main` | `video_top` | `video_bottom` | `video_overlay`), `x`, `y`, `scale`, `transition`, `effect`, `mute`, plus any opts given (`line`, `layout`, `gain_db`, `volume`, `allow_scale`, …), `transition_duration`, `keyframes` (`[{t, scale, x, y}]`) and `block` (the shared block it came from). Timeline length = `(src_out - src_in)/speed`.
+- clip: `file` (abs), `src_in`, `src_out`, `at` (seconds, exact n/30 with 10 decimals), `speed`, `track` (`video_main` | `video_top` | `video_bottom` | `video_overlay`), `x`, `y`, `scale`, `transition`, `effect`, `mute`, plus any opts given (`line`, `layout`, `gain_db`, `volume`, `allow_scale`, `shared`, …), `transition_duration`, `keyframes` (`[{t, scale, x, y}]`) and `block` (the shared block it came from). Timeline length = `(src_out - src_in)/speed`.
 - overlay: `template`, `vars`, `at`, `duration`, `track`, `sfx`, plus its opts (`cutout`, `on`, `why`, `snap`) and `block`.
 - effect: `name`, `at`, `duration`.
 - text: `text`, `at`, `duration`, `style` (`badge` | `word` | `cta`), plus its opts (`bg`, `font`) and `block`. Never a caption.

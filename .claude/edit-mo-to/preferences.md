@@ -72,6 +72,7 @@ Proven defaults that every editor starts with. Agents read **General** plus thei
 
 ## Editing in CapCut
 - **On-screen graphics are HyperFrames motion overlays** from `motion/CATALOGUE.md`, in the client's colours and fonts.
+- **Overlays render slim and offline:** the build renders each unique overlay once, then re-encodes it to a slim ProRes 4444 `.mov` (about 40% smaller, same look, alpha kept). GSAP is bundled, so renders need no internet once HyperFrames has cached the fonts.
 - **Reference videos teach effects, not looks:** adapt their editing effects and motion; choose colours and fonts fresh for each client and mood.
 - **Clean timelines:** overlays and their SFX start on a video cut or a spoken word.
 - **Transitions:** few and subtle: 3–5 of ≤0.3 s, only at section changes (hook → body, start of a benefit run, back to the host); every other cut stays straight. Each gets a short whoosh centred on the cut, under the VO. On an existing timeline, add them with `capcut_project.py patch` op `transition` (copies a CapCut effect by name from a past project whose effect is cached).

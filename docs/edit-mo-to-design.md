@@ -78,7 +78,7 @@ The per-video folder is created by the user. edit-mo-to asks for its path at ste
 
 The `/edit-mo-to` skill runs in the main conversation and owns all talking to the user, because subagents can't pause to ask questions. It sends heavy, self-contained work to these agents.
 
-**Style agents (5): `ugc`, `broll`, `claymation`, `pixar`, `product-ad`.** Each knows its style's rules, drawn from the user's past sessions, and its section of `preferences.md`. Given the brief checklist, script, VO timings and clip inventory, each produces:
+**Style agents (5): `ugc`, `broll`, `claymation`, `pixar`, `product-ad`.** Each knows its style's rules, drawn from the user's past sessions, and its section of `preferences.md`. Given the brief checklist, script, VO timings and clip inventory (as paths: a context pack written once per job by `context_pack.py`, the `media_timing.py vo` JSON plus its `--compact` text, `limits.json`, and a `sheets.py inventory` of the client's B-roll), each produces, as compact specs that `plan_tools.py` expands and checks (`prompts2.json` → `prompts.txt`, `plan2.json` → `plan.json` + `plan_table.txt`):
 - B-roll / AI video prompts (step 6), with the user's must-repeat blocks in every prompt: style bible, product lock, realism line, which reference image to attach, "no subtitles / no on-screen text."
 - An **edit plan**: an ordered timeline table (track, file path, source in/out, timeline start/end, speed, position/scale for split screens and grids, transition, effect, script line covered).
 
@@ -89,13 +89,13 @@ Style rules to seed them with:
 - **Pixar:** keyframe images S1–Sn, then clips C1–Cn (generated 5–8s, used 2.5–8s), 30–45s total. Style bible at the end of every prompt. VO, music and SFX hits.
 - **Product ad:** 10–20s, cut to music, 2–4s clips from different angles, logo in one clip, image-first then image-to-video in Flow.
 
-**Editor agent (`editor`).** The only agent that touches CapCut. Takes an approved edit plan and builds the project through the CapCut MCP tools: create draft (**9:16 by default, the user's standard**: 1080×1920, 30 fps, unless the brief says otherwise), add video, audio, text (badges and CTA graphics only, never captions), effects and transitions, then save into CapCut's drafts folder (`C:\Users\Keytech\AppData\Local\CapCut\User Data\Projects\com.lveditor.draft`) under the product name. Also applies change requests from the review loop. Reports what it built plus anything it could not do (e.g. mirroring, if the tools don't support it) so the user can do it by hand.
+**Editor agent (`editor`).** The only agent that touches CapCut, now a thin runner (`model: sonnet`). Takes an approved edit plan and builds the whole project in one `build_project.py build` run through the VectCutAPI backend: overlays rendered in parallel, one draft per timeline (**9:16 by default, the user's standard**: 1080×1920, 30 fps, unless the brief says otherwise) with video, audio, text (badges and CTA graphics only, never captions), keyframes, effects and transitions, composed into one project in CapCut's drafts folder (`{capcut_drafts}`) under the product name, with the user's files imported and a frame sheet per timeline. Applies review-loop changes as a new timeline (`build_project.py timeline` + `add-timeline`) or in place (`plan_tools.py ops` → `capcut_project.py patch`, or `replace` for layout changes), always after `edit_diff.py diff --last` reports the user's hand edits; adds music after captions with `build_project.py music` + `add-tracks`. Reports what it built plus anything it could not do (e.g. mirroring, unmapped patch rows) so the user can do it by hand.
 
-**QA agent (`qa`).** Read-only checker. Runs at three gates and returns a pass/fail table with specific fixes:
+**QA agent (`qa`).** Read-only checker. Runs at three gates and returns a pass/fail table with specific fixes. The checks that need no eyes run as scripts first (`qa_check.py prompts` and `qa_check.py build`, FAIL and OPEN rows only, `--changed` for a delta); the agent then judges only what needs reading or looking, from tiled frame sheets (`sheets.py`) instead of single frames:
 - After the script (step 3): does the script follow every brief-checklist item?
 - After prompts / B-roll mapping (step 6): does each line's visual fit its script line and the brief?
 - After the build (step 7, and after each review-loop change):
-  - Each clip matches the line it covers (judged from extracted frames).
+  - Each clip matches the line it covers (judged from the clip sheets; AI clips in/mid/out; overlays composited on the A-roll under them).
   - Timing is in sync with the VO.
   - No clip is reused.
   - Total length, aspect ratio and required elements (CTA, logo, badges) are present.
@@ -126,7 +126,9 @@ Style rules to seed them with:
   - `save_draft` reports success even when it fails (e.g. a path too long for Windows). Always check the output folder exists, and build in a short path such as `C:\Users\Keytech\mcp-servers\tmp`.
   - Saves are asynchronous. Wait for the folder to appear.
   - VectCutAPI copies media into the draft's `assets\`, so projects take up disk space.
-- **The backend only auto-starts when a session loads the CapCut MCP tools.** The editor must make sure it is up (port 9001) before calling it.
+- **The backend only auto-starts when a session loads the CapCut MCP tools.** The editor must make sure it is up (port 9001) before calling it. On Windows it must run with `PYTHONIOENCODING=utf-8`: otherwise a draft with keyframes saves empty while VectCutAPI answers success, and `build_project.py` raises `DraftSaveFailed`.
+- **Every write to a CapCut project goes through `capcut_project.py`** (compose, add-timeline, replace, patch, add-tracks, add-overlay); nothing hand-edits `draft_content.json`. Each write backs the timeline up and saves `<project>/edit-mo-to-backups/<timeline>.last.json`, so `edit_diff.py diff --last` shows only the user's hand edits.
+- **Times inside the tools are whole frames at 30 fps or integer microseconds;** the contract plan carries seconds with 10 decimals, written by `plan_tools.py expand`, never by hand. The plan check (`plan_tools.py check`) must be clean before any build.
 - Local tools: ffmpeg and ffprobe on PATH; Python 3.12; faster-whisper (used previously; confirm it is installed).
 - Windows paths with spaces everywhere; quote them.
 
