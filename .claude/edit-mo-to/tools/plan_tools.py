@@ -209,7 +209,7 @@ def _scale_errors(c: dict, info: dict, where: str) -> list[str]:
         if abs(info.get("rotation", 0)) % 180 == 90:
             w, h = h, w
         f = min(CANVAS[0] / w, CANVAS[1] / h)
-        if scale * w * f < CANVAS[0] - 0.5 or scale * h * f < CANVAS[1] - 0.5:
+        if scale * w * f < CANVAS[0] * 0.99 or scale * h * f < CANVAS[1] * 0.99:   # 1% slack: 320x568 is "9:16"
             errs.append(f"{where}: scale {scale} leaves black edges on a {w}x{h} source "
                         f"(fitted {round(w * f)}x{round(h * f)} in a {CANVAS[0]}x{CANVAS[1]} canvas); "
                         f"use scale >= {max(CANVAS[0] / (w * f), CANVAS[1] / (h * f)):.2f}")
