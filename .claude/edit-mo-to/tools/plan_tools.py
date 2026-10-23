@@ -5,6 +5,10 @@ CLI (prints JSON):
                          expand the compact frame plan (plan2) into the edit-plan JSON the editor builds from
     check <plan.json> [--limits limits.json]
                          timing, reuse, VO edges, overlay, template and scale problems; exit code 1 when any
+    prompts <prompts2.json> [--script script.txt] [--timings vo.json] [--out prompts.txt]
+                         expand the compact prompt spec into the table(s) and one full prompt block per prompt
+    check-prompts <prompts2.json> [--script script.txt] [--timings vo.json]
+                         locks, dialogue, length vs VO span, attachments, generator limits; exit code 1 when any
 """
 import hashlib
 import json
@@ -341,6 +345,172 @@ def check(plan: dict, limits: dict | None = None, probe=probe_media, silent=edge
     return errs
 
 
+REQUIRED_LOCKS = {
+    "ugc": ["realism", "product", "notext", "voice", "look", "pacing"],
+    "broll": ["realism", "notext"],
+    "pixar": ["style_bible", "notext", "voice"],
+    "claymation": ["style_bible", "notext", "voice"],
+    "product-ad": ["product", "notext"],
+}
+IMAGE_KINDS = {"keyframe", "character"}
+FPS = 30
+
+
+def _kind(p: dict) -> str:
+    return p.get("kind", "video")
+
+
+def _is_seedance(spec: dict) -> bool:
+    return "seedance" in (spec.get("mode"), spec.get("generator"))
+
+
+def _lock_text(spec: dict, p: dict, name: str) -> str:
+    return (p.get("lock_overrides") or {}).get(name) or spec.get("locks", {}).get(name, "")
+
+
+def _span_f(s: str) -> int | None:
+    """'0:00-2:12' (seconds:frames) -> length in frames, or None when unparseable."""
+    m = re.fullmatch(r"\s*(\d+):(\d+)\s*-\s*(\d+):(\d+)\s*", s or "")
+    if not m:
+        return None
+    a, b, c, d = map(int, m.groups())
+    return (c * FPS + d) - (a * FPS + b)
+
+
+def _line_text(script_lines: list[str], p: dict) -> str | None:
+    n = p.get("line")
+    return script_lines[n - 1] if isinstance(n, int) and 1 <= n <= len(script_lines) else None
+
+
+def check_prompts(spec: dict, script_lines: list[str], timings: dict | None) -> list[str]:
+    """Problems in a prompts2 spec: locks, attachments, generator limits, dialogue and length vs the VO span."""
+    style = spec.get("style", "ugc")
+    if style not in REQUIRED_LOCKS:
+        return [f"unknown style {style!r} (one of {', '.join(REQUIRED_LOCKS)})"]
+    errs: list[str] = []
+    required = REQUIRED_LOCKS[style]
+    seedance = _is_seedance(spec)
+    keys = set(spec.get("attach", {}))
+    video = []
+    for p in spec.get("prompts", []):
+        w = f"prompt {p.get('id', '?')}"
+        have = p.get("locks", [])
+        missing = [k for k in required if k not in have]
+        if missing:
+            errs.append(f"{w}: missing locks: {', '.join(missing)}")
+        for k in have:
+            if not _lock_text(spec, p, k):
+                errs.append(f"{w}: lock {k!r} has no text in locks (or lock_overrides)")
+        for a in p.get("attach", []):
+            if a not in keys:
+                errs.append(f"{w}: attach {a} is not defined in the spec's attach")
+        if _kind(p) in IMAGE_KINDS:
+            continue
+        gl = p.get("gen_len_s")
+        if not seedance and len(p.get("attach", [])) > 7:
+            errs.append(f"{w}: Flow allows 7 attachments at most, has {len(p['attach'])}")
+        if gl is not None:
+            if not seedance and not 4 <= gl <= 8:
+                errs.append(f"{w}: Flow generation must be 4–8 s, got {gl} s")
+            if seedance and gl < 4:
+                errs.append(f"{w}: Seedance clips must be at least 4 s, got {gl} s")
+        if style == "product-ad":
+            continue
+        video.append(p)
+        text = _line_text(script_lines, p)
+        if text is None:
+            errs.append(f"{w}: line {p.get('line')!r} is not in the script ({len(script_lines)} lines)")
+        elif p.get("dialogue") and " ".join(p["dialogue"].split()) not in " ".join(text.split()):
+            errs.append(f"{w}: dialogue is not a verbatim part of script line {p['line']}")
+        i, o = p.get("vo_in_f"), p.get("vo_out_f")
+        if i is None or o is None:
+            errs.append(f"{w}: vo_in_f and vo_out_f are required")
+            continue
+        span = o - i
+        tl = (timings or {}).get("lines", [])
+        if isinstance(p.get("line"), int) and 1 <= p["line"] <= len(tl):
+            ti, to = round(tl[p["line"] - 1]["start"] * FPS), round(tl[p["line"] - 1]["end"] * FPS)
+            if abs(i - ti) > 2 or abs(o - to) > 2:
+                errs.append(f"{w}: VO span {i}-{o} is not within ±2 frames of line {p['line']} ({ti}-{to})")
+        if gl is not None and abs(gl * FPS - span) > 2:
+            if gl * FPS < span:
+                errs.append(f"{w}: generated {gl} s is shorter than the {span}-frame VO span")
+            elif not p.get("use"):
+                errs.append(f"{w}: generated {gl} s is longer than the {span}-frame VO span, so it needs a use span")
+            else:
+                u = _span_f(p["use"])
+                if u is None or abs(u - span) > 2:
+                    errs.append(f"{w}: use {p['use']!r} must be s:ff-s:ff and match the VO span within ±2 frames")
+    last: dict = {}
+    for p in video:
+        if p.get("optional") or not isinstance(p.get("line"), int) or p.get("vo_in_f") is None or p.get("vo_out_f") is None:
+            continue
+        prev = last.get(p["line"])
+        if prev and p["vo_in_f"] < prev["vo_out_f"] - 2:
+            errs.append(f"prompts {prev['id']} and {p['id']} share line {p['line']} without a cut point between words")
+        last[p["line"]] = p
+    return errs
+
+
+def _cell(t) -> str:
+    return str(t).replace("|", "\\|").replace("\n", " ")
+
+
+def _block(spec: dict, p: dict) -> str:
+    parts = ["Start on @Image1."] if _is_seedance(spec) and _kind(p) == "video" else []
+    for label, key in (("Subject", "subject"), ("Setting", "setting"), ("Action", "action"),
+                       ("Camera", "camera"), ("Look", "look")):
+        if p.get(key):
+            parts.append(f"{label}: {p[key]}")
+    if p.get("dialogue"):
+        parts.append(f"Dialogue: {p['dialogue']}")
+    parts += [_lock_text(spec, p, k) for k in p.get("locks", [])]
+    if p.get("attach"):
+        att = spec.get("attach", {})
+        parts.append("Attach: " + ", ".join(f"{a} = {att[a]}" if a in att else a for a in p["attach"]))
+    if p.get("negative"):
+        parts.append(f"Negative: {p['negative']}")
+    return "\n".join(parts)
+
+
+def render_prompts(spec: dict, script_lines: list[str], timings: dict | None) -> str:
+    """The prompts deliverable: table(s), one fenced block per prompt with locks in full, then notes."""
+    prompts = spec.get("prompts", [])
+    vids = [p for p in prompts if _kind(p) == "video"]
+    imgs = [p for p in prompts if _kind(p) in IMAGE_KINDS]
+    out: list[str] = []
+    if vids:
+        out += ["| # | Script line | VO in | VO out | Length | Source | Prompt / Cut | Attach |", "|---|---|---|---|---|---|---|---|"]
+        for p in vids:
+            i, o = p.get("vo_in_f"), p.get("vo_out_f")
+            length = f"{(o - i) / FPS:.2f} s" if i is not None and o is not None else ""
+            if p.get("gen_len_s") is not None:
+                length += f" (gen {p['gen_len_s']} s)"
+            cut = f"use {p['use']}" if p.get("use") else "whole clip"
+            if p.get("optional"):
+                cut += " (optional)"
+            line = _line_text(script_lines, p)
+            out.append("| " + " | ".join(_cell(c) for c in (
+                f"{p['id']} (generate)", f"{p.get('line', '')}: {line}" if line else p.get("line", ""),
+                to_sf(i / FPS) if i is not None else "", to_sf(o / FPS) if o is not None else "",
+                length, spec.get("generator", ""), cut, ", ".join(p.get("attach", [])))) + " |")
+        out.append("")
+    if imgs:
+        out += ["| # | Script line | Shot | Save as |", "|---|---|---|---|"]
+        for p in imgs:
+            line = _line_text(script_lines, p)
+            out.append("| " + " | ".join(_cell(c) for c in (
+                p["id"], f"{p.get('line', '')}: {line}" if line else p.get("line", ""),
+                p.get("subject") or p.get("action") or "", f"{p['id']}.png")) + " |")
+        out.append("")
+    for p in prompts:
+        out += [f"**{p['id']}**", "```", _block(spec, p), "```", ""]
+    notes = spec.get("notes")
+    if notes:
+        out += ["Notes", *[f"- {n}" for n in ([notes] if isinstance(notes, str) else notes)], ""]
+    return "\n".join(out)
+
+
 def main(argv: list[str]) -> None:
     if not argv or argv[0] in ("-h", "--help"):
         raise SystemExit(__doc__)
@@ -360,6 +530,19 @@ def main(argv: list[str]) -> None:
         errs = check(json.loads(Path(args[0]).read_text(encoding="utf-8")), limits)
         print(json.dumps({"ok": not errs, "errors": errs}, indent=1, ensure_ascii=False))
         raise SystemExit(1 if errs else 0)
+    elif cmd in ("prompts", "check-prompts"):
+        def opt(k):
+            return args[args.index(k) + 1] if k in args else None
+        spec = json.loads(Path(args[0]).read_text(encoding="utf-8"))
+        lines = [l for l in Path(opt("--script")).read_text(encoding="utf-8").splitlines() if l.strip()] if opt("--script") else []
+        timings = json.loads(Path(opt("--timings")).read_text(encoding="utf-8")) if opt("--timings") else None
+        errs = check_prompts(spec, lines, timings)
+        if cmd == "check-prompts":
+            print(json.dumps({"ok": not errs, "errors": errs}, indent=1, ensure_ascii=False))
+            raise SystemExit(1 if errs else 0)
+        out_p = Path(opt("--out") or Path(args[0]).with_name("prompts.txt"))
+        out_p.write_text(render_prompts(spec, lines, timings), encoding="utf-8")
+        out = {"prompts": str(out_p), "count": len(spec.get("prompts", [])), "errors": errs}
     else:
         raise SystemExit(f"unknown command {cmd!r}\n{__doc__}")
     print(json.dumps(out, indent=1, ensure_ascii=False))
