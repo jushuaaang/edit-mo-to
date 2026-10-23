@@ -2,18 +2,23 @@
 clip_sheets / overlay_sheets for a plan timeline, inventory for a folder of raw clips.
 CLI: clips <plan.json> "<timeline>" <out_dir> [--ai] | overlays <plan.json> "<timeline>" <out_dir>
      | inventory <folder> <out_dir> [--max N]"""
+import hashlib
 import json
+import shutil
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
 import plan_tools as pt
+from machine import PATHS, TMP
 
 CELL_W, CELL_H = 270, 480
 STRIP_W, ROW_H = 1080, 340   # inventory: one 6-frame strip per row, 6 rows per sheet
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
+STRIP_CACHE = TMP / "strips"   # inventory strips by (path, size, mtime): a re-run of an unchanged folder is free
 
 
 def grab(video: str, t: float, out: Path, w: int = CELL_W) -> Path:
@@ -124,33 +129,62 @@ def _strip_sheets(strips: list[tuple[str, Path]], out_dir: Path, per: int = 6) -
     return res
 
 
-def inventory(folder: Path, out_dir: Path, max_clips: int | None = None) -> dict:
+def _strip(p: Path) -> tuple[dict, Path]:
+    """(probe, cached 6-frame strip) of one clip; the strip is made once per (path, size, mtime)."""
+    info = pt.probe_media(str(p))
+    st = p.stat()
+    key = hashlib.sha1(f"{p.resolve()}|{st.st_size}|{st.st_mtime_ns}|{STRIP_W}".encode()).hexdigest()
+    cached = Path(STRIP_CACHE) / f"{key}.png"
+    if cached.exists():
+        return info, cached
+    w, d = STRIP_W // 6, info["duration"] or 0
+    tmp = Path(STRIP_CACHE) / f"{key}_frames"
+    frames = []
+    try:
+        for k in range(6):
+            with Image.open(grab(str(p), d * (k + 0.5) / 6, tmp / f"{k}.png", w)) as im:   # closed: Windows can delete tmp
+                frames.append(im.convert("RGB"))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    strip = Image.new("RGB", (w * 6, max(f.height for f in frames)))
+    for k, f in enumerate(frames):
+        strip.paste(f, (k * w, 0))
+    part = cached.with_name(key + ".part.png")
+    strip.save(part)
+    part.replace(cached)   # a crash never leaves half a strip in the cache
+    return info, cached
+
+
+def inventory(folder: Path, out_dir: Path, max_clips: int | None = None, workers: int | None = None) -> dict:
     """Probe every video under `folder` (subfolders too, any extension case), make a 6-frame strip per clip,
-    tile the strips 6 per sheet. Clips are labelled by path relative to `folder`; unreadable files go in `skipped`."""
+    tile the strips 6 per sheet. Clips are labelled by path relative to `folder`; unreadable files go in `skipped`.
+    Clips run `workers` at a time (default machine.json render_concurrency); strips are cached by
+    (path, size, mtime), so a re-run only does new or changed clips."""
     out_dir, folder = Path(out_dir), Path(folder)
     files = sorted((p for p in folder.rglob("*") if p.is_file() and p.suffix.lower() in VIDEO_EXT),
                    key=lambda p: p.relative_to(folder).as_posix().lower())
     if max_clips:
         files = files[:max_clips]
-    clips, strips, skipped = [], [], []
-    w = STRIP_W // 6
-    for p in files:
-        rel = p.relative_to(folder).as_posix()
-        i = len(clips) + 1
+
+    def one(p):
         try:
-            info = pt.probe_media(str(p))
-            d = info["duration"] or 0
-            frames = [Image.open(grab(str(p), d * (k + 0.5) / 6, out_dir / "frames" / f"i{i}_{k}.png", w)).convert("RGB")
-                      for k in range(6)]
+            return _strip(p)
         except Exception as e:  # ffprobe/ffmpeg failure: report, keep going
-            skipped.append({"rel": rel, "path": str(p), "error": str(e)[:200]})
+            return e
+
+    with ThreadPoolExecutor(max_workers=max(1, int(workers or PATHS.get("render_concurrency", 1)))) as ex:
+        results = list(ex.map(one, files))   # map keeps the sorted order
+    clips, strips, skipped = [], [], []
+    for p, res in zip(files, results):
+        rel = p.relative_to(folder).as_posix()
+        if isinstance(res, Exception):
+            skipped.append({"rel": rel, "path": str(p), "error": str(res)[:200]})
             continue
-        strip = Image.new("RGB", (w * 6, max(f.height for f in frames)))
-        for k, f in enumerate(frames):
-            strip.paste(f, (k * w, 0))
+        info, cached = res
+        i = len(clips) + 1
         sp = out_dir / "strips" / f"{i:04d}.png"
         sp.parent.mkdir(parents=True, exist_ok=True)
-        strip.save(sp)
+        shutil.copyfile(cached, sp)
         clips.append({"path": str(p), "rel": rel, **{k: info[k] for k in ("duration", "fps", "width", "height", "rotation")},
                       "strip": str(sp)})
         strips.append((f"{i} {rel}", sp))

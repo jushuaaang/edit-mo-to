@@ -78,3 +78,18 @@ def test_inventory_skips_unreadable(tmp_path, src):
     r = sheets.inventory(folder, tmp_path / "out")
     assert [c["rel"] for c in r["clips"]] == ["good.mp4"]
     assert [s["rel"] for s in r["skipped"]] == ["bad.mp4"]
+
+
+def test_inventory_reuses_cached_strips_and_runs_in_parallel(tmp_path, src, monkeypatch):
+    folder = tmp_path / "raw"; folder.mkdir()
+    for n in ("x.mp4", "y.mp4", "z.mp4"):
+        (folder / n).write_bytes(Path(src).read_bytes())
+    monkeypatch.setattr(sheets, "STRIP_CACHE", tmp_path / "cache")
+    grabs, real = [], sheets.grab
+    monkeypatch.setattr(sheets, "grab", lambda *a, **k: grabs.append(a[0]) or real(*a, **k))
+    r1 = sheets.inventory(folder, tmp_path / "out1", workers=3)
+    assert len(grabs) == 18 and [c["rel"] for c in r1["clips"]] == ["x.mp4", "y.mp4", "z.mp4"]
+    r2 = sheets.inventory(folder, tmp_path / "out2", workers=3)
+    assert len(grabs) == 18   # (path, size, mtime) unchanged: no ffmpeg run at all
+    assert [Path(c["strip"]).read_bytes() for c in r2["clips"]] == [Path(c["strip"]).read_bytes() for c in r1["clips"]]
+    assert all(Path(c["strip"]).parent == tmp_path / "out2" / "strips" for c in r2["clips"])
