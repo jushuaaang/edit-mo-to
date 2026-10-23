@@ -16,8 +16,9 @@ CLI (prints JSON only):
     mark-built <plan.json> "<name>" [--as "<project timeline>"]
         after a successful patch: the revised plan becomes the timeline's built plan copy; overlays without a
         "file" take it from the previous copy when template, vars, time, length and track are unchanged
-    music <plan.json> "<name>" --music f --volume v
-        a music-only draft as long as that timeline (for add-tracks ... audio); prints the draft folder
+    music <plan.json> "<name>" --music f --volume v [--end-s S]
+        a music-only draft as long as that timeline, or S seconds (the captioned timeline's `segments`
+        duration) (for add-tracks ... audio); prints the draft folder
 
 Timing is whole frames at 30 fps, passed to VectCutAPI as integer microseconds / 1e6 (US(frame)).
 """
@@ -80,7 +81,11 @@ def clip_frames(clip: dict) -> tuple[int, int]:
 
 
 def end_frame(timeline: dict) -> int:
-    return max((a + n for a, n in map(clip_frames, timeline.get("clips", []))), default=0)
+    """The last clip's end; a timeline with no clips (an overlay-only draft) ends with its last overlay or text."""
+    if timeline.get("clips"):
+        return max(a + n for a, n in map(clip_frames, timeline["clips"]))
+    rows = (timeline.get("overlays") or []) + (timeline.get("texts") or [])
+    return max((_f(r["at"]) + _f(r["duration"]) for r in rows), default=0)
 
 
 def overlays_to_frames(timeline: dict) -> list[dict]:
@@ -295,7 +300,8 @@ def build_timeline(plan: dict, timeline: dict, post=post, render=True) -> dict:
         post("add_audio", {"draft_id": did, "audio_url": timeline["music"], "start": 0, "end": _s(US(end_f)),
                            "target_start": 0, "volume": timeline.get("music_volume", 0.1), "track_name": "music"})
         counts["music"] = 1
-    for cue in sfx_cues(frames, US(end_f)):
+    # no clips: nothing to cut the cues at (an overlay-only draft merged into a built timeline keeps every cue)
+    for cue in sfx_cues(frames, US(end_f) if timeline.get("clips") else None):
         post("add_audio", {"draft_id": did, "audio_url": cue["file"], "start": 0, "end": _s(cue["len_us"]),
                            "target_start": _s(cue["at_us"]), "volume": cue["volume"], "track_name": cue["track"]})
         counts["sfx"] += 1
@@ -475,9 +481,9 @@ def timeline(plan: dict, name: str, post=post, as_name: str | None = None) -> st
     return draft
 
 
-def music_draft(end_frame: int, music: str, volume: float, post=post) -> str:
+def music_draft(end_frame: int, music: str, volume: float, post=post, canvas=(1080, 1920)) -> str:
     """A draft holding only the music bed, end_frame long, for add-tracks ... audio."""
-    did = post("create_draft", {"width": 1080, "height": 1920})["output"]["draft_id"]
+    did = post("create_draft", {"width": canvas[0], "height": canvas[1]})["output"]["draft_id"]
     post("add_audio", {"draft_id": did, "audio_url": music, "start": 0, "end": _s(US(end_frame)), "target_start": 0,
                        "volume": volume, "track_name": "music"})
     _save(did, post)
@@ -517,8 +523,11 @@ def main(argv: list[str]) -> None:
         print(json.dumps(mark_built(plan, rest[0], opt("--as")), ensure_ascii=False))
     elif cmd == "music" and rest and opt("--music"):
         tl = _pick(plan, [rest[0]])[0]
-        print(json.dumps({"draft": music_draft(end_frame(tl), opt("--music"), float(opt("--volume", 0.1)))},
-                         ensure_ascii=False))
+        # --end-s: the captioned timeline's real length (capcut_project.py segments `duration`), when hand edits
+        # made it differ from the plan's
+        end_f = round(float(opt("--end-s")) * 30) if opt("--end-s") else end_frame(tl)
+        print(json.dumps({"draft": music_draft(end_f, opt("--music"), float(opt("--volume", 0.1)),
+                                               canvas=_canvas(plan))}, ensure_ascii=False))
     else:
         raise SystemExit(__doc__)
 

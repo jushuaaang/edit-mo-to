@@ -308,3 +308,38 @@ def test_build_timeline_adds_texts_before_audio(monkeypatch):
     eps = [e for e, _ in calls]
     assert eps.count("add_text") == 1 and eps.index("add_text") < eps.index("add_audio")
     assert res["counts"]["texts"] == 1
+
+
+def test_overlay_only_draft_keeps_its_sfx(monkeypatch):
+    # editor.md: motion overlays and their SFX go in a draft holding only them (no clips, no VO)
+    calls, post = _post_recorder()
+    monkeypatch.setattr(bp.cp, "wait_for_draft", lambda p, t=30: Path(p))
+    tl = {"name": "ov", "vo": None, "music": None, "clips": [], "texts": [], "manual": [],
+          "overlays": [{"template": "badge", "vars": {}, "at": 1.0, "duration": 1.0, "track": "ui",
+                        "sfx": "default", "file": "/o1.mov"},
+                       {"template": "badge", "vars": {}, "at": 4.0, "duration": 1.0, "track": "ui",
+                        "sfx": "default", "file": "/o2.mov"}]}
+    res = bp.build_timeline(PLAN, tl, post=post, render=False)
+    sfx = [b for e, b in calls if e == "add_audio" and b["track_name"].startswith("sfx_")]
+    want = bp.sfx_cues(bp.overlays_to_frames(tl))
+    assert len(want) >= 2 and [round(b["target_start"] * 1e6) for b in sfx] == [c["at_us"] for c in want]
+    assert res["end_frame"] == 150   # the last overlay's end
+
+
+def test_music_end_s_overrides_the_plan_length_and_canvas_follows_the_plan(tmp_path, monkeypatch, capsys):
+    seen = {}
+    monkeypatch.setattr(bp, "music_draft", lambda end_f, music, volume, canvas=(1080, 1920): seen.update(
+        end_f=end_f, canvas=canvas) or "/d")
+    p = tmp_path / "plan.json"
+    p.write_text(json.dumps({**PLAN, "width": 1080, "height": 1080}), encoding="utf-8")
+    bp.main(["music", str(p), "Timeline 01", "--music", "/m.mp3", "--volume", "0.1"])
+    assert seen == {"end_f": 150, "canvas": (1080, 1080)}
+    bp.main(["music", str(p), "Timeline 01", "--music", "/m.mp3", "--volume", "0.1", "--end-s", "12.4"])
+    assert seen["end_f"] == 372
+
+
+def test_music_draft_uses_the_canvas(monkeypatch):
+    calls, post = _post_recorder()
+    monkeypatch.setattr(bp.cp, "wait_for_draft", lambda p, t=30: Path(p))
+    bp.music_draft(372, "/m.mp3", 0.1, post=post, canvas=(1080, 1080))
+    assert calls[0][1] == {"width": 1080, "height": 1080} and round(calls[1][1]["end"] * 1e6) == bp.US(372)

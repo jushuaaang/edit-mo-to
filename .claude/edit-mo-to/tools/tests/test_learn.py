@@ -153,3 +153,12 @@ def test_propose_accepts_real_edit_diff_output(tmp_path):
     lr.main(["propose", "--patterns", str(d), "--root", str(tmp_path)])
     assert any(p["rule"].startswith("B-roll: cut about") for p in
                lr.propose(json.loads(d.read_text())["patterns"], [], tmp_path)["proposals"])
+
+
+def test_nested_and_star_bullets_are_rules_too(tmp_path):
+    (tmp_path / "my-preferences.md").write_text(
+        "## B-roll\n- Parent rule.\n  - Nested rule about split screens.\n    * Deeper star rule.\n", encoding="utf-8")
+    got = lr.existing_rules(tmp_path)
+    for want in ("Parent rule.", "Nested rule about split screens.", "Deeper star rule."):
+        assert any(want in g for g in got)
+    assert lr.is_known("Nested rule about split screens", got)

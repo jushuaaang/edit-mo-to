@@ -55,7 +55,9 @@ def is_known(rule: str, existing: list[str], threshold: float = 0.6) -> str | No
 def _bullets(path: Path) -> list[str]:
     if not path.exists():
         return []
-    return [l.strip() for l in path.read_text(encoding="utf-8").splitlines() if l.startswith("- ")]
+    # nested bullets ("  - ", "* ") are rules too: clients and my-preferences indent sub-rules under a heading rule
+    lines = (l.strip() for l in path.read_text(encoding="utf-8").splitlines())
+    return [l for l in lines if l.startswith(("- ", "* "))]
 
 
 def _declined(root: Path) -> list[str]:
