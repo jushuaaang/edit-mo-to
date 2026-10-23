@@ -57,3 +57,24 @@ def test_overlay_sheets_without_rendered_file(tmp_path, src):
     plan["timelines"][0]["overlays"] = [{"template": "badge", "at": 0.5, "duration": 1.0}]
     r = sheets.overlay_sheets(plan, "A", tmp_path)
     assert r["sheets"][0]["items"] == ["ov1 badge"]
+
+
+def test_inventory_recurses_case_insensitive_and_labels_relative(tmp_path, src):
+    folder = tmp_path / "raw"
+    for rel in ("At Work/a.MOV", "At Work/a.mp4", "Flexing/b.MP4", "top.mov", "notes.txt"):
+        p = folder / rel; p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(Path(src).read_bytes())
+    r = sheets.inventory(folder, tmp_path / "out")
+    assert [c["rel"] for c in r["clips"]] == ["At Work/a.MOV", "At Work/a.mp4", "Flexing/b.MP4", "top.mov"]
+    assert len({c["strip"] for c in r["clips"]}) == 4   # a.MOV and a.mp4 no longer collide
+    assert r["sheets"][0]["items"][0] == "1 At Work/a.MOV"
+    assert len(sheets.inventory(folder, tmp_path / "out2", max_clips=2)["clips"]) == 2
+
+
+def test_inventory_skips_unreadable(tmp_path, src):
+    folder = tmp_path / "raw"; folder.mkdir()
+    (folder / "good.mp4").write_bytes(Path(src).read_bytes())
+    (folder / "bad.mp4").write_bytes(b"not a video")
+    r = sheets.inventory(folder, tmp_path / "out")
+    assert [c["rel"] for c in r["clips"]] == ["good.mp4"]
+    assert [s["rel"] for s in r["skipped"]] == ["bad.mp4"]

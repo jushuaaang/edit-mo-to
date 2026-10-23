@@ -74,6 +74,8 @@ def build_pack(style: str, client: str | None = None, generator: str | None = No
 
 
 def main(argv: list[str]) -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")   # Windows consoles default to cp1252
     ap = argparse.ArgumentParser()
     ap.add_argument("style", choices=sorted(STYLES))
     ap.add_argument("--client")

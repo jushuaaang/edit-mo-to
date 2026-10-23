@@ -116,3 +116,16 @@ def test_backend_selection(monkeypatch, tmp_path):
     words = mt.transcribe(audio, cache=False)
     assert words == [{"word": "Hi", "start": 0.0, "end": 0.3}, {"word": "there", "start": 0.4, "end": 0.8}]
     assert seen["path_or_hf_repo"] == "mlx-community/whisper-large-v3-turbo" and seen["word_timestamps"] is True
+
+
+def test_compact_cli_writes_utf8(tmp_path):
+    """stdout must be UTF-8 even when the console default is cp1252 (em dash used to come out as 0x97)."""
+    import subprocess
+    script = tmp_path / "s.txt"
+    script.write_text("Hi there — friend\n", encoding="utf-8")
+    code = ("import sys; sys.path.insert(0, %r); import media_timing as mt\n"
+            "mt.transcribe = lambda p, cache=True: [{'word': 'Hi', 'start': 0.0, 'end': 0.3}]\n"
+            "mt.main(['vo', 'x.mp3', %r, '--compact'])\n") % (str(Path(__file__).resolve().parents[1]), str(script))
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, env={**__import__("os").environ, "PYTHONIOENCODING": "cp1252"})
+    assert r.returncode == 0, r.stderr.decode("utf-8", "replace")
+    assert "—" in r.stdout.decode("utf-8")

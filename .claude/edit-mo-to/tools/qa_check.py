@@ -385,6 +385,8 @@ def check_prompts_rows(spec: dict, script_lines: list[str], timings: dict | None
 
 
 def main(argv: list[str]) -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")   # Windows consoles default to cp1252
     if not argv or argv[0] in ("-h", "--help"):
         raise SystemExit(__doc__)
     cmd, args = argv[0], argv[1:]

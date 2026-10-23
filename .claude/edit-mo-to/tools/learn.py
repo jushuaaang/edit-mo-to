@@ -194,6 +194,8 @@ def _opt(argv, name):
 
 
 def main(argv: list[str]) -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")   # Windows consoles default to cp1252
     argv = list(argv)
     cmd = argv.pop(0) if argv else ""
     root = Path(_opt(argv, "--root") or ROOT)

@@ -125,31 +125,41 @@ def _strip_sheets(strips: list[tuple[str, Path]], out_dir: Path, per: int = 6) -
 
 
 def inventory(folder: Path, out_dir: Path, max_clips: int | None = None) -> dict:
-    """Probe every video in `folder`, make a 6-frame strip per clip, tile the strips 6 per sheet."""
-    out_dir = Path(out_dir)
-    files = sorted(p for p in Path(folder).iterdir() if p.suffix.lower() in VIDEO_EXT)
+    """Probe every video under `folder` (subfolders too, any extension case), make a 6-frame strip per clip,
+    tile the strips 6 per sheet. Clips are labelled by path relative to `folder`; unreadable files go in `skipped`."""
+    out_dir, folder = Path(out_dir), Path(folder)
+    files = sorted((p for p in folder.rglob("*") if p.is_file() and p.suffix.lower() in VIDEO_EXT),
+                   key=lambda p: p.relative_to(folder).as_posix().lower())
     if max_clips:
         files = files[:max_clips]
-    clips, strips = [], []
+    clips, strips, skipped = [], [], []
     w = STRIP_W // 6
-    for i, p in enumerate(files, 1):
-        info = pt.probe_media(str(p))
-        d = info["duration"] or 0
-        frames = [Image.open(grab(str(p), d * (k + 0.5) / 6, out_dir / "frames" / f"i{i}_{k}.png", w)).convert("RGB")
-                  for k in range(6)]
+    for p in files:
+        rel = p.relative_to(folder).as_posix()
+        i = len(clips) + 1
+        try:
+            info = pt.probe_media(str(p))
+            d = info["duration"] or 0
+            frames = [Image.open(grab(str(p), d * (k + 0.5) / 6, out_dir / "frames" / f"i{i}_{k}.png", w)).convert("RGB")
+                      for k in range(6)]
+        except Exception as e:  # ffprobe/ffmpeg failure: report, keep going
+            skipped.append({"rel": rel, "path": str(p), "error": str(e)[:200]})
+            continue
         strip = Image.new("RGB", (w * 6, max(f.height for f in frames)))
         for k, f in enumerate(frames):
             strip.paste(f, (k * w, 0))
-        sp = out_dir / "strips" / f"{p.stem}.png"
+        sp = out_dir / "strips" / f"{i:04d}.png"
         sp.parent.mkdir(parents=True, exist_ok=True)
         strip.save(sp)
-        clips.append({"path": str(p), **{k: info[k] for k in ("duration", "fps", "width", "height", "rotation")},
+        clips.append({"path": str(p), "rel": rel, **{k: info[k] for k in ("duration", "fps", "width", "height", "rotation")},
                       "strip": str(sp)})
-        strips.append((f"{i} {p.name}", sp))
-    return {"clips": clips, "sheets": _strip_sheets(strips, out_dir)}
+        strips.append((f"{i} {rel}", sp))
+    return {"clips": clips, "skipped": skipped, "sheets": _strip_sheets(strips, out_dir)}
 
 
 def main(argv: list[str]) -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")   # Windows consoles default to cp1252
     if not argv:
         sys.exit(__doc__)
     cmd, rest = argv[0], argv[1:]

@@ -193,6 +193,8 @@ def compact(report: dict, fps: int = 30) -> str:
 
 
 def main(argv: list[str]) -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")   # Windows consoles default to cp1252
     fps = 30
     if "--fps" in argv:
         i = argv.index("--fps")
