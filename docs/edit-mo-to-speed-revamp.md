@@ -237,7 +237,7 @@ Acceptance on the Zapply dry-run job (12 clips, 31.6 s VO; the Wondermint job li
 | B-roll edit plan (style agent) | 827-1070 s, 118 calls (Exchange Life, Windows); 7 min (Mac Wondermint) | 181 s, 22 tool calls, 0 ffprobe (Zapply dry run) | <= 3 min |
 | Build (editor) | 88 s to 56 min (Windows agent builds); 12 min (Mac Wondermint) | 51.9 s `build_project.py build` (12 clips, no overlays) | <= 4 min |
 | Build QA, mechanical (`qa_check.py build`) | n/a | 0.4 s: verdict PASS, 13 checks passed, 8 OPEN `dead_stretch` rows, no FAIL | no present/vo_span FAIL |
-| Build QA (QA agent) | 119 s (Windows); 8 min (Mac Wondermint) | pending (controller) | <= 3 min |
+| Build QA (QA agent) | 119 s (Windows); 8 min (Mac Wondermint) | about 30-40 s, 6 tool calls, 1 sheet image read: verdict PASS, 0 issues | <= 3 min |
 | Overlay render, `badge` 3 s | old path (`workers=0`, `slim=False`): 25.7 s, 11,053,420 bytes | new default: 16.9 s, 7,048,213 bytes (63.8% of old) | <= 65% size |
 | Overlay fidelity (old vs new) | n/a | PSNR 71.8 dB average (min 68.6) | >= 58 dB |
 
