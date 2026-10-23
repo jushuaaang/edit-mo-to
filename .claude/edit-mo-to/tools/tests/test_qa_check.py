@@ -257,3 +257,41 @@ def test_layout_units_match_a_real_vectcut_draft(monkeypatch):
             shutil.rmtree(project, ignore_errors=True)
         if made and made.exists() and made.parent.name == Path(bp.BUILD).name:
             shutil.rmtree(made, ignore_errors=True)
+
+
+def test_unknown_timelines_name_is_an_error_not_a_pass():
+    with pytest.raises(ValueError, match="B"):
+        _run(timelines=["B"])
+
+
+def test_timeline_missing_from_the_project_is_a_fail_row():
+    def segs(p, n, s):
+        raise KeyError(f"no timeline named {n!r} in P; have ['A renamed']")
+    r = qc.check_build(PLAN, Path("/p"), segments_fn=segs, probe=PROBE, silent=QUIET, limits=LIMITS)
+    assert r["verdict"].startswith("FAIL") and any("not in the project" in row["evidence"] for row in r["rows"])
+
+
+def test_search_stops_at_the_next_option(tmp_path, monkeypatch):
+    seen = {}
+    monkeypatch.setattr(qc, "check_build", lambda plan, project, tls, changed, limits, search=(): seen.update(
+        search=search, limits=limits) or {"rows": [], "passed": 1, "verdict": "PASS"})
+    (tmp_path / "plan.json").write_text(json.dumps(PLAN), encoding="utf-8")
+    (tmp_path / "limits.json").write_text(json.dumps(LIMITS), encoding="utf-8")
+    qc.main(["build", str(tmp_path / "plan.json"), "/p", "--search", "/c1", "/c2", "--limits", str(tmp_path / "limits.json")])
+    assert seen["search"] == ["/c1", "/c2"] and seen["limits"] == LIMITS
+
+
+def test_square_job_canvas_follows_limits_ratio():
+    square = {**PLAN, "width": 1080, "height": 1080}
+    assert "canvas" not in _checks(_run(plan=square, limits={**LIMITS, "ratio": "1:1"}))
+    assert "canvas" in _checks(_run(plan=PLAN, limits={**LIMITS, "ratio": "1:1"}))
+    assert "canvas" in _checks(_run(plan=square))   # no ratio in limits: the 9:16 default
+
+
+def test_expanded_product_ad_plan_keeps_music_level_quiet():
+    import plan_tools as pt
+    p = pt.expand({"project": "P", "style": "product-ad", "timelines": []})
+    loud = copy.deepcopy(PLAN)
+    loud["timelines"][0]["music_volume"] = 0.8
+    assert p["style"] == "product-ad"
+    assert "music_level" not in _checks(_run(plan={**loud, "style": p["style"]}))

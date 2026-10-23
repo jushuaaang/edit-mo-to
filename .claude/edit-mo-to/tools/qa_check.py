@@ -127,6 +127,11 @@ def check_build(plan: dict, project: Path, timelines: list[str] | None = None, c
     limits = limits or {}
     delta = changed is not None
     out = _Rows()
+    names = [tl["name"] for tl in plan.get("timelines", [])]
+    unknown = [n for n in timelines or [] if n not in names]
+    if unknown:   # filtering to nothing would PASS with every check "passed"
+        raise ValueError(f"unknown timeline(s) {unknown}; the plan has {names}. A revise-new-timeline timeline is "
+                         f"checked on its built plan copy <base>/.edit-mo-to/built/<new name>.plan.json")
     todo = [tl for tl in plan.get("timelines", []) if not timelines or tl["name"] in timelines]
     ran = set(DELTA_CHECKS) if delta else set(ALL_CHECKS)
     if not delta:
@@ -138,7 +143,13 @@ def check_build(plan: dict, project: Path, timelines: list[str] | None = None, c
 
     for tl in todo:
         name, clips, overlays = tl["name"], tl.get("clips", []), tl.get("overlays", [])
-        dump = segments_fn(project, name, list(search))
+        try:
+            dump = segments_fn(project, name, list(search))
+        except KeyError as e:
+            out.add("present", f"timeline '{name}' is not in the project: {e.args[0] if e.args else e}",
+                    "build it, or run qa_check on the plan that names it as the project does "
+                    "(after revise-new-timeline: <base>/.edit-mo-to/built/<new name>.plan.json)", name, "FAIL")
+            continue
         segs = dump.get("segments", [])
         by_kind = {k: [s for s in segs if _kind(s) == k] for k in ("clip", "overlay", "audio", "text")}
         matched = _match_clips(clips, by_kind["clip"])
@@ -353,10 +364,11 @@ def check_build(plan: dict, project: Path, timelines: list[str] | None = None, c
                         "delete the caption track; the user adds captions in CapCut")
 
     if "canvas" in ran:
-        want = limits.get("canvas") or [1080, 1920]
-        got = [plan.get("width", 1080), plan.get("height", 1920)]
+        # the brief's ratio (limits.json `ratio`, or an explicit `canvas`), else the 9:16 default
+        want = limits.get("canvas") or pt.ratio(limits.get("ratio")) or (9, 16)
+        got = pt.canvas(plan)
         if abs(got[0] / got[1] - want[0] / want[1]) > 0.01:
-            out.add("canvas", f"plan canvas is {got[0]}x{got[1]}, expected ratio {want[0]}:{want[1]}",
+            out.add("canvas", f"plan canvas is {got[0]}x{got[1]}, expected ratio {want[0]:g}:{want[1]:g}",
                     "set width/height in the plan and rebuild", "")
 
     if "reuse" in ran:
@@ -403,11 +415,17 @@ def main(argv: list[str]) -> None:
             raise SystemExit(__doc__)
         search = []
         for i, a in enumerate(args):
-            if a == "--search":
-                search += [x for x in args[i + 1:] if not x.startswith("--")]
+            if a == "--search":   # its folders run up to the next option
+                for x in args[i + 1:]:
+                    if x.startswith("--"):
+                        break
+                    search.append(x)
         csv = lambda k: [x.strip() for x in opt(k).split(",") if x.strip()] if opt(k) else None   # noqa: E731
-        res = check_build(load(args[0]), Path(args[1]), csv("--timelines"), csv("--changed"),
-                          load(opt("--limits")) if opt("--limits") else None, search=search)
+        try:
+            res = check_build(load(args[0]), Path(args[1]), csv("--timelines"), csv("--changed"),
+                              load(opt("--limits")) if opt("--limits") else None, search=search)
+        except ValueError as e:
+            raise SystemExit(f"qa_check: {e}")
     elif cmd == "prompts":
         lines = [ln for ln in Path(opt("--script")).read_text(encoding="utf-8").splitlines() if ln.strip()] if opt("--script") else []
         res = check_prompts_rows(load(args[0]), lines, load(opt("--timings")) if opt("--timings") else None)

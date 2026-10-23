@@ -172,3 +172,16 @@ def test_ugc_host_block_says_the_words_once():
     plain = pt.render_prompts(SPEC2, SCRIPT, None).split("```")[1]   # action without the quote: Dialogue printed
     assert plain.count("Meet Nativia, the vitamin I never skip.") == 1 and "Dialogue:" in plain
     assert pt.check_prompts({**SPEC2, "prompts": [host]}, SCRIPT, None) == []
+
+
+def test_image_prompts_need_no_voice_or_pacing_lock():
+    kf = dict(SPEC2["prompts"][0], id="SB-1", kind="keyframe", locks=["realism", "product", "notext", "look"], dialogue="")
+    sheet = dict(SPEC2["prompts"][0], id="CS-1", kind="character", locks=["realism", "notext", "look"], dialogue="")
+    assert pt.check_prompts({**SPEC2, "prompts": [kf, sheet]}, SCRIPT, None) == []
+    bare = dict(kf, locks=["realism", "notext"])
+    assert any("missing locks: product, look" in e for e in pt.check_prompts({**SPEC2, "prompts": [bare]}, SCRIPT, None))
+    clay = {**SPEC2, "style": "claymation", "locks": {"style_bible": "CLAY", "notext": "NO TEXT"},
+            "prompts": [dict(kf, locks=["style_bible", "notext"]), dict(sheet, locks=["style_bible", "notext"])]}
+    assert pt.check_prompts(clay, SCRIPT, None) == []
+    video = dict(SPEC2["prompts"][0], locks=["realism", "product", "notext", "look"])
+    assert any("voice, pacing" in e for e in pt.check_prompts({**SPEC2, "prompts": [video]}, SCRIPT, None))

@@ -155,7 +155,7 @@ def _timeline(tl: dict, plan2: dict) -> dict:
 def expand(plan2: dict) -> dict:
     """Compact frame plan (plan2) -> contract plan: frames become 10-decimal seconds, blocks are resolved,
     brand vars are filled into the overlays whose template declares them."""
-    plan = {k: plan2[k] for k in ("project", "fps", "width", "height", "base", "brand") if k in plan2}
+    plan = {k: plan2[k] for k in ("project", "style", "fps", "width", "height", "base", "brand") if k in plan2}
     plan["timelines"] = [_timeline(tl, plan2) for tl in plan2.get("timelines", [])]
     return plan
 
@@ -174,7 +174,7 @@ def plan_table(plan: dict) -> str:
     return "\n".join(rows)
 
 
-CANVAS = (1080, 1920)
+CANVAS = (1080, 1920)   # the 9:16 default when a plan gives no width/height
 BAND_OK = {"cta", "end-card", "title-card"}   # templates that belong in the caption band
 SPLIT_TRACKS = {"video_top", "video_bottom"}  # sized by their layout, not by the full-frame scale rule
 EPS = 1e-6
@@ -228,7 +228,17 @@ def _clip_len(c: dict) -> float:
     return clip_len_f(c) / 30
 
 
-def _scale_errors(c: dict, info: dict, where: str) -> list[str]:
+def canvas(plan: dict) -> tuple[int, int]:
+    return int(plan.get("width") or CANVAS[0]), int(plan.get("height") or CANVAS[1])
+
+
+def ratio(text) -> tuple[float, float] | None:
+    """limits.json `ratio` ("9:16", "1:1", "4:5") -> (w, h), or None when absent or unreadable."""
+    m = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*[:x/]\s*(\d+(?:\.\d+)?)\s*", str(text or ""))
+    return (float(m.group(1)), float(m.group(2))) if m and float(m.group(2)) else None
+
+
+def _scale_errors(c: dict, info: dict, where: str, cv: tuple[int, int] = CANVAS) -> list[str]:
     errs = []
     scale = c.get("scale", 1.0)
     if scale > 2.0 and not c.get("allow_scale"):
@@ -237,15 +247,16 @@ def _scale_errors(c: dict, info: dict, where: str) -> list[str]:
     if w and h and c.get("track") not in SPLIT_TRACKS:
         if abs(info.get("rotation", 0)) % 180 == 90:
             w, h = h, w
-        f = min(CANVAS[0] / w, CANVAS[1] / h)
-        if scale * w * f < CANVAS[0] * 0.99 or scale * h * f < CANVAS[1] * 0.99:   # 1% slack: 320x568 is "9:16"
+        f = min(cv[0] / w, cv[1] / h)
+        if scale * w * f < cv[0] * 0.99 or scale * h * f < cv[1] * 0.99:   # 1% slack: 320x568 is "9:16"
             errs.append(f"{where}: scale {scale} leaves black edges on a {w}x{h} source "
-                        f"(fitted {round(w * f)}x{round(h * f)} in a {CANVAS[0]}x{CANVAS[1]} canvas); "
-                        f"use scale >= {max(CANVAS[0] / (w * f), CANVAS[1] / (h * f)):.2f}")
+                        f"(fitted {round(w * f)}x{round(h * f)} in a {cv[0]}x{cv[1]} canvas); "
+                        f"use scale >= {max(cv[0] / (w * f), cv[1] / (h * f)):.2f}")
     return errs
 
 
-def _overlay_errors(o: dict, n: int, cuts: list[float], tl: str, templates: dict, limits: dict) -> list[str]:
+def _overlay_errors(o: dict, n: int, cuts: list[float], tl: str, templates: dict, limits: dict,
+                    cv: tuple[int, int] = CANVAS) -> list[str]:
     where, errs, name = f"{tl} overlay {n}", [], o["template"]
     if name not in templates:
         errs.append(f"{where}: no template '{name}'; have {sorted(templates)}")
@@ -262,7 +273,7 @@ def _overlay_errors(o: dict, n: int, cuts: list[float], tl: str, templates: dict
         top = vars_.get("top", vars_.get("y", defaults.get("top", defaults.get("y"))))
         band = limits.get("caption_band_px", 400)
         try:
-            in_band = top is not None and float(top) >= CANVAS[1] - band
+            in_band = top is not None and float(top) >= cv[1] - band
         except (TypeError, ValueError):
             in_band = False
         if in_band and name not in BAND_OK:
@@ -281,9 +292,14 @@ def _overlay_errors(o: dict, n: int, cuts: list[float], tl: str, templates: dict
 
 def check(plan: dict, limits: dict | None = None, probe=probe_media, silent=edge_silent) -> list[str]:
     """Everything the editor or QA would trip over, found on the contract plan before either runs.
-    Each error starts with `T<n> clip <m>:`, `T<n> overlay <m>:` or `T<n> vo:` (1-based)."""
+    Each error starts with `T<n> clip <m>:`, `T<n> overlay <m>:` or `T<n> vo:` (1-based), or `plan:`.
+    The canvas is the plan's width x height; limits `ratio` only cross-checks it."""
     limits, errs, info = limits or {}, [], {}
     templates = mr.list_templates()
+    cv = canvas(plan)
+    want = ratio(limits.get("ratio"))
+    if want and abs(cv[0] / cv[1] - want[0] / want[1]) > 0.01:
+        errs.append(f"plan: canvas {cv[0]}x{cv[1]} is not the brief's ratio {limits['ratio']}; set width/height in plan2")
 
     def media(path):
         if path not in info:
@@ -308,7 +324,7 @@ def check(plan: dict, limits: dict | None = None, probe=probe_media, silent=edge
             else:
                 if c["src_out"] > m["duration"] + 1 / 30 + EPS:
                     errs.append(f"{where}: src_out {c['src_out']} is past the file end {m['duration']} ({c['file']})")
-                errs += _scale_errors(c, m, where)
+                errs += _scale_errors(c, m, where, cv)
             for lt, cj, other in seen:
                 if not source_overlaps(c, other):
                     continue
@@ -350,7 +366,13 @@ def check(plan: dict, limits: dict | None = None, probe=probe_media, silent=edge
                                     f"move it into the gap between words")
         cuts, by_track = [c["at"] for c in clips], {}
         for oi, o in enumerate(tl.get("overlays", []), 1):
-            errs += _overlay_errors(o, oi, cuts, T, templates, limits)
+            errs += _overlay_errors(o, oi, cuts, T, templates, limits, cv)
+            if o.get("cutout"):   # the build cuts the person out of the one main-track clip under it
+                a, b = round(o["at"] * 30), round((o["at"] + o["duration"]) * 30)
+                if not any(c.get("track", "video_main") == "video_main" and round(c["at"] * 30) <= a
+                           and b <= round(c["at"] * 30) + clip_len_f(c) for c in clips):
+                    errs.append(f"{T} overlay {oi}: cutout {a}-{b} (frames) does not lie inside one main-track clip; "
+                                f"move it or shorten it to one clip")
             by_track.setdefault(o["track"], []).append((o["at"], o["at"] + o["duration"], oi))
         for track, items in by_track.items():
             items.sort()
@@ -376,6 +398,15 @@ REQUIRED_LOCKS = {
     "product-ad": ["product", "notext"],
 }
 IMAGE_KINDS = {"keyframe", "character"}
+IMAGE_DROP = {"voice", "pacing"}          # a still has no voice and no pacing
+CHARACTER_DROP = IMAGE_DROP | {"product"}  # a character sheet shows the person, not the product
+
+
+def required_locks(style: str, kind: str) -> list[str]:
+    """The locks a prompt of this kind needs in this style: video prompts all of REQUIRED_LOCKS, keyframes
+    all but voice and pacing, character sheets also without product."""
+    drop = CHARACTER_DROP if kind == "character" else IMAGE_DROP if kind in IMAGE_KINDS else set()
+    return [k for k in REQUIRED_LOCKS[style] if k not in drop]
 CLIENT = "client"   # a picked client clip: a table row (file + cut), no prompt block, no lock rules
 FPS = 30
 
@@ -412,7 +443,6 @@ def check_prompts(spec: dict, script_lines: list[str], timings: dict | None) -> 
     if style not in REQUIRED_LOCKS:
         return [f"unknown style {style!r} (one of {', '.join(REQUIRED_LOCKS)})"]
     errs: list[str] = []
-    required = REQUIRED_LOCKS[style]
     seedance = _is_seedance(spec)
     keys = set(spec.get("attach", {}))
     video = []
@@ -438,7 +468,7 @@ def check_prompts(spec: dict, script_lines: list[str], timings: dict | None) -> 
                                 f"{p['vo_out_f'] - p['vo_in_f']}-frame VO span (±2)")
             continue
         have = p.get("locks", [])
-        missing = [k for k in required if k not in have]
+        missing = [k for k in required_locks(style, _kind(p)) if k not in have]
         if missing:
             errs.append(f"{w}: missing locks: {', '.join(missing)}")
         for k in have:

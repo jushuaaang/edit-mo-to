@@ -125,3 +125,26 @@ def test_sped_clip_with_fractional_source_length_is_clean():
     plan = _p2([_tl(clips=[["a.mp4", 0, 0, 60, {"speed": 0.9}], ["b.mp4", 0, 60, 61, {"speed": 0.9}],
                            ["c.mp4", 0, 121, 30]])])
     assert pt.check(plan, probe=PROBE, silent=QUIET) == []
+
+
+def test_square_plan_uses_its_own_canvas():
+    sq = lambda p: {**PROBE(p), "width": 1080, "height": 1080}
+    plan = _p2([_tl(clips=[["a.mp4", 0, 0, 60]], overlays=[["badge", 0, 30, {"text": "X", "top": 300}, "ui", "none"]])],
+               width=1080, height=1080)
+    assert pt.check(plan, {"ratio": "1:1"}, probe=sq, silent=QUIET) == []
+    # 9:16 source on a square canvas: fitted 608x1080, so scale 1.0 leaves black edges
+    assert any("black edges" in e and "1080x1080" in e for e in pt.check(plan, probe=PROBE, silent=QUIET))
+    # the caption band sits at the bottom of a square canvas: y 900 is inside it, y 300 is not
+    low = _p2([_tl(clips=[["a.mp4", 0, 0, 60]], overlays=[["badge", 0, 30, {"text": "X", "top": 900}, "ui", "none"]])],
+              width=1080, height=1080)
+    assert any("caption band" in e for e in pt.check(low, probe=sq, silent=QUIET))
+    assert any("ratio" in e for e in pt.check(plan, {"ratio": "9:16"}, probe=sq, silent=QUIET))
+
+
+def test_cutout_overlay_must_sit_inside_one_main_clip():
+    plan = _p2([_tl(clips=[["a.mp4", 0, 0, 60], ["b.mp4", 0, 60, 60]],
+                    overlays=[["badge", 0, 30, {"text": "X", "top": 300}, "ui", "none", {"cutout": True}],
+                              ["badge", 60, 30, {"text": "Y", "top": 300}, "title", "none"],
+                              ["badge", 45, 30, {"text": "Z", "top": 300}, "flash", "none", {"cutout": True, "on": "word"}]])])
+    errs = pt.check(plan, probe=PROBE, silent=QUIET)
+    assert [e for e in errs if "cutout" in e] and all(e.startswith("T1 overlay 3") for e in errs if "cutout" in e)
