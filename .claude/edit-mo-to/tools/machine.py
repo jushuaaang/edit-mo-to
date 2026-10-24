@@ -40,6 +40,9 @@ def load() -> dict:
     cfg = dict(_DEFAULTS)
     if CONFIG.exists():
         cfg.update(json.loads(CONFIG.read_text(encoding="utf-8")))
+    # CapCut's shared "adjust" effect resource (colour-grade sliders), next to the drafts folder
+    cfg.setdefault("capcut_grade_cache", (Path(cfg["capcut_drafts"]).parents[1] / "Cache" / "effect" /
+                                          "7501974767453474064" / "20cd8db6531c21bf7e4053026d20e395").as_posix())
     return cfg
 
 

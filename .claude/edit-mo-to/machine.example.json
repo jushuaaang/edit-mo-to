@@ -4,7 +4,8 @@
   "asr": "faster-whisper (default) or mlx on Apple silicon",
   "asr_device": "auto (default), cpu (skip the CUDA attempt, for GPUs without float16/cublas) or cuda (fail instead of falling back)",
   "render_workers": "hyperframes --workers per overlay render (default 1)",
-  "render_concurrency": "overlay renders side by side (default min(4, cpu/2))"
+  "render_concurrency": "overlay renders side by side (default min(4, cpu/2))",
+  "capcut_grade_cache": "CapCut's adjust-effect folder used by the patch grade op (default <CapCut User Data>/Cache/effect/7501974767453474064/20cd8db6531c21bf7e4053026d20e395)"
  },
  "_windows": {
   "root": "D:/Video Editing",

@@ -23,7 +23,7 @@ CLI (prints JSON):
                                                  video_overlay (or named) track, keeping captions and hand
                                                  edits byte-for-byte (auto-backup, refuses overlaps)
     patch <project> <name> <ops.json>            edit a (hand-edited) timeline in place, op by op: set / remove /
-                                                 insert / split / ripple / transition, segments by their CapCut id;
+                                                 insert / split / ripple / transition / grade, segments by their CapCut id;
                                                  everything else stays byte-for-byte (auto-backup, writes
                                                  draft_content.json, validates before writing; --dry-run)
     segments <project> <name> [search_dir ...]   list what's on a timeline (layout, text, original files);
@@ -44,6 +44,8 @@ import time
 import uuid
 from pathlib import Path
 
+from machine import PATHS
+
 CONTENT_FILES = ("draft_info.json", "draft_content.json")
 TIMELINE_EXTRAS = ("template-2.tmp", "attachment_editing.json", "attachment_pc_common.json")
 BACKUP_DIR = "edit-mo-to-backups"
@@ -61,6 +63,15 @@ PHOTO_DURATION_US = 10_800_000_000  # what CapCut stores as a still's material d
 # these from a segment already on the target track, so the new clip has the same shape CapCut saves.
 COMPANION_KINDS = ("speeds", "canvases", "placeholder_infos", "sound_channel_mappings", "material_colors",
                    "vocal_separations")
+
+# Colour-grade sliders (CapCut's Adjustment panel): one materials.effects entry per slider, copied from
+# what CapCut 9.6 saved in the editor's project "1003" (slider -100..100 is stored as value -1..1; the
+# effect files are the shared "adjust" resource in CapCut's cache). Only properties seen in a real
+# project are supported; "version" is what CapCut wrote for each one.
+GRADE_VERSIONS = {"brightness": "v2", "contrast": "v3", "saturation": "v1", "temperature": "v3"}
+GRADE_ORDER = ("brightness", "contrast", "saturation", "highlight", "white", "black", "temperature", "tone",
+               "light_sensation")  # the order CapCut lists them in extra_material_refs
+GRADE_CACHE = PATHS["capcut_grade_cache"]  # per machine: machine.json "capcut_grade_cache"
 
 
 class ProjectBusy(RuntimeError):
@@ -992,6 +1003,73 @@ class _Patcher:
         seg["extra_material_refs"] = refs
         return {"op": "transition", "id": seg["id"], "name": m["name"], "duration": m["duration"]}
 
+    def _grade_template(self, kind: str, value: float) -> dict:
+        return {"id": _new_id(), "effect_id": "7501974767453474064", "resource_id": "7501974767453474064",
+                "third_resource_id": "", "name": "", "report_name": "", "type": kind, "sub_type": "none",
+                "path": GRADE_CACHE, "value": value, "visible": True, "item_effect_type": 0, "category_id": "",
+                "category_name": "", "category_key": "", "sub_category_id": "", "sub_category_name": "",
+                "platform": "all", "apply_target_type": 0, "source_platform": 1, "version": GRADE_VERSIONS[kind],
+                "adjust_params": [], "time_range": None, "formula_id": "", "enable_skin_tone_correction": False,
+                "algorithm_artifact_path": "", "intensity_key": "", "face_adjust_params": [], "exclusion_group": [],
+                "panel_id": "", "bloom_params": None, "request_id": "",
+                "color_match_info": {"target_feature_path": "", "source_feature_path": "", "target_image_path": ""},
+                "multi_language_current": "", "lumi_hub_path": GRADE_CACHE + "/lumi_hub_path",
+                "covering_relation_change": 0, "beauty_face_auto_preset_id": "", "beauty_body_auto_preset_id": "",
+                "beauty_face_auto_retouch_info": {"face_id": [], "beauty_face_auto_retouch_id": ""},
+                "smart_color_mode": 0, "is_from_intelligent_quality": False}
+
+    def grade(self, op: dict) -> dict:
+        """Colour-grade segments with Adjustment sliders (-100..100): temperature, saturation, brightness,
+        contrast. Each becomes a materials.effects entry referenced from the segment's extra_material_refs
+        (after speeds/placeholder_infos, CapCut's spot); a slider already on the segment is replaced, one
+        not named is left alone, so re-running is safe. Segments: "ids": [...] / "id", or "track" (name,
+        default the first video track) with "index" or "range": [first, last] (0-based, inclusive)."""
+        sliders = {k: op[k] for k in GRADE_VERSIONS if k in op}
+        if not sliders:
+            raise ValueError(f"grade needs at least one of {', '.join(GRADE_VERSIONS)}")
+        for k, v in sliders.items():
+            if not isinstance(v, (int, float)) or isinstance(v, bool) or not -100 <= v <= 100:
+                raise ValueError(f"grade {k} must be a number from -100 to 100, got {v!r}")
+        if op.get("ids") or op.get("id"):
+            segs = [self._locate(i)[1] for i in (op.get("ids") or [op["id"]])]
+        else:
+            track = self._track(op["track"]) if op.get("track") else next(
+                (t for t in self.c.get("tracks", []) if t.get("type") == "video"), None)
+            if track is None:
+                raise KeyError("no video track to grade")
+            ordered = sorted(track["segments"], key=lambda s: s["target_timerange"]["start"])
+            if "index" in op:
+                lo = hi = int(op["index"])
+            elif "range" in op:
+                lo, hi = int(op["range"][0]), int(op["range"][1])
+            else:
+                raise ValueError("grade needs ids, or a track with index / range")
+            if not 0 <= lo <= hi < len(ordered):
+                raise ValueError(f"grade segment range {lo}-{hi} is outside track {track.get('name')!r} "
+                                 f"(0-{len(ordered) - 1})")
+            segs = ordered[lo:hi + 1]
+        for seg in segs:
+            by = self._by_id()
+            refs = list(seg.get("extra_material_refs") or [])
+            old = {r for r in refs if by.get(r, (None, {}))[0] == "effects" and by[r][1].get("type") in sliders}
+            refs = [r for r in refs if r not in old]
+            others = {r for t in self.c.get("tracks", []) for s in t.get("segments", []) if s is not seg
+                      for r in s.get("extra_material_refs") or []}
+            gone = old - others
+            self.mats["effects"] = [m for m in self.mats.get("effects", []) if m.get("id") not in gone]
+            # keep CapCut's slider order among the grade entries already on the segment
+            existing = [r for r in refs if by.get(r, (None, {}))[0] == "effects" and by[r][1].get("type") in GRADE_ORDER]
+            new = {k: self._grade_template(k, v / 100) for k, v in sliders.items()}
+            self.mats.setdefault("effects", []).extend(new.values())
+            entries = [(by[r][1]["type"], r) for r in existing] + [(k, m["id"]) for k, m in new.items()]
+            entries.sort(key=lambda e: GRADE_ORDER.index(e[0]))
+            refs = [r for r in refs if r not in existing]
+            after = [k for k, r in enumerate(refs) if by.get(r, (None,))[0] in ("speeds", "placeholder_infos")]
+            at = after[-1] + 1 if after else 0
+            refs[at:at] = [r for _, r in entries]
+            seg["extra_material_refs"] = refs
+        return {"op": "grade", "segments": [s["id"] for s in segs], "set": sliders}
+
     # --- checks --------------------------------------------------------------------------
     def validate(self) -> None:
         for t in self.c.get("tracks", []):
@@ -1019,6 +1097,8 @@ def patch_timeline(project: Path, name: str, ops, dry_run: bool = False) -> dict
         {"op": "ripple", "at", "delta", [except: ids]}   shift every segment starting at/after `at`
         {"op": "transition", "id", "name", "from_draft", [duration]}   CapCut transition on the cut after
          segment `id`, copied by name from another draft (its effect must be in CapCut's cache)
+        {"op": "grade", ("ids": [..] | "track", "index" | "range": [first, last]), [temperature, saturation,
+         brightness, contrast: -100..100]}   colour-grade segments with Adjustment sliders (idempotent)
     All ops are applied in memory and the result is checked (no overlaps) before anything is written.
     Writes the timeline's draft_content.json (newest) + draft_info.json, and the root files for the main
     timeline. Backs the timeline up first."""
@@ -1038,7 +1118,7 @@ def patch_timeline(project: Path, name: str, ops, dry_run: bool = False) -> dict
     done = []
     for i, op in enumerate(ops):
         fn = getattr(p, op.get("op", ""), None)
-        if op.get("op") not in ("set", "remove", "insert", "split", "ripple", "transition") or fn is None:
+        if op.get("op") not in ("set", "remove", "insert", "split", "ripple", "transition", "grade") or fn is None:
             raise ValueError(f"op {i}: unknown op {op.get('op')!r}")
         try:
             done.append({"n": i, **fn(op)})
@@ -1100,6 +1180,8 @@ def _original_source(m: dict, index: dict) -> str | None:
     path = m.get("path") or ""
     name = Path(path).name
     hashed = re.match(r"(?:video|audio|image)_([0-9a-f]{16})\.", name)
+    if path and not hashed and "placeholder" not in path and Path(path).is_file():
+        return path  # a live original (e.g. repointed by patch) beats stale backups indexed by material id
     return (index.get(m.get("id")) or index.get(name)
             or (index.get("hash:" + hashed.group(1)) if hashed else None) or path or None)
 
