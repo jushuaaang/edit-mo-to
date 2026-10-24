@@ -1,0 +1,82 @@
+<!--defaults {"brand": "VELIA · ELIXIR+", "label": "PROBLEM", "index": 3, "total": 12, "tc": "0", "tone": "#5a1426", "accent": "#6fb4e6", "opacity": 0.78, "inset": 48, "arm": 54, "size": 22, "shadow": 0, "intro": 1, "roll": 1, "outro": 0, "font": "Inter", "height": 1920, "duration": 4} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; -webkit-font-smoothing: antialiased; font-family: "{{font}}", sans-serif; }
+  #hud { position: absolute; inset: 0; opacity: {{opacity}}; color: {{tone}};
+         filter: drop-shadow(0 1px 6px rgba(0,0,0,{{shadow}})); }
+  .br { position: absolute; width: {{arm}}px; height: {{arm}}px; border: 0 solid {{tone}}; }
+  #tl { left: {{inset}}px; top: {{inset}}px; border-left-width: 3px; border-top-width: 3px; transform-origin: 0 0; }
+  #tr { right: {{inset}}px; top: {{inset}}px; border-right-width: 3px; border-top-width: 3px; transform-origin: 100% 0; }
+  #bl { left: {{inset}}px; bottom: {{inset}}px; border-left-width: 3px; border-bottom-width: 3px; transform-origin: 0 100%; }
+  #brr { right: {{inset}}px; bottom: {{inset}}px; border-right-width: 3px; border-bottom-width: 3px; transform-origin: 100% 100%; }
+  .lb { position: absolute; font-weight: 700; font-size: {{size}}px; line-height: 1; letter-spacing: .22em; white-space: nowrap;
+        font-variant-numeric: tabular-nums; text-transform: uppercase; }
+  #brand { left: calc({{inset}}px + {{arm}}px + 18px); top: calc({{inset}}px - {{size}}px * .45); }
+  #idx { right: calc({{inset}}px + {{arm}}px + 18px); top: calc({{inset}}px - {{size}}px * .45); display: flex; gap: .9em; align-items: center; }
+  #idx .n { display: inline-block; height: 1em; overflow: hidden; vertical-align: top; }
+  #idx .n b { display: block; font-weight: 700; height: 1em; }
+  #idx .sub { font-weight: 600; opacity: .7; }
+  #tcode { left: calc({{inset}}px + {{arm}}px + 18px); bottom: calc({{inset}}px - {{size}}px * .45); font-weight: 600; }
+  #ticks { position: absolute; right: calc({{inset}}px + {{arm}}px + 18px); bottom: calc({{inset}}px - 8px); display: flex; gap: 7px; align-items: flex-end; }
+  #ticks i { display: block; width: 3px; height: 12px; background: {{tone}}; opacity: .35; border-radius: 1px; }
+  #ticks i.on { background: {{accent}}; opacity: 1; }
+  #ticks i.cur { height: 20px; background: {{tone}}; opacity: 1; }
+  #rail { position: absolute; bottom: calc({{inset}}px - 1px); height: 1.5px; background: {{tone}}; opacity: .12; }
+  #fill { position: absolute; bottom: calc({{inset}}px - 1px); height: 1.5px; background: {{accent}}; opacity: .55; transform-origin: 0 50%; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="hud" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div class="br" id="tl"></div><div class="br" id="tr"></div><div class="br" id="bl"></div><div class="br" id="brr"></div>
+    <div class="lb" id="brand">{{brand}}</div>
+    <div class="lb" id="idx"><span class="sub">{{label}}</span><span><span class="n"><b id="i0" data-layout-allow-overflow></b><b id="i1" data-layout-allow-overflow></b></span> / <span id="tot"></span></span></div>
+    <div class="lb" id="tcode">00:00:00</div>
+    <div id="rail"></div><div id="fill"></div>
+    <div id="ticks"></div>
+  </div>
+</div>
+<script>
+  // A quiet clinical HUD frame: corner brackets, brand label top-left, section label + scene counter top-right
+  // (NN / total; the number rolls up from the previous scene when roll=1), a running timecode bottom-left
+  // (mm:ss:ff at 30 fps, starting at tc seconds = this clip's place in the edit), and progress ticks bottom-right
+  // (one per scene, done = accent, current = tall). intro=1 draws the brackets and labels on; intro=0 = already
+  // on screen (the next block's clip continues the frame). tone = ink on white plates, white (+shadow) on footage.
+  const D = Number("{{duration}}"), N = Math.max(1, Math.round(Number("{{total}}"))), I = Math.max(1, Math.min(N, Math.round(Number("{{index}}"))));
+  const TC = Number("{{tc}}") || 0, INSET = Number("{{inset}}"), ARM = Number("{{arm}}");
+  const pad = n => String(n).padStart(2, "0");
+  document.getElementById("i0").textContent = pad(Math.max(0, I - 1));
+  document.getElementById("i1").textContent = pad(I);
+  document.getElementById("tot").textContent = pad(N);
+  const ticks = document.getElementById("ticks");
+  for (let k = 1; k <= N; k++) { const i = document.createElement("i"); if (k < I) i.className = "on"; if (k === I) i.className = "cur"; ticks.appendChild(i); }
+  // the progress rail runs between the timecode and the ticks; it fills over this clip from (I-1)/N to I/N
+  const tc = document.getElementById("tcode");
+  const x0 = INSET + ARM + 18 + 200, x1 = 1080 - (INSET + ARM + 18) - (N * 10) - 30;
+  ["rail", "fill"].forEach(id => { const e = document.getElementById(id); e.style.left = x0 + "px"; e.style.width = Math.max(40, x1 - x0) + "px"; });
+  const fmt = s => { const f = Math.floor(s * 30 + 1e-6); return pad(Math.floor(f / 1800)) + ":" + pad(Math.floor(f / 30) % 60) + ":" + pad(f % 30); };
+  const tl = gsap.timeline({ paused: true }), clock = { t: 0 };
+  tc.textContent = fmt(TC);
+  tl.to(clock, { t: D, duration: D, ease: "none", onUpdate() { tc.textContent = fmt(TC + clock.t); } }, 0);
+  tl.fromTo("#fill", { scaleX: (I - 1) / N }, { scaleX: I / N, duration: D, ease: "none" }, 0);
+  const n = document.querySelector("#idx .n");
+  if ("{{roll}}" === "1" && I > 1) tl.fromTo(n.children, { y: 0 }, { y: "-1em", duration: 0.42, ease: "power3.inOut" }, 0.08);
+  else gsap.set(n.children, { y: "-1em" });
+  if ("{{intro}}" === "1") {
+    tl.fromTo(".br", { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: "power3.out", stagger: 0.04 }, 0);
+    tl.fromTo(".lb", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.4, ease: "power2.out", stagger: 0.06 }, 0.15);
+    tl.fromTo("#ticks i", { scaleY: 0, transformOrigin: "50% 100%" }, { scaleY: 1, duration: 0.3, ease: "power2.out", stagger: 0.02 }, 0.25);
+  }
+  if ("{{outro}}" === "1") tl.to("#hud", { opacity: 0, duration: 0.2, ease: "power2.in" }, D - 0.2);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

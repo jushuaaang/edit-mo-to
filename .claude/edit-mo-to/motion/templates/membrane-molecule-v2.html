@@ -1,0 +1,116 @@
+<!--defaults {"mode": "full", "t_dots": 0.2, "t_molecule": 3.0, "cy": 980, "bg": "", "head": "#f0b8ae", "tail": "#d99a93", "ink": "#5a1426", "dot": "#6fb4e6", "oil": "#b3201f", "cell": "#fbeeea", "seed": 11, "height": 1920, "duration": 5.2} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; }
+  #bg { position: absolute; inset: 0; background: {{bg}}; }
+  svg#s { position: absolute; left: 0; top: 0; overflow: visible; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="bg" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0"></div>
+  <svg id="s" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="1" width="1080" height="{{height}}" viewBox="0 0 1080 {{height}}"><defs><linearGradient id="cellg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{{cell}}" stop-opacity=".95"/><stop offset="1" stop-color="{{cell}}" stop-opacity="0"/></linearGradient></defs></svg>
+</div>
+<script>
+  // Membrane v2, built from particles. A loose particle field drifts in and settles into the lipid bilayer
+  // (two head rows, tails draw down). Small sky dots fall onto the outer face and bounce off (never enter).
+  // Then a stream of deep-red particles flows in and locks into one long molecule lying straight through the
+  // bilayer: ring - chain - ring, a ring anchored in each head row; both anchors pulse once (both sides guarded).
+  // mode "one-beat" = the bilayer is already formed and the molecule streams in at ~0.3 s (block 9, duration ~1.7).
+  const NS = "http://www.w3.org/2000/svg", D = Number("{{duration}}"), CY = Number("{{cy}}"), MODE = "{{mode}}";
+  const HEAD = "{{head}}", TAIL = "{{tail}}", INK = "{{ink}}", DOT = "{{dot}}", OIL = "{{oil}}";
+  const ONE = MODE === "one-beat", TD = Number("{{t_dots}}"), TM = ONE ? 0.3 : Number("{{t_molecule}}");
+  let sd = Number("{{seed}}"); const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+  const svg = document.getElementById("s"), tl = gsap.timeline({ paused: true });
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); (p || svg).appendChild(e); return e; };
+  const YO = CY - 110, YI = CY + 110;
+  const curve = x => 22 * Math.cos((x - 540) / 540 * 1.2) - 22;
+  const gC = mk("g", {});
+  const wash = mk("path", { d: `M -40 ${YI + curve(-40)} Q 540 ${YI + 40} 1120 ${YI + curve(1120)} L 1120 ${CY + 700} L -40 ${CY + 700} Z`, fill: "url(#cellg)" }, gC);
+  const gT = mk("g", {}, gC), gH = mk("g", {}, gC);
+  const NH = 27, X0 = 20, DX = (1080 - 40) / (NH - 1), heads = [], tails = [];
+  for (let i = 0; i < NH; i++) {
+    const x = X0 + i * DX, c = curve(x);
+    [[YO + c, 1], [YI + c, -1]].forEach(([y, dir]) => {
+      const t = mk("path", { d: `M ${x - 5} ${y + dir * 13} q -6 ${dir * 40} 3 ${dir * 84} M ${x + 5} ${y + dir * 13} q 6 ${dir * 40} -3 ${dir * 84}`, fill: "none", stroke: TAIL, "stroke-width": 3.5, "stroke-linecap": "round", pathLength: 1 }, gT);
+      t.style.strokeDasharray = 1; t.style.strokeDashoffset = ONE ? 0 : 1; tails.push(t);
+      const h = mk("circle", { cx: x, cy: y, r: 15, fill: HEAD, stroke: INK, "stroke-width": 2 }, gH);
+      // each head starts somewhere in a loose particle field and settles into its slot
+      h._dx = (rnd() - .5) * 900; h._dy = (rnd() - .5) * 700 - dir * 120; heads.push(h);
+    });
+  }
+  // ambient particles that never join (depth), drifting slowly
+  const amb = [];
+  for (let k = 0; k < 34; k++) amb.push(mk("circle", { cx: rnd() * 1080, cy: CY - 520 + rnd() * 1040, r: 2 + rnd() * 4, fill: k % 3 ? DOT : HEAD, opacity: 0 }, svg));
+  if (!ONE) {
+    tl.fromTo(wash, { opacity: 0 }, { opacity: 1, duration: 0.6 }, 0.5);
+    heads.forEach((h, i) => {
+      const d = Math.abs(Number(h.getAttribute("cx")) - 540) / 540;
+      tl.fromTo(h, { x: h._dx, y: h._dy, scale: 0.45, opacity: 0.55, transformOrigin: "50% 50%" },
+        { x: 0, y: 0, scale: 1, opacity: 1, duration: 0.9, ease: "power3.inOut" }, 0.02 + d * 0.25 + (i % 5) * 0.015);
+    });
+    tl.to(tails, { strokeDashoffset: 0, duration: 0.4, ease: "power2.out", stagger: 0.004 }, 0.8);
+    amb.forEach((a, k) => { tl.fromTo(a, { opacity: 0 }, { opacity: 0.35, duration: 0.6 }, 0.1 + k * 0.01); tl.to(a, { x: (k % 2 ? 30 : -30), y: (k % 3 ? -24 : 20), duration: D, ease: "sine.inOut" }, 0); });
+  } else {
+    amb.forEach((a, k) => { gsap.set(a, { opacity: 0.35 }); tl.to(a, { x: (k % 2 ? 16 : -16), y: (k % 3 ? -12 : 10), duration: D, ease: "sine.inOut" }, 0); });
+    tl.fromTo(gC, { opacity: 0 }, { opacity: 1, duration: 0.15 }, 0);
+  }
+  // dots bounce off the outer surface
+  if (!ONE) {
+    [300, 470, 640, 800, 380, 720].forEach((x, i) => {
+      const r = 15 + (i % 3) * 4, surf = YO + curve(x) - 15 - r, e = mk("circle", { cx: x, cy: surf, r, fill: DOT, opacity: 0 }, svg);
+      const t0 = TD + 0.9 + i * 0.2, hit = 0.42, s = i % 2 ? 1 : -1;
+      tl.set(e, { opacity: 1 }, t0);
+      tl.fromTo(e, { y: -420 - i * 20 }, { y: 0, duration: hit, ease: "power2.in", immediateRender: false }, t0);
+      tl.to(e, { scaleY: 0.8, scaleX: 1.16, transformOrigin: "50% 100%", duration: 0.05 }, t0 + hit);
+      tl.to(e, { scaleY: 1, scaleX: 1, duration: 0.08 }, t0 + hit + 0.05);
+      tl.to(e, { y: -150 + i * 10, x: 40 * s, duration: 0.42, ease: "power2.out" }, t0 + hit);
+      tl.to(e, { y: 0, x: 60 * s, duration: 0.38, ease: "power2.in" }, t0 + hit + 0.42);
+      tl.to(e, { y: -80, x: 90 * s, duration: 0.3, ease: "power2.out" }, t0 + hit + 0.8);
+      tl.to(e, { y: -300, x: 160 * s, opacity: 0, duration: 0.6, ease: "power1.in" }, t0 + hit + 1.1);
+      // the head it hits flinches, never opens
+      const hd = heads.reduce((b, h) => Math.abs(Number(h.getAttribute("cx")) - x) < Math.abs(Number(b.getAttribute("cx")) - x) && Number(h.getAttribute("cy")) < CY ? h : b, heads[0]);
+      tl.to(hd, { y: 4, duration: 0.06, yoyo: true, repeat: 1, ease: "power1.out" }, t0 + hit);
+    });
+  }
+  // molecule: particles stream in from the upper right and lock into ring - zigzag chain - ring at x = 540
+  const mx = 540, yTop = YO + curve(mx) - 6, yBot = YI + curve(mx) + 6;
+  const hexPts = (cx, cy, r) => [...Array(6)].map((_, k) => { const a = Math.PI / 6 + k * Math.PI / 3; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; });
+  const nz = 11, step = (yBot - yTop - 88) / nz, chain = [[mx, yTop + 44]];
+  for (let k = 1; k <= nz; k++) chain.push([mx + (k % 2 ? 26 : -26), yTop + 44 + k * step]);
+  const r1 = hexPts(mx, yTop, 50), r2 = hexPts(mx, yBot, 50);
+  const gM = mk("g", {});
+  const pathOf = (pts, close) => "M " + pts.map(p => p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" L ") + (close ? " Z" : "");
+  const bonds = [mk("path", { d: pathOf(chain), fill: "none", stroke: OIL, "stroke-width": 11, "stroke-linecap": "round", "stroke-linejoin": "round", opacity: 0 }, gM),
+    mk("path", { d: pathOf(r1, true), fill: "#fff", stroke: OIL, "stroke-width": 9, "stroke-linejoin": "round", opacity: 0 }, gM),
+    mk("path", { d: pathOf(r2, true), fill: "#fff", stroke: OIL, "stroke-width": 9, "stroke-linejoin": "round", opacity: 0 }, gM)];
+  const atoms = [...r1, ...chain, ...r2];
+  const P = atoms.map((p, k) => {
+    const e = mk("circle", { cx: p[0], cy: p[1], r: 10, fill: OIL, opacity: 0 }, gM);
+    const a = -0.9 + rnd() * 0.5, dist = 520 + rnd() * 300;
+    const t = TM + (k / atoms.length) * 0.45;
+    tl.fromTo(e, { x: Math.cos(a) * dist, y: Math.sin(a) * dist, opacity: 0, scale: 0.4, transformOrigin: "50% 50%" },
+      { x: 0, y: 0, opacity: 1, scale: 1, duration: 0.55, ease: "power3.out", immediateRender: false }, t);
+    return e;
+  });
+  const lock = TM + 0.85;
+  tl.to(bonds, { opacity: 1, duration: 0.2, ease: "power1.out" }, lock);
+  tl.to(P, { attr: { r: 6 }, duration: 0.25, ease: "power2.out" }, lock);
+  // both anchors pulse once, the head rows either side brighten
+  [[bonds[1], yTop], [bonds[2], yBot]].forEach(([b, y], i) => {
+    const ring = mk("circle", { cx: mx, cy: y, r: 60, fill: "none", stroke: OIL, "stroke-width": 3, opacity: 0 }, svg);
+    tl.fromTo(ring, { opacity: 0.7, attr: { r: 56 } }, { opacity: 0, attr: { r: 120 }, duration: 0.7, ease: "power2.out", immediateRender: false }, lock + 0.2 + i * 0.06);
+    tl.to(b, { scale: 1.1, svgOrigin: `${mx} ${y}`, duration: 0.14, ease: "power2.out", yoyo: true, repeat: 1 }, lock + 0.2 + i * 0.06);
+  });
+  tl.to(svg, { opacity: 0, duration: 0.2, ease: "power2.in" }, D - 0.2);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

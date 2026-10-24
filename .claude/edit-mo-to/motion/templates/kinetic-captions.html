@@ -1,0 +1,100 @@
+<!--defaults {"cues": "{\"chunks\":[{\"y\":1450,\"w\":[[\"Floaters\",0.1,\"\"],[\"are\",0.5,\"\"],[\"a\",0.7,\"\"],[\"sign\",0.8,\"k\"]],\"out\":1.6},{\"y\":1450,\"w\":[[\"your\",1.7,\"\"],[\"eyes\",1.9,\"\"],[\"are\",2.1,\"\"],[\"ageing\",2.3,\"km\"]],\"out\":3.4}],\"modes\":[[0,\"ink\"],[1.65,\"light\"]]}", "font": "Inter", "font2": "Playfair Display", "weight": 600, "size": 58, "serif_scale": 1.12, "ink": "#5a1426", "light": "#ffffff", "accent": "#ffe45c", "accent_fg": "#5a1426", "pill_bg": "rgba(255,255,255,0.88)", "blur": 8, "max_width": 960, "height": 1920, "duration": 3.6} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500..700&family={{font2}}:ital,wght@1,500..700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; -webkit-font-smoothing: antialiased; }
+  #wrap { position: absolute; inset: 0; }
+  .data { display: none; }
+  /* one caption chunk, centred on (540, y); words keep their final layout from the start */
+  .cap { position: absolute; left: 540px; width: max-content; white-space: nowrap; text-align: center;
+         font-family: "{{font}}", -apple-system, "Segoe UI", sans-serif; font-weight: {{weight}}; font-size: {{size}}px;
+         line-height: 1.2; letter-spacing: -0.012em; padding: 0.14em 0.5em 0.18em; border-radius: 0.5em; opacity: 0; }
+  .cap .bg { position: absolute; inset: 0; border-radius: inherit; opacity: 0; }
+  .w { display: inline-block; position: relative; }
+  .w .in { position: relative; z-index: 1; display: inline-block; }
+  .w.ser { font-family: "{{font2}}", Georgia, serif; font-style: italic; font-weight: 600; font-size: calc({{serif_scale}} * 1em); line-height: 1; letter-spacing: -0.005em; }
+  .mk { position: absolute; left: -0.08em; right: -0.08em; top: 0.16em; bottom: 0.04em; background: {{accent}}; border-radius: 0.1em; transform-origin: 0 50%; transform: scaleX(0); z-index: 0; }
+  /* modes: ink on light plates, white + soft shadow on footage, a soft white pill on busy backgrounds */
+  .cap.m-ink   { color: {{ink}}; }
+  .cap.m-light { color: {{light}}; text-shadow: 0 0 2px rgba(0,0,0,.45), 0 2px 6px rgba(0,0,0,.45), 0 4px 22px rgba(0,0,0,.35); }
+  .cap.m-pill  { color: {{ink}}; }
+  .cap.m-pill .bg { opacity: 1; background: {{pill_bg}}; box-shadow: 0 10px 30px rgba(40,10,20,.16), 0 1px 3px rgba(40,10,20,.10); }
+  .cap.m-light .w.hl .in, .cap .w.hl .in { color: {{accent_fg}}; text-shadow: none; transition: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="wrap" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0"></div>
+  <div id="cf" class="data">{{cues}}</div>
+</div>
+<script>
+  // Kinetic captions: pre-chunked cues (2-4 words) from a builder. cues = {chunks:[{y, w:[[text, t, flags]], out}], modes:[[t, mode]]}
+  // flags: k = key word (serif italic), m = highlighter wipe. Times are overlay seconds. Each word lands blur-to-sharp on its
+  // spoken onset; the chunk blurs out at "out". modes switch the look at cuts: ink | light | pill.
+  window.__timelines = window.__timelines || {};
+  const D = Number("{{duration}}"), BLUR = Number("{{blur}}"), SAFE = Number("{{max_width}}") || 960;
+  let cues = { chunks: [], modes: [] };
+  try { cues = JSON.parse(document.getElementById("cf").textContent); } catch (e) {}
+  const modes = (cues.modes || []).slice().sort((a, b) => a[0] - b[0]);
+  const modeAt = t => { let m = modes.length ? modes[0][1] : "light"; for (const [s, v] of modes) if (s <= t + 1e-4) m = v; return m; };
+  const wrap = document.getElementById("wrap");
+  const tl = gsap.timeline({ paused: true });
+  const C = (cues.chunks || []).map(c => {
+    const el = document.createElement("div"); el.className = "cap m-" + modeAt(c.w[0][1]);
+    const bg = document.createElement("div"); bg.className = "bg"; el.appendChild(bg);
+    const ws = c.w.map(([txt, t, f], j) => {
+      const s = document.createElement("span"); s.className = "w " + (f.includes("k") ? "ser" : "sans");
+      if (f.includes("m")) { const mk = document.createElement("span"); mk.className = "mk"; s.appendChild(mk); }
+      const inn = document.createElement("span"); inn.className = "in"; inn.textContent = txt; s.appendChild(inn);
+      if (j) el.appendChild(document.createTextNode(" "));
+      el.appendChild(s);
+      return { el: s, t: Number(t), mark: f.includes("m") };
+    });
+    wrap.appendChild(el);
+    return { el, bg, ws, y: Number(c.y), out: Math.min(Number(c.out), D) };
+  });
+  function place() {
+    C.forEach(c => {
+      c.el.style.fontSize = "";
+      const w = c.el.offsetWidth;
+      if (w > SAFE) c.el.style.fontSize = (parseFloat(getComputedStyle(c.el).fontSize) * SAFE / w) + "px";
+      c.el.style.top = (c.y - c.el.offsetHeight / 2) + "px";
+    });
+  }
+  function build() {
+    tl.clear();
+    C.forEach(c => {
+      const tin = c.ws[0].t, tout = Math.max(tin + 0.2, c.out);
+      gsap.set(c.el, { xPercent: -50, opacity: 0, filter: "blur(0px)", y: 0 });
+      tl.set(c.el, { opacity: 1, filter: "blur(0px)", y: 0 }, Math.max(0, tin - 0.001));
+      tl.fromTo(c.bg, { scale: 0.96 }, { scale: 1, duration: 0.3, ease: "expo.out", immediateRender: false }, tin);
+      c.ws.forEach(w => {
+        gsap.set(w.el, { opacity: 0 });
+        tl.fromTo(w.el, { opacity: 0, filter: `blur(${BLUR}px)`, y: 10, scale: 1.04 },
+          { opacity: 1, filter: "blur(0px)", y: 0, scale: 1, duration: 0.34, ease: "expo.out", immediateRender: false }, w.t);
+        if (w.mark) {
+          const mk = w.el.querySelector(".mk"), inn = w.el.querySelector(".in");
+          tl.fromTo(mk, { scaleX: 0 }, { scaleX: 1, duration: 0.3, ease: "power3.inOut", immediateRender: false }, w.t + 0.1);
+          tl.set(w.el, { attr: { class: "w " + (w.el.classList.contains("ser") ? "ser" : "sans") + " hl" } }, w.t + 0.2);
+        }
+      });
+      // look switches at cuts inside the chunk
+      for (const [s, v] of modes) if (s > tin + 1e-4 && s < tout) tl.set(c.el, { attr: { class: "cap m-" + v } }, s);
+      tl.to(c.el, { opacity: 0, filter: "blur(8px)", y: -8, duration: 0.12, ease: "power2.in" }, Math.max(tin + 0.15, tout - 0.12));
+    });
+    if (tl.duration() < D) tl.set({}, {}, D);
+    tl.seek(0);
+  }
+  place(); build();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { place(); build(); });
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

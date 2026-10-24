@@ -1,0 +1,98 @@
+<!--defaults {"svg": "", "offer": "Buy 2, get 1 free", "offer2": "this week", "guarantee": "90-day guarantee", "key": "1 free", "dot": "#b3201f", "logo_w": 440, "logo_y": 470, "offer_y": 880, "chip_y": 1290, "t_logo": 0.05, "t_offer": 1.6, "t_guarantee": 0.5, "fade": 0.9, "bg": "#ffffff", "ink": "#5a1426", "edge": "#f0cdbf", "marker": "#ffe45c", "font": "Inter", "font2": "Playfair Display", "height": 1920, "duration": 4.4} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@700;800;900&family={{font2}}:ital,wght@1,600&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: {{bg}}; }
+  #root { position: relative; width: 100%; height: 100%; background: {{bg}}; -webkit-font-smoothing: antialiased; font-family: "{{font}}", sans-serif; }
+  #content { position: absolute; inset: 0; }
+  #mark { position: absolute; left: 50%; top: {{logo_y}}px; width: {{logo_w}}px; margin-left: calc({{logo_w}}px / -2); }
+  #mark svg { display: block; width: 100%; height: auto; overflow: visible; }
+  #offer { position: absolute; left: 60px; right: 60px; top: {{offer_y}}px; text-align: center; color: {{ink}}; }
+  #o1 { display: block; font-weight: 900; font-size: 116px; line-height: 1.04; letter-spacing: -.035em; text-wrap: balance; }
+  #o1 .w { white-space: nowrap; }
+  #o1 .w { display: inline-block; position: relative; }
+  #o1 .w .in { position: relative; z-index: 1; }
+  #o1 .mk { position: absolute; left: -.06em; right: -.06em; top: .2em; bottom: .02em; background: {{marker}}; border-radius: .08em; transform-origin: 0 50%; z-index: 0; }
+  #o1 .dt { display: inline-block; width: .19em; height: .19em; border-radius: 50%; background: {{dot}}; margin-left: .08em; }
+  #o2 { margin-top: 14px; font-family: "{{font2}}", serif; font-style: italic; font-weight: 600; font-size: 80px; line-height: 1.1; }
+  #chip { position: absolute; left: 50%; top: {{chip_y}}px; display: flex; align-items: center; gap: 20px; white-space: nowrap; color: {{ink}}; background: #fff;
+          border-radius: 32px; padding: 18px 40px 18px 18px; font-weight: 800; font-size: 42px; letter-spacing: -.01em; opacity: 0;
+          box-shadow: 0 24px 54px rgba(60,20,30,.13), 0 6px 14px rgba(60,20,30,.07), 0 0 0 1px rgba(90,20,38,.06); }
+  #chip .ic { width: 70px; height: 70px; border-radius: 20px; background: {{edge}}; display: grid; place-items: center; }
+  #chip .ic svg { width: 56%; height: 56%; fill: none; stroke: {{ink}}; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="content" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="mark"></div>
+    <div id="offer"><div id="o1"></div><div id="o2">{{offer2}}</div></div>
+    <div id="chip"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="M8.5 12l2.5 2.5L15.5 9.5"/></svg></span><span>{{guarantee}}</span></div>
+  </div>
+</div>
+<script>
+  // End card v2, minimal ("One idea." white space): the real logo (svg = path to the client's .svg) draws on,
+  // the guarantee chip lands blur-to-sharp on its spoken word, the offer headline arrives word by word
+  // blur-to-sharp in ultra-heavy sans with an accent dot (dot = colour, empty = none), the key phrase gets the
+  // yellow highlighter, offer2 follows in serif italic, then everything dissolves to plain white over `fade`.
+  const D = Number("{{duration}}"), FADE = Number("{{fade}}");
+  const dec = s => { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; };
+  const tl = gsap.timeline({ paused: true });
+  const T1 = Number("{{t_logo}}"), T2 = Number("{{t_offer}}"), T3 = Number("{{t_guarantee}}");
+  const mark = document.getElementById("mark"), raw = dec("{{svg}}").trim();
+  if (/^<svg[\s>]/i.test(raw)) {
+    const doc = new DOMParser().parseFromString(raw, "image/svg+xml");
+    if (doc.documentElement.nodeName.toLowerCase() === "svg") {
+      const sv = document.importNode(doc.documentElement, true); mark.appendChild(sv);
+      sv.querySelectorAll("path").forEach(p => {
+        p.setAttribute("fill", "{{ink}}"); p.setAttribute("stroke", "{{ink}}"); p.setAttribute("stroke-width", 3); p.setAttribute("stroke-linejoin", "round"); p.setAttribute("pathLength", 1);
+        p.style.strokeDasharray = 1; p.style.strokeDashoffset = 1; p.style.fillOpacity = 0;
+        tl.to(p, { strokeDashoffset: 0, duration: 1.0, ease: "power2.inOut" }, T1);
+        tl.to(p, { fillOpacity: 1, duration: 0.5, ease: "power1.out" }, T1 + 0.8);
+        tl.to(p, { strokeWidth: 0, duration: 0.3 }, T1 + 1.15);
+      });
+    }
+  }
+  // headline, split into words; the key phrase words carry the marker
+  const o1 = document.getElementById("o1"), txt = dec("{{offer}}"), key = dec("{{key}}");
+  const k0 = key ? txt.indexOf(key) : -1, k1 = k0 + key.length;
+  // tokens: the key phrase is one unit (one marker block), other words one each
+  const parts = k0 >= 0 ? [{ s: txt.slice(0, k0) }, { s: key, key: true }, { s: txt.slice(k1) }] : [{ s: txt }];
+  const toks = []; parts.forEach(p => { if (p.key) toks.push({ t: p.s, key: true }); else p.s.split(/\s+/).filter(Boolean).forEach(t => toks.push({ t, key: false })); });
+  const ws = [];
+  toks.forEach((tk, i) => {
+    if (i) o1.appendChild(document.createTextNode(" "));
+    const w = document.createElement("span"); w.className = "w";
+    w.innerHTML = (tk.key ? '<span class="mk"></span>' : "") + '<span class="in"></span>'; w.querySelector(".in").textContent = tk.t;
+    o1.appendChild(w); ws.push(w);
+  });
+  const DOT = "{{dot}}";
+  if (DOT) { const d = document.createElement("span"); d.className = "dt"; o1.appendChild(d); ws.push(d); }
+  // fit: at most 2 lines, and the widest word (or the key phrase) inside the 960 px safe width
+  function fit() {
+    let fs = 116; o1.style.fontSize = fs + "px";
+    const tw = ws.filter(w => w.classList.contains("w"));
+    const lines = () => new Set(tw.map(w => Math.round(w.offsetTop + w.offsetHeight / 2))).size;
+    const widest = () => Math.max(...tw.map(w => w.getBoundingClientRect().width));
+    while ((lines() > 2 || widest() > 960) && fs > 40) { fs -= 2; o1.style.fontSize = fs + "px"; }
+    const chip = document.getElementById("chip"); chip.style.fontSize = "";
+    let cf = 42; while (chip.getBoundingClientRect().width > 960 && cf > 24) { cf -= 2; chip.style.fontSize = cf + "px"; }
+  }
+  fit(); if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+  gsap.set(ws, { opacity: 0 }); gsap.set("#o2", { opacity: 0 }); gsap.set("#chip", { xPercent: -50 });
+  ws.forEach((w, i) => tl.fromTo(w, { opacity: 0, filter: "blur(16px)", y: 22, scale: 1.06 }, { opacity: 1, filter: "blur(0px)", y: 0, scale: 1, duration: 0.5, ease: "expo.out", immediateRender: false }, T2 + i * 0.07));
+  const mks = o1.querySelectorAll(".mk");
+  if (mks.length) tl.fromTo(mks, { scaleX: 0 }, { scaleX: 1, duration: 0.3, ease: "power3.inOut", stagger: 0.12, immediateRender: false }, T2 + ws.length * 0.07 + 0.2);
+  tl.fromTo("#o2", { opacity: 0, filter: "blur(14px)", y: 16 }, { opacity: 1, filter: "blur(0px)", y: 0, duration: 0.5, ease: "expo.out", immediateRender: false }, T2 + ws.length * 0.07 + 0.1);
+  tl.fromTo("#chip", { opacity: 0, y: -50, filter: "blur(12px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "back.out(1.15)", immediateRender: false }, T3);
+  tl.to("#content", { opacity: 0, duration: FADE, ease: "power1.inOut" }, D - FADE);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

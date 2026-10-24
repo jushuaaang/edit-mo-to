@@ -1,0 +1,179 @@
+<!--defaults {"hl_rows": "3,7,12", "t_hl": "1.3,3.2,4.6", "callouts": "", "t_callouts": "1.0,1.8", "score": "0", "t_score": "2.6", "scroll": 380, "paper_y": 150, "cy": 640, "card_w": 780, "count": 0.8, "focus": 1, "bg": "", "paper": "#ffffff", "ink": "#5a1426", "sky": "#6fb4e6", "marker": "#ffe45c", "edge": "#f0cdbf", "font": "Inter", "font2": "Playfair Display", "seed": 5, "height": 1920, "duration": 6} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;700;800&family={{font2}}:ital,wght@1,700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; -webkit-font-smoothing: antialiased; font-family: "{{font}}", sans-serif; }
+  #bg { position: absolute; inset: 0; background: {{bg}}; }
+  #wrap { position: absolute; left: 0; top: 0; width: 1080px; height: {{height}}px; }
+  #pw { position: absolute; inset: 0; }
+  #paper { position: absolute; left: 110px; width: 860px; height: 2300px; background: {{paper}}; border-radius: 14px; isolation: isolate;
+           box-shadow: 0 30px 70px rgba(60,40,50,.14), 0 2px 8px rgba(60,40,50,.08); overflow: hidden; }
+  .row { position: absolute; height: 15px; border-radius: 8px; background: #b9c1cb; filter: blur(2.4px); }
+  .row.h { background: #7c8795; height: 26px; border-radius: 10px; filter: blur(2.8px); }
+  .row.s { height: 11px; background: #cfd5dc; }
+  .box { position: absolute; background: #f1f4f7; border-radius: 10px; }
+  .hl { position: absolute; background: {{marker}}; mix-blend-mode: multiply; border-radius: 5px; width: 0; opacity: .9; }
+  .grid { position: absolute; border: 2px solid #d6dce3; border-radius: 6px; }
+  .grid i { position: absolute; background: #d6dce3; }
+  .bar { position: absolute; background: #cbd3dc; filter: blur(1.4px); border-radius: 4px 4px 0 0; }
+  #card { position: absolute; left: 50%; top: {{cy}}px; width: {{card_w}}px; margin-left: calc({{card_w}}px / -2); background: #fff; color: {{ink}};
+          border-radius: 44px; padding: 44px 52px 48px; opacity: 0;
+          box-shadow: 0 40px 90px rgba(60,20,30,.16), 0 10px 24px rgba(60,20,30,.08), 0 0 0 1px rgba(90,20,38,.06); }
+  .hd { display: flex; width: max-content; max-width: none; align-items: center; gap: 16px; font-weight: 700; font-size: 26px; letter-spacing: .2em; text-transform: uppercase; white-space: nowrap; }
+  .hd i { width: 14px; height: 14px; border-radius: 50%; background: {{sky}}; flex: none; }
+  .num { position: relative; display: inline-block; isolation: isolate; margin-top: 18px; font-family: "{{font2}}", serif; font-style: italic; font-weight: 700;
+         font-size: 230px; line-height: 1; letter-spacing: -.02em; white-space: nowrap; font-variant-numeric: lining-nums tabular-nums; }
+  .num u { position: absolute; left: 0; right: 0; bottom: 18px; height: 34px; background: {{marker}}; border-radius: 6px; z-index: 0; transform-origin: 0 50%; text-decoration: none; }
+  .num span { position: relative; z-index: 1; }
+  .trk { position: relative; margin-top: 26px; height: 18px; border-radius: 9px; background: #eef1f5; overflow: hidden; }
+  .trk b { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: {{sky}}; border-radius: 9px; transform-origin: 0 50%; transform: scaleX(0); }
+  .tks { display: flex; justify-content: space-between; margin-top: 12px; }
+  .tks i { width: 2px; height: 12px; background: #c9d1da; }
+  .rw { display: flex; align-items: center; gap: 26px; padding: 22px 0; border-top: 2px solid #f0f2f5; font-weight: 800; font-size: 58px; letter-spacing: -.01em; white-space: nowrap; }
+  .rw:first-child { border-top: 0; padding-top: 4px; }
+  .rw .ic { width: 84px; height: 84px; border-radius: 24px; background: {{edge}}; display: grid; place-items: center; flex: none; }
+  .rw .ic svg { width: 52%; height: 52%; fill: none; stroke: {{ink}}; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .rw em { font-family: "{{font2}}", serif; font-style: italic; font-weight: 700; font-size: 1.2em; font-variant-numeric: lining-nums; }
+  #sc { margin-top: 18px; height: 250px; border-radius: 28px; background: #f6f8fb; position: relative; opacity: 0; }
+  #sc svg { position: absolute; inset: 0; overflow: visible; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="bg" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0"></div>
+  <div id="wrap" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="1">
+    <div id="pw"><div id="paper"></div></div>
+    <div id="card"></div>
+  </div>
+</div>
+<script>
+  // Paper v2: a brandless published page (body text is blurred bars) arrives blur-to-sharp and scrolls; yellow
+  // highlighter wipes the rows in hl_rows at t_hl. callouts = a|*b|c become ONE clean white UI card:
+  //  - with a *number (e.g. "Nagaki 2002|*46%"): a stat card; plain items are the header, the *number counts up
+  //    from 0 on its time with a marker underline, and (for %) a bar fills to the value.
+  //  - without: a list card; each item drops into its row on its time (number in serif italic, line icon);
+  //    score=1 adds a falling-score chart in the card (no values) at t_score.
+  // When the card lands the paper pulls out of focus (focus=1), so there is one focal point at a time.
+  const D = Number("{{duration}}"), SC = Number("{{scroll}}"), PY = Number("{{paper_y}}");
+  const dec = s => { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; };
+  let sd = Number("{{seed}}"); const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+  const paper = document.getElementById("paper"), tl = gsap.timeline({ paused: true });
+  paper.style.top = PY + "px";
+  const add = (cls, l, t, w, h, p) => { const e = document.createElement("div"); e.className = cls; e.style.cssText = `left:${l}px;top:${t}px;width:${w}px;height:${h ? h + "px" : ""}`; (p || paper).appendChild(e); return e; };
+  add("row s", 50, 46, 170); add("row s", 700, 46, 110);
+  add("row h", 50, 110, 760); add("row h", 50, 156, 640); add("row h", 50, 202, 420);
+  [0, 1, 2].forEach(i => add("row s", 50 + i * 190, 270, 150));
+  add("box", 50, 330, 760, 150);
+  [0, 1, 2, 3, 4].forEach(i => add("row", 74, 350 + i * 26, i === 4 ? 420 : 712));
+  add("row h", 50, 520, 210);
+  const rows = [], cw = 366, top0 = 580, pitch = 30;
+  for (let i = 0; i < 24; i++) {
+    const w1 = Math.round(cw * (0.86 + rnd() * 0.14)), w2 = Math.round(cw * (0.82 + rnd() * 0.18));
+    add("row", 50, top0 + i * pitch, i % 8 === 7 ? Math.round(cw * 0.5) : w1);
+    add("row", 444, top0 + i * pitch, i % 8 === 7 ? Math.round(cw * 0.6) : w2);
+    rows.push(top0 + i * pitch);
+  }
+  const figTop = top0 + 24 * pitch + 30;
+  add("box", 50, figTop, 760, 340);
+  [60, 120, 200, 150, 250, 190].forEach((h, i) => add("bar", 100 + i * 112, figTop + 300 - h, 70, h));
+  const tb = add("grid", 50, figTop + 400, 760, 300);
+  [75, 150, 225].forEach(y => { const l = document.createElement("i"); l.style.cssText = `left:0;right:0;top:${y}px;height:2px`; tb.appendChild(l); });
+  [260, 420, 600].forEach(x => { const l = document.createElement("i"); l.style.cssText = `top:0;bottom:0;left:${x}px;width:2px`; tb.appendChild(l); });
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) add("row s", 50 + [24, 290, 450, 630][c], figTop + 400 + r * 75 + 32, c ? 90 : 190);
+  const hr = "{{hl_rows}}".split(",").map(Number).filter(isFinite), th = "{{t_hl}}".split(",").map(Number);
+  hr.forEach((ri, i) => {
+    const y = rows[Math.max(0, Math.min(rows.length - 1, ri))], h = add("hl", 44, y - 4, 0, 24);
+    tl.to(h, { width: 380, duration: 0.55, ease: "power2.inOut" }, isFinite(th[i]) ? th[i] : 1 + i * 1.2);
+  });
+  tl.fromTo("#paper", { y: 80, opacity: 0, filter: "blur(18px)" }, { y: 0, opacity: 1, filter: "blur(0px)", duration: 0.6, ease: "power3.out" }, 0);
+  tl.to("#paper", { y: -SC, duration: Math.max(0.3, D - 0.5), ease: "sine.inOut" }, 0.45);
+  // the card
+  const ICONS = {
+    cal: '<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+    gel: '<svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="8" rx="4" transform="rotate(-30 12 12)"/><path d="M10 9.5l4 5"/></svg>',
+    ppl: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19c.6-3.3 2.8-5 5.5-5s4.9 1.7 5.5 5"/><circle cx="16.5" cy="9.5" r="2.6"/><path d="M15.5 14.2c2.4-.2 4.3 1.3 5 4.3"/></svg>',
+    chk: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'
+  };
+  const iconFor = s => /day|week|month/i.test(s) ? ICONS.cal : /mg|softgel|dose/i.test(s) ? ICONS.gel : /\bto\b|adult|age|people/i.test(s) ? ICONS.ppl : ICONS.chk;
+  const cs = dec("{{callouts}}").split("|").map(s => s.trim()).filter(Boolean), tc = "{{t_callouts}}".split(",").map(Number);
+  const T = i => isFinite(tc[i]) ? tc[i] : 1 + i * 0.6;
+  const card = document.getElementById("card"), starI = cs.findIndex(s => s.startsWith("*"));
+  const score = "{{score}}" === "1";
+  let tCard = null, tFocus = null;
+  if (cs.length && starI >= 0) {
+    const head = cs.filter((s, i) => i !== starI);
+    if (head.length) { const h = document.createElement("div"); h.className = "hd"; h.innerHTML = "<i></i><span></span>"; h.querySelector("span").textContent = head.join("  ·  "); card.appendChild(h); }
+    const raw = cs[starI].slice(1), m = raw.match(/^([^\d]*)(\d+(?:\.\d+)?)(.*)$/);
+    const num = document.createElement("div"); num.className = "num"; num.innerHTML = "<u></u><span></span>"; card.appendChild(num);
+    const sp = num.querySelector("span");
+    const t0 = T(starI);
+    tCard = Math.min(...cs.map((s, i) => T(i))); tFocus = t0;
+    if (m) {
+      const val = Number(m[2]), dp = (m[2].split(".")[1] || "").length, o = { v: 0 };
+      const paint = () => sp.textContent = m[1] + o.v.toFixed(dp) + m[3];
+      // reserve the final width so the card never reflows while it counts
+      num._reserve = () => { num.style.minWidth = ""; const keep = sp.textContent; sp.textContent = raw; num.style.minWidth = (num.getBoundingClientRect().width / parseFloat(getComputedStyle(num).fontSize) + 0.02) + "em"; sp.textContent = keep; };
+      paint(); num._reserve();
+      tl.fromTo(o, { v: 0 }, { v: val, duration: Number("{{count}}"), ease: "power2.out", onUpdate: paint, immediateRender: false }, t0);
+      if (m[3].trim() === "%") {
+        const trk = document.createElement("div"); trk.className = "trk"; trk.innerHTML = "<b></b>"; card.appendChild(trk);
+        const tk = document.createElement("div"); tk.className = "tks"; for (let k = 0; k <= 10; k++) tk.appendChild(document.createElement("i")); card.appendChild(tk);
+        tl.fromTo(trk.firstChild, { scaleX: 0 }, { scaleX: Math.min(1, val / 100), duration: Number("{{count}}"), ease: "power2.out", immediateRender: false }, t0);
+      }
+    } else sp.textContent = raw;
+    gsap.set(num, { opacity: 0 });
+    tl.fromTo(num, { opacity: 0, filter: "blur(16px)", y: 20 }, { opacity: 1, filter: "blur(0px)", y: 0, duration: 0.45, ease: "expo.out", immediateRender: false }, t0);
+    tl.fromTo(num.querySelector("u"), { scaleX: 0 }, { scaleX: 1, duration: 0.45, ease: "power2.inOut", immediateRender: false }, t0 + Number("{{count}}") * 0.8);
+  } else if (cs.length || score) {
+    tCard = cs.length ? T(0) - 0.12 : Number("{{t_score}}");
+    cs.forEach((txt, i) => {
+      const r = document.createElement("div"); r.className = "rw";
+      const m = txt.match(/^(\d{2,})\s*(.*)$/);
+      r.innerHTML = `<span class="ic">${iconFor(txt)}</span><span class="t"></span>`;
+      const t = r.querySelector(".t");
+      if (m) { const em = document.createElement("em"); em.textContent = m[1]; t.appendChild(em); t.appendChild(document.createTextNode(m[2] ? " " + m[2] : "")); } else t.textContent = txt;
+      card.appendChild(r);
+      gsap.set(r, { opacity: 0 });
+      // calendar-slot drop: from above with blur into its row, a hair of overshoot
+      tl.fromTo(r, { opacity: 0, y: -46, filter: "blur(10px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.42, ease: "back.out(1.1)", immediateRender: false }, T(i));
+    });
+    if (score) {
+      const sc = document.createElement("div"); sc.id = "sc";
+      sc.innerHTML = '<svg viewBox="0 0 676 250" width="676" height="250"><path d="M 60 34 V 212 H 616" fill="none" stroke="#c9d1da" stroke-width="4" stroke-linecap="round"/><path id="sl" d="M 90 70 C 170 76 230 92 300 128 S 450 186 540 192" fill="none" stroke="{{ink}}" stroke-width="10" stroke-linecap="round" pathLength="1"/><circle id="sd" cx="540" cy="192" r="13" fill="{{ink}}"/><path id="sa" d="M 590 120 V 196 M 562 170 L 590 200 L 618 170" fill="none" stroke="{{sky}}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      card.appendChild(sc);
+      const t = Number("{{t_score}}"), sl = sc.querySelector("#sl");
+      sl.style.strokeDasharray = 1; sl.style.strokeDashoffset = 1;
+      gsap.set(sc.querySelectorAll("#sd,#sa"), { opacity: 0 });
+      tl.fromTo(sc, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.3, ease: "power3.out", immediateRender: false }, t);
+      tl.to(sl, { strokeDashoffset: 0, duration: Math.max(0.3, Math.min(0.8, D - t - 0.6)), ease: "power2.inOut" }, t + 0.15);
+      tl.fromTo(sc.querySelectorAll("#sd,#sa"), { opacity: 0 }, { opacity: 1, duration: 0.2, immediateRender: false }, Math.min(t + 0.8, D - 0.45));
+    }
+  }
+  // fit the card's text to its inner width (long headers / numbers shrink, never overflow)
+  function fitCard() {
+    const inner = card.clientWidth - 104;
+    card.querySelectorAll(".hd, .rw, .num").forEach(e => {
+      e.style.fontSize = ""; if (e._reserve) e._reserve(); const base = parseFloat(getComputedStyle(e).fontSize);
+      const w = (e.classList.contains("num") ? e.getBoundingClientRect().width : e.scrollWidth);
+      if (w > inner) e.style.fontSize = Math.floor(base * inner / w) + "px";
+      if (e._reserve) e._reserve();
+    });
+  }
+  fitCard(); if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitCard);
+  if (tCard !== null) {
+    tCard = Math.max(0, tCard);
+    tl.fromTo(card, { opacity: 0, scale: 0.94, y: 40, filter: "blur(18px)" }, { opacity: 1, scale: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "expo.out", immediateRender: false }, tCard);
+    if ("{{focus}}" === "1") tl.to("#pw", { filter: "blur(3px)", opacity: 0.7, scale: 0.97, duration: 0.5, ease: "power2.out" }, tFocus ?? tCard);
+  } else card.remove();
+  tl.to("#wrap", { opacity: 0, duration: 0.2, ease: "power2.in" }, D - 0.2);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

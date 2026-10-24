@@ -1,0 +1,91 @@
+<!--defaults {"mode": "full", "t_dots": 0.2, "t_molecule": 3.0, "bounces": 3, "cy": 980, "bg": "", "head": "#f0b8ae", "tail": "#d99a93", "ink": "#5a1426", "dot": "#6fb4e6", "oil": "#b3201f", "cell": "#fbeeea", "height": 1920, "duration": 5.2} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; }
+  #bg { position: absolute; inset: 0; background: {{bg}}; }
+  svg#s { position: absolute; left: 0; top: 0; overflow: visible; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="bg" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0"></div>
+  <svg id="s" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="1" width="1080" height="{{height}}" viewBox="0 0 1080 {{height}}"><defs><linearGradient id="cellg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{{cell}}" stop-opacity=".95"/><stop offset="1" stop-color="{{cell}}" stop-opacity="0"/></linearGradient></defs></svg>
+</div>
+<script>
+  // Cell membrane (lipid bilayer, outside on top). Small dots arrive, bounce off the outer surface (never enter),
+  // then one long molecule lies straight through the bilayer, a ring at each end sitting in a head layer
+  // (anchored at both ends), and both rings pulse once. mode "full" = dots then molecule (block 7);
+  // "one-beat" = membrane draws and the molecule lands in ~1.6 s (block 9, set duration ~2).
+  const NS = "http://www.w3.org/2000/svg", D = Number("{{duration}}"), CY = Number("{{cy}}"), MODE = "{{mode}}";
+  const HEAD = "{{head}}", TAIL = "{{tail}}", INK = "{{ink}}", DOT = "{{dot}}", OIL = "{{oil}}", CELL = "{{cell}}";
+  const TD = Number("{{t_dots}}"), TM = MODE === "one-beat" ? 0.7 : Number("{{t_molecule}}"), NB = Math.round(Number("{{bounces}}"));
+  const svg = document.getElementById("s"), tl = gsap.timeline({ paused: true });
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); (p || svg).appendChild(e); return e; };
+  const YO = CY - 110, YI = CY + 110;            // outer / inner head rows (centre of the bilayer = CY)
+  const curve = x => 26 * Math.cos((x - 540) / 540 * 1.2) - 26; // gentle arc, ends sag
+  const gC = mk("g", {});
+  // cell interior wash under the bilayer
+  mk("path", { d: `M -40 ${YI + curve(-40)} Q 540 ${YI + 40} 1120 ${YI + curve(1120)} L 1120 ${CY + 760} L -40 ${CY + 760} Z`, fill: "url(#cellg)", opacity: 1 }, gC);
+  const heads = [], tails = [];
+  const NH = 25, X0 = 30, DX = (1080 - 60) / (NH - 1);
+  for (let i = 0; i < NH; i++) {
+    const x = X0 + i * DX, c = curve(x);
+    // outer layer: head on top, tails down
+    tails.push(mk("path", { d: `M ${x - 5} ${YO + c + 14} q -6 42 3 86 M ${x + 5} ${YO + c + 14} q 6 42 -3 86`, fill: "none", stroke: TAIL, "stroke-width": 4, "stroke-linecap": "round" }, gC));
+    tails.push(mk("path", { d: `M ${x - 5} ${YI + c - 14} q -6 -42 3 -86 M ${x + 5} ${YI + c - 14} q 6 -42 -3 -86`, fill: "none", stroke: TAIL, "stroke-width": 4, "stroke-linecap": "round" }, gC));
+    heads.push(mk("circle", { cx: x, cy: YO + c, r: 17, fill: HEAD, stroke: INK, "stroke-width": 2.5 }, gC));
+    heads.push(mk("circle", { cx: x, cy: YI + c, r: 17, fill: HEAD, stroke: INK, "stroke-width": 2.5 }, gC));
+  }
+  gC.setAttribute("opacity", 0);
+  tl.to(gC, { opacity: 1, duration: 0.4 }, 0);
+  tl.fromTo(heads, { scale: 0.3, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.35, ease: "back.out(1.2)", stagger: { each: 0.008, from: "center" } }, 0);
+  // dots bounce off the outer surface: each drops, hits the heads and rebounds, lower each time, then drifts away
+  const dots = [];
+  if (MODE === "full") {
+    const xs = [300, 470, 640, 800, 380, 720];
+    xs.forEach((x, i) => {
+      const r = 16 + (i % 3) * 4, surf = YO + curve(x) - 17 - r, e = mk("circle", { cx: x, cy: surf, r, fill: DOT, opacity: 0 }, svg);
+      const t0 = TD + i * 0.22, hit = 0.42;
+      tl.set(e, { opacity: 1 }, t0);
+      tl.fromTo(e, { y: -380 - i * 20 }, { y: 0, duration: hit, ease: "power2.in" }, t0);
+      tl.to(e, { y: -150 + i * 12, x: (i % 2 ? 40 : -40), duration: 0.42, ease: "power2.out" }, t0 + hit);
+      tl.to(e, { y: 0, x: (i % 2 ? 60 : -60), duration: 0.38, ease: "power2.in" }, t0 + hit + 0.42);
+      tl.to(e, { y: -70, x: (i % 2 ? 90 : -90), duration: 0.3, ease: "power2.out" }, t0 + hit + 0.8);
+      tl.to(e, { y: -260, x: (i % 2 ? 150 : -150), opacity: 0, duration: 0.6, ease: "power1.in" }, t0 + hit + 1.1);
+      // tiny squash on contact
+      tl.to(e, { scaleY: 0.8, scaleX: 1.15, transformOrigin: "50% 100%", duration: 0.05 }, t0 + hit);
+      tl.to(e, { scaleY: 1, scaleX: 1, duration: 0.08 }, t0 + hit + 0.05);
+      dots.push(e);
+    });
+  }
+  // the molecule: ring - zigzag polyene chain - ring, straight through at x = 540 (in a vertical line, slightly off-axis zigzag)
+  const mx = 540, yTop = YO + curve(mx) - 6, yBot = YI + curve(mx) + 6;
+  const gM = mk("g", { opacity: 0 });
+  const hex = (cx, cy, r) => { let d = ""; for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; d += (k ? " L " : "M ") + (cx + r * Math.cos(a)).toFixed(1) + " " + (cy + r * Math.sin(a)).toFixed(1); } return d + " Z"; };
+  let chain = `M ${mx} ${yTop + 44}`; const nz = 11, step = (yBot - yTop - 88) / nz;
+  for (let k = 1; k <= nz; k++) chain += ` L ${mx + (k % 2 ? 28 : -28)} ${yTop + 44 + k * step}`;
+  const ch = mk("path", { d: chain, fill: "none", stroke: OIL, "stroke-width": 12, "stroke-linecap": "round", "stroke-linejoin": "round", pathLength: 1 }, gM);
+  ch.style.strokeDasharray = 1; ch.style.strokeDashoffset = 1;
+  const ring1 = mk("path", { d: hex(mx, yTop, 52), fill: "#fff", stroke: OIL, "stroke-width": 10, "stroke-linejoin": "round" }, gM);
+  const ring2 = mk("path", { d: hex(mx, yBot, 52), fill: "#fff", stroke: OIL, "stroke-width": 10, "stroke-linejoin": "round" }, gM);
+  tl.set(gM, { opacity: 1 }, TM);
+  tl.fromTo(ring1, { scale: 0, transformOrigin: `${mx}px ${yTop}px` }, { scale: 1, duration: 0.28, ease: "back.out(1.3)" }, TM);
+  tl.to(ch, { strokeDashoffset: 0, duration: 0.7, ease: "power2.inOut" }, TM + 0.12);
+  tl.fromTo(ring2, { scale: 0, transformOrigin: `${mx}px ${yBot}px` }, { scale: 1, duration: 0.28, ease: "back.out(1.3)" }, TM + 0.7);
+  // anchored: both rings pulse once, nearest heads flush
+  [[ring1, yTop], [ring2, yBot]].forEach(([r, y], i) => {
+    tl.to(r, { scale: 1.14, transformOrigin: `${mx}px ${y}px`, duration: 0.14, ease: "power2.out" }, TM + 1.05 + i * 0.05);
+    tl.to(r, { scale: 1, duration: 0.18, ease: "power2.inOut" }, TM + 1.19 + i * 0.05);
+  });
+  tl.to(svg, { opacity: 0, duration: 0.2, ease: "power2.in" }, D - 0.2);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

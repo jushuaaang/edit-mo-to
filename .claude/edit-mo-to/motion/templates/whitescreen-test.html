@@ -1,0 +1,279 @@
+<!--defaults {"text": "dark ^*dots / drifting ^*squiggles / in your *vision?", "times": "0.46,0.86,1.42,1.82,3.24,3.36,3.5", "count": 7, "strength": 0.5, "size": 1.2, "speed": 1, "seed": 7, "tone": "#3b4350", "follow": "0.12,2.5", "gain": 1.25, "reveal": "1", "t_reveal": 3.24, "orb": "1", "bg": "#f7f5f1", "grain": 0.45, "fade_in": 0.5, "fade_out": 0, "color": "#5a1426", "accent": "#ffe45c", "sky": "#6fb4e6", "orb_color": "#b3201f", "font": "Inter", "font2": "Playfair Display", "size_text": 118, "y": 600, "max_width": 980, "glow": 0, "avoid": "", "eye_x": 530, "eye_y": 1180, "eye_scale": 1.0, "height": 1920, "duration": 4.38} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500..900&family={{font2}}:ital,wght@1,500..800&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; -webkit-font-smoothing: antialiased; }
+  #base, #pup, #world, #wbg, #tex { position: absolute; left: 0; top: 0; width: 1080px; height: {{height}}px; }
+  #base, #wbg { background: {{bg}}; }
+  #tex { left: -200px; top: -200px; width: 1480px; height: calc({{height}}px + 400px);
+         background: radial-gradient(closest-side at 22% 30%, rgba(90,80,70,.05), transparent),
+                     radial-gradient(closest-side at 70% 58%, rgba(90,80,70,.045), transparent),
+                     radial-gradient(closest-side at 40% 82%, rgba(60,70,90,.04), transparent),
+                     radial-gradient(farthest-corner at 50% 45%, transparent 55%, rgba(80,70,60,.07)); }
+  svg.lay { position: absolute; left: 0; top: 0; overflow: visible; }
+  .ph { position: absolute; left: 50%; top: 0; width: {{max_width}}px; margin-left: calc({{max_width}}px / -2); text-align: center;
+        font-family: "{{font}}", -apple-system, sans-serif; font-weight: 900; line-height: 1.04; letter-spacing: -0.025em; color: {{color}};
+        text-shadow: 0 0 18px rgba(255,255,255,{{glow}}), 0 0 42px rgba(255,255,255,{{glow}}); }
+  .w { display: inline-block; position: relative; white-space: nowrap; vertical-align: baseline; }
+  .w .in { position: relative; z-index: 1; display: inline-block; }
+  .w.sans { text-transform: uppercase; }
+  .w.ser { font-family: "{{font2}}", Georgia, serif; font-style: italic; font-weight: 600; letter-spacing: -0.01em; font-size: 1.14em; line-height: 0.9; }
+  .mk { position: absolute; left: -0.1em; right: -0.1em; top: 0.12em; bottom: 0.02em; background: {{accent}}; border-radius: 0.1em; transform-origin: 0 50%; z-index: 0; }
+  .w.ser .mk { left: -0.08em; right: -0.2em; }
+  .ln { fill: none; stroke: {{color}}; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+  .axis { stroke: {{color}}; stroke-width: 2; fill: none; stroke-linecap: round; opacity: .45; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="base" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0"></div>
+  <svg id="eye" class="lay clip" data-start="0" data-duration="{{duration}}" data-track-index="1" width="1080" height="{{height}}" viewBox="0 0 1080 {{height}}">
+    <defs><linearGradient id="trail" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="{{orb_color}}" stop-opacity="0" /><stop offset="1" stop-color="{{orb_color}}" stop-opacity=".55" /></linearGradient></defs>
+  </svg>
+  <svg id="iris" class="lay clip" data-start="0" data-duration="{{duration}}" data-track-index="2" width="1080" height="{{height}}" viewBox="0 0 1080 {{height}}"></svg>
+  <div id="pup" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="3">
+    <div id="world">
+      <div id="wbg"></div>
+      <div id="tex"></div>
+      <svg id="flb" class="lay" width="1080" height="{{height}}" viewBox="0 0 1080 {{height}}"><defs><filter id="sf" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.1" /></filter></defs><g id="gb" filter="url(#sf)"></g></svg>
+    </div>
+  </div>
+  <div id="t" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="4"></div>
+  <svg id="flf" class="lay clip" data-start="0" data-duration="{{duration}}" data-track-index="5" width="1080" height="{{height}}" viewBox="0 0 1080 {{height}}"><defs><filter id="sf2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.1" /></filter></defs><g id="gf" filter="url(#sf2)"></g></svg>
+</div>
+<script>
+  // White-screen test: the viewer's own screen is the white wall. Translucent vitreous floaters (tube threads,
+  // bead chains, rings, squiggles, specks; SB-4 look) drift with a lag. follow = "t,.." times the eye tries to
+  // look at a floater: the view drifts toward it (faint wall texture moves) and the floater slides away ahead
+  // of the gaze, overshoots a hair and settles. "t@dx:dy" = an explicit gaze move in px (e.g. a cut / saccade).
+  // Kinetic words (kinetic-type-v2 syntax: phrases split by " / ", *serif italic, ^highlighter, one time per
+  // word) land word by word, centred at y; floaters weave around the visible phrase. reveal=1: at t_reveal the
+  // white world shrinks into a pupil, the front-view iris turns side-on and becomes a clear eye cross-section;
+  // an orb of light crosses the lens to the retina. bg "" = transparent floater layer (no texture, no reveal).
+  // Everything is a pure function of time (seek-safe).
+  const NS = "http://www.w3.org/2000/svg", D = Number("{{duration}}"), H = Number("{{height}}");
+  const N = Math.round(Number("{{count}}")), TONE = "{{tone}}", STR = Number("{{strength}}"), SZ = Number("{{size}}");
+  const SP = Number("{{speed}}"), FIN = Number("{{fade_in}}"), FOUT = Number("{{fade_out}}"), GAIN = Number("{{gain}}");
+  const OPAQUE = "{{bg}}".trim() !== "", REVEAL = OPAQUE && "{{reveal}}" === "1", R = Number("{{t_reveal}}");
+  const INK = "{{color}}", SKY = "{{sky}}", ORBC = "{{orb_color}}";
+  const EX = Number("{{eye_x}}"), EY = Number("{{eye_y}}"), SC = Number("{{eye_scale}}");
+  let sd = Number("{{seed}}"); const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); p.appendChild(e); return e; };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), lerp = (a, b, k) => a + (b - a) * k;
+  const ss = u => { u = clamp(u, 0, 1); return u * u * (3 - 2 * u); };
+  const ioc = u => { u = clamp(u, 0, 1); return u < .5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2; };
+  const back = u => { u = clamp(u, 0, 1); const c = 0.7; return 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2); };
+  if (!OPAQUE) { document.getElementById("tex").style.display = "none"; }
+  document.getElementById("tex").style.opacity = OPAQUE ? Number("{{grain}}") : 0;
+
+  // ---------- floaters ----------
+  const gb = document.getElementById("gb"), gf = document.getElementById("gf");
+  function tube(g, d, w) {
+    mk("path", { d, fill: "none", stroke: TONE, "stroke-width": w, "stroke-linecap": "round", "stroke-linejoin": "round" }, g);
+    mk("path", { d, fill: "none", stroke: "#ffffff", "stroke-width": w * 0.38, opacity: .6, "stroke-linecap": "round", "stroke-linejoin": "round" }, g);
+  }
+  function shape(parent, kind, s) {
+    const g = mk("g", {}, parent);
+    if (kind === "thread") tube(g, `M ${-80*s} 0 c ${16*s} ${-16*s} ${32*s} ${-16*s} ${48*s} 0 s ${32*s} ${16*s} ${48*s} 0 s ${32*s} ${-14*s} ${50*s} ${-4*s}`, 7.5 * s);
+    else if (kind === "squiggle") tube(g, `M ${-50*s} ${-60*s} C ${-10*s} ${-70*s} ${20*s} ${-24*s} ${2*s} ${4*s} S ${-6*s} ${52*s} ${44*s} ${62*s}`, 6.5 * s);
+    else if (kind === "beads") {
+      [[-44, 6, 8], [-24, -2, 10], [-2, -6, 9], [19, -2, 11], [40, 7, 8], [58, 18, 6]].forEach(b => {
+        mk("circle", { cx: b[0] * s, cy: b[1] * s, r: b[2] * s, fill: TONE, opacity: .75 }, g);
+        mk("circle", { cx: (b[0] - b[2] * .2) * s, cy: (b[1] - b[2] * .2) * s, r: b[2] * .45 * s, fill: "#fff", opacity: .65 }, g);
+      });
+    } else if (kind === "ring") {
+      mk("circle", { r: 19 * s, fill: "none", stroke: TONE, "stroke-width": 5 * s }, g);
+      mk("path", { d: `M ${-11*s} ${-9*s} A ${13*s} ${13*s} 0 0 1 ${6*s} ${-13*s}`, fill: "none", stroke: "#fff", "stroke-width": 3 * s, opacity: .8, "stroke-linecap": "round" }, g);
+    } else {
+      [[-14, -6, 5], [8, 4, 6.5], [22, -12, 3.5]].forEach(b => mk("circle", { cx: b[0] * s, cy: b[1] * s, r: b[2] * s, fill: TONE, opacity: .8 }, g));
+    }
+    return g;
+  }
+  const kinds = ["thread", "beads", "ring", "squiggle", "dots", "thread", "ring", "beads", "squiggle", "dots"];
+  const items = [];
+  for (let i = 0; i < N; i++) {
+    const kind = kinds[i % kinds.length], s = (0.85 + rnd() * 0.6) * SZ;
+    const front = i % 4 === 2 && N > 3;
+    const it = {
+      bx: 130 + rnd() * 820, by: H * (0.1 + (i + 0.15 + rnd() * 0.7) / Math.max(1, N) * 0.8),
+      ax: 14 + rnd() * 20, ay: 10 + rnd() * 18, fx: 0.08 + rnd() * 0.1, fy: 0.07 + rnd() * 0.1, px: rnd() * 6.28, py: rnd() * 6.28,
+      sink: (5 + rnd() * 9) * (H / 1920), rot: (rnd() - .5) * 70, rs: (rnd() - .5) * 6, lag: 0.07 + rnd() * 0.12, g: GAIN * (0.85 + rnd() * 0.3),
+      a: (0.75 + rnd() * 0.25) * STR, ext: 70 * s, el: shape(front ? gf : gb, kind, s)
+    };
+    items.push(it);
+  }
+  // gaze moves: "t" = look at the k-th floater nearest the middle, "t@dx:dy" = explicit move
+  // targets: floaters a comfortable glance away from the middle (250-650 px), nearest first
+  const dist = items.map((it, i) => [Math.hypot(it.bx - 540, it.by - H * 0.5), i]).sort((a, b) => a[0] - b[0]);
+  const near = (dist.filter(a => a[0] > 250 && a[0] < 650).length ? dist.filter(a => a[0] > 250 && a[0] < 650) : dist).map(a => a[1]);
+  const moves = "{{follow}}".split(",").map(s => s.trim()).filter(Boolean).map((s, k) => {
+    const [ts, v] = s.split("@"); const t = Number(ts);
+    if (v) { const [dx, dy] = v.split(":").map(Number); return { t, dx: dx || 0, dy: dy || 0 }; }
+    const it = items[near[k % Math.max(1, near.length)]] || { bx: 700, by: H * .4 };
+    return { t, dx: clamp((it.bx - 540) * 0.55, -220, 220), dy: clamp((it.by - H * .5) * 0.45, -220, 220) };
+  }).filter(m => isFinite(m.t));
+  // one gaze move: eases in over 0.55 s, holds, relaxes back over 1.1 s (or until the next move takes over)
+  const bump = (u, f) => u <= 0 ? 0 : (u < 0.55 ? f(u / 0.55) : u < 0.85 ? 1 : 1 - ss((u - 0.85) / 1.1));
+  function gaze(t, lag, f) { let x = 0, y = 0; moves.forEach(m => { const b = bump(t - m.t - lag, f); x += m.dx * b; y += m.dy * b; }); return [x, y]; }
+
+  // ---------- kinetic words ----------
+  const dec = s => { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; };
+  const phrases = dec("{{text}}").split(/\s+\/\s+|\s*\n\s*/).map(p => p.trim()).filter(Boolean)
+    .map(p => p.split(/\s+/).filter(Boolean).map(tok => { const m = tok.match(/^([*^]*)(.*)$/); return { txt: m[2], ser: m[1].includes("*"), key: m[1].includes("^") }; }));
+  const nW = phrases.reduce((a, p) => a + p.length, 0);
+  let times = "{{times}}".split(",").map(s => s.trim()).filter(Boolean).map(Number);
+  for (let i = times.length; i < nW; i++) times.push(i ? times[i - 1] + 0.28 : 0.2);
+  const troot = document.getElementById("t"), MAXW = Number("{{max_width}}"), BASE = Number("{{size_text}}"), Y = Number("{{y}}");
+  let wi = 0;
+  const P = phrases.map(words => {
+    const el = document.createElement("div"); el.className = "ph";
+    const ws = words.map((w, j) => {
+      const s = document.createElement("span"); s.className = "w " + (w.ser ? "ser" : "sans");
+      const inn = document.createElement("span"); inn.className = "in"; inn.textContent = w.txt; s.appendChild(inn);
+      if (w.key) { const m = document.createElement("span"); m.className = "mk"; s.prepend(m); }
+      if (j) el.appendChild(document.createTextNode(" "));
+      el.appendChild(s);
+      return { el: s, key: w.key, t: times[wi++] };
+    });
+    troot.appendChild(el);
+    return { el, ws, box: null, t0: 0, out: D };
+  });
+  const nlines = p => new Set(p.ws.map(w => Math.round(w.el.offsetTop + w.el.offsetHeight / 2))).size;
+  function fit() {
+    P.forEach((p, i) => {
+      let fs = BASE; p.el.style.fontSize = fs + "px";
+      const widest = Math.max(...p.ws.map(w => w.el.getBoundingClientRect().width));
+      if (widest > MAXW * 0.98) { fs *= MAXW * 0.98 / widest; p.el.style.fontSize = fs + "px"; }
+      let g = 0; while (nlines(p) > 2 && g++ < 40) { fs *= 0.95; p.el.style.fontSize = fs + "px"; }
+      const h = p.el.offsetHeight; p.el.style.top = (Y - h / 2) + "px";
+      let x0 = 1e9, x1 = -1e9;
+      p.ws.forEach(w => { const r = w.el.getBoundingClientRect(); x0 = Math.min(x0, r.left); x1 = Math.max(x1, r.right); });
+      p.box = { x0, x1, y0: Y - h / 2, y1: Y + h / 2 };
+      p.t0 = p.ws[0].t;
+      p.out = P[i + 1] ? Math.max(p.t0 + 0.3, P[i + 1].ws[0].t - 0.21) : (FOUT > 0 ? D - FOUT : D + 1);
+    });
+  }
+  fit();
+  // avoid = "y0,y1": a full-width band the floaters weave around all the time (e.g. a separate text overlay)
+  const AV = "{{avoid}}".split(",").map(Number).filter(isFinite);
+  const zones = AV.length === 2 ? [{ box: { x0: 60, x1: 1020, y0: AV[0], y1: AV[1] }, t0: -1, out: D + 1 }] : [];
+  const vis = p => ss((T - p.t0 + 0.15) / 0.35) * (1 - ss((T - p.out) / 0.2));
+  let T = 0;
+
+  // ---------- eye (revealed) ----------
+  const eyeSvg = document.getElementById("eye"), irisSvg = document.getElementById("iris");
+  const tl = gsap.timeline({ paused: true });
+  const draw = (p, t, d, ease) => { p.setAttribute("pathLength", 1); p.style.strokeDasharray = 1; p.style.strokeDashoffset = 1; tl.to(p, { strokeDashoffset: 0, duration: d, ease: ease || "power2.inOut" }, t); };
+  const PX = EX - 188 * SC, PY = EY, PR = 52 * SC, IR = 137 * SC;
+  let irisG = null, pupC, irisC, fib = [];
+  if (REVEAL) {
+    const g = mk("g", { transform: `translate(${EX},${EY}) scale(${SC})` }, eyeSvg);
+    const L = (d, st) => { const p = mk("path", { class: "ln", d }, g); if (st) Object.assign(p.style, st); return p; };
+    const sclera = L("M -205 -145 A 250 250 0 1 1 -205 145 C -330 90 -330 -90 -205 -145 Z");
+    const retina = L("M -152 -180 A 235 235 0 1 1 -152 180", { stroke: SKY, strokeWidth: 8 });
+    const iris1 = L("M -197 -137 Q -178 -95 -168 -52"), iris2 = L("M -197 137 Q -178 95 -168 52");
+    const lens = L("M -122 -64 C -80 -40 -80 40 -122 64 C -160 40 -160 -40 -122 -64 Z", { stroke: SKY, strokeWidth: 5 });
+    const n1 = L("M 233 30 C 280 34 310 46 345 48"), n2 = L("M 228 78 C 275 82 305 92 340 96");
+    draw(iris1, R + 0.5, 0.2, "power2.out"); draw(iris2, R + 0.5, 0.2, "power2.out");
+    [sclera, retina, lens, n1, n2].forEach((p, i) => draw(p, R + 0.3 + i * 0.06, 0.45));
+    if ("{{orb}}" === "1") {
+      const xl = -EX / SC + 20, hit = Math.min(R + 0.95, D - 0.12), t0 = hit - 0.5;
+      const ax = mk("path", { class: "axis", d: `M ${xl} 0 L 236 0` }, g); draw(ax, t0 - 0.12, 0.35, "power2.out");
+      const og = mk("g", { opacity: 0 }, g);
+      const trail = mk("rect", { x: -150, y: -7, width: 150, height: 14, rx: 7, fill: "url(#trail)" }, og);
+      const orb = mk("circle", { cx: 0, cy: 0, r: 15, fill: ORBC }, og);
+      const o = { x: xl }, place = () => og.setAttribute("transform", `translate(${o.x.toFixed(1)},0)`); place();
+      tl.set(og, { opacity: 1 }, t0);
+      tl.to(o, { x: -150, duration: 0.16, ease: "power2.in", onUpdate: place }, t0);
+      tl.to(o, { x: -95, duration: 0.08, ease: "none", onUpdate: place }, t0 + 0.16);
+      tl.to(o, { x: 221, duration: 0.26, ease: "power2.out", onUpdate: place }, t0 + 0.24);
+      tl.to(trail, { attr: { width: 40, x: -40 }, duration: 0.2, ease: "power2.out" }, t0 + 0.34);
+      tl.to(orb, { attr: { r: 9 }, duration: 0.15, ease: "power2.out" }, hit - 0.08);
+      const ring = mk("circle", { cx: 235, cy: 0, r: 10, fill: "none", stroke: SKY, "stroke-width": 4, opacity: 0 }, g);
+      tl.fromTo(ring, { opacity: 0.95, attr: { r: 8 } }, { opacity: 0, attr: { r: 46 }, duration: 0.6, ease: "power2.out", immediateRender: false }, hit);
+    }
+    // front-view iris that closes around the shrinking white world, then turns side-on
+    irisG = mk("g", {}, irisSvg);
+    for (let k = 0; k < 30; k++) fib.push(mk("line", { stroke: SKY, "stroke-width": 2, opacity: .35, "stroke-linecap": "round" }, irisG));
+    irisC = mk("circle", { fill: "none", stroke: INK, "stroke-width": 3, opacity: .9 }, irisG);
+    pupC = mk("circle", { fill: "none", stroke: INK, "stroke-width": 4 }, irisG);
+  }
+  const flf = document.getElementById("flf"), pup = document.getElementById("pup"), world = document.getElementById("world"), tex = document.getElementById("tex");
+
+  // ---------- per-frame state (pure function of t) ----------
+  function place(t) {
+    T = t;
+    const fin = Math.min(1, t / Math.max(0.01, FIN)) * (FOUT > 0 ? 1 - ss((t - (D - FOUT)) / FOUT) : 1);
+    const [gx, gy] = gaze(t, 0, ss);
+    if (OPAQUE) tex.style.transform = `translate(${(-gx * 0.6).toFixed(1)}px,${(-gy * 0.6).toFixed(1)}px) scale(${(1 + Math.hypot(gx, gy) / 5000).toFixed(4)})`;
+    items.forEach(it => {
+      const tt = t * SP, [fx, fy] = gaze(t, it.lag, back);
+      let x = it.bx + Math.sin(tt * it.fx * 6.28 + it.px) * it.ax + fx * it.g * 0.6;
+      let y = it.by + Math.sin(tt * it.fy * 6.28 + it.py) * it.ay + tt * it.sink + fy * it.g * 0.6;
+      // weave: ease out of the way of the visible phrase (side decided by the floater's base, so no jumps)
+      P.concat(zones).forEach(p => {
+        const w = vis(p); if (w <= 0 || !p.box) return;
+        const b = p.box, e = it.ext * 0.6;
+        const inX = ss((x - (b.x0 - e)) / 60) * ss(((b.x1 + e) - x) / 60);
+        if (it.by < (b.y0 + b.y1) / 2) { const lim = b.y0 - e; if (y > lim) y = lerp(y, lim, w * inX * 0.92); }
+        else { const lim = b.y1 + e; if (y < lim) y = lerp(y, lim, w * inX * 0.92); }
+      });
+      const r = it.rot + it.rs * tt;
+      it.el.setAttribute("transform", `translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${r.toFixed(1)})`);
+      it.el.setAttribute("opacity", (it.a * fin).toFixed(3));
+    });
+    if (!REVEAL) return;
+    const u = t - R;
+    if (u <= 0) { pup.style.clipPath = "none"; world.style.transform = "none"; pup.style.transform = "none"; irisSvg.style.opacity = 0; gf.removeAttribute("transform"); flf.style.opacity = 1; return; }
+    const e = ioc(u / 0.5);
+    const rp = Math.exp(lerp(Math.log(1200), Math.log(PR), e)), cx = lerp(540, PX, e), cy = lerp(H / 2, PY, e);
+    const ws = rp / 1150, sq = lerp(1, 0.08, Math.pow(clamp((u - 0.42) / 0.26, 0, 1), 2));
+    const fade = 1 - ss((u - 0.52) / 0.2);
+    world.style.transformOrigin = "540px " + (H / 2) + "px";
+    world.style.transform = `translate(${(cx - 540).toFixed(1)}px,${(cy - H / 2).toFixed(1)}px) scale(${ws.toFixed(4)})`;
+    pup.style.clipPath = `circle(${rp.toFixed(1)}px at ${cx.toFixed(1)}px ${cy.toFixed(1)}px)`;
+    pup.style.transformOrigin = `${cx.toFixed(1)}px ${cy.toFixed(1)}px`;
+    pup.style.transform = `scale(${sq.toFixed(3)},1)`;
+    pup.style.opacity = fade;
+    // front floaters ride the same shrink + squash as the world inside the pupil
+    gf.setAttribute("transform", `translate(${cx.toFixed(1)},${cy.toFixed(1)}) scale(${(sq * ws).toFixed(4)},${ws.toFixed(4)}) translate(-540,${(-H / 2).toFixed(1)})`);
+    flf.style.opacity = fade;
+    const ro = rp * IR / PR;
+    irisSvg.style.opacity = fade;
+    irisG.setAttribute("transform", `translate(${cx.toFixed(1)},${cy.toFixed(1)}) scale(${sq.toFixed(3)},1)`);
+    pupC.setAttribute("r", rp.toFixed(1)); irisC.setAttribute("r", ro.toFixed(1));
+    fib.forEach((l, k) => { const a = k / fib.length * 6.283 + 0.1; l.setAttribute("x1", (Math.cos(a) * rp * 1.12).toFixed(1)); l.setAttribute("y1", (Math.sin(a) * rp * 1.12).toFixed(1)); l.setAttribute("x2", (Math.cos(a) * ro * 0.92).toFixed(1)); l.setAttribute("y2", (Math.sin(a) * ro * 0.92).toFixed(1)); });
+  }
+  const PR_ = { t: 0 };
+  const wtl = gsap.timeline();
+  function build() {
+    wtl.clear();
+    // words (kinetic-type-v2 motion): each word lands blur-to-sharp on its own time; a phrase blurs out before the next
+    P.forEach(p => {
+      gsap.set(p.el, { opacity: 0 });
+      wtl.set(p.el, { opacity: 1, filter: "blur(0px)", y: 0 }, Math.max(0, p.t0 - 0.001));
+      const fs = parseFloat(p.el.style.fontSize);
+      p.ws.forEach(w => {
+        gsap.set(w.el, { opacity: 0 });
+        wtl.fromTo(w.el, { opacity: 0, filter: "blur(18px)", y: fs * 0.16, scale: 1.08 }, { opacity: 1, filter: "blur(0px)", y: 0, scale: 1, duration: 0.46, ease: "expo.out", immediateRender: false }, w.t);
+        if (w.key) wtl.fromTo(w.el.querySelector(".mk"), { scaleX: 0 }, { scaleX: 1, duration: 0.34, ease: "power3.inOut", immediateRender: false }, w.t + 0.12);
+      });
+      if (p.out < D) wtl.to(p.el, { opacity: 0, filter: "blur(12px)", y: -BASE * 0.12, duration: 0.16, ease: "power2.in" }, p.out);
+    });
+  }
+  build();
+  place(0);
+  tl.to(PR_, { t: D, duration: D, ease: "none", onUpdate: () => place(PR_.t) }, 0);
+  tl.add(wtl, 0);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { const keep = tl.time(); fit(); build(); tl.seek(keep); });
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

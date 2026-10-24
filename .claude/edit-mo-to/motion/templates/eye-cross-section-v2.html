@@ -1,0 +1,141 @@
+<!--defaults {"mode": "compare", "labels": "retina|lens|vitreous|floaters", "t_labels": "0.8,1.2,1.6,2.0", "t_fill": "2.46", "fill": "0", "floaters": "0", "orb": "1", "t_orb": 0.55, "t_draw": 0.1, "x": 470, "y": 960, "scale": 0.92, "bg": "", "ink": "#5a1426", "sky": "#6fb4e6", "marker": "#ffe45c", "floater": "#2d3440", "orb_color": "#b3201f", "font": "Inter", "height": 1920, "duration": 4} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; -webkit-font-smoothing: antialiased; }
+  #bg { position: absolute; inset: 0; background: {{bg}}; }
+  svg#s { position: absolute; left: 0; top: 0; overflow: visible; }
+  .ln { fill: none; stroke: {{ink}}; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+  .lbl text { font-family: "{{font}}", sans-serif; font-weight: 700; font-size: 28px; letter-spacing: .2em; fill: {{ink}}; text-transform: uppercase; }
+  .lbl .ix { fill: {{sky}}; font-weight: 600; }
+  .lead { stroke: {{ink}}; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .axis { stroke: {{ink}}; stroke-width: 2; fill: none; stroke-linecap: round; opacity: .45; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="bg" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0"></div>
+  <svg id="s" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="1" width="1080" height="{{height}}" viewBox="0 0 1080 {{height}}">
+    <defs><linearGradient id="trail" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="{{orb_color}}" stop-opacity="0" /><stop offset="1" stop-color="{{orb_color}}" stop-opacity=".55" /></linearGradient></defs>
+  </svg>
+</div>
+<script>
+  // Eye cross-section v2 (front faces left). Lines draw on; then a thin optical axis draws in from the left edge
+  // and an orb of light travels along it, through the lens, across the vitreous, onto the retina (orb=1, t_orb).
+  // compare: clear eye above (the orb lands clean, a sky ring), eye with clumps below (the orb crosses a clump
+  // and its shadow lands on the retina). Labels hang off elbow leader lines with a small index (01 RETINA).
+  // single: one eye; fill=1 floods the vitreous with yellow marker on t_fill (block 3).
+  const NS = "http://www.w3.org/2000/svg", D = Number("{{duration}}"), SC = Number("{{scale}}");
+  const MODE = "{{mode}}", X = Number("{{x}}"), Y = Number("{{y}}"), TD = Number("{{t_draw}}"), TO = Number("{{t_orb}}");
+  const INK = "{{ink}}", SKY = "{{sky}}", MARK = "{{marker}}", FL = "{{floater}}", ORB = "{{orb_color}}";
+  const labels = "{{labels}}".split("|").map(s => s.trim()).filter(Boolean);
+  const tl_ = "{{t_labels}}".split(",").map(Number), tfill = Number("{{t_fill}}");
+  const svg = document.getElementById("s"), tl = gsap.timeline({ paused: true });
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); (parent || svg).appendChild(e); return e; };
+  const draw = (p, t, d, ease) => { p.setAttribute("pathLength", 1); p.style.strokeDasharray = 1; p.style.strokeDashoffset = 1; tl.to(p, { strokeDashoffset: 0, duration: d, ease: ease || "power2.inOut" }, t); };
+  // anchor (eye-local) and label spot; labels sit in a column right of the eye (lens goes above)
+  const SPOTS = {
+    retina:   { p: [166, -166], l: [300, -215] },
+    vitreous: { p: [40, -30],   l: [300, -75] },
+    floaters: { p: [95, 120],   l: [300, 200] },
+    lens:     { p: [-122, -64], l: [-215, -290], up: true }
+  };
+  const ORDER = { retina: 1, lens: 2, vitreous: 3, floaters: 4 };
+  function eye(cx, cy, id, withClumps, withFill, labelled) {
+    const g = mk("g", { transform: `translate(${cx},${cy}) scale(${SC})` });
+    const defs = mk("defs", {}, g);
+    const cp = mk("clipPath", { id: "vc" + id }, defs);
+    mk("path", { d: "M -100 -212.7 A 235 235 0 1 1 -100 212.7 Q -40 0 -100 -212.7 Z" }, cp);
+    let fillRect = null;
+    if (withFill) { const fg = mk("g", { "clip-path": `url(#vc${id})` }, g); fillRect = mk("rect", { x: -100, y: -230, width: 0, height: 460, fill: MARK, opacity: .85 }, fg); }
+    const sclera = mk("path", { class: "ln", d: "M -205 -145 A 250 250 0 1 1 -205 145 C -330 90 -330 -90 -205 -145 Z" }, g);
+    const retina = mk("path", { class: "ln", d: "M -152 -180 A 235 235 0 1 1 -152 180" }, g);
+    retina.style.stroke = SKY; retina.style.strokeWidth = 8;
+    const iris1 = mk("path", { class: "ln", d: "M -197 -137 Q -178 -95 -168 -52" }, g);
+    const iris2 = mk("path", { class: "ln", d: "M -197 137 Q -178 95 -168 52" }, g);
+    const lens = mk("path", { class: "ln", d: "M -122 -64 C -80 -40 -80 40 -122 64 C -160 40 -160 -40 -122 -64 Z" }, g);
+    lens.style.stroke = SKY; lens.style.strokeWidth = 5;
+    const nerve1 = mk("path", { class: "ln", d: "M 233 30 C 280 34 310 46 345 48" }, g);
+    const nerve2 = mk("path", { class: "ln", d: "M 228 78 C 275 82 305 92 340 96" }, g);
+    [sclera, retina, iris1, iris2, lens, nerve1, nerve2].forEach((p, i) => draw(p, TD + i * 0.07, 0.85));
+    // floater clumps (one sits on the optical axis, so the orb crosses it)
+    if (withClumps) {
+      const clumps = [];
+      ["M 40 70 q 12 -22 26 -4 t 26 -2 t 22 14", "M 120 -48 q -10 18 6 26 t 18 24", "M -20 110 q 14 -12 28 4 t 24 -8", "M 80 -110 q 16 6 10 24 t -8 22"]
+        .forEach(d => clumps.push(mk("path", { d, fill: "none", stroke: FL, "stroke-width": 8, "stroke-linecap": "round", opacity: 0 }, g)));
+      [[62, -2, 13], [80, 8, 7], [130, -30, 7], [14, 98, 7], [95, -88, 9], [110, 100, 6]].forEach(c => clumps.push(mk("circle", { cx: c[0], cy: c[1], r: c[2], fill: FL, opacity: 0 }, g)));
+      tl.to(clumps, { opacity: 0.75, duration: 0.45, stagger: 0.06, ease: "power1.out" }, TD + 0.75);
+      clumps.forEach((c, i) => tl.to(c, { x: (i % 2 ? 7 : -6), y: (i % 3 ? -5 : 6), duration: Math.max(1, D - TD - 1.2), ease: "sine.inOut" }, TD + 1.2));
+    }
+    // optical axis + orb of light
+    if ("{{orb}}" === "1") {
+      const xl = -cx / SC + 20;
+      const ax = mk("path", { class: "axis", d: `M ${xl} 0 L 236 0` }, g);
+      draw(ax, TO - 0.25, 0.6, "power2.out");
+      const og = mk("g", { opacity: 0 }, g);
+      const trail = mk("rect", { x: -150, y: -7, width: 150, height: 14, rx: 7, fill: "url(#trail)" }, og);
+      const orb = mk("circle", { cx: 0, cy: 0, r: 15, fill: ORB }, og);
+      const o = { x: xl };
+      const place = () => og.setAttribute("transform", `translate(${o.x.toFixed(1)},0)`);
+      place();
+      tl.set(og, { opacity: 1 }, TO);
+      // fast in from the edge, a beat of slow-down through the lens, then on to the retina
+      tl.to(o, { x: -150, duration: 0.42, ease: "power2.in", onUpdate: place }, TO);
+      tl.to(o, { x: -95, duration: 0.2, ease: "none", onUpdate: place }, TO + 0.42);
+      tl.to(o, { x: 221, duration: 0.5, ease: "power2.out", onUpdate: place }, TO + 0.62);
+      tl.to(trail, { attr: { width: 40, x: -40 }, duration: 0.3, ease: "power2.out" }, TO + 0.85);
+      const hit = TO + 1.12;
+      tl.to(orb, { attr: { r: 9 }, duration: 0.25, ease: "power2.out" }, hit - 0.1);
+      tl.to(og, { opacity: 0, duration: 0.3, ease: "power1.in" }, hit + 0.15);
+      if (withClumps) {
+        // the clump on the axis throws its shadow onto the retina where the light lands
+        const a = 12 * Math.PI / 180, sh = mk("path", { d: `M ${235 * Math.cos(-a)} ${235 * Math.sin(-a)} A 235 235 0 0 1 ${235 * Math.cos(a)} ${235 * Math.sin(a)}`, fill: "none", stroke: FL, "stroke-width": 16, "stroke-linecap": "round", opacity: 0 }, g);
+        tl.to(sh, { opacity: 0.85, duration: 0.25, ease: "power2.out" }, hit);
+        tl.fromTo(sh, { scale: 0.96, transformOrigin: "0px 0px" }, { scale: 1, duration: 0.4, ease: "power2.out", immediateRender: false }, hit);
+      } else {
+        const ring = mk("circle", { cx: 235, cy: 0, r: 10, fill: "none", stroke: SKY, "stroke-width": 4, opacity: 0 }, g);
+        tl.fromTo(ring, { opacity: 0.95, attr: { r: 8 } }, { opacity: 0, attr: { r: 46 }, duration: 0.7, ease: "power2.out", immediateRender: false }, hit);
+      }
+    }
+    if (withFill) tl.to(fillRect, { width: 340, duration: Math.max(0.25, Math.min(0.7, D - tfill - 0.3)), ease: "power2.inOut" }, tfill);
+    if (labelled) {
+      labels.forEach((name, i) => {
+        const sp = SPOTS[name]; if (!sp) return;
+        const t = isFinite(tl_[i]) ? tl_[i] : TD + 1 + i * 0.4;
+        const lg = mk("g", { class: "lbl" }, g);
+        const [x1, y1] = sp.p, [x2, y2] = sp.l;
+        // elbow: diagonal to the label row, then a short horizontal run to the text
+        const ey = y2 - 9;
+        const d = sp.up ? `M ${x1} ${y1} L ${x1 - 40} ${ey} L ${x2 + 14} ${ey}` : `M ${x1} ${y1} L ${x2 - 100} ${ey} L ${x2 - 14} ${ey}`;
+        const ln = mk("path", { class: "lead", d }, lg);
+        const dot = mk("circle", { cx: x1, cy: y1, r: 6, fill: INK, opacity: 0 }, lg);
+        const tg = mk("g", { opacity: 0 }, lg);
+        const tx = mk("text", { x: x2, y: y2, "text-anchor": sp.up ? "end" : "start" }, tg);
+        const ix = mk("tspan", { class: "ix" }, tx); ix.textContent = String(ORDER[name] || i + 1).padStart(2, "0");
+        const nm = mk("tspan", { dx: 16 }, tx); nm.textContent = name;
+        tl.fromTo(dot, { opacity: 0, scale: 0, transformOrigin: `${x1}px ${y1}px` }, { opacity: 1, scale: 1, duration: 0.2, ease: "power3.out", immediateRender: false }, t);
+        draw(ln, t + 0.02, 0.3, "power2.out");
+        tl.fromTo(tg, { opacity: 0, filter: "blur(8px)", x: -10 }, { opacity: 1, filter: "blur(0px)", x: 0, duration: 0.32, ease: "power3.out", immediateRender: false }, t + 0.16);
+      });
+    }
+    return g;
+  }
+  if (MODE === "compare") {
+    const gap = 330 * SC + 20;
+    eye(X, Y - gap + 10, 1, false, false, false);
+    eye(X, Y + gap - 10, 2, true, false, true);
+  } else {
+    eye(X, Y, 1, "{{floaters}}" === "1", "{{fill}}" === "1", true);
+  }
+  tl.to(svg, { opacity: 0, duration: 0.2, ease: "power2.in" }, D - 0.2);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

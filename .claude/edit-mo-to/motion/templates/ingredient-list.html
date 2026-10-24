@@ -1,0 +1,115 @@
+<!--defaults {"rows": 10, "row_times": "", "t_rows": 0.08, "row_step": 0.11, "row_dur": 0.18, "blur": 3.2, "shake": 8, "t_shake": 2.05, "compress": 0.9, "t_out": 3.0, "push": 1.06, "title": "", "top": 360, "card_w": 820, "row_h": 92, "scale": 1, "bg": "#f3eff0", "card": "#ffffff", "ink": "#5a1426", "type": "#8b858b", "dose": "#aaa4aa", "rule": "#e4dfe1", "font": "Inter", "seed": 7, "height": 1920, "duration": 3.4} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@800;900&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; -webkit-font-smoothing: antialiased; }
+  #bg { position: absolute; inset: 0; background: {{bg}}; }
+  /* scale wraps everything from the top centre (4:5: scale ~0.72); #cam does push-in, shake and blur-out */
+  #sc { position: absolute; left: 0; top: 0; width: 1080px; height: {{height}}px; transform-origin: 540px {{top}}px; }
+  #cam { position: absolute; left: calc(540px - {{card_w}}px / 2); top: {{top}}px; width: {{card_w}}px; }
+  #card { position: relative; width: 100%; background: {{card}}; border-radius: 30px; padding: 46px 52px 40px;
+          box-shadow: 0 40px 90px rgba(60,20,30,.14), 0 10px 24px rgba(60,20,30,.07), 0 0 0 1px rgba(90,20,38,.06); }
+  .b { display: block; border-radius: 9px; }
+  #ttl { font-weight: 900; font-size: 64px; letter-spacing: -.02em; color: {{ink}}; line-height: 1; white-space: nowrap; }
+  #ttlbar { height: 52px; width: 62%; background: {{ink}}; border-radius: 12px; }
+  .sub { height: 15px; background: {{type}}; margin-top: 16px; }
+  .thick { height: 14px; background: {{ink}}; border-radius: 3px; margin: 24px 0 18px; transform-origin: 0 50%; }
+  .colh { display: flex; justify-content: space-between; align-items: center; height: 26px; }
+  .colh .b { height: 13px; background: {{type}}; }
+  .mid { height: 5px; background: {{ink}}; opacity: .85; margin-top: 14px; border-radius: 2px; transform-origin: 0 50%; }
+  #rows { position: relative; transform-origin: 50% 0; }
+  .r { position: relative; height: {{row_h}}px; display: flex; align-items: center; justify-content: space-between; }
+  .r .ln { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: {{rule}}; transform-origin: 0 50%; }
+  .r .nm { display: flex; gap: 14px; align-items: center; }
+  .r .nm i, .r .ds i { display: block; height: 20px; border-radius: 10px; background: {{type}}; }
+  .r .ds { display: flex; gap: 8px; align-items: center; }
+  .r .ds i { background: {{dose}}; height: 17px; }
+  .foot .b { height: 11px; background: {{dose}}; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="bg" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0"></div>
+  <div id="sc" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="1">
+    <div id="cam"><div id="card">
+      <div id="hd"></div>
+      <div class="b sub" style="width:44%"></div>
+      <div class="b sub" style="width:58%"></div>
+      <div class="thick"></div>
+      <div class="colh"><span class="b" style="width:34%"></span><span class="b" style="width:22%"></span></div>
+      <div class="mid"></div>
+      <div id="rows"></div>
+      <div class="thick" id="th2" style="margin:20px 0 6px"></div>
+      <div class="foot"><span class="b" style="width:88%"></span><span class="b" style="width:64%"></span></div>
+    </div></div>
+  </div>
+</div>
+<script>
+  // Generic, brandless "Supplement Facts"-style label. Every word and number is a blurred SHAPE (never glyphs),
+  // so nothing is readable at any frame. `title` = optional readable heading (empty = blurred bar).
+  // Rows drop in one by one (row_times, or t_rows + i*row_step), card pushes in, at t_shake the list
+  // shakes and compresses (overcrowded), from t_out it blurs out for a hard cut.
+  const D = Number("{{duration}}"), N = Math.max(1, Math.round(Number("{{rows}}")));
+  const BL = Number("{{blur}}"), SH = Number("{{shake}}"), RH = Number("{{row_h}}");
+  const TS = Number("{{t_shake}}"), TO = Math.min(Number("{{t_out}}"), D - 0.12), CMP = Number("{{compress}}");
+  let s = Number("{{seed}}") * 9301 + 49297;
+  const rnd = () => { s = (s * 16807) % 2147483647; return (s % 10000) / 10000; };
+  const title = "{{title}}".trim();
+  document.getElementById("hd").innerHTML = title ? '<div id="ttl">' + title + '</div>' : '<div id="ttlbar"></div>';
+  if (!title) document.getElementById("ttlbar").style.filter = "blur(" + (BL * 1.1) + "px)";
+  document.querySelectorAll(".sub,.colh .b,.foot .b").forEach(e => e.style.filter = "blur(" + BL + "px)");
+  const rows = document.getElementById("rows");
+  for (let i = 0; i < N; i++) {
+    const r = document.createElement("div"); r.className = "r";
+    const words = rnd() < 0.45 ? 2 : (rnd() < 0.5 ? 1 : 3);
+    let nm = '<div class="nm">';
+    for (let w = 0; w < words; w++) nm += '<i style="width:' + Math.round(70 + rnd() * (words === 1 ? 260 : 150)) + 'px"></i>';
+    nm += '</div>';
+    const ds = '<div class="ds"><i style="width:' + Math.round(36 + rnd() * 50) + 'px"></i><i style="width:' + Math.round(28 + rnd() * 14) + 'px"></i></div>';
+    r.innerHTML = nm + ds + '<div class="ln"></div>';
+    r.querySelectorAll("i").forEach(e => e.style.filter = "blur(" + BL + "px)");
+    rows.appendChild(r);
+  }
+  let times = "{{row_times}}".split(",").map(Number).filter(v => !isNaN(v) && "{{row_times}}".trim() !== "");
+  const T0 = Number("{{t_rows}}"), ST = Number("{{row_step}}"), RD = Number("{{row_dur}}");
+  for (let i = times.length; i < N; i++) times.push(i ? times[i - 1] + ST : T0);
+
+  const tl = gsap.timeline({ paused: true });
+  const cam = document.getElementById("cam"), sc = document.getElementById("sc");
+  gsap.set(sc, { scale: Number("{{scale}}") });
+  gsap.set(cam, { transformOrigin: "50% 40%" });
+  // card arrives blur-to-sharp
+  tl.fromTo(cam, { y: 70, scale: 0.94, opacity: 0, filter: "blur(18px)" },
+                 { y: 0, scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.24, ease: "power3.out" }, 0);
+  tl.fromTo(".thick,.mid", { scaleX: 0 }, { scaleX: 1, duration: 0.26, ease: "power2.out", stagger: 0.04 }, 0.04);
+  // push-in through the drop and the hold
+  tl.to(cam, { scale: Number("{{push}}"), duration: Math.max(0.3, TS - 0.24), ease: "power1.inOut" }, 0.24);
+  // rows drop and stack, slight bounce, soft tick feel
+  rows.querySelectorAll(".r").forEach((r, i) => {
+    const t = times[i];
+    tl.fromTo(r, { y: -RH * 0.9, opacity: 0, filter: "blur(10px)" },
+                 { y: 0, opacity: 1, filter: "blur(0px)", duration: RD, ease: "back.out(1.6)" }, t);
+    tl.fromTo(r.querySelector(".ln"), { scaleX: 0 }, { scaleX: 1, duration: RD * 0.9, ease: "power2.out" }, t + 0.03);
+  });
+  // overcrowded: list compresses, card jitters (calm amplitude)
+  if (TS < TO) {
+    tl.to("#rows", { scaleY: CMP, duration: 0.16, ease: "power2.out" }, TS);
+    tl.to(cam, { scaleX: "+=0.015", duration: 0.16, ease: "power2.out" }, TS);
+    const cyc = 6, sd = 0.05;
+    for (let k = 0; k < cyc; k++) tl.to(cam, { x: (k % 2 ? -1 : 1) * SH * (1 - k / cyc), rotation: (k % 2 ? -1 : 1) * SH * 0.04, duration: sd, ease: "sine.inOut" }, TS + k * sd);
+    tl.to(cam, { x: 0, rotation: 0, duration: sd, ease: "sine.out" }, TS + cyc * sd);
+    tl.to("#rows", { scaleY: CMP + (1 - CMP) * 0.4, duration: 0.3, ease: "power1.out" }, TS + 0.2);
+  }
+  // blur out for the hard cut
+  tl.to(cam, { filter: "blur(22px)", scale: "+=0.06", opacity: 0.55, duration: Math.max(0.12, D - TO), ease: "power2.in" }, TO);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

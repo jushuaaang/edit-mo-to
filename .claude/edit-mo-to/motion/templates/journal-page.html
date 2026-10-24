@@ -1,0 +1,313 @@
+<!--defaults {"page": "a", "tag": "Clinical Trial", "t_tag": "0.4", "title": "Antioxidant supplementation and eye strain: a placebo-controlled trial", "title_marks": "placebo-controlled trial", "t_title_marks": "0.8", "cite": "Nagaki et al., 2002", "result": "46% of participants reported less eye strain after four weeks.", "t_result": "2.6,3.2,3.8,4.4", "marks": "", "t_marks": "", "callouts": "46%", "t_callouts": "2.6", "t_chart": "1.2", "path": "0:title:1.05;2.0:title:1.12;2.6:result:1.8;6:result:1.9", "kinetic": "", "k_times": "", "ky": 250, "ky_dim": 880, "k_size": 54, "k_big": 150, "dim": 0.72, "pad_top": 430, "fuzz": 2.6, "title_blur": 1, "outro": 1, "bg": "#ffffff", "ink": "#5a1426", "text": "#2b2b30", "sky": "#6fb4e6", "sky_deep": "#2a6aa6", "marker": "#ffe45c", "font": "Inter", "font2": "Playfair Display", "font3": "Source Serif 4", "seed": 7, "height": 1920, "duration": 6.5} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:ital,wght@0,400;0,600;0,700;0,800;1,400;1,500&family={{font2}}:ital,wght@1,600;1,700&family={{font3}}:ital,wght@0,400;0,600;1,400&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; -webkit-font-smoothing: antialiased; font-family: "{{font}}", sans-serif; }
+  #cam { position: absolute; inset: 0; overflow: hidden; background: {{bg}}; }
+  #page { position: absolute; left: 0; top: 0; width: 1080px; background: #fff; transform-origin: 0 0; padding: {{pad_top}}px 64px 160px; color: {{text}}; }
+  #hl, #gl { position: absolute; inset: 0; pointer-events: none; }
+  #hl { z-index: 0; } #ct { position: relative; z-index: 1; } #gl { z-index: 2; }
+  .m { position: absolute; background: {{marker}}; mix-blend-mode: multiply; border-radius: 3px; transform-origin: 0 50%; transform: scaleX(0); }
+  .glow { position: absolute; border-radius: 12px; box-shadow: 0 0 0 3px {{sky}}, 0 0 30px 8px rgba(111,180,230,.55); opacity: 0; }
+  /* unreadable text: glyphs transparent, a blurred text-shadow draws the shape. Radius is in em, so it scales with
+     the type size AND with the camera zoom: never legible at any push-in (filter on inline spans does not paint). */
+  .fz, .fz * { color: transparent !important; text-shadow: 0 0 calc({{fuzz}} * 0.22em) rgba(30,30,36,1) !important; }
+  .fz2, .fz2 * { color: transparent !important; text-shadow: 0 0 calc({{fuzz}} * 0.26em) rgba(30,30,36,1) !important; }
+  .fz3, .fz3 * { color: transparent !important; text-shadow: 0 0 calc({{fuzz}} * 0.3em) rgba(42,106,166,1) !important; }
+  h1.fz2, h1.fz2 * { text-shadow: 0 0 calc({{fuzz}} * 0.2em) rgba(90,20,38,1) !important; }
+  .mast { display: flex; align-items: flex-end; justify-content: space-between; padding-bottom: 14px; border-bottom: 3px solid {{sky}}; margin-bottom: 22px; }
+  .wm { font-weight: 800; font-size: 40px; letter-spacing: -.02em; color: {{sky_deep}}; }
+  .rh { font-size: 17px; color: #8a8f98; }
+  .tag { display: inline-block; background: {{sky_deep}}; color: #fff; font-weight: 700; font-size: 25px; padding: 7px 16px 8px; border-radius: 3px; margin-bottom: 26px; transform-origin: 0 50%; }
+  h1 { font-weight: 800; font-size: 54px; line-height: 1.17; letter-spacing: -.012em; color: {{ink}}; margin-bottom: 26px; }
+  .au { font-weight: 600; font-size: 27px; line-height: 1.45; color: #303036; margin-bottom: 12px; }
+  .au sup { font-size: .6em; }
+  .cite { display: inline-block; font-weight: 600; font-size: 25px; color: {{sky_deep}}; margin-bottom: 18px; }
+  .af { font-size: 17px; line-height: 1.5; color: #55585f; margin-bottom: 30px; }
+  .abs { display: grid; grid-template-columns: 250px 1fr; gap: 38px; padding-top: 26px; border-top: 1px solid #dde2e8; margin-bottom: 40px; }
+  .side { font-size: 17px; line-height: 1.5; color: #4a4d55; }
+  .side b, .abp b { font-weight: 700; color: #1f2024; }
+  .abp { font-size: 21px; line-height: 1.45; margin-bottom: 14px; text-align: justify; hyphens: auto; }
+  .sec { background: {{sky_deep}}; color: #fff; font-weight: 700; font-size: 25px; padding: 7px 16px 8px; margin: 18px 0 22px; width: 452px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-bottom: 34px; }
+  .bp { font-family: "{{font3}}", Georgia, serif; font-size: 27px; line-height: 1.42; text-align: justify; hyphens: auto; margin-bottom: 16px; color: #26262b; }
+  .bp i { font-style: italic; }
+  .sh { font-weight: 700; font-size: 24px; color: #1f2024; margin: 8px 0 10px; }
+  .rd { filter: none; color: #1d1d22; }
+  .tbl { border-top: 2px solid #9aa3ad; border-bottom: 2px solid #9aa3ad; margin: 8px 0 18px; }
+  .tbl div { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 10px; padding: 8px 4px; border-top: 1px solid #e1e5ea; font-size: 18px; color: #50535b; }
+  .tbl div:first-child { border-top: 0; font-weight: 700; }
+  .imgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 10px 0 14px; }
+  .imgs i { aspect-ratio: 1; background: #111; border-radius: 2px; position: relative; overflow: hidden; }
+  .cap { font-size: 18px; line-height: 1.45; color: #4a4d55; margin-bottom: 26px; }
+  .fig { border-top: 2px solid #9aa3ad; border-bottom: 1px solid #c9d0d8; padding: 26px 0 18px; margin: 10px 0 18px; }
+  .fig svg { display: block; width: 952px; height: 560px; overflow: visible; }
+  #veil, #topv { position: absolute; left: 0; right: 0; pointer-events: none; opacity: 0; }
+  #veil { top: 0; bottom: 0; background: #fff; }
+  #topv { top: 0; background: linear-gradient(#fff 0, #fff 72%, rgba(255,255,255,0)); }
+  .ph { position: absolute; left: 60px; width: 960px; text-align: center; color: {{ink}}; opacity: 0; }
+  .ln { display: block; white-space: nowrap; }
+  .ln.s { font-family: "{{font}}", sans-serif; font-style: italic; font-weight: 400; font-size: {{k_size}}px; line-height: 1.22; letter-spacing: -.005em; white-space: normal; }
+  .ln.b { font-family: "{{font2}}", Georgia, serif; font-style: italic; font-weight: 700; font-size: {{k_big}}px; line-height: 1.02; letter-spacing: -.015em; font-variant-numeric: lining-nums; }
+  .w { display: inline-block; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="cam" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0" data-layout-allow-overflow>
+    <div id="page" data-layout-allow-overflow data-layout-ignore><div id="hl"></div><div id="ct"></div><div id="gl"></div></div>
+    <div id="veil"></div><div id="topv"></div>
+  </div>
+  <div id="k" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="1"></div>
+</div>
+<script>
+  // Journal page: a typeset, journal-STYLE page on white. Only the brief-backed parts are legible (tag, title,
+  // cite, `result` sentence, `marks` phrases, section names); every other line is pseudo-word lorem in real
+  // typesetting, softly blurred (fuzz), so nothing false can be read.
+  // page a = article front page (masthead, tag, title, authors, cite, affiliations, abstract, intro, results with
+  //   the `result` sentence, table, image grid); page b = short report (tag, title, authors, big figure with a
+  //   falling score line, no values, drawn at t_chart).
+  // Highlighter: title_marks (substrings of title) at t_title_marks; marks (inline abstract phrases) at t_marks;
+  //   result wipes line by line: t_result one time per WORD (each line runs from its first word to its last), or
+  //   one time per line. callouts = substrings of any legible text; a soft sky glow lands on them at t_callouts.
+  // title_blur 1 = title drawn as unreadable shapes (marks still wipe it). Camera path "t:anchor:zoom;..."
+  //   (anchor = top|title|abstract|mark|mark1..n|results|result|figure|chart|cite|<page y>):
+  //   the anchor's centre is held at the frame centre, eased segment to segment (slow scroll + push-in).
+  // Kinetic words: phrases split by " / ", one time per word in k_times; *word = big serif italic line, other
+  //   words = small italic sans line; a phrase starting with "!" dims and blurs the page (dim) and sits at ky_dim,
+  //   otherwise it sits at ky over a white top fade. Big serif numbers count up.
+  const D = Number("{{duration}}"), H = Number("{{height}}"), PAGE = "{{page}}" === "b" ? "b" : "a";
+  const dec = s => { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; };
+  const list = s => dec(s).split("|").map(x => x.trim()).filter(Boolean);
+  const nums = s => String(s).split(",").map(x => x.trim()).filter(x => x !== "").map(Number);
+  let sd = Number("{{seed}}") || 7; const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+  const SY = ["ve", "ra", "lo", "mi", "tun", "sa", "pe", "qua", "dor", "ni", "fel", "ox", "ta", "li", "men", "cus", "ar", "bi", "sor", "em", "ul", "co", "vis", "tre", "pha", "en", "ri", "gal", "mo", "sti"];
+  const word = () => { let w = ""; const n = 1 + Math.floor(rnd() * 3.2); for (let i = 0; i < n; i++) w += SY[Math.floor(rnd() * SY.length)]; return w; };
+  const lorem = n => { let s = [], cap = true; for (let i = 0; i < n; i++) { let w = word(); if (cap) { w = w[0].toUpperCase() + w.slice(1); cap = false; } if (rnd() < 0.09 && i < n - 1) { w += rnd() < 0.5 ? "," : "."; cap = w.endsWith("."); } s.push(w); } return s.join(" ") + "."; };
+  const name = () => { const a = word(), b = word() + word(); return a[0].toUpperCase() + a.slice(1, 5) + " " + b[0].toUpperCase() + b.slice(1, 9); };
+  const E = (tag, cls, txt, parent) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; if (parent) parent.appendChild(e); return e; };
+  const ct = document.getElementById("ct"), page = document.getElementById("page");
+  const legible = [];   // elements whose text is readable (callout targets)
+  const anchors = {};
+
+  // ---------- page build ----------
+  const mast = E("div", "mast", null, ct); E("div", "wm fz3", word().slice(0, 4), mast); E("div", "rh fz", lorem(5).slice(0, -1), mast);
+  const tag = E("div", "tag", dec("{{tag}}"), ct); legible.push(tag); anchors.top = mast;
+  const TBL = "{{title_blur}}" === "1";
+  const h1 = E("h1", TBL ? "fz2" : "", null, ct); anchors.title = h1; if (!TBL) legible.push(h1);
+  // title with mark spans
+  const tMarks = list("{{title_marks}}"), title = dec("{{title}}");
+  (function () {
+    let rest = title; const low = () => rest.toLowerCase();
+    const found = tMarks.map(m => ({ m, i: title.toLowerCase().indexOf(m.toLowerCase()) })).filter(o => o.i >= 0).sort((a, b) => a.i - b.i);
+    let pos = 0; h1.textContent = "";
+    found.forEach(o => { if (o.i < pos) return; h1.appendChild(document.createTextNode(title.slice(pos, o.i))); const s = E("span", "tm", title.slice(o.i, o.i + o.m.length), h1); s.dataset.k = tMarks.indexOf(o.m); pos = o.i + o.m.length; });
+    h1.appendChild(document.createTextNode(title.slice(pos)));
+  })();
+  const au = E("div", "au fz2", null, ct);
+  for (let i = 0; i < 6; i++) { au.appendChild(document.createTextNode((i ? ", " : "") + (i === 5 ? "and " : "") + name())); const s = E("sup", "", String(1 + Math.floor(rnd() * 3)) + (rnd() < 0.25 ? ",2" : ""), au); }
+  const citeT = dec("{{cite}}");
+  if (citeT) { const c = E("div", "cite", citeT, ct); legible.push(c); anchors.cite = c; }
+  const af = E("div", "af fz2", null, ct);
+  for (let i = 1; i <= 4; i++) { E("div", "", null, af).innerHTML = "<sup>" + i + "</sup> " + lorem(8 + Math.floor(rnd() * 8)).slice(0, -1); }
+
+  const marks = list("{{marks}}");
+  const withMarks = (el, n, ms) => {   // lorem paragraph text with legible phrases spliced in
+    const parts = lorem(n).split(" "), slots = ms.map((_, i) => Math.floor(parts.length * (i + 1) / (ms.length + 1)));
+    let out = []; parts.forEach((w, i) => { out.push(w); const j = slots.indexOf(i); if (j >= 0) out.push({ m: ms[j] }); });
+    let buf = [];
+    const flush = () => { if (buf.length) { E("span", "fz", buf.join(" ") + " ", el); buf = []; } };
+    out.forEach(o => { if (typeof o === "string") buf.push(o); else { flush(); const s = E("span", "rd mk", o.m, el); s.dataset.k = marks.indexOf(o.m); legible.push(s); anchors["mark" + (marks.indexOf(o.m) + 1)] = s; if (!anchors.mark) anchors.mark = s; el.appendChild(document.createTextNode(" ")); } });
+    flush();
+  };
+  let fig = null, res = null;
+  if (PAGE === "a") {
+    const abs = E("div", "abs", null, ct); anchors.abstract = abs;
+    const side = E("div", "side fz2", null, abs), main = E("div", "", null, abs);
+    ["Correspondence", "Received", "Keywords", "Citation"].forEach((lab, i) => { const p = E("div", "", null, side); p.style.marginBottom = "16px"; E("b", "fz", word() + word() + ":", p); E("span", "fz", " " + lorem(i === 1 ? 6 : 16).slice(0, -1), p); });
+    ["Purpose", "Methods", "Results", "Conclusions"].forEach((lab, i) => {
+      const p = E("p", "abp", null, main); E("b", "", lab + ": ", p);
+      const ms = marks.filter((_, j) => j % 2 === (i === 1 ? 0 : 1) && (i === 1 || i === 2));
+      withMarks(p, [22, 52, 48, 26][i], ms);
+    });
+    E("div", "sec", "Introduction", ct);
+    const c1 = E("div", "cols", null, ct);
+    [E("div", "", null, c1), E("div", "", null, c1)].forEach(col => { for (let i = 0; i < 2; i++) E("p", "bp fz", lorem(44 + Math.floor(rnd() * 20)), col); });
+    const rs = E("div", "sec", "Results", ct); anchors.results = rs;
+    const c2 = E("div", "cols", null, ct);
+    const L = E("div", "", null, c2), R = E("div", "", null, c2);
+    E("div", "sh fz", lorem(5).slice(0, -1), L);
+    E("p", "bp fz", lorem(30), L);
+    const rp = E("p", "bp", null, L);
+    E("span", "fz", lorem(17) + " ", rp);
+    const rt = dec("{{result}}");
+    if (rt) {
+      res = E("span", "rd", null, rp); anchors.result = res; legible.push(res);
+      rt.split(/\s+/).forEach((w, i) => { if (i) res.appendChild(document.createTextNode(" ")); E("span", "rw", w, res); });
+    }
+    E("span", "fz", " " + lorem(24), rp);
+    E("p", "bp fz", lorem(26), L);
+    E("div", "sh fz", lorem(4).slice(0, -1), R);
+    E("p", "bp fz", lorem(34), R);
+    const tb = E("div", "tbl fz", null, R);
+    for (let r = 0; r < 6; r++) { const row = E("div", "", null, tb); for (let c = 0; c < 3; c++) E("span", "", c ? (rnd() < .5 ? word().slice(0, 4) : word().slice(0, 3)) + " " + word().slice(0, 3) : lorem(2).slice(0, -1), row); }
+    E("p", "bp fz", lorem(40), R);
+    // image grid (grey fundus-like tiles)
+    const g = E("div", "imgs", null, ct); anchors.figure = g; fig = g;
+    for (let i = 0; i < 6; i++) { const t = E("i", "", null, g); const x = 35 + rnd() * 30, y = 35 + rnd() * 30;
+      t.style.background = `radial-gradient(circle at ${x}% ${y}%, #c9c9c9 0 6%, #6d6d6d 7% 18%, #3a3a3a 30%, #1b1b1b 46%, #0c0c0c 47%), #0c0c0c`;
+      t.style.filter = "blur(1.2px) contrast(1.05)"; }
+    E("div", "cap fz", lorem(34), ct);
+    const c3 = E("div", "cols", null, ct);
+    [E("div", "", null, c3), E("div", "", null, c3)].forEach(col => E("p", "bp fz", lorem(60), col));
+  } else {
+    const f = E("div", "fig", null, ct); anchors.figure = f; anchors.chart = f; fig = f;
+    const tk = (x, y, w) => `<rect x="${x}" y="${y}" width="${w}" height="9" rx="4" fill="#a7afb9" filter="url(#fb)"/>`;
+    let svg = '<svg viewBox="0 0 952 560"><defs><filter id="fb" x="-20%" y="-100%" width="140%" height="300%"><feGaussianBlur stdDeviation="2.2"/></filter></defs>';
+    svg += tk(0, 0, 300) + tk(0, 22, 200);
+    for (let i = 0; i < 5; i++) svg += `<line x1="96" x2="930" y1="${90 + i * 95}" y2="${90 + i * 95}" stroke="#e7eaef" stroke-width="2"/>` + tk(30, 85 + i * 95, 44);
+    svg += '<path d="M96 70 V 470 H 930" fill="none" stroke="#9aa3ad" stroke-width="3"/>';
+    for (let i = 0; i < 5; i++) svg += `<line x1="${160 + i * 180}" x2="${160 + i * 180}" y1="470" y2="482" stroke="#9aa3ad" stroke-width="3"/>` + tk(140 + i * 180, 500, 42);
+    svg += tk(430, 534, 120);
+    const P = [[160, 140], [340, 205], [520, 290], [700, 345], [880, 385]];
+    svg += `<path id="sl" d="M ${P.map(p => p.join(" ")).join(" L ")}" fill="none" stroke="{{ink}}" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"/>`;
+    P.forEach((p, i) => svg += `<circle class="dt" cx="${p[0]}" cy="${p[1]}" r="12" fill="#fff" stroke="{{ink}}" stroke-width="6" opacity="0"/>`);
+    svg += '<path id="ar" d="M 905 250 V 330 M 880 306 L 905 334 L 930 306" fill="none" stroke="{{sky}}" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity="0"/>';
+    svg += "</svg>";
+    f.innerHTML = svg;
+    E("div", "cap fz", lorem(30), ct);
+    const c3 = E("div", "cols", null, ct);
+    [E("div", "", null, c3), E("div", "", null, c3)].forEach(col => { E("div", "sh fz", lorem(3).slice(0, -1), col); E("p", "bp fz", lorem(70), col); });
+  }
+
+  // ---------- kinetic phrases ----------
+  const K = document.getElementById("k");
+  const phr = dec("{{kinetic}}").split(/\s+\/\s+/).map(s => s.trim()).filter(Boolean).map(s => {
+    const dimP = s.startsWith("!"); s = s.replace(/^!\s*/, "");
+    const words = s.split(/\s+/).map(t => ({ big: t.startsWith("*"), txt: t.replace(/^\*/, "") }));
+    return { dim: dimP, words };
+  });
+  const kt = nums("{{k_times}}"); let wi = 0;
+  phr.forEach(p => {
+    p.el = E("div", "ph", null, K); p.el.setAttribute("data-layout-allow-overlap", "");
+    let cur = null;
+    p.words.forEach(w => {
+      if (!cur || cur.big !== w.big) { cur = { big: w.big, el: E("div", "ln " + (w.big ? "b" : "s"), null, p.el) }; }
+      else cur.el.appendChild(document.createTextNode(" "));
+      w.el = E("span", "w", w.txt, cur.el); w.line = cur.el;
+      w.t = isFinite(kt[wi]) ? kt[wi] : (wi ? (p.words[0].t ?? 0.3) + wi * 0.25 : 0.3); wi++;
+    });
+  });
+
+  const tl = gsap.timeline({ paused: true });
+  const R2 = el => { const pr = page.getBoundingClientRect(); return [...el.getClientRects()].map(r => ({ x: r.left - pr.left, y: r.top - pr.top, w: r.width, h: r.height })); };
+  const lines = rs => { const out = []; rs.forEach(r => { if (r.w < 1) return; const o = out.find(q => Math.abs(q.y - r.y) < r.h * 0.5); if (o) { const x2 = Math.max(o.x + o.w, r.x + r.w); o.x = Math.min(o.x, r.x); o.w = x2 - o.x; o.h = Math.max(o.h, r.h); } else out.push({ ...r }); }); return out; };
+  const fitBig = () => phr.forEach(p => p.el.querySelectorAll(".ln").forEach(l => { l.style.fontSize = ""; const w = l.scrollWidth; if (l.classList.contains("b") && w > 960) l.style.fontSize = (parseFloat(getComputedStyle(l).fontSize) * 960 / w) + "px"; }));
+
+  function build() {
+    tl.clear();
+    gsap.set(page, { clearProps: "transform" });
+    const hlL = document.getElementById("hl"), glL = document.getElementById("gl"); hlL.innerHTML = ""; glL.innerHTML = "";
+    const PH = page.offsetHeight;
+    const wipe = (r, t, dur) => { const m = E("div", "m", null, hlL); m.style.cssText = `left:${r.x - 5}px;top:${r.y + r.h * 0.06}px;width:${r.w + 10}px;height:${r.h * 0.92}px`; tl.fromTo(m, { scaleX: 0 }, { scaleX: 1, duration: dur, ease: "power1.inOut", immediateRender: false }, t); };
+    // title + abstract marks
+    const ttm = nums("{{t_title_marks}}");
+    h1.querySelectorAll(".tm").forEach(s => { const k = Number(s.dataset.k), t0 = isFinite(ttm[k]) ? ttm[k] : 0.8 + k * 0.5; let t = t0; lines(R2(s)).forEach(r => { const d = 0.16 + 0.34 * r.w / 900; wipe(r, t, d); t += d; }); });
+    const tmk = nums("{{t_marks}}");
+    ct.querySelectorAll(".mk").forEach(s => { const k = Number(s.dataset.k), t = isFinite(tmk[k]) ? tmk[k] : 1 + k * 0.6; lines(R2(s)).forEach((r, i) => wipe(r, t + i * 0.3, 0.3)); });
+    // result: line by line
+    if (res) {
+      const ws = [...res.querySelectorAll(".rw")], tr = nums("{{t_result}}");
+      const ls = lines(R2(res));
+      const lineOf = w => { const r = R2(w)[0]; return ls.findIndex(l => Math.abs(l.y - r.y) < l.h * 0.5); };
+      ls.forEach((l, i) => {
+        let t0, t1;
+        if (tr.length === ws.length) { const mine = ws.map((w, j) => [lineOf(w), tr[j]]).filter(o => o[0] === i).map(o => o[1]); t0 = Math.min(...mine); t1 = Math.max(...mine) + 0.3; }
+        else { t0 = isFinite(tr[i]) ? tr[i] : (tr.length ? tr[tr.length - 1] + (i - tr.length + 1) * 0.6 : 1 + i * 0.6); t1 = t0 + 0.2 + 0.4 * l.w / 452; }
+        if (isFinite(t0)) wipe(l, t0, Math.max(0.18, t1 - t0));
+      });
+    }
+    // callouts
+    const cs = list("{{callouts}}"), tc = nums("{{t_callouts}}");
+    cs.forEach((c, i) => {
+      let rect = null;
+      for (const el of legible) {
+        const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); let n;
+        while ((n = tw.nextNode())) { const j = n.textContent.toLowerCase().indexOf(c.toLowerCase()); if (j >= 0) { const rg = document.createRange(); rg.setStart(n, j); rg.setEnd(n, j + c.length); const pr = page.getBoundingClientRect(), b = rg.getBoundingClientRect(); rect = { x: b.left - pr.left, y: b.top - pr.top, w: b.width, h: b.height }; break; } }
+        if (rect) break;
+      }
+      if (!rect) return;
+      const g = E("div", "glow", null, glL); g.style.cssText = `left:${rect.x - 12}px;top:${rect.y - 6}px;width:${rect.w + 24}px;height:${rect.h + 12}px`;
+      const t = isFinite(tc[i]) ? tc[i] : 1 + i * 0.8;
+      tl.fromTo(g, { opacity: 0, scale: 1.25, filter: "blur(8px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.45, ease: "expo.out", immediateRender: false }, t);
+      tl.to(g, { boxShadow: "0 0 0 3px {{sky}}, 0 0 46px 16px rgba(111,180,230,.38)", duration: 0.5, ease: "sine.inOut", yoyo: true, repeat: 1 }, t + 0.45);
+    });
+    // tag + chart
+    tl.fromTo(tag, { scaleX: 0.6, opacity: 0.0, filter: "blur(6px)" }, { scaleX: 1, opacity: 1, filter: "blur(0px)", duration: 0.4, ease: "expo.out", immediateRender: false }, Number("{{t_tag}}"));
+    if (PAGE === "b") {
+      const tch = Number("{{t_chart}}"), sl = fig.querySelector("#sl"), dts = fig.querySelectorAll(".dt");
+      const dd = Math.max(0.4, Math.min(1.0, D - tch - 0.5));
+      tl.fromTo(sl, { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: dd, ease: "power2.inOut", immediateRender: false }, tch);
+      dts.forEach((d, i) => tl.fromTo(d, { opacity: 0 }, { opacity: 1, duration: 0.12, immediateRender: false }, tch + dd * i / (dts.length - 1) * 0.92));
+      tl.fromTo(fig.querySelector("#ar"), { opacity: 0, y: -14 }, { opacity: 1, y: 0, duration: 0.3, ease: "power3.out", immediateRender: false }, tch + dd);
+    }
+    // camera
+    const pr0 = page.getBoundingClientRect();
+    const focus = a => { if (/^-?\d+(\.\d+)?$/.test(a)) return { x: 540, y: Number(a) }; const el = anchors[a] || anchors.title; const b = el.getBoundingClientRect(); return { x: b.left - pr0.left + b.width / 2, y: (a === "top" ? 0 : b.top - pr0.top + b.height / 2) }; };
+    const kf = "{{path}}".split(";").map(s => s.trim()).filter(Boolean).map(s => { const [t, a, z] = s.split(":"); return { t: Number(t), a: (a || "title").trim(), z: Number(z) || 1 }; }).sort((p, q) => p.t - q.t);
+    if (!kf.length) kf.push({ t: 0, a: "title", z: 1.05 });
+    const cam = { x: 0, y: 0, z: 1 };
+    const clampF = (f, z) => ({ x: Math.max(540 / z, Math.min(1080 - 540 / z, f.x)), y: f.a === "top" ? H / 2 / z : Math.max(H / 2 / z, Math.min(PH - H / 2 / z, f.y)) });
+    const st = kf.map(k => { const f = focus(k.a); f.a = k.a; const c = clampF(f, k.z); return { t: k.t, x: c.x, y: c.y, z: k.z }; });
+    const apply = () => { page.style.transform = `translate(${540 - cam.x * cam.z}px, ${H / 2 - cam.y * cam.z}px) scale(${cam.z})`; };
+    Object.assign(cam, { x: st[0].x, y: st[0].y, z: st[0].z }); apply();
+    tl.set(cam, { x: st[0].x, y: st[0].y, z: st[0].z, onUpdate: apply }, 0);
+    for (let i = 1; i < st.length; i++) tl.to(cam, { x: st[i].x, y: st[i].y, z: st[i].z, duration: Math.max(0.05, st[i].t - st[i - 1].t), ease: "sine.inOut", onUpdate: apply }, st[i - 1].t);
+    // entrance: blur to sharp
+    tl.fromTo("#ct", { opacity: 0, filter: "blur(16px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.6, ease: "power3.out", immediateRender: false }, 0);
+    gsap.set("#ct", { opacity: 0 });
+    // kinetic
+    fitBig();
+    const DIM = Number("{{dim}}"), KY = Number("{{ky}}"), KYD = Number("{{ky_dim}}");
+    phr.forEach((p, i) => {
+      const hgt = p.el.offsetHeight; p.el.style.top = (p.dim ? KYD - hgt / 2 : KY) + "px";
+      const t0 = p.words[0].t, nx = phr[i + 1] ? phr[i + 1].words[0].t : D - 0.15, out = Math.max(t0 + 0.35, nx - 0.16);
+      gsap.set(p.el, { opacity: 0 });
+      tl.set(p.el, { opacity: 1 }, t0 - 0.001);
+      p.words.forEach(w => {
+        gsap.set(w.el, { opacity: 0 });
+        tl.fromTo(w.el, { opacity: 0, filter: "blur(14px)", y: 12 }, { opacity: 1, filter: "blur(0px)", y: 0, duration: 0.45, ease: "expo.out", immediateRender: false }, w.t);
+        // count up only a % or a number that is alone on its line ("12" in "12 mg study" stays put)
+        const alone = w.line.querySelectorAll(".w").length === 1;
+        const m = w.big && (alone || /%$/.test(w.txt)) && w.txt.match(/^(\D*)(\d+(?:\.\d+)?)(\D*)$/);
+        if (m) { const o = { v: 0 }, dp = (m[2].split(".")[1] || "").length, paint = () => w.el.textContent = m[1] + o.v.toFixed(dp) + m[3];
+          tl.fromTo(o, { v: 0 }, { v: Number(m[2]), duration: 0.7, ease: "power2.out", onUpdate: paint, immediateRender: false }, w.t); }
+      });
+      tl.to(p.el, { opacity: 0, filter: "blur(10px)", y: -10, duration: 0.16, ease: "power2.in" }, out);
+      if (p.dim) {
+        tl.fromTo("#veil", { opacity: 0 }, { opacity: DIM, duration: 0.35, ease: "power2.out", immediateRender: false }, t0 - 0.05);
+        tl.fromTo("#page", { filter: "blur(0px)" }, { filter: "blur(7px)", duration: 0.35, ease: "power2.out", immediateRender: false }, t0 - 0.05);
+        tl.to("#veil", { opacity: 0, duration: 0.35, ease: "power2.inOut" }, out);
+        tl.to("#page", { filter: "blur(0px)", duration: 0.35, ease: "power2.inOut" }, out);
+      } else {
+        const tv = document.getElementById("topv"); tv.style.height = Math.max(parseFloat(tv.style.height) || 0, KY + hgt + 150) + "px";
+        tl.fromTo(tv, { opacity: 0 }, { opacity: 1, duration: 0.25, immediateRender: false }, t0 - 0.05);
+        tl.to(tv, { opacity: 0, duration: 0.25 }, out);
+      }
+    });
+    if ("{{outro}}" === "1") tl.to("#root", { opacity: 0, duration: 0.2, ease: "power2.in" }, D - 0.2);
+    tl.seek(0);
+  }
+  build();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(build);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

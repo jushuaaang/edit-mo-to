@@ -1,0 +1,118 @@
+<!--defaults {"t_beats": "0,1.4,2.3", "cx": 540, "cy": 960, "radius": 470, "plate": "#f3f8fc", "fibre": "#6fa9d4", "clump": "#274f78", "hot": "#b3201f", "fibres": 46, "seed": 7, "grain": 1, "height": 1920, "duration": 3.2} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; }
+  svg#s { position: absolute; left: 0; top: 0; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <svg id="s" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0" width="1080" height="{{height}}" viewBox="0 0 1080 {{height}}">
+    <defs>
+      <clipPath id="lens"><circle id="lensc" r="470" /></clipPath>
+      <radialGradient id="vig" cx="50%" cy="50%" r="50%"><stop offset="70%" stop-color="#cfe2f0" stop-opacity="0" /><stop offset="100%" stop-color="#9fbfd6" stop-opacity=".55" /></radialGradient>
+      <filter id="soft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="0.8" /></filter>
+      <filter id="halo" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="14" /></filter>
+      <filter id="grn" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="1" seed="3" /><feColorMatrix values="0 0 0 0 .2  0 0 0 0 .3  0 0 0 0 .4  0 0 0 .5 -.12" /></filter>
+    </defs>
+    <g id="field">
+      <circle id="plate" r="470" />
+      <g id="clipg" clip-path="url(#lens)"><g id="cam"><g id="halos" filter="url(#halo)"></g><g id="fib" filter="url(#soft)"></g></g>
+      <rect id="grainr" x="-480" y="-480" width="960" height="960" filter="url(#grn)" opacity=".45" /></g>
+      <circle id="vigc" r="470" fill="url(#vig)" />
+      <circle id="rim" r="470" fill="none" stroke="#dbe8f2" stroke-width="6" />
+      <g id="ticks" stroke="#274f78" stroke-width="3" stroke-linecap="round" opacity=".55"><path d="M -40 430 H 40" /><path d="M -40 422 V 438 M 40 422 V 438" /></g>
+    </g>
+  </svg>
+</div>
+<script>
+  // Microscope field of collagen fibres in 3 hard-cut beats: 1 ordered strands, 2 strands bend and cross,
+  // 3 strands pulled into dense clumps. Each beat is a different framing (the cut); t_beats = start of each
+  // beat in seconds, and each cut is where the editor puts a micro-click.
+  const NS = "http://www.w3.org/2000/svg", D = Number("{{duration}}");
+  const CX = Number("{{cx}}"), CY = Number("{{cy}}"), R = Number("{{radius}}"), N = Math.round(Number("{{fibres}}"));
+  const FIBRE = "{{fibre}}", CLUMP = "{{clump}}", HOT = "{{hot}}", PLATE = "{{plate}}";
+  const tb = "{{t_beats}}".split(",").map(Number);
+  let sd = Number("{{seed}}"); const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+  const field = document.getElementById("field"); field.setAttribute("transform", `translate(${CX},${CY})`);
+  ["lensc", "plate", "vigc", "rim"].forEach(id => document.getElementById(id).setAttribute("r", R));
+  document.getElementById("lensc").parentNode.setAttribute("clipPathUnits", "userSpaceOnUse");
+  document.getElementById("plate").setAttribute("fill", PLATE);
+  document.getElementById("grainr").setAttribute("opacity", Number("{{grain}}") * 0.45);
+  const ticks = document.getElementById("ticks"); ticks.setAttribute("transform", `translate(0,${R - 40})`);
+  // clip the moving fibres to the lens
+  const cam = document.getElementById("cam");
+  const fib = document.getElementById("fib"), halos = document.getElementById("halos");
+  const L = R * 2.6, M = 64; // points per fibre
+  // clump centres (cam space)
+  const cl = [[-150, -120], [170, 60], [-40, 190], [120, -210], [-230, 150]].map(c => [c[0] * R / 470, c[1] * R / 470]);
+  const F = [];
+  for (let i = 0; i < N; i++) {
+    const base = (i / (N - 1) - 0.5) * R * 2.4, ph = rnd() * 6.28, am = 6 + rnd() * 10, fr = 1.2 + rnd() * 1.4;
+    const mid = rnd() * 0.6 + 0.2, k = Math.floor(rnd() * cl.length);
+    const wob = rnd() * 6.28, wf = 7 + rnd() * 6, cut = (rnd() - .5) * R * 0.5;
+    F.push({ base, ph, am, fr, k, wob, wf, cut, w: 1.6 + rnd() * 2.2, el: document.createElementNS(NS, "path"), hl: document.createElementNS(NS, "path") });
+    F[i].el.setAttribute("fill", "none"); F[i].el.setAttribute("stroke-linecap", "round"); F[i].el.setAttribute("stroke-linejoin", "round");
+    F[i].hl.setAttribute("fill", "none"); F[i].hl.setAttribute("stroke-linecap", "round");
+    fib.appendChild(F[i].el); halos.appendChild(F[i].hl);
+  }
+  // build every fibre for a state s: 0 ordered, 1 tangled, 2 clumped
+  function build(s) {
+    F.forEach((f, i) => {
+      let d = "";
+      for (let j = 0; j < M; j++) {
+        const u = j / (M - 1), x = (u - 0.5) * L;
+        let y = f.base + Math.sin(u * f.fr * 6.28 + f.ph) * f.am;
+        if (s >= 1) { // strands bend toward each other and cross
+          y += Math.sin(u * 3.4 + f.ph * 2) * 70 * (s === 1 ? 1 : 0.5) + Math.cos(u * 7 + f.wob) * 18;
+        }
+        let px = x, py = y;
+        if (s === 2) { // pull toward a clump centre with a gaussian along the fibre, keep tight scribble
+          const c = cl[f.k], g = Math.exp(-Math.pow((u - 0.5) * 3.1, 2));
+          px = x + (c[0] - x) * g * 0.97; py = y + (c[1] - y) * g * 0.97;
+          px += Math.cos(u * f.wf * 6 + f.wob) * 9 * g; py += Math.sin(u * f.wf * 6 + f.wob) * 9 * g;
+        }
+        d += (j ? " L " : "M ") + px.toFixed(1) + " " + py.toFixed(1);
+      }
+      f.d = f.d || []; f.d[s] = d;
+    });
+  }
+  build(0); build(1); build(2);
+  // framing per beat (different scale / rotation / offset reads as a new scan)
+  const FRAMES = [{ s: 1.0, r: -8, x: 0, y: 0 }, { s: 1.25, r: 28, x: -40, y: 30 }, { s: 1.12, r: -52, x: 20, y: -10 }];
+  function show(s) {
+    F.forEach(f => {
+      f.el.setAttribute("d", f.d[s]); f.hl.setAttribute("d", f.d[s]);
+      f.el.setAttribute("stroke", s === 2 ? CLUMP : FIBRE);
+      f.el.setAttribute("stroke-width", s === 2 ? f.w * 1.5 : f.w);
+      f.el.setAttribute("opacity", s === 2 ? 0.92 : 0.8);
+      f.hl.setAttribute("stroke", s === 2 ? HOT : FIBRE); f.hl.setAttribute("stroke-width", s === 2 ? 22 : 0);
+      f.hl.setAttribute("opacity", s === 2 ? 0.05 : 0);
+    });
+  }
+  const tl = gsap.timeline({ paused: true }), st = { v: 0 };
+  show(0);
+  // beats are hard cuts (true instant), plus a tiny drift inside each beat so it never sits dead
+  [0, 1, 2].forEach(s => {
+    const t = isFinite(tb[s]) ? tb[s] : s * 1.2, tEnd = isFinite(tb[s + 1]) ? tb[s + 1] : D - 0.2;
+    const fr = FRAMES[s];
+    tl.fromTo(cam, { attr: { transform: `translate(${fr.x},${fr.y}) rotate(${fr.r}) scale(${fr.s})` } },
+      { attr: { transform: `translate(${fr.x + 14},${fr.y - 10}) rotate(${fr.r + 1.6}) scale(${fr.s * 1.04})` }, duration: Math.max(0.2, tEnd - t), ease: "none", immediateRender: false }, t + 0.001);
+  });
+  // seek-safe: the call() above only fires going forward, so re-sync the state on every update
+  tl.eventCallback("onUpdate", () => {
+    const t = tl.time(); let s = 0; for (let i = 0; i < 3; i++) if (isFinite(tb[i]) && t >= tb[i] - 1e-6) s = i;
+    if (window.__cur !== s) { window.__cur = s; show(s); }
+  });
+  tl.to("#s", { opacity: 0, duration: 0.15, ease: "power2.in" }, D - 0.15);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

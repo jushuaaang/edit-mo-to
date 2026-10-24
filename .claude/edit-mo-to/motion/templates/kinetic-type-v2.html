@@ -1,0 +1,101 @@
+<!--defaults {"text": "dark *specks / drifting *threads / every time you ^look ^up", "times": "", "color": "#5a1426", "serif_color": "", "accent": "#ffe45c", "accent_fg": "#5a1426", "font": "Inter", "font2": "Playfair Display", "weight": 900, "size": 96, "serif_scale": 1.14, "case": "upper", "tracking": -0.025, "y": 1060, "anchor": "top", "max_width": 980, "max_lines": 2, "shadow": 0, "blur": 18, "glow": 0, "t_start": 0.1, "height": 1920, "duration": 3} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500..900&family={{font2}}:ital,wght@1,500..800&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; -webkit-font-smoothing: antialiased; }
+  .ph { position: absolute; left: 50%; top: {{y}}px; width: {{max_width}}px; margin-left: calc({{max_width}}px / -2); text-align: center;
+        font-family: "{{font}}", -apple-system, sans-serif; font-weight: {{weight}}; line-height: 1.04; letter-spacing: {{tracking}}em; color: {{color}};
+        text-shadow: 0 2px 22px rgba(0,0,0,{{shadow}}), 0 0 16px rgba(255,255,255,{{glow}}), 0 0 40px rgba(255,255,255,{{glow}}); }
+  .w { display: inline-block; position: relative; white-space: nowrap; vertical-align: baseline; }
+  .w .in { position: relative; z-index: 1; display: inline-block; }
+  .ph.upper .w.sans { text-transform: uppercase; }
+  .w.ser { font-family: "{{font2}}", Georgia, serif; font-style: italic; font-weight: 600; letter-spacing: -0.01em; font-size: calc({{serif_scale}} * 1em); line-height: 0.9; }
+  .mk { position: absolute; left: -0.1em; right: -0.1em; top: 0.12em; bottom: 0.02em; background: {{accent}}; border-radius: 0.1em; transform-origin: 0 50%; z-index: 0; }
+  .w.ser .mk { right: -0.2em; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="t" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0"></div>
+</div>
+<script>
+  // Kinetic type v2: phrases REPLACE each other (no stacking). text = phrases split by " / ";
+  // *word = serif italic (font2), ^word = yellow highlighter behind it (^*word = both). Sans words are heavy and
+  // (case upper) capitalised, so each phrase pairs a light serif italic with an ultra-heavy sans.
+  // times = one per word (seconds from the overlay start, markers and "/" not counted). Every word lands
+  // blur-to-sharp on its own time; a phrase blurs out just before the next phrase's first word.
+  const D = Number("{{duration}}"), MAXW = Number("{{max_width}}"), MAXL = Number("{{max_lines}}") || 2;
+  const BASE = Number("{{size}}"), BLUR = Number("{{blur}}"), T0 = Number("{{t_start}}"), Y = Number("{{y}}");
+  const dec = s => { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; };
+  const phrases = dec("{{text}}").split(/\s+\/\s+|\s*\n\s*/).map(p => p.trim()).filter(Boolean)
+    .map(p => p.split(/\s+/).filter(Boolean).map(tok => { const m = tok.match(/^([*^]*)(.*)$/); return { txt: m[2], ser: m[1].includes("*"), key: m[1].includes("^") }; }));
+  const nW = phrases.reduce((a, p) => a + p.length, 0);
+  let times = "{{times}}".split(",").map(s => s.trim()).filter(Boolean).map(Number);
+  if (times.length < nW) {
+    const step = Math.max(0.18, Math.min(0.32, (D - T0 - 0.8) / Math.max(1, nW)));
+    for (let i = times.length; i < nW; i++) times.push(i ? times[i - 1] + step : T0);
+  }
+  const root = document.getElementById("t"), SER = "{{serif_color}}";
+  let wi = 0;
+  const P = phrases.map(words => {
+    const el = document.createElement("div"); el.className = "ph" + ("{{case}}" === "upper" ? " upper" : "");
+    const ws = words.map((w, j) => {
+      const s = document.createElement("span"); s.className = "w " + (w.ser ? "ser" : "sans");
+      if (w.ser && SER) s.style.color = SER;
+      const inn = document.createElement("span"); inn.className = "in"; inn.textContent = w.txt; s.appendChild(inn);
+      if (w.key) { const m = document.createElement("span"); m.className = "mk"; s.prepend(m); }
+      if (j) el.appendChild(document.createTextNode(" "));
+      el.appendChild(s);
+      return { el: s, key: w.key, t: times[wi++] };
+    });
+    root.appendChild(el);
+    return { el, ws };
+  });
+  // fit each phrase: the widest word fits the safe width, and the phrase stays within max_lines
+  const lines = p => new Set(p.ws.map(w => Math.round(w.el.offsetTop + w.el.offsetHeight / 2))).size;
+  function fit() {
+    P.forEach(p => {
+      let fs = BASE; p.el.style.fontSize = fs + "px";
+      const widest = Math.max(...p.ws.map(w => w.el.getBoundingClientRect().width));
+      if (widest > MAXW * 0.98) { fs *= MAXW * 0.98 / widest; p.el.style.fontSize = fs + "px"; }
+      let g = 0; while (lines(p) > MAXL && g++ < 40) { fs *= 0.95; p.el.style.fontSize = fs + "px"; }
+      // anchor: top = y is the top edge, center = y is the middle, bottom = y is the bottom edge
+      const h = p.el.offsetHeight, A = "{{anchor}}";
+      p.el.style.top = (A === "center" ? Y - h / 2 : A === "bottom" ? Y - h : Y) + "px";
+    });
+  }
+  fit();
+  const tl = gsap.timeline({ paused: true });
+  function build() {
+    tl.clear();
+    P.forEach((p, i) => {
+      const t0 = p.ws[0].t, next = P[i + 1] ? P[i + 1].ws[0].t - 0.05 : D - 0.22;
+      gsap.set(p.el, { opacity: 0 });
+      tl.set(p.el, { opacity: 1, filter: "blur(0px)", y: 0 }, t0 - 0.001);
+      p.ws.forEach(w => {
+        const fs = parseFloat(p.el.style.fontSize);
+        gsap.set(w.el, { opacity: 0 });
+        tl.fromTo(w.el, { opacity: 0, filter: `blur(${BLUR}px)`, y: fs * 0.16, scale: 1.08 },
+          { opacity: 1, filter: "blur(0px)", y: 0, scale: 1, duration: 0.46, ease: "expo.out", immediateRender: false }, w.t);
+        if (w.key) tl.fromTo(w.el.querySelector(".mk"), { scaleX: 0 }, { scaleX: 1, duration: 0.34, ease: "power3.inOut", immediateRender: false }, w.t + 0.12);
+        if (w.key) tl.fromTo(w.el.querySelector(".in"), { color: "{{color}}" }, { color: "{{accent_fg}}", duration: 0.2, immediateRender: false }, w.t + 0.2);
+      });
+      // replace: a short blur-out, slightly up, right before the next phrase lands
+      const out = P[i + 1] ? Math.max(t0 + 0.3, next - 0.16) : Math.max(t0 + 0.3, D - 0.2);
+      tl.to(p.el, { opacity: 0, filter: "blur(12px)", y: -BASE * 0.12, duration: 0.16, ease: "power2.in" }, out);
+    });
+    tl.seek(0);
+  }
+  build();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { fit(); build(); });
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

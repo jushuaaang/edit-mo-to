@@ -1,0 +1,73 @@
+<!--defaults {"svg": "D:/Video Editing/Velia Elixir/motion/velia-logo.svg", "offer": "Buy 2, get 1 free", "offer2": "this week", "guarantee": "90-day guarantee", "key": "1 free", "logo_w": 540, "logo_y": 560, "offer_y": 1000, "t_logo": 0.05, "t_offer": 1.6, "t_guarantee": 0.5, "fade": 0.9, "bg": "#ffffff", "ink": "#5a1426", "edge": "#f0cdbf", "marker": "#ffe45c", "font": "Inter", "font2": "Playfair Display", "height": 1920, "duration": 4.4} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@700;800&family={{font2}}:ital,wght@1,600&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: {{bg}}; }
+  #root { position: relative; width: 100%; height: 100%; background: {{bg}}; -webkit-font-smoothing: antialiased; font-family: "{{font}}", sans-serif; }
+  #content { position: absolute; inset: 0; }
+  #mark { position: absolute; left: 50%; top: {{logo_y}}px; width: {{logo_w}}px; margin-left: calc({{logo_w}}px / -2); }
+  #mark svg { display: block; width: 100%; height: auto; overflow: visible; }
+  #offer { position: absolute; left: 0; right: 0; top: {{offer_y}}px; text-align: center; color: {{ink}}; }
+  #o1 { display: inline-block; font-weight: 800; font-size: 112px; line-height: 1.05; letter-spacing: -.02em; white-space: nowrap; }
+  #o1 .k { background: linear-gradient({{marker}}, {{marker}}) no-repeat 0 88% / calc(var(--m, 0) * 100%) .3em; }
+  #o2 { margin-top: 18px; font-family: "{{font2}}", serif; font-style: italic; font-weight: 600; font-size: 74px; line-height: 1.1; }
+  #g { position: absolute; left: 0; right: 0; top: calc({{offer_y}}px + 330px); display: flex; align-items: center; justify-content: center; gap: 28px; color: {{ink}}; }
+  #g span { font-weight: 800; font-size: 34px; letter-spacing: .2em; text-transform: uppercase; white-space: nowrap; }
+  #g i { display: block; width: 90px; height: 3px; background: {{edge}}; border-radius: 2px; transform-origin: center; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="content" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="mark"></div>
+    <div id="offer"><div id="o1"></div><div id="o2">{{offer2}}</div></div>
+    <div id="g"><i></i><span>{{guarantee}}</span><i></i></div>
+  </div>
+</div>
+<script>
+  // White end card, no photo: the real Velia logo (traced from the pouch) draws on, then the offer, then the
+  // guarantee line, then everything fades back to plain white over the last `fade` seconds (music resolve).
+  // It is its own clip so only this changes when the offer does. Nothing else appears on it.
+  const D = Number("{{duration}}"), FADE = Number("{{fade}}");
+  const dec = s => { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; };
+  const tl = gsap.timeline({ paused: true });
+  const T1 = Number("{{t_logo}}"), T2 = Number("{{t_offer}}"), T3 = Number("{{t_guarantee}}");
+  // logo
+  const mark = document.getElementById("mark"), raw = dec("{{svg}}").trim();
+  if (/^<svg[\s>]/i.test(raw)) {
+    const doc = new DOMParser().parseFromString(raw, "image/svg+xml");
+    if (doc.documentElement.nodeName.toLowerCase() === "svg") {
+      const sv = document.importNode(doc.documentElement, true); mark.appendChild(sv);
+      sv.querySelectorAll("path").forEach(p => {
+        p.setAttribute("fill", "{{ink}}"); p.setAttribute("stroke", "{{ink}}"); p.setAttribute("stroke-width", 3); p.setAttribute("stroke-linejoin", "round"); p.setAttribute("pathLength", 1);
+        p.style.strokeDasharray = 1; p.style.strokeDashoffset = 1; p.style.fillOpacity = 0;
+        tl.to(p, { strokeDashoffset: 0, duration: 1.0, ease: "power2.inOut" }, T1);
+        tl.to(p, { fillOpacity: 1, duration: 0.5, ease: "power1.out" }, T1 + 0.8);
+        tl.to(p, { strokeWidth: 0, duration: 0.3 }, T1 + 1.15);
+      });
+    }
+  }
+  // offer
+  const o1 = document.getElementById("o1"), txt = "{{offer}}", key = "{{key}}", k = key ? txt.indexOf(key) : -1;
+  if (k >= 0) { o1.append(document.createTextNode(txt.slice(0, k))); const s = document.createElement("span"); s.className = "k"; s.textContent = key; o1.append(s); o1.append(document.createTextNode(txt.slice(k + key.length))); }
+  else o1.textContent = txt;
+  function fit() { let fs = 112; o1.style.fontSize = fs + "px"; while (o1.getBoundingClientRect().width > 940 && fs > 40) { fs -= 2; o1.style.fontSize = fs + "px"; } }
+  fit(); if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+  gsap.set(["#o1", "#o2", "#g span"], { opacity: 0 });
+  tl.fromTo("#o1", { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, T2);
+  tl.to("#o1 .k", { "--m": 1, duration: 0.5, ease: "power2.inOut" }, T2 + 0.5);
+  tl.fromTo("#o2", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, T2 + 0.3);
+  tl.fromTo("#g span", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, T3);
+  tl.fromTo("#g i", { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: "power2.out" }, T3);
+  // music resolve: contents dissolve to plain white
+  tl.to("#content", { opacity: 0, duration: FADE, ease: "power1.inOut" }, D - FADE);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!--defaults {"text": "new floater, flashes or a curtain-like shadow = same-day eye check", "key": "same-day eye check", "style": "card", "y": 1330, "max_width": 900, "size": 38, "t_in": 0.3, "fg": "#5a1426", "bg": "#ffffff", "edge": "#f0cdbf", "marker": "#ffe45c", "light_fg": "#ffffff", "font": "Inter", "font2": "Playfair Display", "height": 1920, "duration": 10.9} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@700;800&family={{font2}}:ital,wght@1,700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; -webkit-font-smoothing: antialiased; }
+  #box { position: absolute; left: 50%; top: {{y}}px; width: max-content; max-width: {{max_width}}px; opacity: 0; text-align: center;
+         font-family: "{{font}}", sans-serif; font-weight: 700; font-size: {{size}}px; line-height: 1.3; letter-spacing: -.005em; text-wrap: balance; }
+  #box.card { background: {{bg}}; color: {{fg}}; border: 2.5px solid {{edge}}; border-radius: 30px; padding: 26px 40px 28px; box-shadow: 0 18px 44px rgba(60,20,30,.16), 0 2px 6px rgba(60,20,30,.08); }
+  #box.light { color: {{light_fg}}; text-shadow: 0 2px 14px rgba(0,0,0,.55), 0 1px 3px rgba(0,0,0,.4); }
+  #box em { font-family: "{{font2}}", serif; font-style: italic; font-weight: 700; font-size: 1.14em; position: relative; white-space: nowrap; }
+  #box.card em { background: linear-gradient({{marker}}, {{marker}}) no-repeat 0 90% / calc(var(--m, 0) * 100%) .32em; }
+  #box.card { isolation: isolate; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="box" class="clip {{style}}" data-start="0" data-duration="{{duration}}" data-track-index="0"></div>
+</div>
+<script>
+  // The full safety sentence, small, under the portrait, for the whole block. Appears softly, the key phrase gets a
+  // marker underline (card style). style: card (white rounded card, brand ink) or light (white text with shadow, no card).
+  const D = Number("{{duration}}"), T = Number("{{t_in}}"), box = document.getElementById("box");
+  const txt = "{{text}}", key = "{{key}}", i = key ? txt.indexOf(key) : -1;
+  const nb = s => { const f = document.createDocumentFragment(); s.split(/(\S+-\S+)/).forEach(p => { if (/\S-\S/.test(p)) { const e = document.createElement("span"); e.style.whiteSpace = "nowrap"; e.textContent = p; f.append(e); } else f.append(document.createTextNode(p)); }); return f; };
+  if (i >= 0) { box.append(nb(txt.slice(0, i))); const em = document.createElement("em"); em.textContent = key; box.append(em); box.append(nb(txt.slice(i + key.length))); }
+  else box.append(nb(txt));
+  // shrink to at most 3 lines
+  function fit() { let fs = Number("{{size}}"); box.style.fontSize = fs + "px"; while (box.getBoundingClientRect().height > fs * 1.3 * 3 + 70 && fs > 24) { fs -= 2; box.style.fontSize = fs + "px"; } }
+  fit(); if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+  const tl = gsap.timeline({ paused: true });
+  gsap.set(box, { xPercent: -50 });
+  tl.fromTo(box, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.45, ease: "power2.out" }, T);
+  const em = box.querySelector("em");
+  if (em) tl.to(em, { "--m": 1, duration: 0.5, ease: "power2.inOut" }, T + 0.5);
+  tl.to(box, { opacity: 0, duration: 0.3, ease: "power2.in" }, D - 0.3);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

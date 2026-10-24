@@ -1,0 +1,142 @@
+<!--defaults {"t_beats": "0,1.5,2.3", "cx": 540, "cy": 960, "radius": 440, "pitch": 58, "plate": "#f3f8fc", "rim": "#dbe8f2", "fibre": "#6fb4e6", "node": "#3b6f99", "clump": "#2d3440", "marker": "#ffe45c", "seed": 7, "height": 1920, "duration": 3.4} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; }
+  svg#s { position: absolute; left: 0; top: 0; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <svg id="s" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0" width="1080" height="{{height}}" viewBox="0 0 1080 {{height}}">
+    <defs><clipPath id="lens" clipPathUnits="userSpaceOnUse"><circle id="lensc" r="440" /></clipPath></defs>
+    <g id="field">
+      <circle id="plate" r="440" />
+      <g clip-path="url(#lens)"><g id="cam"><g id="fib"></g><g id="nodes"></g></g></g>
+      <circle id="rimc" r="440" fill="none" stroke-width="6" />
+      <g id="hud" fill="none" stroke-linecap="round"></g>
+    </g>
+  </svg>
+</div>
+<script>
+  // Collagen v2: a microscope field holding a lattice of collagen nodes joined by fibres, in 3 hard-cut beats
+  // (t_beats; each cut = a micro-click). Every cut lands with a new framing AND a morph that builds on the
+  // previous beat: 1 ordered lattice (straight fibres, round nodes), 2 break down (fibres snap into dashes,
+  // nodes turn into crosses, the lattice warps), 3 clump together (nodes are pulled into dense clusters that
+  // fill dark). HUD ticks on the rim and a scale bar; no text.
+  const NS = "http://www.w3.org/2000/svg", D = Number("{{duration}}");
+  const CX = Number("{{cx}}"), CY = Number("{{cy}}"), R = Number("{{radius}}"), PITCH = Number("{{pitch}}");
+  const FIB = "{{fibre}}", NODE = "{{node}}", CLUMP = "{{clump}}", MARK = "{{marker}}";
+  const tb = "{{t_beats}}".split(",").map(Number).concat([NaN, NaN, NaN]).slice(0, 3).map((t, i) => isFinite(t) ? t : i * 1.2);
+  let sd = Number("{{seed}}"); const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); p.appendChild(e); return e; };
+  const field = document.getElementById("field"); field.setAttribute("transform", `translate(${CX},${CY})`);
+  ["lensc", "plate", "rimc"].forEach(id => document.getElementById(id).setAttribute("r", R));
+  document.getElementById("plate").setAttribute("fill", "{{plate}}");
+  document.getElementById("rimc").setAttribute("stroke", "{{rim}}");
+  // rim HUD: cardinal ticks, fine graduations, a scale bar
+  const hud = document.getElementById("hud");
+  for (let k = 0; k < 72; k++) {
+    const a = k * Math.PI / 36, l = k % 18 === 0 ? 26 : k % 6 === 0 ? 14 : 7, r1 = R + 14, r2 = R + 14 + l;
+    mk("line", { x1: r1 * Math.cos(a), y1: r1 * Math.sin(a), x2: r2 * Math.cos(a), y2: r2 * Math.sin(a), stroke: NODE, "stroke-width": k % 6 === 0 ? 2.5 : 1.5, opacity: k % 6 === 0 ? .6 : .3 }, hud);
+  }
+  const bar = mk("path", { d: `M -60 ${R - 46} H 60 M -60 ${R - 54} V ${R - 38} M 60 ${R - 54} V ${R - 38}`, stroke: NODE, "stroke-width": 3, opacity: .6 }, hud);
+  // lattice (cam space covers the lens at every framing)
+  const span = R * 1.5, cols = Math.ceil(span * 2 / PITCH), rows = cols;
+  const CL = [[-170, -130], [180, 70], [-40, 200], [130, -220], [-250, 140], [260, -60]].map(c => [c[0] * R / 440, c[1] * R / 440]);
+  const N = [];
+  for (let r = 0; r <= rows; r++) for (let c = 0; c <= cols; c++) {
+    const gx = -span + c * PITCH, gy = -span + r * PITCH;
+    // nearest clump centre
+    let k = 0, best = 1e9; CL.forEach((p, i) => { const d = (p[0] - gx) ** 2 + (p[1] - gy) ** 2; if (d < best) { best = d; k = i; } });
+    const far = Math.sqrt(best) > R * 0.62;
+    N.push({ gx, gy, r, c, k, far, jx: (rnd() - .5) * 30, jy: (rnd() - .5) * 30, ph: rnd() * 6.28, sx: (rnd() - .5) * 2, sy: (rnd() - .5) * 2, sz: 0.6 + rnd() * 0.9 });
+  }
+  const at = (r, c) => (r >= 0 && r <= rows && c >= 0 && c <= cols) ? N[r * (cols + 1) + c] : null;
+  const fib = document.getElementById("fib"), nodes = document.getElementById("nodes");
+  // fibres: horizontal strands (collagen runs in one direction) + sparse vertical cross-links
+  const E = [];
+  N.forEach(n => {
+    const h = at(n.r, n.c + 1); if (h) E.push({ a: n, b: h, main: true, brk: rnd() < 0.55, el: mk("line", { stroke: FIB, "stroke-linecap": "round" }, fib) });
+    const v = at(n.r + 1, n.c); if (v && rnd() < 0.22) E.push({ a: n, b: v, main: false, brk: true, el: mk("line", { stroke: FIB, "stroke-linecap": "round" }, fib) });
+  });
+  N.forEach(n => {
+    n.dot = mk("circle", { r: 5, fill: NODE }, nodes);
+    n.x1 = mk("path", { stroke: NODE, "stroke-width": 3, "stroke-linecap": "round", fill: "none", opacity: 0 }, nodes);
+  });
+  const sm = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  function pos(n, s) {
+    const m1 = sm(0, 1, s), m2 = sm(1, 2, s);
+    // 1: warp + jitter
+    let x = n.gx + n.jx * m1 + Math.sin(n.gy * 0.012 + n.ph) * 22 * m1;
+    let y = n.gy + n.jy * m1 + Math.cos(n.gx * 0.01 + n.ph) * 16 * m1;
+    // 2: pull to the clump centre, keep a tight scatter so a clump reads as a knot of many nodes
+    if (!n.far) {
+      const c = CL[n.k], pull = 0.86 * m2;
+      x += (c[0] + n.sx * 34 - x) * pull; y += (c[1] + n.sy * 34 - y) * pull;
+    } else { x += n.sx * 20 * m2; y += n.sy * 20 * m2; }
+    return [x, y];
+  }
+  const st = { s: 0, grow: 0 };
+  function render() {
+    const s = st.s, m1 = sm(0.1, 1, s), m2 = sm(1, 2, s), g = st.grow;
+    N.forEach(n => { const p = pos(n, s); n.px = p[0]; n.py = p[1]; });
+    E.forEach(e => {
+      const ax = e.a.px, ay = e.a.py, bx = e.b.px, by = e.b.py;
+      // break down: broken fibres shrink to a dash from each end (a gap opens in the middle)
+      const cut = e.brk ? 0.34 * m1 * (1 - m2 * 0.7) : 0;
+      const len = Math.hypot(bx - ax, by - ay), same = e.a.k === e.b.k && !e.a.far && !e.b.far;
+      let op = (e.main ? 0.85 : 0.45) * g;
+      if (m2 > 0 && !same) op *= 1 - m2 * 0.85;
+      if (len > PITCH * 2.2) op *= Math.max(0, 1 - (len - PITCH * 2.2) / (PITCH * 2));
+      e.el.setAttribute("x1", ax.toFixed(1)); e.el.setAttribute("y1", ay.toFixed(1));
+      e.el.setAttribute("x2", (ax + (bx - ax) * (0.5 - cut)).toFixed(1)); e.el.setAttribute("y2", (ay + (by - ay) * (0.5 - cut)).toFixed(1));
+      if (!e.el2) e.el2 = mk("line", { stroke: FIB, "stroke-linecap": "round" }, fib);
+      e.el2.setAttribute("x1", (bx + (ax - bx) * (0.5 - cut)).toFixed(1)); e.el2.setAttribute("y1", (by + (ay - by) * (0.5 - cut)).toFixed(1));
+      e.el2.setAttribute("x2", bx.toFixed(1)); e.el2.setAttribute("y2", by.toFixed(1));
+      const w = (e.main ? 3 : 2) * (1 + m2 * (same ? 0.5 : 0));
+      [e.el, e.el2].forEach(l => { l.setAttribute("opacity", op.toFixed(3)); l.setAttribute("stroke-width", w); l.setAttribute("stroke", m2 > 0.5 && same ? CLUMP : FIB); });
+    });
+    N.forEach(n => {
+      const inC = !n.far, cr = (5 + (inC ? 3.5 * n.sz : 0) * m2) * g;
+      // nodes: dots -> crosses (break down) -> filled dots in clumps
+      const cross = m1 * (1 - m2);
+      n.dot.setAttribute("cx", n.px.toFixed(1)); n.dot.setAttribute("cy", n.py.toFixed(1)); n.dot.setAttribute("r", Math.max(0, cr).toFixed(2));
+      n.dot.setAttribute("opacity", (1 - cross) * (n.far ? 1 - m2 * 0.6 : 1));
+      n.dot.setAttribute("fill", m2 > 0.4 && inC ? CLUMP : NODE);
+      const a = 7 * g; n.x1.setAttribute("d", `M ${n.px - a} ${n.py - a} L ${n.px + a} ${n.py + a} M ${n.px - a} ${n.py + a} L ${n.px + a} ${n.py - a}`);
+      n.x1.setAttribute("opacity", cross.toFixed(3));
+    });
+  }
+  // a few highlighter marks ring the breaks in beat 2 (some dots fill accent, as on a scan read-out)
+  const marks = [];
+  [[-120, 40], [90, -110], [200, 180]].forEach(p => marks.push(mk("circle", { cx: p[0], cy: p[1], r: 30, fill: "none", stroke: MARK, "stroke-width": 9, opacity: 0 }, document.getElementById("cam"))));
+  const tl = gsap.timeline({ paused: true, onUpdate: render });
+  const cam = document.getElementById("cam");
+  const FR = [{ s: 1.0, r: 0, x: 0, y: 0 }, { s: 1.22, r: 24, x: -30, y: 24 }, { s: 1.1, r: -38, x: 18, y: -12 }];
+  [0, 1, 2].forEach(i => {
+    const t = tb[i], tEnd = i < 2 ? tb[i + 1] : D - 0.15, f = FR[i];
+    // hard cut to a new framing, then a slow push inside the beat
+    tl.fromTo(cam, { attr: { transform: `translate(${f.x},${f.y}) rotate(${f.r}) scale(${f.s})` } },
+      { attr: { transform: `translate(${f.x + 12},${f.y - 9}) rotate(${f.r + 1.5}) scale(${f.s * 1.045})` }, duration: Math.max(0.2, tEnd - t), ease: "none", immediateRender: i === 0 }, t + 0.001);
+    if (i > 0) tl.fromTo(st, { s: i - 1 }, { s: i, duration: 0.5, ease: "expo.out", immediateRender: false }, t);
+  });
+  tl.fromTo(st, { grow: 0 }, { grow: 1, duration: 0.45, ease: "power3.out" }, tb[0]);
+  tl.fromTo("#field", { opacity: 0 }, { opacity: 1, duration: 0.18 }, tb[0]);
+  tl.fromTo(hud, { rotation: -20, svgOrigin: "0 0", opacity: 0 }, { rotation: 0, opacity: 1, duration: 0.6, ease: "power3.out", immediateRender: false }, tb[0]);
+  marks.forEach((m, i) => {
+    tl.fromTo(m, { opacity: 0, attr: { r: 18 } }, { opacity: 0.9, attr: { r: 30 }, duration: 0.3, ease: "power3.out", immediateRender: false }, tb[1] + 0.12 + i * 0.07);
+    tl.to(m, { opacity: 0, duration: 0.1 }, tb[2] - 0.02);
+  });
+  tl.to("#s", { opacity: 0, duration: 0.15, ease: "power2.in" }, D - 0.15);
+  window.__timelines["main"] = tl;
+  render();
+  tl.seek(0);
+</script>
+</body>
+</html>
