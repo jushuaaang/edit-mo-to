@@ -93,5 +93,20 @@
     "file": "whoosh.mp3",
     "duration": 0.57,
     "description": "Punchy whoosh/impact — fast reveal or hard transition accent. Sync to the motion."
+  },
+  "shutter": {
+    "file": "shutter.mp3",
+    "duration": 0.3,
+    "description": "Camera shutter click - a cut to a macro/close shot, photo-like snap. Sync exactly to the cut."
+  },
+  "page-turn": {
+    "file": "page-turn.mp3",
+    "duration": 1.0,
+    "description": "Paper page turn - wipe to a paper/diagram scene or a journal page. Centre on the wipe."
+  },
+  "highlighter": {
+    "file": "highlighter.mp3",
+    "duration": 0.75,
+    "description": "Marker/highlighter swipe across paper - sync to a highlighter wipe on text."
   }
 }

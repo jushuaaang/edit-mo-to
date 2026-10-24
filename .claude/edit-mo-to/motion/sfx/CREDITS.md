@@ -33,3 +33,8 @@ All files are distributed under the [Pixabay Content License](https://pixabay.co
 - Redistribution as part of derivative works (such as videos rendered with HyperFrames)
 
 without any attribution requirement.
+
+## Added 2026-10-22 (Velia ELIXIR+), Pixabay Content License
+- shutter.mp3 - trimmed from "Camera Shutter" by freesound_community (pixabay.com, freesound_community-camera-shutter-6305)
+- page-turn.mp3 - trimmed from "Turn a Page" by creatorshome (pixabay.com, sound 336933)
+- highlighter.mp3 - first 0.75 s of "Marker Lines.WAV" by freesound_community (pixabay.com, sound 14823)

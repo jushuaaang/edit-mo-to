@@ -54,5 +54,6 @@
   "eyedropper-palette": [{"name": "pop", "offset": 0.0, "len": 0.5, "volume": 0.35}, {"name": "click-soft", "offset": 0.95, "len": 0.3, "volume": 0.35}],
   "film-strip":     [{"name": "whoosh-short", "offset": 0.0, "len": 0.5, "volume": 0.25}],
   "arrow-clock":    [{"name": "whoosh-short", "offset": 0.05, "len": 0.5, "volume": 0.35}, {"name": "click-soft", "offset": "t_clock", "len": 0.3, "volume": 0.35}],
-  "arrow-down":     [{"name": "pop", "offset": 0.0, "len": 0.5, "volume": 0.45}]
+  "arrow-down":     [{"name": "pop", "offset": 0.0, "len": 0.5, "volume": 0.45}],
+  "collagen-network": [{"name": "click-soft", "offset": 0.0, "len": 0.3, "volume": 0.4}, {"name": "click-soft", "offset": 1.4, "len": 0.3, "volume": 0.4}, {"name": "click-soft", "offset": 2.3, "len": 0.3, "volume": 0.4}]
 }
