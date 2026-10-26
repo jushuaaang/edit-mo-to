@@ -12,7 +12,10 @@ CLI (prints JSON only):
         --no-render uses each overlay's "file" as given (plan.json is then left as it is).
     timeline <plan.json> "<name>" [--as "<project timeline>"]
         build one timeline as a draft (for revise-new-timeline / revise-in-place); prints the draft folder and
-        writes the built plan copy under the project timeline's name (--as, default <name>)
+        writes the built plan copy under the project timeline's name (--as, default <name>); prints
+        {"draft", "raise_text"?}: with raise_text, run raise-temp-en after add-timeline / replace
+    raise-temp-en <project> "<timeline>"
+        put TEMP_EN_delete_me above every other text track of that timeline (capcut_project raise_text_track)
     mark-built <plan.json> "<name>" [--as "<project timeline>"]
         after a successful patch: the revised plan becomes the timeline's built plan copy; overlays without a
         "file" take it from the previous copy when template, vars, time, length and track are unchanged
@@ -23,8 +26,9 @@ CLI (prints JSON only):
              [--vo-track NAME]
         step 10, Claude's captions: script words timed by the VO words, mapped through the timeline's live VO
         segments, chunked, made into a draft with one text track `captions` and merged into the timeline
-        (add-tracks ... text); TEMP_EN_delete_me, if there, stays on top. --script / --timings default to the
-        plan's captions.script / captions.timings (timings also to temp_en.timings). Prints
+        (add-tracks ... text); TEMP_EN_delete_me, if there, stays on top; refused when the timeline already has
+        a `captions` track. --script defaults to the plan's captions.script; --timings to the timeline's own
+        temp_en.timings, then captions.timings, then the plan's temp_en.timings. Prints
         {draft, chunks, dropped_words, track}
 
 A plan with `temp_en` ({"english": script_en.txt, "timings": vo.json}, per timeline or top level) gets one
@@ -167,13 +171,15 @@ TEXT_STYLES = {
     "cta": {"font_color": "#FFFFFF", "bold": True, "font_size": 10, "background_alpha": 1,
             "background_round_radius": 0.3, "transform_y": -0.55},
     # the temporary English review track (top of the frame, deleted by the editor before export)
-    "temp_en": {"font_color": "#FFFFFF", "font_size": 7, "background_alpha": 0.6, "background_color": "#000000",
+    "temp_en": {"font": "Poppins_Regular", "font_color": "#FFFFFF", "font_size": 7, "background_alpha": 0.6, "background_color": "#000000",
                 "transform_y": 0.85, "fixed_width": 0.9},
     # Claude's step-10 captions; the plan's `captions_style` overrides any of these keys
-    "caption": {"font_color": "#FFFFFF", "bold": True, "font_size": 12, "background_alpha": 0, "border_width": 0.08,
+    "caption": {"font": "Poppins_Bold", "font_color": "#FFFFFF", "bold": True, "font_size": 12, "background_alpha": 0, "border_width": 0.08,
                 "border_color": "#000000", "shadow_enabled": True, "transform_y": -0.62,
                 "intro_animation": "Pop_Up", "intro_duration": 0.13},
 }
+# temp_en and caption name a Latin font (VectCutAPI Font_type names; Poppins covers á, ñ, ü): without `font`
+# VectCutAPI falls back to a Chinese font that renders Latin text and accents poorly
 TEXT_BG = "#E53935"   # badge / cta box when neither the text nor the brand gives a colour
 TEMP_EN_TRACK = "TEMP_EN_delete_me"
 CAPTIONS_TRACK = "captions"
@@ -181,7 +187,7 @@ CAPTIONS_TRACK = "captions"
 
 def text_body(draft_id: str, text: dict, plan: dict, track_name: str = "text_main") -> dict:
     """A contract text row -> add_text body styled by its preset; `bg` (else the preset's own box colour, else
-    the brand accent) colours the box, `font` is passed only when the row gives one."""
+    the brand accent) colours the box; `font` is passed only when the row or the preset gives one."""
     a = _f(text["at"])
     style = text.get("style", "badge")
     b = {"draft_id": draft_id, "text": text["text"], "start": _s(US(a)), "end": _s(US(a + _f(text["duration"]))),
@@ -544,13 +550,22 @@ def build(plan: dict, import_files=(), timelines=None, job=None, post=post, rend
             "manual": manual}
 
 
-def timeline(plan: dict, name: str, post=post, as_name: str | None = None) -> str:
+def timeline(plan: dict, name: str, post=post, as_name: str | None = None) -> dict:
     """One timeline as a draft (renders its missing overlays first), plus its built plan copy under the
-    project timeline's name; returns the draft folder."""
+    project timeline's name; returns {"draft"}, plus {"raise_text": "TEMP_EN_delete_me"} when it carries the
+    temporary English rows (run raise-temp-en after add-timeline / replace, so they draw on top)."""
     tl = _pick(plan, [name])[0]
-    draft = build_timeline(plan, tl, post=post)["draft"]
+    b = build_timeline(plan, tl, post=post)
     save_built(plan, tl, as_name or name)
-    return draft
+    out = {"draft": b["draft"]}
+    if b["counts"]["temp_en"]:
+        out["raise_text"] = TEMP_EN_TRACK
+    return out
+
+
+def raise_temp_en(project: Path, name: str) -> dict:
+    """TEMP_EN_delete_me above every other text track of a project timeline (after add-timeline / replace)."""
+    return cp.raise_text_track(Path(project), name, TEMP_EN_TRACK)
 
 
 def music_draft(end_frame: int, music: str, volume: float, post=post, canvas=(1080, 1920)) -> str:
@@ -562,14 +577,27 @@ def music_draft(end_frame: int, music: str, volume: float, post=post, canvas=(10
     return str(cp.wait_for_draft(Path(BUILD) / did))
 
 
+def caption_frames(chunks: list[dict]) -> list[tuple[dict, int, int]]:
+    """(chunk, start frame, end frame) per chunk: at least one frame long but never past the next chunk's start,
+    so no two caption segments overlap; a chunk left with no frame (it rounds onto the next one) is dropped."""
+    fr = [(c, _f(c["start"]), _f(c["end"])) for c in chunks]
+    out = []
+    for i, (c, a, e) in enumerate(fr):
+        e = max(e, a + 1)
+        if i + 1 < len(fr):
+            e = min(e, fr[i + 1][1])
+        if e > a:
+            out.append((c, a, e))
+    return out
+
+
 def captions_draft(chunks: list[dict], plan: dict, post=post) -> str:
     """A draft holding only the caption chunks (timeline seconds) on one text track `captions`, styled by
     TEXT_STYLES["caption"] plus the plan's `captions_style`, for add-tracks ... text."""
     canvas = _canvas(plan)
     did = post("create_draft", {"width": canvas[0], "height": canvas[1]})["output"]["draft_id"]
-    for c in chunks:
-        a, e = _f(c["start"]), _f(c["end"])
-        post("add_text", text_body(did, {"text": c["text"], "at": a / 30, "duration": max(1, e - a) / 30,
+    for c, a, e in caption_frames(chunks):
+        post("add_text", text_body(did, {"text": c["text"], "at": a / 30, "duration": (e - a) / 30,
                                          "style": "caption"}, plan, CAPTIONS_TRACK))
     _save(did, post)
     return str(cp.wait_for_draft(Path(BUILD) / did))
@@ -585,6 +613,9 @@ def add_captions(plan: dict, name: str, project: Path, script: str, timings: str
     vo = json.loads(cap._read(timings))
     words = cap.script_words(vo.get("words", []), cap._lines(script))
     dump = cp.segments(Path(project), name)
+    if any(s.get("track") == CAPTIONS_TRACK and s.get("track_type") == "text" for s in dump.get("segments", [])):
+        raise ValueError(f"timeline {name!r} already has a '{CAPTIONS_TRACK}' text track; delete it in CapCut "
+                         "(or use another timeline) before adding captions again")
     tl = next((t for t in plan.get("timelines", []) if t["name"] == name), {})
     kept, dropped = cap.to_timeline(words, dump, vo_in=tl.get("vo_in", 0.0), vo_track=vo_track)
     chunks = cap.chunk(kept, max_words=max_words)
@@ -605,6 +636,14 @@ def _dump_short(d: dict) -> str:
 def main(argv: list[str]) -> None:
     if len(argv) < 2:
         raise SystemExit(__doc__)
+    if argv[0] == "raise-temp-en":   # no plan: <project> "<timeline>"
+        if len(argv) < 3:
+            raise SystemExit(__doc__)
+        try:
+            print(json.dumps(raise_temp_en(Path(argv[1]), argv[2]), ensure_ascii=False))
+        except ValueError as e:
+            raise SystemExit(str(e))
+        return
     cmd, plan_path, rest = argv[0], Path(argv[1]), argv[2:]
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
 
@@ -625,7 +664,7 @@ def main(argv: list[str]) -> None:
         print(_dump_short(build(plan, imports, tls, opt("--job"), render="--no-render" not in rest,
                                 plan_path=plan_path)))
     elif cmd == "timeline" and rest:
-        print(json.dumps({"draft": timeline(plan, rest[0], as_name=opt("--as"))}, ensure_ascii=False))
+        print(json.dumps(timeline(plan, rest[0], as_name=opt("--as")), ensure_ascii=False))
     elif cmd == "mark-built" and rest:
         print(json.dumps(mark_built(plan, rest[0], opt("--as")), ensure_ascii=False))
     elif cmd == "music" and rest and opt("--music"):
@@ -637,10 +676,10 @@ def main(argv: list[str]) -> None:
                                                canvas=_canvas(plan))}, ensure_ascii=False))
     elif cmd == "captions" and rest and opt("--project"):
         tl = next((t for t in plan.get("timelines", []) if t["name"] == rest[0]), {})
-        te = tl.get("temp_en") or plan.get("temp_en") or {}
         given = plan.get("captions") or {}
         script = opt("--script") or given.get("script")
-        timings = opt("--timings") or given.get("timings") or te.get("timings")
+        timings = (opt("--timings") or (tl.get("temp_en") or {}).get("timings") or given.get("timings")
+                   or (plan.get("temp_en") or {}).get("timings"))
         if not script or not timings:
             raise SystemExit("captions needs --script and --timings (or the plan's captions.script / .timings)")
         try:

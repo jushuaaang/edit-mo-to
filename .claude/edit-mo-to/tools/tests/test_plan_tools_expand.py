@@ -92,7 +92,7 @@ def test_expand_copies_temp_en():
                       timelines=[{"name": "T1", "seq": [{"clips": [["a.mp4", 0, 0, 30]]}]},
                                  {"name": "T2", "seq": [{"clips": [["a.mp4", 30, 0, 30]]}],
                                   "temp_en": {"english": "hook_en.txt", "timings": "hook.json"}}]))
-    assert p["temp_en"] == {"english": "/v/script_en.txt", "timings": "C:/vo/vo.json"}
+    assert p["temp_en"] == {"english": "/v/script_en.txt", "timings": "C:/vo/vo.json", "vo": "/v/vo.mp3"}
     assert p["temp_en_removed"] is False and p["captions_style"] == {"font_size": 11}
     assert "temp_en" not in p["timelines"][0]
     assert p["timelines"][1]["temp_en"] == {"english": "/v/hook_en.txt", "timings": "/v/hook.json"}

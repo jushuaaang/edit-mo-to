@@ -476,7 +476,7 @@ def test_captions_draft_one_text_per_chunk(monkeypatch):
     t = texts[0]
     assert t["font_size"] == 11 and t["bold"] is True and t["border_width"] == 0.08 and t["border_color"] == "#000000"
     assert t["transform_y"] == -0.62 and t["intro_animation"] == "Pop_Up" and t["intro_duration"] == 0.13
-    assert t["shadow_enabled"] is True and "background_color" not in t and "font" not in t
+    assert t["shadow_enabled"] is True and "background_color" not in t and t["font"] == "Poppins_Bold"
     assert [e for e, _ in calls][-1] == "save_draft"
 
 
@@ -551,3 +551,75 @@ def test_temp_en_and_captions_end_to_end(tmp_path, monkeypatch, capsys):
     finally:
         if project.exists() and project.name.startswith("_test_"):
             shutil.rmtree(project, ignore_errors=True)
+
+
+def test_temp_en_and_captions_default_to_a_latin_font_the_plan_can_override():
+    te = bp.text_body("d", {"text": "Hi", "at": 0, "duration": 1, "style": "temp_en"}, PLAN, bp.TEMP_EN_TRACK)
+    assert te["font"] == "Poppins_Regular" and te["track_name"] == "TEMP_EN_delete_me"
+    c = bp.text_body("d", {"text": "Hola", "at": 0, "duration": 1, "style": "caption"},
+                     {**PLAN, "captions_style": {"font": "Nunito"}})
+    assert c["font"] == "Nunito"
+    assert "font" not in bp.text_body("d", {"text": "X", "at": 0, "duration": 1, "style": "badge"}, PLAN)
+
+
+def test_caption_frames_never_overlap_and_drop_empty_chunks():
+    chunks = [{"text": "a", "start": 0.0, "end": 0.0}, {"text": "b", "start": 0.01, "end": 0.5},
+              {"text": "c", "start": 0.5, "end": 0.5}, {"text": "d", "start": 0.6, "end": 0.6}]
+    got = [(c["text"], a, e) for c, a, e in bp.caption_frames(chunks)]
+    # a rounds onto b's start frame (dropped); c gets one frame up to d; d gets one frame
+    assert got == [("b", 0, 15), ("c", 15, 16), ("d", 18, 19)]
+
+
+def test_timeline_command_asks_for_the_temp_en_raise(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(bp, "build_timeline", lambda plan, tl, post=None: {"draft": "/d", "counts": {"temp_en": 2}})
+    monkeypatch.setattr(bp, "save_built", lambda plan, tl, name=None, job=None: None)
+    p = tmp_path / "plan.json"
+    p.write_text(json.dumps(PLAN), encoding="utf-8")
+    bp.main(["timeline", str(p), "Timeline 01"])
+    assert json.loads(capsys.readouterr().out) == {"draft": "/d", "raise_text": "TEMP_EN_delete_me"}
+    monkeypatch.setattr(bp, "build_timeline", lambda plan, tl, post=None: {"draft": "/d", "counts": {"temp_en": 0}})
+    bp.main(["timeline", str(p), "Timeline 01"])
+    assert json.loads(capsys.readouterr().out) == {"draft": "/d"}
+
+
+def test_raise_temp_en_command(monkeypatch, capsys):
+    seen = []
+    monkeypatch.setattr(bp.cp, "raise_text_track", lambda project, name, track: seen.append((Path(project).name, name, track))
+                        or {"track": track})
+    bp.main(["raise-temp-en", "/drafts/Proj", "Timeline 02"])
+    assert seen == [("Proj", "Timeline 02", "TEMP_EN_delete_me")]
+    assert json.loads(capsys.readouterr().out) == {"track": "TEMP_EN_delete_me"}
+
+
+def test_captions_refused_when_the_timeline_already_has_captions(tmp_path, monkeypatch):
+    vo = tmp_path / "vo.json"
+    vo.write_text(json.dumps({"words": [{"word": "hi", "start": 0.0, "end": 0.3}]}), encoding="utf-8")
+    script = tmp_path / "s.txt"
+    script.write_text("Hi\n", encoding="utf-8")
+    plan_p = tmp_path / "plan.json"
+    plan_p.write_text(json.dumps(PLAN), encoding="utf-8")
+    monkeypatch.setattr(bp.cp, "segments", lambda project, name, dirs=(): {"segments": [
+        {"track": "captions", "track_type": "text", "at": 0.0, "duration": 1.0}]})
+    made = []
+    monkeypatch.setattr(bp, "captions_draft", lambda chunks, plan, post=None: made.append(1) or "/d")
+    with pytest.raises(SystemExit, match="already has a 'captions' text track"):
+        bp.main(["captions", str(plan_p), "Timeline 01", "--project", str(tmp_path), "--script", str(script),
+                 "--timings", str(vo)])
+    assert made == []
+
+
+def test_captions_timings_prefer_the_timelines_own_temp_en(tmp_path, monkeypatch, capsys):
+    seen = {}
+    monkeypatch.setattr(bp, "add_captions", lambda plan, name, project, script, timings, mw, vt:
+                        seen.update(timings=timings) or {})
+    plan = {**PLAN, "captions": {"script": "/s.txt", "timings": "/plan_vo.json"},
+            "temp_en": {"english": "/en.txt", "timings": "/te_vo.json"},
+            "timelines": [{**PLAN["timelines"][0], "temp_en": {"english": "/h.txt", "timings": "/hook_vo.json"}}]}
+    p = tmp_path / "plan.json"
+    p.write_text(json.dumps(plan), encoding="utf-8")
+    bp.main(["captions", str(p), "Timeline 01", "--project", "/x"])
+    assert seen["timings"] == "/hook_vo.json"
+    plan["timelines"][0].pop("temp_en")
+    p.write_text(json.dumps(plan), encoding="utf-8")
+    bp.main(["captions", str(p), "Timeline 01", "--project", "/x"])
+    assert seen["timings"] == "/plan_vo.json"

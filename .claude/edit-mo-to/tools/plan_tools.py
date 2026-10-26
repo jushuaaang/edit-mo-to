@@ -166,9 +166,15 @@ def _timeline(tl: dict, plan2: dict) -> dict:
     return out
 
 
-def _temp_en(te: dict | None, base: str) -> dict | None:
-    """{"english": <script_en.txt>, "timings": <vo.json>} with both paths joined to base (None stays None)."""
-    return {k: _join(base, te[k]) for k in ("english", "timings")} if te else None
+def _temp_en(te: dict | None, base: str, vo: dict | None = None) -> dict | None:
+    """{"english": <script_en.txt>, "timings": <vo.json>} with both paths joined to base (None stays None);
+    the plan-wide one also records the VO file its timings belong to ("vo"), for check."""
+    if not te:
+        return None
+    out = {k: _join(base, te[k]) for k in ("english", "timings")}
+    if vo:
+        out["vo"] = _join(base, vo["file"])
+    return out
 
 
 def expand(plan2: dict) -> dict:
@@ -176,7 +182,7 @@ def expand(plan2: dict) -> dict:
     brand vars are filled into the overlays whose template declares them."""
     plan = {k: plan2[k] for k in ("project", "style", "fps", "width", "height", "base", "brand") if k in plan2}
     if "temp_en" in plan2:
-        plan["temp_en"] = _temp_en(plan2["temp_en"], plan2.get("base", ""))
+        plan["temp_en"] = _temp_en(plan2["temp_en"], plan2.get("base", ""), plan2.get("vo"))
     for k in ("temp_en_removed", "captions_style"):
         if k in plan2:
             plan[k] = plan2[k]
@@ -408,6 +414,11 @@ def check(plan: dict, limits: dict | None = None, probe=probe_media, silent=edge
                                     f"move it into the gap between words")
         if tl.get("temp_en") and not plan.get("temp_en_removed"):
             errs += _temp_en_errors(tl["temp_en"], f"{T} temp_en")
+        te = plan.get("temp_en") or {}
+        if ("temp_en" not in tl and te.get("vo") and tl.get("vo") and tl["vo"] != te["vo"]
+                and not plan.get("temp_en_removed")):
+            errs.append(f"{T} temp_en: this timeline has its own VO ({tl['vo']}) but uses the plan's English lines, "
+                        f"timed to {te['vo']}; give it its own temp_en (english + timings), or temp_en: null")
         cuts, by_track = [c["at"] for c in clips], {}
         for oi, o in enumerate(tl.get("overlays", []), 1):
             errs += _overlay_errors(o, oi, cuts, T, templates, limits, cv)

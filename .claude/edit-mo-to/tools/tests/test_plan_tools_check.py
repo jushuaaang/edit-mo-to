@@ -165,3 +165,18 @@ def test_check_temp_en_line_count(tmp_path):
     errs = pt.check({**PLAN_OK, "timelines": [tl]}, probe=PROBE, silent=QUIET)
     assert len(errs) == 1 and errs[0].startswith("T1 temp_en: cannot read")
     assert pt.check({**PLAN_OK, "temp_en": te, "temp_en_removed": True}, probe=PROBE, silent=QUIET) == []
+
+
+def test_check_temp_en_hook_with_its_own_vo_needs_its_own_lines(tmp_path):
+    import json
+    vo = tmp_path / "vo.json"
+    vo.write_text(json.dumps({"lines": [{"start": 0, "end": 1}]}), encoding="utf-8")
+    en = tmp_path / "en.txt"
+    en.write_text("One.\n", encoding="utf-8")
+    te = {"english": en.as_posix(), "timings": vo.as_posix()}
+    plan = _p2([_tl("A", clips=[["a.mp4", 0, 0, 60]]),
+                _tl("H", clips=[["b.mp4", 0, 0, 60]], vo={"file": "hook.mp3"})], vo={"file": "vo.mp3"}, temp_en=te)
+    errs = pt.check(plan, probe=PROBE, silent=QUIET)
+    assert len(errs) == 1 and errs[0].startswith("T2 temp_en: this timeline has its own VO")
+    plan["timelines"][1]["temp_en"] = None
+    assert pt.check(plan, probe=PROBE, silent=QUIET) == []
