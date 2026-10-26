@@ -9,6 +9,7 @@
   - extract audio and transcribe with `media_timing.py vo`.
   - Note: cut rhythm (cuts/sec), layouts, text style, hook pattern, music energy.
 - **Checklist format** (a table in chat): `# | Rule (quoted) | Source | Applies to (script/prompts/edit/export)`.
+- **Questions about the brief** (shown under the checklist at the same gate): unclear, implied, conflicting or missing rules, at most 6, numbered, most important first, each ending with what it changes (e.g. "changes the hook length"). Conflicts with `preferences.md`/`my-preferences.md` are asked too; until answered, the brief wins. Answers go in the checklist as rows with Source `editor, <date>`; a skipped question gets the default you'll use as a row with Source `assumed, <date>`. None: write "No questions about the brief."
 
 ## Choosing the style
 - UGC host / selfie review → `ugc`
@@ -62,9 +63,9 @@ qa_check: {tmp}/reports/<job>/qa_check.json   (build gate, when the skill ran qa
 scope: full | delta   changed: <clip #s per timeline, ovN / prompt ids / ops since the last QA>   (delta after a small fix)
 ```
 
-## Gate wording (keep it short, one question per message)
+## Gate wording (keep it short, one question per message; the checklist gate adds its brief questions in the same message)
 - Brief: "Send me the client's brief or instructions (PDF, doc, Notion link, or paste it), any reference videos, and the folder you made for this video."
-- Checklist: "Here's everything the brief requires. Anything missing or wrong?"
+- Checklist: "Here's everything the brief requires. Anything missing or wrong?" Then, when there are any, "Questions about the brief:" and the numbered questions.
 - Script approval: "Approve this script, or tell me what to change."
 - Storyboard: "Want a storyboard first, so you see my direction before any video is made? (Recommended for new clients and AI-heavy ads.)"
 - Character sheet: "Generate the character sheet from this prompt and send it to me (or tell me when it's saved)."
