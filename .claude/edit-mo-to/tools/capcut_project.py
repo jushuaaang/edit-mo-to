@@ -17,8 +17,11 @@ CLI (prints JSON):
     add-timeline <project> <name> <draft_dir>    append a timeline built from a new draft
     duplicate <project> <source_name> <new_name> copy an existing (maybe hand-edited) timeline
     replace <project> <name> <draft_dir>         edit a timeline in place (auto-backup, keeps its id)
-    add-tracks <project> <name> <draft_dir> [audio]  merge a draft's audio (music) into a timeline,
-                                                 keeping captions and hand edits (auto-backup)
+    add-tracks <project> <name> <draft_dir> [audio|text|video] [--on-top]  merge a draft's tracks of that type
+                                                 (default audio/music) into a timeline, keeping captions and hand
+                                                 edits; refuses a duplicate track name; --on-top layers above
+                                                 existing tracks of that type (auto-backup)
+    raise-text <project> <name> <track_name>     draw that text track above the other text tracks (auto-backup)
     add-overlay <project> <name> <draft_dir> [track] add a draft's video segments (B-roll) onto a timeline's
                                                  video_overlay (or named) track, keeping captions and hand
                                                  edits byte-for-byte (auto-backup, refuses overlaps)
@@ -55,7 +58,7 @@ STAMP_FILE = ".edit-mo-to-last-write"
 PLACEHOLDER_RE = re.compile(r"##_draftpath_placeholder_[0-9A-Fa-f-]+_##")
 FULL_FRAME_CROP = {"upper_left_x": 0.0, "upper_left_y": 0.0, "upper_right_x": 1.0, "upper_right_y": 0.0,
                    "lower_left_x": 0.0, "lower_left_y": 1.0, "lower_right_x": 1.0, "lower_right_y": 1.0}
-MIN_ARGS = {"import": 2, "link-originals": 1, "compose": 2, "add-timeline": 3, "duplicate": 3, "replace": 3, "add-tracks": 3, "add-overlay": 3,
+MIN_ARGS = {"import": 2, "link-originals": 1, "compose": 2, "add-timeline": 3, "duplicate": 3, "replace": 3, "add-tracks": 3, "raise-text": 3, "add-overlay": 3,
             "patch": 3, "segments": 2, "backup": 2, "list": 1, "wait": 1}
 PHOTO_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 PHOTO_DURATION_US = 10_800_000_000  # what CapCut stores as a still's material duration (3 h)
@@ -573,9 +576,11 @@ def replace_timeline(project: Path, name: str, draft: Path) -> dict:
     return {"name": name, "id": tl["id"], "backup": str(backup), "last_snapshot": saved, **report}
 
 
-def add_tracks(project: Path, name: str, draft: Path, track_type: str = "audio") -> dict:
-    """Merge one draft's tracks of `track_type` (e.g. music) into an existing timeline, keeping
-    everything already there (the user's captions and hand edits). Backs the timeline up first."""
+def add_tracks(project: Path, name: str, draft: Path, track_type: str = "audio", on_top: bool = False) -> dict:
+    """Merge one draft's tracks of `track_type` (music, text, ...) into an existing timeline, keeping
+    everything already there (the user's captions and hand edits). Refuses a track whose name is already
+    on the timeline. With `on_top`, merged tracks get a render_index above every existing track of that
+    type. Backs the timeline up first."""
     project = Path(project)
     _check_not_busy(project)
     _ensure_timelines_layout(project)
@@ -589,6 +594,16 @@ def add_tracks(project: Path, name: str, draft: Path, track_type: str = "audio")
     new_tracks = [t for t in incoming.get("tracks", []) if t.get("type") == track_type and t.get("segments")]
     if not new_tracks:
         raise ValueError(f"draft {draft} has no {track_type} tracks with segments")
+    have_names = {t.get("name") for t in timeline.get("tracks", []) if t.get("name")}
+    for t in new_tracks:
+        if t.get("name") in have_names:
+            raise ValueError(f"track '{t['name']}' already on timeline")
+    if on_top:
+        top = max((t.get("render_index", 0) for t in timeline.get("tracks", []) if t.get("type") == track_type),
+                  default=0)
+        for t in new_tracks:
+            top += 1
+            t["render_index"] = top
     wanted = set()
     for t in new_tracks:
         for s in t["segments"]:
@@ -620,6 +635,31 @@ def add_tracks(project: Path, name: str, draft: Path, track_type: str = "audio")
     _save_project_json(project, _project_json(project))
     saved = _save_last(project, name)
     return {"name": name, "id": tl["id"], "backup": str(backup), "last_snapshot": saved, "tracks_added": len(new_tracks), **report}
+
+
+def raise_text_track(project: Path, name: str, track_name: str) -> dict:
+    """Put the text track `track_name` above every other text track (render_index = max + 1), so it draws
+    on top. Everything else stays as is. Backs the timeline up first."""
+    project = Path(project)
+    _check_not_busy(project)
+    _ensure_timelines_layout(project)
+    tl = _find(project, name)
+    backup = backup_timeline(project, name)
+    folder = project / "Timelines" / tl["id"]
+    timeline = _read(_content_file(folder))
+    texts = [t for t in timeline.get("tracks", []) if t.get("type") == "text"]
+    target = next((t for t in texts if t.get("name") == track_name), None)
+    if target is None:
+        raise ValueError(f"no text track '{track_name}' on timeline {name!r}")
+    target["render_index"] = max([t.get("render_index", 0) for t in texts if t is not target] + [0]) + 1
+    for fname in CONTENT_FILES:
+        _write(folder / fname, timeline)
+    if tl["main"]:
+        _write_root(project, timeline)
+    _save_project_json(project, _project_json(project))
+    saved = _save_last(project, name)
+    return {"name": name, "id": tl["id"], "backup": str(backup), "last_snapshot": saved,
+            "track": track_name, "render_index": target["render_index"]}
 
 
 def _span(seg: dict) -> tuple[int, int]:
@@ -1303,7 +1343,11 @@ def main(argv: list[str]) -> None:
     elif cmd == "replace":
         out = replace_timeline(Path(args[0]), args[1], Path(args[2]))
     elif cmd == "add-tracks":
-        out = add_tracks(Path(args[0]), args[1], Path(args[2]), args[3] if len(args) > 3 else "audio")
+        on_top = "--on-top" in args
+        args = [a for a in args if a != "--on-top"]
+        out = add_tracks(Path(args[0]), args[1], Path(args[2]), args[3] if len(args) > 3 else "audio", on_top=on_top)
+    elif cmd == "raise-text":
+        out = raise_text_track(Path(args[0]), args[1], args[2])
     elif cmd == "add-overlay":
         out = add_overlay(Path(args[0]), args[1], Path(args[2]), args[3] if len(args) > 3 else "video_overlay")
     elif cmd == "patch":
