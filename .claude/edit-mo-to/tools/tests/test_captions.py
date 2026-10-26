@@ -137,3 +137,58 @@ def test_cli_chunks_uses_timeline_dump(tmp_path, capsys, monkeypatch):
     assert printed["chunks"] == 1
     assert [w["word"] for w in printed["dropped_words"]] == ["Gone", "now."]
     assert _texts(json.loads(out.read_text(encoding="utf-8"))["chunks"]) == ["Hi there."]
+
+
+def test_script_words_prefix_of_vo_ignores_the_rest():
+    asr = _w([(w, i * 0.3, i * 0.3 + 0.25) for i, w in enumerate("the cat sat down then a dog ran around the yard all day".split())])
+    out = captions.script_words(asr, ["the cat sat down"])
+    assert [(w["start"], w["end"]) for w in out] == [(0.0, 0.25), (0.3, 0.55), (0.6, 0.85), (0.9, 1.15)]
+
+
+def test_script_words_skip_an_ad_lib_in_the_middle():
+    asr = _w([(w, i * 0.3, i * 0.3 + 0.25) for i, w in enumerate("the cat um you know sat down".split())])
+    out = captions.script_words(asr, ["the cat sat down."])
+    assert [(w["word"], w["start"]) for w in out] == [("the", 0.0), ("cat", 0.3), ("sat", 1.5), ("down.", 1.8)]
+    assert all(w["end"] - w["start"] < 0.3 for w in out)
+
+
+def test_to_timeline_keeps_a_word_across_a_plain_split():
+    dump = {"segments": [
+        {"track": "vo", "track_type": "audio", "at": 0.0, "duration": 2.0, "src_in": 0.0, "speed": 1.0},
+        {"track": "vo", "track_type": "audio", "at": 2.0, "duration": 3.0, "src_in": 2.0, "speed": 1.0},
+    ]}
+    kept, dropped = captions.to_timeline(_w([("hello", 1.9, 2.2)]), dump)
+    assert not dropped
+    assert (kept[0]["start"], kept[0]["end"]) == (pytest.approx(1.9), pytest.approx(2.2))
+
+
+def test_to_timeline_split_with_second_half_moved_keeps_larger_share():
+    dump = {"segments": [
+        {"track": "vo", "track_type": "audio", "at": 0.0, "duration": 2.0, "src_in": 0.0, "speed": 1.0},
+        {"track": "vo", "track_type": "audio", "at": 5.0, "duration": 3.0, "src_in": 2.0, "speed": 1.0},
+    ]}
+    kept, dropped = captions.to_timeline(_w([("hello", 1.9, 2.2), ("cut", 6.0, 6.5)]), dump)
+    assert [w["word"] for w in dropped] == ["cut"]
+    assert (kept[0]["start"], kept[0]["end"]) == (pytest.approx(5.0), pytest.approx(5.2))
+
+
+def test_to_timeline_needs_a_vo_track():
+    dump = {"segments": [{"track": "narration", "track_type": "audio", "at": 0.0, "duration": 2.0, "src_in": 0.0, "speed": 1.0},
+                         {"track": "music", "track_type": "audio", "at": 0.0, "duration": 9.0, "src_in": 0.0, "speed": 1.0}]}
+    with pytest.raises(ValueError, match="--vo-track"):
+        captions.to_timeline(_w([("a", 0.1, 0.3)]), dump)
+    kept, _ = captions.to_timeline(_w([("a", 0.1, 0.3)]), dump, vo_track="music")
+    assert kept[0]["start"] == pytest.approx(0.1)
+
+
+def test_cli_reads_cp1252_crlf(tmp_path, capsys):
+    vo = tmp_path / "vo.json"
+    vo.write_bytes(json.dumps({"words": [], "lines": [{"line": "Boron \u2014 zinc", "start": 0.0, "end": 1.0, "matched": True}]},
+                              ensure_ascii=False).encode("cp1252"))
+    en = tmp_path / "script_en.txt"
+    en.write_bytes("Boron \u2014 zinc\r\n".encode("cp1252"))
+    out = tmp_path / "rows.json"
+    captions.main(["temp-en", str(vo), str(en), "--out", str(out)])
+    cap = capsys.readouterr()
+    assert "cp1252" in cap.err
+    assert json.loads(out.read_text(encoding="utf-8"))[0]["text"] == "Boron \u2014 zinc"
