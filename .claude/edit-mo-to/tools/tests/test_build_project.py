@@ -608,23 +608,6 @@ def test_captions_refused_when_the_timeline_already_has_captions(tmp_path, monke
     assert made == []
 
 
-def test_captions_timings_prefer_the_timelines_own_temp_en(tmp_path, monkeypatch, capsys):
-    seen = {}
-    monkeypatch.setattr(bp, "add_captions", lambda plan, name, project, script, timings, mw, vt:
-                        seen.update(timings=timings) or {})
-    plan = {**PLAN, "captions": {"script": "/s.txt", "timings": "/plan_vo.json"},
-            "temp_en": {"english": "/en.txt", "timings": "/te_vo.json"},
-            "timelines": [{**PLAN["timelines"][0], "temp_en": {"english": "/h.txt", "timings": "/hook_vo.json"}}]}
-    p = tmp_path / "plan.json"
-    p.write_text(json.dumps(plan), encoding="utf-8")
-    bp.main(["captions", str(p), "Timeline 01", "--project", "/x"])
-    assert seen["timings"] == "/hook_vo.json"
-    plan["timelines"][0].pop("temp_en")
-    p.write_text(json.dumps(plan), encoding="utf-8")
-    bp.main(["captions", str(p), "Timeline 01", "--project", "/x"])
-    assert seen["timings"] == "/plan_vo.json"
-
-
 def test_captions_pass_qa_check_on_a_real_build(tmp_path, monkeypatch):
     """Real VectCutAPI draft: Claude's captions sit in the bottom band and match the script, per qa_check."""
     if not _api_up():
@@ -655,3 +638,48 @@ def test_captions_pass_qa_check_on_a_real_build(tmp_path, monkeypatch):
     finally:
         if project.exists() and project.name.startswith("_test_"):
             shutil.rmtree(project, ignore_errors=True)
+
+
+def test_temp_en_removed_on_one_timeline_keeps_it_on_the_others(tmp_path):
+    te = _temp_en_files(tmp_path, [(1.5, 2.5)], ["One."])
+    t1 = {**PLAN["timelines"][0], "temp_en_removed": True}
+    t2 = {**PLAN["timelines"][0], "name": "Timeline 02"}
+    plan = {**PLAN, "temp_en": te, "timelines": [t1, t2]}
+    assert bp.temp_en_texts(plan, t1, 300) == []
+    assert len(bp.temp_en_texts(plan, t2, 300)) == 1
+
+
+def test_captions_cli_uses_the_shared_resolver(tmp_path, monkeypatch, capsys):
+    seen = {}
+    monkeypatch.setattr(bp, "add_captions", lambda plan, name, project, script, timings, mw, vt:
+                        seen.update(script=script, timings=timings) or {})
+    hook = {**PLAN["timelines"][0], "name": "Hook", "vo": "/hook.mp3",
+            "temp_en": {"english": "/h.txt", "timings": "/hook_vo.json"}}
+    plan = {**PLAN, "captions": {"script": "/s.txt", "timings": "/plan_vo.json", "vo": "/vo.mp3"},
+            "timelines": [PLAN["timelines"][0], hook]}
+    p = tmp_path / "plan.json"
+    p.write_text(json.dumps(plan), encoding="utf-8")
+    bp.main(["captions", str(p), "Timeline 01", "--project", "/x"])
+    assert seen == {"script": "/s.txt", "timings": "/plan_vo.json"}
+    with pytest.raises(SystemExit, match="its own VO"):   # never the plan's timings, never the hook's temp_en ones
+        bp.main(["captions", str(p), "Hook", "--project", "/x"])
+    hook["captions"] = {"script": "/hook.txt", "timings": "/hook_vo2.json"}
+    p.write_text(json.dumps(plan), encoding="utf-8")
+    bp.main(["captions", str(p), "Hook", "--project", "/x"])
+    assert seen == {"script": "/hook.txt", "timings": "/hook_vo2.json"}
+    bp.main(["captions", str(p), "Hook", "--project", "/x", "--script", "/a.txt", "--timings", "/b.json"])
+    assert seen == {"script": "/a.txt", "timings": "/b.json"}
+
+
+def test_add_captions_reports_dropped_chunks(monkeypatch):
+    import captions as cap
+    dump = {"segments": [{"track": "vo", "track_type": "audio", "at": 0.0, "duration": 5.0, "src_in": 0.0, "speed": 1.0}]}
+    monkeypatch.setattr(bp.cp, "segments", lambda project, name, dirs=(): dump)
+    monkeypatch.setattr(bp.cp, "add_tracks", lambda *a, **k: {})
+    monkeypatch.setattr(cap, "_read", lambda p: json.dumps({"words": [{"word": "hi", "start": 0.0, "end": 0.3}]}))
+    monkeypatch.setattr(cap, "_lines", lambda p: ["Hi"])
+    monkeypatch.setattr(cap, "chunk", lambda kept, max_words=4: [
+        {"text": "a", "start": 0.0, "end": 0.0}, {"text": "b", "start": 0.01, "end": 0.5}])
+    monkeypatch.setattr(bp, "captions_draft", lambda chunks, plan, post=None: "/d")
+    out = bp.add_captions(PLAN, "Timeline 01", Path("/p"), "/s.txt", "/vo.json")
+    assert out["chunks"] == 1 and [c["text"] for c in out["dropped_chunks"]] == ["a"]

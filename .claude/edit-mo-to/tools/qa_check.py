@@ -9,7 +9,8 @@ CLI (prints JSON {"rows": [...], "passed": N, "verdict": ...}; exit code 1 on a 
                          overlays (ovN) and their neighbours, and prefixes the verdict with DELTA
     captions <plan.json> "<project>" "<timeline>" [--script s.txt] [--timings vo.json] [--limits limits.json] [--vo-track NAME] [--search dir ...]
                          Claude's `captions` text track against the script and the timeline's live VO: caption_words,
-                         caption_sync, caption_band, caption_gaps (--script / --timings default to the plan's captions.*)
+                         caption_sync, caption_band, caption_gaps, plus the OPEN temp_en row (--script / --timings default to the
+                         timeline's captions, else the plan's when the timeline plays the plan's VO: captions.caption_inputs)
     prompts <prompts2.json> [--script script.txt] [--timings t.json]
                          plan_tools.check_prompts, as the same row format
 Rows are FAIL (counts toward the verdict) or OPEN (for the user to look at). `passed` counts the checks that ran
@@ -85,6 +86,9 @@ def _neighbours(items: list[dict], hit: set[int]) -> set[int]:
         if i in hit:
             out.update(order[max(pos - 1, 0):pos + 2])
     return out
+
+
+TEMP_EN_FIX = f"delete the {TEMP_EN_TRACK} track in CapCut before the export"
 
 
 class _Rows:
@@ -217,8 +221,11 @@ def check_captions(plan: dict, project: Path, timeline: str, script_lines: list[
             if spoken:
                 add("caption_gaps", f"no caption {to_sf(gap0)}-{to_sf(spoken[-1]['end'])} while "
                     f"{' '.join(w['word'] for w in spoken[:6])!r} is spoken", "caption the missing words", status="OPEN")
+    if any(_kind(s) == "text" and s["track"] == TEMP_EN_TRACK for s in dump.get("segments", [])):
+        add("temp_en", "TEMP_EN present (delete before export)", TEMP_EN_FIX, status="OPEN")
     fails = [r for r in out.rows if r["status"] == "FAIL"]
-    return {"rows": out.rows, "passed": 4 - len({r["check"] for r in out.rows}),
+    checks = {"caption_words", "caption_sync", "caption_band", "caption_gaps"}
+    return {"rows": out.rows, "passed": len(checks - {r["check"] for r in out.rows}),
             "verdict": f"FAIL ({len(fails)} issues)" if fails else "PASS"}
 
 
@@ -469,10 +476,9 @@ def check_build(plan: dict, project: Path, timelines: list[str] | None = None, c
             for s in by_kind["text"]:
                 if s["track"] != TEMP_EN_TRACK and re.search(r"caption|subtitle", str(s["track"]), re.I):
                     add("captions", f"text on track '{s['track']}' at {to_sf(s['at'])}: {str(s.get('text'))[:40]!r}",
-                        "delete the caption track; the user adds captions in CapCut")
-            if any(s["track"] == TEMP_EN_TRACK for s in by_kind["text"]):
-                add("temp_en", "TEMP_EN present (delete before export)",
-                    f"delete the {TEMP_EN_TRACK} track in CapCut before the export", status="OPEN")
+                        f"delete the caption track: no captions before step 10, except the {TEMP_EN_TRACK} review track")
+        if any(s["track"] == TEMP_EN_TRACK for s in by_kind["text"]):   # every run, delta too: a reminder, not a check
+            add("temp_en", "TEMP_EN present (delete before export)", TEMP_EN_FIX, status="OPEN")
 
     if "canvas" in ran:
         # the brief's ratio (limits.json `ratio`, or an explicit `canvas`), else the 9:16 default
@@ -541,11 +547,11 @@ def main(argv: list[str]) -> None:
         if len(args) < 3:
             raise SystemExit(__doc__)
         plan = load(args[0])
-        c = plan.get("captions") or {}
-        script, timings = opt("--script") or c.get("script"), opt("--timings") or c.get("timings")
-        if not script or not timings:
-            raise SystemExit("qa_check: captions needs --script and --timings (or the plan's captions.script / captions.timings)")
         import captions as cap
+        try:   # the same script + timings build_project.py captions used for this timeline
+            script, timings = cap.caption_inputs(plan, args[2], opt("--script"), opt("--timings"))
+        except ValueError as e:
+            raise SystemExit(f"qa_check: {e}")
         search = []
         for i, a in enumerate(args):
             if a == "--search":

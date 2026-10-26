@@ -27,13 +27,13 @@ CLI (prints JSON only):
         step 10, Claude's captions: script words timed by the VO words, mapped through the timeline's live VO
         segments, chunked, made into a draft with one text track `captions` and merged into the timeline
         (add-tracks ... text); TEMP_EN_delete_me, if there, stays on top; refused when the timeline already has
-        a `captions` track. --script defaults to the plan's captions.script; --timings to the timeline's own
-        temp_en.timings, then captions.timings, then the plan's temp_en.timings. Prints
-        {draft, chunks, dropped_words, track}
+        a `captions` track. --script / --timings default to the timeline's own captions.script / .timings, else
+        the plan's when the timeline plays the plan's VO (captions.caption_inputs; never temp_en timings).
+        Prints {draft, chunks, dropped_words, dropped_chunks, track} (dropped_chunks: chunks left with no frame)
 
 A plan with `temp_en` ({"english": script_en.txt, "timings": vo.json}, per timeline or top level) gets one
 temporary English row per script line on a TEMP_EN_delete_me text track, raised above every text track after
-compose; `temp_en_removed: true` skips it.
+compose; `temp_en_removed: true` (plan-wide, or on one timeline) skips it.
 
 Timing is whole frames at 30 fps, passed to VectCutAPI as integer microseconds / 1e6 (US(frame)).
 """
@@ -203,12 +203,12 @@ def text_body(draft_id: str, text: dict, plan: dict, track_name: str = "text_mai
 
 def temp_en_texts(plan: dict, timeline: dict, end_f: int) -> list[dict]:
     """The temporary English rows of one timeline (its own `temp_en`, else the plan's; none when the plan says
-    `temp_en_removed` or the timeline has no VO), moved from VO-file time onto the timeline through the
+    `temp_en_removed`, plan-wide or on this timeline, or the timeline has no VO), moved from VO-file time onto the timeline through the
     timeline's VO span (as vo_body places it): rows outside it are dropped, rows partly outside are clipped."""
     from captions import _lines, temp_en_rows
 
     te = timeline["temp_en"] if "temp_en" in timeline else plan.get("temp_en")
-    if not te or plan.get("temp_en_removed") or not timeline.get("vo"):
+    if not te or plan.get("temp_en_removed") or timeline.get("temp_en_removed") or not timeline.get("vo"):
         return []
     lines = json.loads(Path(te["timings"]).read_text(encoding="utf-8-sig")).get("lines") or []
     v = vo_body("", timeline, end_f)
@@ -579,7 +579,8 @@ def music_draft(end_frame: int, music: str, volume: float, post=post, canvas=(10
 
 def caption_frames(chunks: list[dict]) -> list[tuple[dict, int, int]]:
     """(chunk, start frame, end frame) per chunk: at least one frame long but never past the next chunk's start,
-    so no two caption segments overlap; a chunk left with no frame (it rounds onto the next one) is dropped."""
+    so no two caption segments overlap; a chunk left with no frame (it rounds onto the next one) is dropped
+    (add_captions reports it in `dropped_chunks`)."""
     fr = [(c, _f(c["start"]), _f(c["end"])) for c in chunks]
     out = []
     for i, (c, a, e) in enumerate(fr):
@@ -621,11 +622,14 @@ def add_captions(plan: dict, name: str, project: Path, script: str, timings: str
     chunks = cap.chunk(kept, max_words=max_words)
     if not chunks:
         raise ValueError(f"no caption chunks for {name!r}: no script word lies in the timeline's VO")
-    draft = captions_draft(chunks, plan)
+    placed = {id(c) for c, _, _ in caption_frames(chunks)}
+    dropped_chunks = [{k: c[k] for k in ("text", "start", "end")} for c in chunks if id(c) not in placed]
+    draft = captions_draft(chunks, plan)   # it drops the same chunks (caption_frames)
     cp.add_tracks(Path(project), name, Path(draft), "text")
     if any(s.get("track") == TEMP_EN_TRACK for s in dump.get("segments", [])):
         cp.raise_text_track(Path(project), name, TEMP_EN_TRACK)
-    return {"draft": mr.plain_path(draft), "chunks": len(chunks), "dropped_words": dropped, "track": CAPTIONS_TRACK}
+    return {"draft": mr.plain_path(draft), "chunks": len(chunks) - len(dropped_chunks), "dropped_words": dropped,
+            "dropped_chunks": dropped_chunks, "track": CAPTIONS_TRACK}
 
 
 def _dump_short(d: dict) -> str:
@@ -675,14 +679,9 @@ def main(argv: list[str]) -> None:
         print(json.dumps({"draft": music_draft(end_f, opt("--music"), float(opt("--volume", 0.1)),
                                                canvas=_canvas(plan))}, ensure_ascii=False))
     elif cmd == "captions" and rest and opt("--project"):
-        tl = next((t for t in plan.get("timelines", []) if t["name"] == rest[0]), {})
-        given = plan.get("captions") or {}
-        script = opt("--script") or given.get("script")
-        timings = (opt("--timings") or (tl.get("temp_en") or {}).get("timings") or given.get("timings")
-                   or (plan.get("temp_en") or {}).get("timings"))
-        if not script or not timings:
-            raise SystemExit("captions needs --script and --timings (or the plan's captions.script / .timings)")
-        try:
+        import captions as cap
+        try:   # the same resolver qa_check.py captions uses
+            script, timings = cap.caption_inputs(plan, rest[0], opt("--script"), opt("--timings"))
             out = add_captions(plan, rest[0], Path(opt("--project")), script, timings,
                                int(opt("--max-words", 4)), opt("--vo-track"))
         except ValueError as e:

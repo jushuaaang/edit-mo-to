@@ -250,3 +250,35 @@ def test_interior_missed_word_is_interpolated_and_kept():
     assert out[3]["end"] <= the["start"] <= the["end"] <= out[5]["start"]
     kept, dropped = captions.to_timeline(out, {"segments": []})
     assert not dropped and len(kept) == 6
+
+
+def _cplan(**kw):
+    tls = [{"name": "Body", "vo": "/v/vo.mp3"}, {"name": "Hook", "vo": "/v/hook.mp3",
+                                                 "temp_en": {"english": "/v/h_en.txt", "timings": "/v/hook.json"}}]
+    return {"captions": {"script": "/v/s.txt", "timings": "/v/vo.json", "vo": "/v/vo.mp3"}, "timelines": tls, **kw}
+
+
+def test_caption_inputs_plan_captions_only_for_the_plan_vo():
+    plan = _cplan()
+    assert captions.caption_inputs(plan, "Body") == ("/v/s.txt", "/v/vo.json")
+    with pytest.raises(ValueError, match="its own VO"):
+        captions.caption_inputs(plan, "Hook")                       # never the hook's temp_en timings
+    plan["timelines"][1]["captions"] = {"script": "/v/hook.txt", "timings": "/v/hook2.json"}
+    assert captions.caption_inputs(plan, "Hook") == ("/v/hook.txt", "/v/hook2.json")
+    assert captions.caption_inputs(plan, "Hook", "/a.txt", "/b.json") == ("/a.txt", "/b.json")
+
+
+def test_caption_inputs_without_a_recorded_vo_use_the_one_vo_of_the_plan():
+    plan = _cplan()
+    del plan["captions"]["vo"]
+    with pytest.raises(ValueError, match="its own VO"):            # two VOs: which one is the plan's is unknown
+        captions.caption_inputs(plan, "Body")
+    plan["timelines"] = plan["timelines"][:1]
+    assert captions.caption_inputs(plan, "Body") == ("/v/s.txt", "/v/vo.json")
+
+
+def test_caption_inputs_errors():
+    with pytest.raises(ValueError, match="unknown timeline"):
+        captions.caption_inputs(_cplan(), "Nope")
+    with pytest.raises(ValueError, match="--script and --timings"):
+        captions.caption_inputs({"timelines": [{"name": "Body", "vo": "/v/vo.mp3"}]}, "Body")

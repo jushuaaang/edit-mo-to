@@ -18,7 +18,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 import capcut_project
-from media_timing import _tokens
+from media_timing import _tokens, read_text
 
 HARD = re.compile(r"[.!?:…][\"»”']?$")
 SOFT = re.compile(r"[,;—–][\"»”']?$")
@@ -331,18 +331,47 @@ def temp_en_rows(lines: list[dict], english: list[str]) -> list[dict]:
             for l, en in zip(lines, english)]
 
 
-def _read(path: str) -> str:
-    """UTF-8 (with or without BOM); files saved by Windows tools in cp1252 are read as such, with a note."""
-    raw = Path(path).read_bytes()
-    try:
-        return raw.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        print(f"note: {path} is not UTF-8; read as cp1252", file=sys.stderr)
-        return raw.decode("cp1252", errors="replace")
+_read = read_text   # UTF-8 (with or without BOM), else cp1252 with a note (media_timing.read_text)
 
 
 def _lines(path: str) -> list[str]:
     return [l.strip() for l in _read(path).splitlines() if l.strip()]
+
+
+def _same_path(a, b) -> bool:
+    norm = lambda p: str(p or "").replace("\\", "/").casefold()   # noqa: E731
+    return norm(a) == norm(b)
+
+
+def caption_inputs(plan: dict, timeline: str, script: str | None = None, timings: str | None = None) -> tuple[str, str]:
+    """(script, timings) for Claude's captions on one timeline, both from one source: --script / --timings win;
+    else the timeline's own `captions`; else the plan's `captions`, only when the timeline plays the plan's VO
+    (its recorded `vo`, or the one VO all the plan's timelines share). Never another VO's temp_en timings."""
+    if script and timings:
+        return script, timings
+    names = [t.get("name") for t in plan.get("timelines", [])]
+    tl = next((t for t in plan.get("timelines", []) if t.get("name") == timeline), None)
+    if tl is None:
+        raise ValueError(f"unknown timeline {timeline!r}; the plan has {names}")
+    src = tl.get("captions")
+    if not src:
+        src = plan.get("captions")
+        if not src:
+            raise ValueError("captions needs --script and --timings (or captions {script, timings} in plan2, "
+                             "per timeline for a timeline with its own VO)")
+        if "vo" in src:
+            plan_vo = src["vo"]
+        else:
+            vos = {str(t["vo"]).replace("\\", "/").casefold() for t in plan.get("timelines", []) if t.get("vo")}
+            plan_vo = next(iter(vos)) if len(vos) == 1 else None
+        if tl.get("vo") and not _same_path(tl["vo"], plan_vo):
+            raise ValueError(f"timeline {timeline!r} plays its own VO ({tl['vo']}), not the plan's "
+                             f"({plan_vo or 'unknown: the plan has several VOs'}), so the plan's captions timings do not "
+                             f"fit it; give it its own captions {{script, timings}} in plan2, or pass --script and --timings")
+    script, timings = script or src.get("script"), timings or src.get("timings")
+    if not script or not timings:
+        raise ValueError(f"captions needs --script and --timings; the {timeline!r} captions source lacks one")
+    return script, timings
 
 
 def _opt(argv: list[str], name: str, default=None):

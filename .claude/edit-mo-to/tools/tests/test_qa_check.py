@@ -402,3 +402,46 @@ def test_cli_captions_exit_code_follows_the_verdict(tmp_path, monkeypatch, capsy
     assert code == 0 and out["verdict"] == "PASS"
     code, out = _cli_captions(tmp_path, monkeypatch, capsys, "Hello big word")
     assert code == 1 and out["verdict"].startswith("FAIL")
+
+
+def test_captions_check_shows_temp_en_as_open():
+    d = _cap_dump(_text_seg("captions", "Hello big", 0.0, 0.9), _text_seg("captions", "world", 1.0, 0.5),
+                  extra=[_text_seg("TEMP_EN_delete_me", "Hello", 0.0, 1.0, y=0.85)])
+    r = _cap_run(d)
+    te = [x for x in r["rows"] if x["check"] == "temp_en"]
+    assert len(te) == 1 and te[0]["status"] == "OPEN" and "delete before export" in te[0]["evidence"]
+    assert r["verdict"] == "PASS" and r["passed"] == 4
+
+
+def test_delta_qa_keeps_the_temp_en_row():
+    d = _dump()
+    d["segments"].append(_text_seg("TEMP_EN_delete_me", "Hello", 0.0, 1.0, y=0.85))
+    r = _run(dumps={"A": d}, changed=["3"])
+    assert [x["status"] for x in r["rows"] if x["check"] == "temp_en"] == ["OPEN"]
+    assert r["verdict"] == "DELTA PASS"
+
+
+def test_build_caption_row_states_the_step_10_rule():
+    d = _dump()
+    d["segments"].append(_seg("captions", None, 0.0, 1.0, text="hello"))
+    cap = [x for x in _run(dumps={"A": d})["rows"] if x["check"] == "captions"]
+    assert "no captions before step 10" in cap[0]["fix"] and "TEMP_EN_delete_me" in cap[0]["fix"]
+    assert "the user adds captions" not in cap[0]["fix"]
+
+
+def test_cli_captions_takes_script_and_timings_from_the_plan(tmp_path, monkeypatch, capsys):
+    d = _cap_dump(_text_seg("captions", "Hello big world", 0.0, 1.5))
+    monkeypatch.setattr(qc.cp, "segments", lambda p, n, s=(): copy.deepcopy(d))
+    script, timings = tmp_path / "s.txt", tmp_path / "vo.json"
+    script.write_text("Hello big world.\n", encoding="utf-8")
+    timings.write_text(json.dumps({"words": ASR}), encoding="utf-8")
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps(_plan(captions={"script": script.as_posix(), "timings": timings.as_posix(),
+                                               "vo": "/v/vo.mp3"})), encoding="utf-8")
+    qc.main(["captions", str(plan), "/p", "A"])
+    assert json.loads(capsys.readouterr().out)["verdict"] == "PASS"
+    # a timeline with its own VO never takes the plan's captions
+    plan.write_text(json.dumps(_plan(captions={"script": script.as_posix(), "timings": timings.as_posix(),
+                                               "vo": "/v/other.mp3"})), encoding="utf-8")
+    with pytest.raises(SystemExit, match="its own VO"):
+        qc.main(["captions", str(plan), "/p", "A"])
