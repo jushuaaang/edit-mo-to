@@ -83,3 +83,10 @@ Claude's captions use the script's exact words (auto-caption misspells Spanish/G
 - How the top layer is guaranteed (render index / track order) for `TEMP_EN_delete_me`.
 - Whether `add-tracks` needs a `text` mode or a separate `add-text-track` command.
 - Splitting option 3 renders across timelines that share a body (reuse identical parts).
+
+## Scope change (2026-10-26, the editor's decision)
+
+Option 3 (animated word-by-word captions rendered with `ugc-captions`) is **dropped** from this work; everything above about option 3 no longer applies. Step 10 offers two options, and choosing Claude's captions comes with a caveat:
+
+- Gate wording: "Captions: will you run CapCut auto-caption yourself, or should I add them? (Mine are simple text captions with the script's exact words and a pop-in; no word-by-word animation. For an animated look, use CapCut's caption presets.)"
+- Animated captions can come back later as their own small job.
