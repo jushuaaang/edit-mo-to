@@ -119,3 +119,12 @@ def test_diff_last_hash_named_clip_is_not_removed_plus_added(project, tmp_path, 
     ed.main(["diff", "--last", str(project), "Timeline 01", str(clip.parent)])
     res = json.loads(capsys.readouterr().out)
     assert res["removed"] == [] and res["added"] == [] and res["changed"] == []
+
+
+def test_temp_en_deletion_is_not_a_pattern():
+    keep = seg("video_main", "a.mp4", 0, 9)
+    en = [seg("TEMP_EN_delete_me", None, i, 1.0, ttype="text", text=f"line {i}") for i in range(3)]
+    d = ed.diff(tl([keep, *en]), tl([keep]))
+    assert d["removed"] == [] and d["added"] == [] and d["patterns"] == []
+    d = ed.diff(tl([keep]), tl([keep, *en]))
+    assert d["caption_segments_added"] == 0 and d["added"] == []

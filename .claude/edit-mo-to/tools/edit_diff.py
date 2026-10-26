@@ -93,12 +93,17 @@ def _cuts(final: list[dict]) -> list[float]:
     return sorted(out)
 
 
+TEMP_EN_TRACK = "TEMP_EN_delete_me"   # build_project.TEMP_EN_TRACK
+
+
 def _on_cut(t: float, cuts: list[float]) -> bool:
     return any(abs(t - c) <= TOL for c in cuts)
 
 
 def diff(built: dict, final: dict) -> dict:
-    b_segs, f_segs = built["segments"], final["segments"]
+    # the temporary English track is deleted by the editor on purpose: not a habit, not an edit
+    b_segs = [s for s in built["segments"] if s.get("track") != TEMP_EN_TRACK]
+    f_segs = [s for s in final["segments"] if s.get("track") != TEMP_EN_TRACK]
     pairs, removed, added = match(b_segs, f_segs)
     cuts = _cuts(f_segs)
     changes = []

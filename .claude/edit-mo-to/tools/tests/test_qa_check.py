@@ -306,3 +306,68 @@ def test_cutout_segment_matches_its_planned_overlay():
     assert "extras" not in _checks(r) and r["verdict"] == "PASS"
     d = _dump()   # the cutout missing from the timeline is a present FAIL
     assert any("cutout" in x["evidence"] for x in _run(plan=plan, dumps={"A": d})["rows"] if x["check"] == "present")
+
+
+# --- captions ---
+
+def _text_seg(track, text, at, dur, y=-0.62):
+    return _seg(track, None, at, dur, text=text, track_type="text", material_type="texts", transform={"x": 0.0, "y": y})
+
+
+ASR = [{"word": w, "start": s, "end": e} for w, s, e in [("hello", 1.0, 1.4), ("big", 1.5, 1.9), ("world", 2.0, 2.5)]]
+
+
+def _cap_dump(*texts, extra=()):
+    return {"timeline": "A", "duration": 4.0, "segments": [_seg("vo", "/v/vo.mp3", 0.0, 4.0, 1.0), *texts, *extra]}
+
+
+def _cap_run(dump, script=("Hello big world.",), words=ASR, **kw):
+    return qc.check_captions(_plan(), Path("/p"), "A", list(script), words, segments_fn=lambda p, n, s: copy.deepcopy(dump), **kw)
+
+
+def test_temp_en_is_open_not_caption_fail():
+    d = _dump()
+    d["segments"].append(_text_seg("TEMP_EN_delete_me", "Hello", 0.0, 1.0, y=0.85))
+    rows = _run(dumps={"A": d})["rows"]
+    assert not [r for r in rows if r["check"] == "captions"]
+    te = [r for r in rows if r["check"] == "temp_en"]
+    assert len(te) == 1 and te[0]["status"] == "OPEN" and "delete before export" in te[0]["evidence"]
+    assert "FAIL" not in _run(dumps={"A": d})["verdict"]
+
+
+def test_captions_words_match_script():
+    d = _cap_dump(_text_seg("captions", "Hello big", 0.0, 0.9), _text_seg("captions", "WORLD!", 1.0, 0.5))
+    r = _cap_run(d)
+    assert r["rows"] == [] and r["verdict"] == "PASS"
+
+
+def test_captions_wrong_word_fails():
+    d = _cap_dump(_text_seg("captions", "Hello small", 0.0, 0.9), _text_seg("captions", "world", 1.0, 0.5))
+    r = _cap_run(d)
+    row = [x for x in r["rows"] if x["check"] == "caption_words"]
+    assert len(row) == 1 and row[0]["status"] == "FAIL" and "big -> small" in row[0]["evidence"]
+    assert r["verdict"].startswith("FAIL")
+
+
+def test_captions_out_of_sync_fails():
+    d = _cap_dump(_text_seg("captions", "Hello big", 0.0, 0.9), _text_seg("captions", "world", 2.0, 0.5))
+    rows = [x for x in _cap_run(d)["rows"] if x["check"] == "caption_sync"]
+    assert len(rows) == 1 and rows[0]["status"] == "FAIL"
+
+
+def test_captions_dropped_words_are_open():
+    d = _cap_dump(_text_seg("captions", "Hello big world", 0.0, 1.5))
+    r = _cap_run(d, script=("Hello big world. Bye now.",))
+    row = [x for x in r["rows"] if x["check"] == "caption_words"]
+    assert len(row) == 1 and row[0]["status"] == "OPEN" and "bye" in row[0]["evidence"].lower()
+    assert r["verdict"] == "PASS"
+
+
+def test_captions_band_and_gaps():
+    d = _cap_dump(_text_seg("captions", "Hello big", 0.0, 0.9, y=0.0), _text_seg("captions", "world", 1.0, 0.5, y=0.0))
+    assert [x["status"] for x in _cap_run(d)["rows"] if x["check"] == "caption_band"] == ["FAIL"]
+    assert not [x for x in _cap_run(d, limits={"caption_band_px": 1000})["rows"] if x["check"] == "caption_band"]
+    gappy = [{"word": w, "start": s, "end": e} for w, s, e in [("hello", 1.0, 1.4), ("big", 2.5, 2.9), ("world", 3.0, 3.5)]]
+    d = _cap_dump(_text_seg("captions", "Hello", 0.0, 0.4), _text_seg("captions", "world", 2.0, 0.5))
+    gaps = [x for x in _cap_run(d, words=gappy)["rows"] if x["check"] == "caption_gaps"]
+    assert len(gaps) == 1 and gaps[0]["status"] == "OPEN"

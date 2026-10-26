@@ -7,11 +7,15 @@ CLI (prints JSON {"rows": [...], "passed": N, "verdict": ...}; exit code 1 on a 
                          SFX repeats, music level, duration, canvas, captions, unknown sources.
                          --changed limits present/extras/overlay_on_cut/reuse to those clips (numbers) and
                          overlays (ovN) and their neighbours, and prefixes the verdict with DELTA
+    captions <plan.json> "<project>" "<timeline>" [--script s.txt] [--timings vo.json] [--limits limits.json] [--search dir ...]
+                         Claude's `captions` text track against the script and the timeline's live VO: caption_words,
+                         caption_sync, caption_band, caption_gaps (--script / --timings default to the plan's captions.*)
     prompts <prompts2.json> [--script script.txt] [--timings t.json]
                          plan_tools.check_prompts, as the same row format
 Rows are FAIL (counts toward the verdict) or OPEN (for the user to look at). `passed` counts the checks that ran
 and produced no rows.
 """
+import difflib
 import json
 import re
 import sys
@@ -34,7 +38,10 @@ DELTA_CHECKS = {"present", "extras", "overlay_on_cut", "reuse", "vo_span"}
 ALL_CHECKS = ["present", "extras", "tracks_volumes", "vo_span", "rotation", "layout", "overlay_on_cut", "reuse",
               "dead_stretch", "talking_head_5s", "sfx_repeat", "music_level", "duration", "canvas", "captions",
               "unknown_source"]
-OPEN_CHECKS = {"rotation", "dead_stretch", "music_level"}   # advisory: the user looks, the verdict ignores them
+OPEN_CHECKS = {"rotation", "dead_stretch", "music_level", "temp_en", "caption_gaps"}   # advisory: the user looks, the verdict ignores them
+TEMP_EN_TRACK = "TEMP_EN_delete_me"   # build_project's temporary English review track
+CAPTIONS_TRACK = "captions"           # build_project's step-10 caption track
+GAP_S = 0.5
 B_ROLL_TRACKS = {"video_top", "video_bottom", "video_overlay"}
 
 
@@ -137,6 +144,80 @@ def _match_overlays(overlays: list[dict], segs: list[dict]) -> dict[int, dict]:
             used.add(j)
             out[i] = segs[j]
     return out
+
+
+def _words_of(text) -> list[str]:
+    """Comparable tokens: case-folded, punctuation dropped."""
+    return [w for w in re.sub(r"[^\w\s]|_", "", str(text or "").casefold()).split() if w]
+
+
+def check_captions(plan: dict, project: Path, timeline: str, script_lines: list[str], words: list[dict],
+                   limits: dict | None = None, segments_fn=None, search=(), vo_track: str | None = None) -> dict:
+    """Claude's `captions` track on one timeline against the script words that survive the timeline's live VO."""
+    import captions as cap
+    segments_fn = segments_fn or cp.segments
+    limits = limits or {}
+    out = _Rows()
+    names = [tl["name"] for tl in plan.get("timelines", [])]
+    if timeline not in names:
+        raise ValueError(f"unknown timeline {timeline!r}; the plan has {names}")
+    dump = segments_fn(project, timeline, list(search))
+    caps = sorted((s for s in dump.get("segments", []) if _kind(s) == "text" and s["track"] == CAPTIONS_TRACK),
+                  key=lambda s: s["at"])
+    tl = next(t for t in plan["timelines"] if t["name"] == timeline)
+    kept, dropped = cap.to_timeline(cap.script_words(words, script_lines), dump, vo_in=tl.get("vo_in", 0.0), vo_track=vo_track)
+    want = [t for w in kept for t in _words_of(w["word"])]
+    got = [t for s in caps for t in _words_of(s.get("text"))]
+    add = lambda check, ev, fix, status=None: out.add(check, ev, fix, timeline, status)   # noqa: E731
+
+    if not caps:
+        add("caption_words", f"no text on the '{CAPTIONS_TRACK}' track", "run build_project.py captions for this timeline")
+    elif got != want:
+        sm = difflib.SequenceMatcher(a=want, b=got, autojunk=False)
+        diffs = [f"{' '.join(want[a0:a1]) or '-'} -> {' '.join(got[b0:b1]) or '-'}"
+                 for op, a0, a1, b0, b1 in sm.get_opcodes() if op != "equal"]
+        add("caption_words", f"captions differ from the script (script -> caption): {'; '.join(diffs[:6])}",
+            "rerun build_project.py captions, or fix the caption text to the script")
+    if dropped:
+        listed = ", ".join(repr(w["word"]) for w in dropped[:12])
+        add("caption_words", f"{len(dropped)} script word(s) not in the timeline's VO, so not captioned: {listed}",
+            "check these words are meant to be cut", status="OPEN")
+
+    # sync: walk the captions over the kept words in order; a caption starts with its first word and lasts to its last
+    i = 0
+    for s in caps:
+        take, cnt, n = [], 0, len(_words_of(s.get("text")))
+        while cnt < n and i < len(kept):
+            take.append(kept[i])
+            cnt += len(_words_of(kept[i]["word"])) or 1
+            i += 1
+        if not take:
+            break
+        t0, t1 = take[0]["start"], take[-1]["end"]
+        if abs(s["at"] - t0) > TOL or s["at"] + s["duration"] < t1 - TOL:
+            add("caption_sync", f"caption {str(s.get('text'))[:30]!r} runs {to_sf(s['at'])}-{to_sf(s['at'] + s['duration'])} "
+                f"but its words are spoken {to_sf(t0)}-{to_sf(t1)}", "retime the caption to its words (rerun build_project.py captions)")
+
+    # band: the bottom `caption_band_px` of the canvas (y in half-canvas units, -1 = bottom edge)
+    top = -1 + 2 * float(limits.get("caption_band_px", 400)) / pt.canvas(plan)[1]
+    for s in caps:
+        y = (s.get("transform") or {}).get("y", 0.0)
+        if not -1 - 1e-6 <= y <= top + 1e-6:
+            add("caption_band", f"caption {str(s.get('text'))[:30]!r} at y={y:g} is outside the bottom band (y from -1 to {top:.2f})",
+                "move the captions into the bottom band (captions_style transform_y)")
+            break
+
+    # gaps: speech with no caption over it for more than GAP_S
+    edges = [(0.0, 0.0)] + [(s["at"], s["at"] + s["duration"]) for s in caps] + [(1e9, 1e9)]
+    for (_, gap0), (gap1, _) in zip(edges, edges[1:]):
+        if gap1 - gap0 > GAP_S:
+            spoken = [w for w in kept if w["start"] >= gap0 - 1e-6 and w["end"] <= gap1 + 1e-6]
+            if spoken:
+                add("caption_gaps", f"no caption {to_sf(gap0)}-{to_sf(spoken[-1]['end'])} while "
+                    f"{' '.join(w['word'] for w in spoken[:6])!r} is spoken", "caption the missing words", status="OPEN")
+    fails = [r for r in out.rows if r["status"] == "FAIL"]
+    return {"rows": out.rows, "passed": 4 - len({r["check"] for r in out.rows}),
+            "verdict": f"FAIL ({len(fails)} issues)" if fails else "PASS"}
 
 
 def check_build(plan: dict, project: Path, timelines: list[str] | None = None, changed: list[str] | None = None,
@@ -384,9 +465,12 @@ def check_build(plan: dict, project: Path, timelines: list[str] | None = None, c
 
         if "captions" in ran:
             for s in by_kind["text"]:
-                if re.search(r"caption|subtitle", str(s["track"]), re.I):
+                if s["track"] != TEMP_EN_TRACK and re.search(r"caption|subtitle", str(s["track"]), re.I):
                     add("captions", f"text on track '{s['track']}' at {to_sf(s['at'])}: {str(s.get('text'))[:40]!r}",
                         "delete the caption track; the user adds captions in CapCut")
+            if any(s["track"] == TEMP_EN_TRACK for s in by_kind["text"]):
+                add("temp_en", "TEMP_EN present (delete before export)",
+                    f"delete the {TEMP_EN_TRACK} track in CapCut before the export", status="OPEN")
 
     if "canvas" in ran:
         # the brief's ratio (limits.json `ratio`, or an explicit `canvas`), else the 9:16 default
@@ -449,6 +533,27 @@ def main(argv: list[str]) -> None:
         try:
             res = check_build(load(args[0]), Path(args[1]), csv("--timelines"), csv("--changed"),
                               load(opt("--limits")) if opt("--limits") else None, search=search)
+        except ValueError as e:
+            raise SystemExit(f"qa_check: {e}")
+    elif cmd == "captions":
+        if len(args) < 3:
+            raise SystemExit(__doc__)
+        plan = load(args[0])
+        c = plan.get("captions") or {}
+        script, timings = opt("--script") or c.get("script"), opt("--timings") or c.get("timings")
+        if not script or not timings:
+            raise SystemExit("qa_check: captions needs --script and --timings (or the plan's captions.script / captions.timings)")
+        import captions as cap
+        search = []
+        for i, a in enumerate(args):
+            if a == "--search":
+                for x in args[i + 1:]:
+                    if x.startswith("--"):
+                        break
+                    search.append(x)
+        try:
+            res = check_captions(plan, Path(args[1]), args[2], cap._lines(script), json.loads(cap._read(timings)).get("words", []),
+                                 load(opt("--limits")) if opt("--limits") else None, search=search)
         except ValueError as e:
             raise SystemExit(f"qa_check: {e}")
     elif cmd == "prompts":
