@@ -37,8 +37,8 @@ client_broll_folder: <path or none>   (check that it exists before dispatching)
 inventory: {tmp}/reports/<job>/inv/inventory.json, or one inv_<subfolder>/inventory.json per shortlisted subfolder of a big library   (when client B-roll exists)
 revision: <requests + target timeline>      (review loop only)
 aroll_cuts: <keep.json path(s) from speech_cuts.py>   (talking-head A-roll only)
-script_lang: <es | de | en | tl | …>   script_en: {tmp}/reports/<job>/script_en.txt (one per VO file)   (TEMP_EN on: edit-plan writes plan2 `temp_en`)
-temp_en_removed: true   (only after the editor deleted TEMP_EN_delete_me: the plan keeps "temp_en_removed": true)
+script_lang: <es | de | en | fil | …> (media_timing / speech_cuts --lang: the code, but en for English and Filipino)   script_en: {tmp}/reports/<job>/script_en.txt (one per VO file)   (TEMP_EN on: edit-plan writes plan2 `temp_en`)
+temp_en_removed: true | [<timelines>]   (only after the editor deleted TEMP_EN_delete_me: everywhere → plan-wide "temp_en_removed": true; from some timelines → "temp_en_removed": true on those plan2 timelines)
 ```
 
 ## Dispatch template (editor)
@@ -46,7 +46,7 @@ temp_en_removed: true   (only after the editor deleted TEMP_EN_delete_me: the pl
 action: build | revise-new-timeline | revise-in-place | add-captions | add-music
 job: <Product, no spaces>   project: <Product>
 plan: {tmp}/reports/<job>/plan.json   (build, revise-new-timeline, add-captions (a revise-new-timeline timeline: its built plan copy); add-music: the built plan copy <base>/.edit-mo-to/built/<timeline>.plan.json)
-script_file: <that timeline's VO script lines>   timings: <that VO's media_timing vo JSON>   timelines: [<names>]   (add-captions only)
+script_file: <one VO file's script lines>   timings: <that VO's media_timing vo JSON>   timelines: [<the timelines that play that VO>]   (add-captions only; one dispatch per VO file, e.g. body timelines in one, each hook with its own VO in its own)
 temp_en_removed: true   (when the job card says "TEMP_EN removed")
 import_files: <every clip, VO, music, B-roll file the user gave for this video>   (build)
 timeline: <name>   new_timeline_name: <name>   (revisions)
@@ -62,7 +62,8 @@ gate: script | prompts | build | captions
 style: <style>   client: <client>   job: <Product, no spaces>
 pack / brief_checklist / script / script_file / timings_compact / timings / limits: <as above>
 prompts: <prompts2.json + prompts.txt paths>          (prompts gate)
-plan: <plan.json path; a revise-new-timeline timeline: its built plan copy <base>/.edit-mo-to/built/<new name>.plan.json>   project: {capcut_drafts}/<Product>   timelines: <names>   client_folder: <path>   (build gate)
+plan: <plan.json path; a revise-new-timeline timeline: its built plan copy <base>/.edit-mo-to/built/<new name>.plan.json>   project: {capcut_drafts}/<Product>   timelines: <names>   client_folder: <path>   (build and captions gates)
+script_file: <that timeline's VO script lines>   timings: <that VO's media_timing vo JSON>   (captions gate; the same pair the editor's add-captions used)
 qa_check: {tmp}/reports/<job>/qa_check.json   (build gate, when the skill ran qa_check.py; captions gate: the editor's qa_captions_<timeline>.json)
 script_lang: <code>   script_en: <path>   (TEMP_EN on)
 scope: full | delta   changed: <clip #s per timeline, ovN / prompt ids / ops since the last QA>   (delta after a small fix)

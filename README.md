@@ -20,7 +20,7 @@ You don't need to know any code. Claude installs everything else for you and ask
 
 ## How a video gets made
 
-Orange steps are yours; blue steps are Claude's. Claude **stops and waits** at every step that needs your answer, and nothing moves on until you reply.
+Orange steps are yours; blue steps are Claude's; green steps are either, your choice. Claude **stops and waits** at every step that needs your answer, and nothing moves on until you reply.
 
 ```mermaid
 flowchart TD
@@ -36,13 +36,14 @@ flowchart TD
     Q -->|fails| G
     Q -->|passes| H["8–9 · You review in CapCut<br/>ask for changes, or edit it yourself"]:::you
     H -->|changes| G
-    H --> I["10 · Captions: you (CapCut auto-caption)<br/>or Claude (script-exact text captions)"]:::you
+    H --> I["10 · Captions: you (CapCut auto-caption)<br/>or Claude (script-exact text captions)"]:::either
     I --> J["11 · Music"]:::claude
     J --> K["12 · You export"]:::you
     K --> L["Learning · Claude studies what you said<br/>and what you changed by hand"]:::claude
     L -.->|"saves new rules with your OK:<br/>next video is closer to your style"| A
     classDef you fill:#ffd8a8,stroke:#e8590c,color:#1a1a1a
     classDef claude fill:#d0ebff,stroke:#1c7ed6,color:#1a1a1a
+    classDef either fill:#d3f9d8,stroke:#2f9e44,color:#1a1a1a
 ```
 
 ## Step 1 · Install (one copy-paste)
