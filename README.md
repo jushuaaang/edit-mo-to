@@ -36,7 +36,7 @@ flowchart TD
     Q -->|fails| G
     Q -->|passes| H["8–9 · You review in CapCut<br/>ask for changes, or edit it yourself"]:::you
     H -->|changes| G
-    H --> I["10 · You add captions<br/>(CapCut auto-caption)"]:::you
+    H --> I["10 · Captions: you (CapCut auto-caption)<br/>or Claude (script-exact text captions)"]:::you
     I --> J["11 · Music"]:::claude
     J --> K["12 · You export"]:::you
     K --> L["Learning · Claude studies what you said<br/>and what you changed by hand"]:::claude
@@ -96,7 +96,7 @@ Type **`/practice-muna`** and send the clip. Every stop shows a suggested answer
 4. Answer each stop. Tip: put what you already know in your first message (B-roll source, AI tool, voiceover file), and Claude skips those questions.
 5. When the script is ready, Claude asks **"Storyboard first?"** Say yes for a new client or an AI-heavy ad: you see every shot and graphic before any video is generated.
 6. When the project is built, **quit CapCut completely** before asking for changes (CapCut overwrites projects when it closes). Then review it, and ask for changes or edit it yourself.
-7. Add captions with CapCut's auto-caption, pick the music, and export.
+7. Captions: run CapCut's auto-caption yourself, or let Claude add simple text captions (the script's exact words, a pop-in; for an animated look use CapCut's caption presets). Then pick the music, and export. A script that is not English or Filipino carries a temporary English track, `TEMP_EN_delete_me`, so you can follow it while reviewing: delete it before export.
 
 ### What a stop looks like
 
@@ -174,7 +174,7 @@ Claude plans have a usage limit that resets every 5 hours. One measured example 
 | `.claude/edit-mo-to/clients/` | per-client notes |
 | `.claude/edit-mo-to/style-agent-contract.md` | edit-plan format shared by the agents |
 | `.claude/edit-mo-to/motion/` | 40+ HyperFrames motion templates (incl. receipt printer, odometer, live markup, comment CTA, eyedropper palette, film strip), `CATALOGUE.md`, `sfx/` (19 Pixabay-licence sounds), `sfx_defaults.json` |
-| `.claude/edit-mo-to/tools/` (fast path) | `plan_tools.py` (compact plans and prompts: expand, check, prompt text, revision patch ops), `build_project.py` (whole CapCut project in one run, music drafts), `qa_check.py` (mechanical build and prompt QA), `sheets.py` (tiled frame sheets, B-roll inventory), `context_pack.py` (only the rules one agent needs), `learn.py` (learning step: new rules only, declined ones remembered), `plan_common.py` (shared plan helpers) |
+| `.claude/edit-mo-to/tools/` (fast path) | `plan_tools.py` (compact plans and prompts: expand, check, prompt text, revision patch ops), `build_project.py` (whole CapCut project in one run, temporary English track, music drafts, step-10 captions), `captions.py` (caption chunks from the script and VO word timings, temporary English rows), `qa_check.py` (mechanical build, caption and prompt QA), `sheets.py` (tiled frame sheets, B-roll inventory), `context_pack.py` (only the rules one agent needs), `learn.py` (learning step: new rules only, declined ones remembered), `plan_common.py` (shared plan helpers) |
 | `.claude/edit-mo-to/tools/` | `capcut_project.py` (CapCut projects), `media_timing.py` (word timings, beats), `speech_cuts.py` (dead-air and mistake cuts, from Herk Edit Kit, MIT), `storyboard.py` (storyboard page), `qc_clips.py` (batch QC of generated clips), `motion_render.py` (motion graphics, speaker cutout), `plan_build.py` / `plan_preview.py` (frame plans, checks, preview), `edit_diff.py` (learns from hand edits), `rehearse.py` (`/practice-muna` jobs), `playbook_scan.py` (Playbook folder scans), `machine.py` (per-computer paths) + tests |
 | `.claude/edit-mo-to/setup/capcut-start.mjs` | launcher that auto-starts the CapCut backend for the MCP server |
 | `docs/` | design doc and build plan |

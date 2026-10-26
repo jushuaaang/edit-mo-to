@@ -13,10 +13,11 @@
 - `client_broll_folder` (if any); `inventory`: `{tmp}/reports/<job>/inv/inventory.json`, or one `inv_<subfolder>/inventory.json` per subfolder the main session shortlisted in a big library (every clip's path, duration, fps, width, height, rotation and 6-frame strip, plus contact sheets), when client clips exist; `clips`: older inline inventory (path, duration, fps)
 - `limits`: `{tmp}/reports/<job>/limits.json` (`min_s`, `max_s`, `caption_band_px`, `no_text`, only the keys the brief fixes), when given
 - `revision`: change requests + target timeline (edit-plan only, optional)
+- `script_lang`, `script_en` (TEMP_EN on: the script is not English or Filipino): the literal English lines, one per script line (one file per VO file); `temp_en_removed: true` once the editor deleted the temporary track (edit-plan only)
 - `aroll_cuts`: path(s) to `speech_cuts.py` `keep.json` files (talking-head A-roll with its own audio, optional). Its `segs` are that clip's A-roll in order: one plan clip each (same file, `src_in`/`src_out`/`at`, not muted), already back to back and frame-exact. Never re-cut inside them. Its re-timed `words`/`lines` are the timing for everything over that A-roll (B-roll, overlays, punch-ins).
 
 ## Before you write anything
-1. Read the one file `pack` names (`{tmp}/reports/<job>/pack_<style>.md`): General, your style's section, the generator's section and "Known generation failures" from `preferences.md` (shared starter rules), then the same from `my-preferences.md` (this editor's own rules; **they win on conflict**), then the client file. Follow them. Don't read `preferences.md` or `my-preferences.md` yourself. No `pack` in the dispatch: read those files as the pack would (the sections above).
+1. Read the one file `pack` names (`{tmp}/reports/<job>/pack_<style>.md`): General, your style's section, the generator's section and "Known generation failures" from `preferences.md` (shared starter rules) plus "Editing in CapCut" and "Captions", then the same from `my-preferences.md` (this editor's own rules; **they win on conflict**), then the client file. Follow them. Don't read `preferences.md` or `my-preferences.md` yourself. No `pack` in the dispatch: read those files as the pack would (the sections above).
 2. Read the client file only if the pack has no Client section (and a client file exists).
 3. If a brief rule conflicts with a preference, **the brief wins** (over the pack too); say so in Notes.
 4. If the dispatch names `inventory`, use its clips and strips; never ffprobe or render strips for clips already in it.
@@ -25,7 +26,7 @@
 - 9:16 (1080×1920), 30 fps unless the brief says otherwise. Times shown to the user are `seconds:frames` (`7:12`); past 60s, `m:ss:ff`.
 - Every AI clip's length = the VO span it covers (from `vo_timings`); dialogue quoted word for word with in/out times.
 - Never use a clip twice in a timeline, and don't reuse hook clips across hooks.
-- No captions or subtitles in prompts or plans. Motion graphics go in the plan's `overlays` (below), only if the brief or style calls for them or they add engagement without adding claims.
+- No captions or subtitles in prompts or plans (captions are step 10's choice; the plan only carries `temp_en` for the temporary English review track and `captions_style` for the look, below). Motion graphics go in the plan's `overlays` (below), only if the brief or style calls for them or they add engagement without adding claims.
 - Every AI prompt carries the applicable lock lines (realism / product / no-text / voice / look / style bible) in full. In `prompts2.json` you write each lock once in `locks` and list it per prompt; `plan_tools.py prompts` writes it out in full in every prompt. Never "same as above", never a shortened lock.
 - Absolute Windows paths with the full folder address. Check every given path exists; if `client_broll_folder` is missing, look inside `video_folder` (e.g. `{root}/<client>/…`), use what you find, and say so in Notes.
 - **Cataloguing client clips** (libraries can hold 900+ files):
@@ -101,6 +102,9 @@ Write `{tmp}/reports/<job>/plan2.json` (the compact frame plan), expand it, chec
 - **Text row** (plain CapCut text, `texts` in a `seq` item or block, shifted like clips): `[text, at_f, len_f, style]` or with a 5th `opts` (`bg` box colour, else the brand accent; `font`). `style` ∈ `badge` | `word` | `cta` (the editor's presets).
 - Files are relative to `base` (absolute allowed). Every time is a **whole frame** at 30 fps. Rows in a `use` are shifted by its `at_f`; rows in a plain `seq` item are timeline frames.
 - `vo` and `music` (`{"file", "volume"}` or null) apply to every timeline; a timeline's own `vo` / `music` (same shape, or null) overrides them, so hooks recorded as separate VO files stay in one plan2.
+- **`temp_en`** (only when the dispatch gives `script_en`): top level `{"english": "<script_en.txt>", "timings": "<timings.json>"}` (paths relative to `base` or absolute). The build adds one temporary English row per script line, over that line's VO span, on a `TEMP_EN_delete_me` text track at the top of the frame, above every other text track, on every timeline with a VO. A timeline with its own `vo` gets its own `temp_en` (that VO's English file and timings) or `"temp_en": null` (none on that timeline); `check` errors when it has neither. The English file needs one line per line of the timings' `lines`.
+- **`temp_en_removed: true`** (when the dispatch says so): the editor deleted the track; keep `temp_en` as it is and no build or new timeline adds it back.
+- **`captions_style`** (optional): a dict of VectCutAPI text keys that override the step-10 caption preset (bold `Poppins_Bold`, white, black stroke, shadow, bottom band, pop-in), e.g. `{"font_size": 11, "font_color": "#FFE600"}`. Set it only when the pack's Captions section (the editor's or the client's) or the brief asks for a different look.
 
 Then run:
 1. `"{python}" "{root}/.claude/edit-mo-to/tools/plan_tools.py" expand "{tmp}/reports/<job>/plan2.json" --out "{tmp}/reports/<job>/plan.json" --table "{tmp}/reports/<job>/plan_table.txt"`
@@ -128,11 +132,11 @@ Rules for the plan's content:
 - `manual`: anything the tools can't do (mirroring, effects not in the list); the editor passes it to the user.
 
 ### The contract plan (`plan.json`, written by `expand`; build and QA read it)
-`project`, `fps`, `width`, `height`, `base`, `brand`, and `timelines[]` with `name`, `vo` (abs path or null), `vo_in`/`vo_out` (source seconds in the VO file), `vo_volume`, `music`, `music_volume`, `clips[]`, `overlays[]`, `effects[]` (when any), `texts[]`, `manual[]`.
+`project`, `fps`, `width`, `height`, `base`, `brand`, `temp_en` (`english`, `timings`, `vo`; absolute paths), `temp_en_removed`, `captions_style` (when plan2 has them; `captions` `{script, timings}`, the default `--script`/`--timings` of `build_project.py captions` and `qa_check.py captions`, is not written by `expand`), and `timelines[]` with `name`, a timeline's own `temp_en` (or null), `vo` (abs path or null), `vo_in`/`vo_out` (source seconds in the VO file), `vo_volume`, `music`, `music_volume`, `clips[]`, `overlays[]`, `effects[]` (when any), `texts[]`, `manual[]`.
 - clip: `file` (abs), `src_in`, `src_out`, `at`, `duration` (seconds, exact n/30 with 10 decimals; `duration` = `len_f`/30, the timeline length), `speed`, `track` (`video_main` | `video_top` | `video_bottom` | `video_overlay`), `x`, `y`, `scale`, `transition`, `effect`, `mute`, plus any opts given (`line`, `layout`, `gain_db`, `volume`, `allow_scale`, `shared`, …), `transition_duration`, `keyframes` (`[{t, scale, x, y}]`) and `block` (the shared block it came from). Timeline length = `duration` (every tool reads it; `src_out` is `src_in + duration × speed` rounded to a frame, so for some slow clips `(src_out - src_in)/speed` is a frame off; only a clip without `duration`, from an older plan, falls back to it).
 - overlay: `template`, `vars`, `at`, `duration`, `track`, `sfx`, plus its opts (`cutout`, `on`, `why`, `snap`) and `block`.
 - effect: `name`, `at`, `duration`.
-- text: `text`, `at`, `duration`, `style` (`badge` | `word` | `cta`), plus its opts (`bg`, `font`) and `block`. Never a caption.
+- text: `text`, `at`, `duration`, `style` (`badge` | `word` | `cta`), plus its opts (`bg`, `font`) and `block`. Never a caption (`check` errors on a text with `role: caption`).
 
 ## Hand-back (all style agents)
 - `prompts` and `edit-plan` modes: final message ≤ 20 lines: the paths (`prompts2.json` + `prompts.txt`, or `plan2.json` + `plan.json` + `plan_table.txt`), the last `check` / `check-prompts` output, decisions for the user, brief rules that could not be met (with the exact fix). No tables and no prompts in the message: the main session shows `prompts.txt` and `plan_table.txt` (and pastes every prompt in chat in full).

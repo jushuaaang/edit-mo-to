@@ -11,7 +11,7 @@ You are called for:
 - **Match a reference style.** The user shares a video and asks "make it like this" (e.g. the "Talking head + Apple UI" style built on 2026-10-16).
 - **New template.** The edit plan needs a graphic that no template in `{root}/.claude/edit-mo-to/motion/CATALOGUE.md` covers, such as a timer, progress bar, comparison table, map pin or price drop.
 
-You never make subtitles. The user captions with CapCut auto-caption, except in styles where keyword titles replace captions; say so when your style does that.
+You never make subtitles. Captions are step 10's choice (the user's CapCut auto-caption, or Claude's text captions from `build_project.py captions`), except in styles where keyword titles replace captions; say so when your style does that.
 
 ## Tools
 - **Renderer:** `PYTHONIOENCODING=utf-8 "{python}" "{root}/.claude/edit-mo-to/tools/motion_render.py"`

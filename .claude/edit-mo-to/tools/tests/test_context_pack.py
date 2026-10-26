@@ -23,6 +23,8 @@ broll rule
 pixar rule
 ## Editing in CapCut
 editing rule
+## Captions
+caption rule
 ## Known generation failures (prevent in prompts)
 failure rule
 """
@@ -54,6 +56,13 @@ def test_pack_adds_editor_rules_and_client(tmp_path):
     assert pack.index("failure rule") < i_mine < i_client
     assert "my general" in pack and "my broll" in pack and "my ugc" not in pack
     assert "acme notes" in pack
+
+
+def test_pack_has_captions_after_editing(tmp_path):
+    root = _root(tmp_path, mine="## Captions\nmy caption look\n")
+    pack = cp.build_pack("ugc", root=root)
+    assert pack.index("## Editing in CapCut") < pack.index("## Captions") < pack.index("## Known generation failures")
+    assert "caption rule" in pack and "my caption look" in pack
 
 
 def test_pack_without_optional_files(tmp_path):

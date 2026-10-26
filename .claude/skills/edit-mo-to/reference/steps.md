@@ -37,13 +37,17 @@ client_broll_folder: <path or none>   (check that it exists before dispatching)
 inventory: {tmp}/reports/<job>/inv/inventory.json, or one inv_<subfolder>/inventory.json per shortlisted subfolder of a big library   (when client B-roll exists)
 revision: <requests + target timeline>      (review loop only)
 aroll_cuts: <keep.json path(s) from speech_cuts.py>   (talking-head A-roll only)
+script_lang: <es | de | en | tl | …>   script_en: {tmp}/reports/<job>/script_en.txt (one per VO file)   (TEMP_EN on: edit-plan writes plan2 `temp_en`)
+temp_en_removed: true   (only after the editor deleted TEMP_EN_delete_me: the plan keeps "temp_en_removed": true)
 ```
 
 ## Dispatch template (editor)
 ```
-action: build | revise-new-timeline | revise-in-place | add-music
+action: build | revise-new-timeline | revise-in-place | add-captions | add-music
 job: <Product, no spaces>   project: <Product>
-plan: {tmp}/reports/<job>/plan.json   (build, revise-new-timeline; add-music: the built plan copy <base>/.edit-mo-to/built/<timeline>.plan.json)
+plan: {tmp}/reports/<job>/plan.json   (build, revise-new-timeline, add-captions (a revise-new-timeline timeline: its built plan copy); add-music: the built plan copy <base>/.edit-mo-to/built/<timeline>.plan.json)
+script_file: <that timeline's VO script lines>   timings: <that VO's media_timing vo JSON>   timelines: [<names>]   (add-captions only)
+temp_en_removed: true   (when the job card says "TEMP_EN removed")
 import_files: <every clip, VO, music, B-roll file the user gave for this video>   (build)
 timeline: <name>   new_timeline_name: <name>   (revisions)
 old_plan: <base>/.edit-mo-to/built/<timeline>.plan.json   new_plan: {tmp}/reports/<job>/plan.json (re-expanded)   (revise-in-place)
@@ -54,12 +58,13 @@ client: <client>   video: <video name>   (for the hand-edit log)
 
 ## Dispatch template (qa)
 ```
-gate: script | prompts | build
+gate: script | prompts | build | captions
 style: <style>   client: <client>   job: <Product, no spaces>
 pack / brief_checklist / script / script_file / timings_compact / timings / limits: <as above>
 prompts: <prompts2.json + prompts.txt paths>          (prompts gate)
 plan: <plan.json path; a revise-new-timeline timeline: its built plan copy <base>/.edit-mo-to/built/<new name>.plan.json>   project: {capcut_drafts}/<Product>   timelines: <names>   client_folder: <path>   (build gate)
-qa_check: {tmp}/reports/<job>/qa_check.json   (build gate, when the skill ran qa_check.py)
+qa_check: {tmp}/reports/<job>/qa_check.json   (build gate, when the skill ran qa_check.py; captions gate: the editor's qa_captions_<timeline>.json)
+script_lang: <code>   script_en: <path>   (TEMP_EN on)
 scope: full | delta   changed: <clip #s per timeline, ovN / prompt ids / ops since the last QA>   (delta after a small fix)
 ```
 
@@ -77,7 +82,7 @@ scope: full | delta   changed: <clip #s per timeline, ovN / prompt ids / ops sin
 - Clips ready: "Tell me when all the clips are generated and in <folder>."
 - Review: "Which timeline is this change for? And should I make a new timeline for it, or work directly in that timeline (I'll back it up first)?"
 - Quit CapCut: "Please quit CapCut completely before I write to the project, and tell me when it's closed."
-- Captions: "Run auto-caption in CapCut and tell me when it's done."
+- Captions: "Captions: will you run CapCut auto-caption yourself, or should I add them? (Mine are simple text captions with the script's exact words and a pop-in; no word-by-word animation. For an animated look, use CapCut's caption presets.)" If they run it: "Run auto-caption in CapCut and tell me when it's done." If I add them: "Which timeline(s)? And please quit CapCut completely before I write to the project, and tell me when it's closed."
 - Music: "Do you want a Suno prompt from me, or will you find no-copyright YouTube music?"
 
 ## Revision requests

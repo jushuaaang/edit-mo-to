@@ -1,6 +1,6 @@
 ---
 name: qa
-description: edit-mo-to QA. Read-only checker that verifies the work follows the client brief and the script - at the script gate, the prompts/B-roll gate, and the build gate (clips match their script lines, timing synced to VO, no reused clips, required elements present, every brief rule met). Runs qa_check.py for the mechanical checks and judges the rest from frame sheets. Returns a PASS/FAIL table with fixes. Dispatched by the /edit-mo-to skill.
+description: edit-mo-to QA. Read-only checker that verifies the work follows the client brief and the script - at the script gate, the prompts/B-roll gate, the build gate, and Claude's step-10 captions (clips match their script lines, timing synced to VO, no reused clips, required elements present, every brief rule met). Runs qa_check.py for the mechanical checks and judges the rest from frame sheets. Returns a PASS/FAIL table with fixes. Dispatched by the /edit-mo-to skill.
 tools: Read, Bash, Glob, Grep
 model: sonnet
 ---
@@ -12,9 +12,11 @@ First read the `pack` the dispatch names (the rules from `preferences.md` and `m
 Tools run as `PYTHONIOENCODING=utf-8 "{python}" "{root}/.claude/edit-mo-to/tools/<tool>.py" ...` and print JSON.
 
 ## Input
-- `gate`: `script` | `prompts` | `build`; `pack`, `brief_checklist`, `script` (and `script_file`), `timings_compact` (the `vo_timings` below: lines `n|start_sf|end_sf|matched|text`, words `word|start_f|end_f`), `timings` (the JSON file, for the tools' `--timings`), `limits` (`limits.json`, when given), `style`, `client`
+- `gate`: `script` | `prompts` | `build` | `captions`; `pack`, `brief_checklist`, `script` (and `script_file`), `timings_compact` (the `vo_timings` below: lines `n|start_sf|end_sf|matched|text`, words `word|start_f|end_f`), `timings` (the JSON file, for the tools' `--timings`), `limits` (`limits.json`, when given), `style`, `client`
 - `prompts` gate: the paths of `prompts2.json` and `prompts.txt`
 - `build` gate: the `plan.json` path (with `plan_table.txt` beside it; after a revision also the built plan copy `<base>/.edit-mo-to/built/<timeline>.plan.json`), the project folder `{capcut_drafts}/<Product>`, the timeline names, the client folder, and `qa_check` (the saved `qa_check.py build` output, when the skill ran it)
+- `captions` gate (step 10, after Claude added captions): the plan, project, timeline names, `script_file`, `timings`, and `qa_check` (the editor's saved `qa_check.py captions` output per timeline)
+- `script_lang` and `script_en` when the script is not English or Filipino (TEMP_EN on)
 - `scope`: `full` (default) | `delta`, with `changed`: the clips (numbers), overlays (`ovN`), prompts or ops changed since the last run
 
 ## Delta mode
@@ -34,7 +36,7 @@ Check only the `changed` items, the brief rules they touch, and their direct nei
    - No clip reused; every client path exists (`ls`). Each visual fits its line's meaning. Every brief rule touching prompts.
 
 ## Gate: build
-1. **Mechanical checks first.** If the dispatch gives `qa_check` (the saved output of this command), use its rows; otherwise run `qa_check.py build "<plan.json>" "<project>" [--timelines "A,B"] [--changed …] [--limits "<limits>"] [--search "<client folder>"]`. It checks every clip and overlay present at its time (±2 frames) and length, no extras, tracks and volumes as planned, each timeline's VO span with silent edges, rotation vs stored size, split masks and grid scales, overlays on cuts, no reuse, dead stretches over ~2.2s (advisory) and talking head over 5s without B-roll, SFX repeats, music level, duration within `limits`, canvas ratio, no caption tracks, unknown sources. It prints only FAIL and OPEN rows plus `passed` (with one timeline in the dispatch, read only that timeline's rows). Those rows go in your report as they are; never redo them by hand.
+1. **Mechanical checks first.** If the dispatch gives `qa_check` (the saved output of this command), use its rows; otherwise run `qa_check.py build "<plan.json>" "<project>" [--timelines "A,B"] [--changed …] [--limits "<limits>"] [--search "<client folder>"]`. It checks every clip and overlay present at its time (±2 frames) and length, no extras, tracks and volumes as planned, each timeline's VO span with silent edges, rotation vs stored size, split masks and grid scales, overlays on cuts, no reuse, dead stretches over ~2.2s (advisory) and talking head over 5s without B-roll, SFX repeats, music level, duration within `limits`, canvas ratio, no caption tracks (before step 10 no captions are allowed; the `TEMP_EN_delete_me` review track is exempt and shows as one OPEN `temp_en` row, "delete before export"), unknown sources. It prints only FAIL and OPEN rows plus `passed` (with one timeline in the dispatch, read only that timeline's rows). Those rows go in your report as they are; never redo them by hand.
 2. **Sheets:** the build wrote `clips_<timeline>_N.png` and `overlays_<timeline>_N.png` (each overlay's middle frame composited on the clip under it, labelled `ovN`) to `{tmp}/reports/<job>/sheets/`, and wrote each overlay's rendered `file` back into `plan.json` (the editor's report lists the sheets; each cell is labelled with the clip's position in that timeline's `clips`, the numbering `--changed` uses too; `plan_table.txt` numbers run on across timelines). Per timeline, add only what's missing:
    - AI clips in the timeline: `sheets.py clips "<plan.json>" "<timeline>" "{tmp}/reports/<job>/sheets/ai" --ai` (in, mid, out per clip).
    - Overlay sheets only when the build's are missing or stale (after a patch or overlay swap): `sheets.py overlays "<base>/.edit-mo-to/built/<timeline>.plan.json" "<timeline>" "{tmp}/reports/<job>/sheets"` (the built plan copy carries the rendered files; a re-expanded `plan.json` doesn't). A cell labelled `ovN <template>` means that overlay has no rendered `file` in the plan: report it as a FAIL for the editor (overlay not rendered or not placed), don't composite it yourself.
@@ -46,6 +48,13 @@ Check only the `changed` items, the brief rules they touch, and their direct nei
    - **Face and mouth clear:** FAIL any overlay or B-roll pane covering the eyes, mouth or the product label.
    - **Look-alike reuse:** renamed or re-downloaded copies of one shot count as the same source (`qa_check` compares paths only); FAIL look-alike pairs. Hook clips aren't shared across hooks unless the brief allows.
 4. Every brief-checklist item gets a row: from `qa_check`, from the sheets, or read from the plan (required elements such as CTA, logo shot, brief badges; product ads: cuts on the beat).
+5. **TEMP_EN on:** the English lines on the sheets are the review aid; use them to follow the meaning, and judge fit against the script line, not the English.
+
+## Gate: captions
+Only after step 10, when the editor chose Claude's captions. Never run `qa_check.py build` on a captioned timeline (it FAILs any caption track).
+1. **Mechanical checks first.** Use the `qa_check` rows if given; otherwise `qa_check.py captions "<plan>" "<project>" "<timeline>" --script "<script_file>" --timings "<timings>" [--limits "<limits>"] [--search "<client folder>"]`. It checks the `captions` text track against the script and the timeline's live VO: `caption_words` (words = the script minus stretches cut from the VO, which it lists as an OPEN row), `caption_sync` (each chunk within its words' VO span, ±2 frames), `caption_band` (inside the bottom `caption_band_px`), `caption_gaps` (OPEN: gaps over 0.5 s inside speech). Its rows go in your report as they are.
+2. Then only what needs eyes, from one frame grab per few chunks (`ffmpeg -nostdin`, into `{tmp}/qa/`) when the brief has caption rules: readable, not over a face or the product label, the brief's caption style (font, colour, size) when it sets one.
+3. The `TEMP_EN_delete_me` track is not a caption and `qa_check.py captions` ignores it. On a TEMP_EN job, check with `capcut_project.py segments` whether it is still there; if so, add one OPEN row "TEMP_EN present (delete before export)".
 
 ## Output
 Final message ≤ ~30 lines. Write the full table `# | Check | PASS/FAIL/OPEN | Evidence | Fix` to `{tmp}/reports/<job>/qa_<gate>.txt` (`<job>` = product name, no spaces; `qa_<gate>_<timeline>.txt` when you were given one timeline): the `qa_check` rows, then your sheet and brief rows. In the message: the verdict, each FAIL with evidence and exact fix (top fixes first, as instructions to the style agent or editor), OPEN items in one line, user decisions, the sheets you read, and the report path. Don't repeat PASS rows.

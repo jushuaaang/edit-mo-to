@@ -50,7 +50,8 @@ def _build(style: str, client: str | None, generator: str | None, root: Path) ->
     wanted = ["General", "Prompts (all generators)"]
     if generator:
         wanted.append(GENERATORS[generator.lower()])
-    wanted += [STYLES[style.lower()], "Editing in CapCut", "Known generation failures"]
+    # Captions: the editor's caption look, which the plan's captions_style carries to step 10
+    wanted += [STYLES[style.lower()], "Editing in CapCut", "Captions", "Known generation failures"]
     names, parts = [], []
     for name, block in _pick(_sections((base / "preferences.md").read_text(encoding="utf-8")), wanted):
         names.append(name)

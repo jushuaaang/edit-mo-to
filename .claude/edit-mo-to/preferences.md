@@ -13,7 +13,7 @@ Proven defaults that every editor starts with. Agents read **General** plus thei
 - **Never reuse a clip**, hooks included.
 - **Engaging and varied:** every shot a different angle; near-identical shots are boring.
 - **Default 9:16**, 1080×1920, 30 fps project. Generated clips can be 24 fps, so watch frame counts.
-- **Never add captions**; the editor does them with CapCut auto-caption. All on-screen text goes in during the edit, never in the generation.
+- **Never add captions before step 10,** except the `TEMP_EN_delete_me` review track (temporary English lines for a script that is not English or Filipino); at step 10 the editor chooses: CapCut auto-caption, or Claude's text captions (see Captions). All on-screen text goes in during the edit, never in the generation.
 - **Save credits:** efficient clip lengths; suggest stock or client clips where they'd do.
 - **Explain creative choices** in 2–3 lines when a deliverable needs it.
 - **Brief hook instructions are literal:** find exactly what the brief describes, not a close-enough shot.
@@ -79,7 +79,16 @@ Proven defaults that every editor starts with. Agents read **General** plus thei
 - **Zoom-ins for emphasis only,** never two in a row.
 - **Import first, then edit:** the editor's files appear in the media panel under their real names.
 - **Mirroring is manual:** list clips that read backwards.
+- **Captions are step 10's choice:** the editor runs CapCut auto-caption, or Claude adds text captions on the reviewed timeline (look below). Until then the only text track Claude adds besides badges and CTAs is `TEMP_EN_delete_me`, which the editor deletes before export.
 - **The editor exports.**
+
+## Captions
+Starter look for Claude's step-10 captions (`build_project.py captions`, text track `captions`). The plan's `captions_style` overrides any of it (VectCutAPI text keys, e.g. `{"font": "Poppins_Bold", "font_size": 12, "transform_y": -0.62}`).
+- **Bold sans,** Poppins Bold (`Poppins_Bold`; it covers accents like á, ñ, ü), white, black stroke and a shadow, no box.
+- **Bottom band:** inside the bottom `caption_band_px` (400 px), clear of faces and the product label.
+- **2–4 words per chunk,** cut at punctuation and pauses first; no one-word orphan; a number stays with its unit.
+- **Pop-in** on each chunk (short pop-up intro); no word-by-word animation. For an animated look, the editor uses CapCut's caption presets on auto-caption.
+- **The script's exact words,** timed to the VO's word timings, never retyped by hand.
 
 ## Known generation failures (prevent in prompts)
 - **Label text drifts or garbles:** product lock + attach the real photo.
