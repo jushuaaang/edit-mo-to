@@ -1,7 +1,7 @@
 """Voiceover line timings and music beats, in CapCut seconds:frames.
 
 CLI (prints JSON):
-    vo <audio> [script.txt] [--fps 30]   word timestamps; with a script (one line per script line)
+    vo <audio> [script.txt] [--lang xx] [--fps 30]   word timestamps; with a script (one line per script line)
                                          returns each line's start/end/duration. Transcripts are
                                          cached in {tmp}/transcripts (--no-cache to redo)
     vo ... --compact                     same, as pipe text (lines n|start_sf|end_sf|matched|text, words
@@ -32,7 +32,7 @@ def to_sf(seconds: float, fps: int = 30) -> str:
 
 
 def _tokens(text: str) -> list[str]:
-    toks = re.findall(r"[a-z0-9']+", text.lower().replace("%", " percent"))
+    toks = re.findall(r"[^\W_]+(?:'[^\W_]+)?", text.lower().replace("%", " percent"))
     return [NUMBERS.get(t, t) for t in toks]
 
 
@@ -90,14 +90,15 @@ def _load_16k(audio: Path):
     return np.frombuffer(raw, np.int16).astype(np.float32) / 32768.0
 
 
-def _cache_path(audio: Path) -> Path:
+def _cache_path(audio: Path, lang: str = "en") -> Path:
     """One transcript per file version, keyed on path + size + mtime, under {tmp}/transcripts."""
     import hashlib
 
     from machine import TMP
 
     st = Path(audio).stat()
-    key = hashlib.sha1(f"{Path(audio).resolve()}|{st.st_size}|{st.st_mtime_ns}".encode()).hexdigest()[:16]
+    raw = f"{Path(audio).resolve()}|{st.st_size}|{st.st_mtime_ns}" + (f"_{lang}" if lang != "en" else "")  # English keys unchanged
+    key = hashlib.sha1(raw.encode()).hexdigest()[:16]
     return TMP / "transcripts" / f"{Path(audio).stem[:40]}_{key}.json"
 
 
@@ -110,17 +111,19 @@ def _cuda_count() -> int:
         return 0
 
 
-def _transcribe_faster_whisper(audio: Path) -> list[dict]:
+def _transcribe_faster_whisper(audio: Path, lang: str = "en") -> list[dict]:
     from faster_whisper import BatchedInferencePipeline, WhisperModel
 
     def run(device: str, compute: str) -> list[dict]:
-        model = WhisperModel("small.en", device=device, compute_type=compute)
+        # English keeps the english-only model; other languages need the multilingual one, told which language
+        model = WhisperModel("small.en" if lang == "en" else "small", device=device, compute_type=compute)
+        extra = {} if lang == "en" else {"language": lang}
         if device == "cpu":
             # the batched pipeline always applies VAD, which moves word starts (the cut points) by up to 5 frames,
             # for ~8% speed on a CPU: keep the plain call there
-            segments, _ = model.transcribe(_load_16k(audio), word_timestamps=True, vad_filter=False)
+            segments, _ = model.transcribe(_load_16k(audio), word_timestamps=True, vad_filter=False, **extra)
         else:
-            segments, _ = BatchedInferencePipeline(model).transcribe(_load_16k(audio), batch_size=8, word_timestamps=True)
+            segments, _ = BatchedInferencePipeline(model).transcribe(_load_16k(audio), batch_size=8, word_timestamps=True, **extra)
         return [{"word": w.word.strip(), "start": w.start, "end": w.end} for s in segments for w in s.words]
 
     device = PATHS.get("asr_device", "auto")  # "cpu" skips the CUDA attempt (and its failed model load) entirely
@@ -137,21 +140,22 @@ def _transcribe_faster_whisper(audio: Path) -> list[dict]:
     return run("cpu", "int8")
 
 
-def _transcribe_mlx(audio: Path) -> list[dict]:
+def _transcribe_mlx(audio: Path, lang: str = "en") -> list[dict]:
     import mlx_whisper
 
-    res = mlx_whisper.transcribe(str(audio), path_or_hf_repo="mlx-community/whisper-large-v3-turbo", word_timestamps=True)
+    res = mlx_whisper.transcribe(str(audio), path_or_hf_repo="mlx-community/whisper-large-v3-turbo", word_timestamps=True,
+                              language=lang)
     return [{"word": w["word"].strip(), "start": w["start"], "end": w["end"]}
             for s in res["segments"] for w in s.get("words", [])]
 
 
-def transcribe(audio: Path, cache: bool = True, backend: str | None = None) -> list[dict]:
+def transcribe(audio: Path, cache: bool = True, backend: str | None = None, lang: str = "en") -> list[dict]:
     """Word timings. Cached, so a clip is transcribed once per job (vo, speech_cuts, re-runs)."""
-    cached = _cache_path(audio) if cache else None
+    cached = _cache_path(audio, lang) if cache else None
     if cached and cached.exists():
         return json.loads(cached.read_text(encoding="utf-8"))
     backend = backend or PATHS.get("asr", "faster-whisper")
-    words = _transcribe_mlx(audio) if backend == "mlx" else _transcribe_faster_whisper(audio)
+    words = _transcribe_mlx(audio, lang) if backend == "mlx" else _transcribe_faster_whisper(audio, lang)
     if cached:
         cached.parent.mkdir(parents=True, exist_ok=True)
         cached.write_text(json.dumps(words, ensure_ascii=False), encoding="utf-8")
@@ -207,12 +211,17 @@ def main(argv: list[str]) -> None:
         i = argv.index("--fps")
         fps = int(argv[i + 1])
         argv = argv[:i] + argv[i + 2:]
+    lang = "en"
+    if "--lang" in argv:
+        i = argv.index("--lang")
+        lang = argv[i + 1]
+        argv = argv[:i] + argv[i + 2:]
     cache = "--no-cache" not in argv
     as_compact = "--compact" in argv
     argv = [a for a in argv if a not in ("--no-cache", "--compact")]
     cmd, args = argv[0], argv[1:]
     if cmd == "vo":
-        words = transcribe(Path(args[0]), cache)
+        words = transcribe(Path(args[0]), cache, lang=lang)
         lines = None
         if len(args) > 1:
             lines = [l.strip() for l in Path(args[1]).read_text(encoding="utf-8").splitlines() if l.strip()]

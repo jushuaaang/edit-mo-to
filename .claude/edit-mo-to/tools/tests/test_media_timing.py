@@ -177,8 +177,65 @@ def test_compact_cli_writes_utf8(tmp_path):
     script = tmp_path / "s.txt"
     script.write_text("Hi there — friend\n", encoding="utf-8")
     code = ("import sys; sys.path.insert(0, %r); import media_timing as mt\n"
-            "mt.transcribe = lambda p, cache=True: [{'word': 'Hi', 'start': 0.0, 'end': 0.3}]\n"
+            "mt.transcribe = lambda p, cache=True, lang='en': [{'word': 'Hi', 'start': 0.0, 'end': 0.3}]\n"
             "mt.main(['vo', 'x.mp3', %r, '--compact'])\n") % (str(Path(__file__).resolve().parents[1]), str(script))
     r = subprocess.run([sys.executable, "-c", code], capture_output=True, env={**__import__("os").environ, "PYTHONIOENCODING": "cp1252"})
     assert r.returncode == 0, r.stderr.decode("utf-8", "replace")
     assert "—" in r.stdout.decode("utf-8")
+
+
+def test_tokens_keep_accented_letters():
+    assert mt._tokens("¿Sabías que Größe?") == ["sabías", "que", "größe"]
+
+
+def test_english_cache_key_unchanged(tmp_path, monkeypatch):
+    import hashlib
+
+    import machine
+
+    monkeypatch.setattr(machine, "TMP", tmp_path)
+    p = tmp_path / "clip.wav"
+    p.write_bytes(b"abc")
+    st = p.stat()
+    key = hashlib.sha1(f"{p.resolve()}|{st.st_size}|{st.st_mtime_ns}".encode()).hexdigest()[:16]
+    assert mt._cache_path(p) == mt._cache_path(p, "en")
+    assert mt._cache_path(p).name == f"clip_{key}.json"
+
+
+def test_other_language_cache_key_differs(tmp_path, monkeypatch):
+    import machine
+
+    monkeypatch.setattr(machine, "TMP", tmp_path)
+    p = tmp_path / "clip.wav"
+    p.write_bytes(b"abc")
+    assert mt._cache_path(p, "es") != mt._cache_path(p, "en")
+
+
+def test_lang_picks_model_and_forces_language(tmp_path, monkeypatch):
+    import types
+
+    calls = []
+
+    class FakeModel:
+        def __init__(self, name, **kw):
+            calls.append(["model", name])
+
+        def transcribe(self, audio, **kw):
+            calls.append(["kwargs", kw])
+            return [], None
+
+    fake = types.SimpleNamespace(WhisperModel=FakeModel, BatchedInferencePipeline=lambda m: m)
+    monkeypatch.setitem(sys.modules, "faster_whisper", fake)
+    monkeypatch.setitem(mt.PATHS, "asr_device", "cpu")
+    monkeypatch.setattr(mt, "_load_16k", lambda a: None)
+    mt._transcribe_faster_whisper(tmp_path / "a.wav", "en")
+    assert calls[0] == ["model", "small.en"] and "language" not in calls[1][1]
+    calls.clear()
+    mt._transcribe_faster_whisper(tmp_path / "a.wav", "es")
+    assert calls[0] == ["model", "small"] and calls[1][1]["language"] == "es"
+
+
+def test_align_lines_matches_spanish_script():
+    words = [{"word": "¿Sabías", "start": 0, "end": .4}, {"word": "que", "start": .4, "end": .6}]
+    out = mt.align_lines(words, ["¿Sabías que"])
+    assert out[0]["matched"] is True
