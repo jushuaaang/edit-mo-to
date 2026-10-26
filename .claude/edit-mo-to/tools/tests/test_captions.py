@@ -94,9 +94,10 @@ def test_script_words_fill_missed_words_and_mark_lines():
     assert [w["word"] for w in out] == ["Hello", "big", "world.", "Bye", "now"]
     assert [w["line"] for w in out] == [0, 0, 0, 1, 1]
     assert out[1]["start"] >= out[0]["end"] - 1e-9 and out[1]["end"] <= out[2]["start"] + 1e-9
-    assert out[4]["start"] >= out[3]["end"] - 1e-9
-    # a script line end is a hard stop for the chunker
-    assert _texts(captions.chunk(out)) == ["Hello big world.", "Bye now"]
+    assert out[1].get("interpolated") and not out[0].get("interpolated")
+    assert out[4] == {"word": "now", "start": None, "end": None, "line": 1, "unmatched": True}
+    # a script line end is a hard stop for the chunker; unmatched words never reach it
+    assert _texts(captions.chunk(out)) == ["Hello big world.", "Bye"]
 
 
 def test_temp_en_rows_one_per_line():
@@ -219,3 +220,33 @@ def test_script_words_number_spans_both_asr_words():
     assert [w["word"] for w in out] == ["Save", "70%", "today."]
     assert (out[1]["start"], out[1]["end"]) == (pytest.approx(0.3), pytest.approx(0.85))
     assert out[2]["start"] == pytest.approx(0.9)
+
+
+def test_trailing_script_words_past_the_vo_are_dropped():
+    out = captions.script_words(_asr("the cat sat"), ["The cat sat on the mat today friends."])
+    assert [w["start"] for w in out[:3]] == [0.0, 0.3, 0.6]
+    assert all(w["unmatched"] and w["start"] is None and w["end"] is None for w in out[3:])
+    seg = {"segments": [{"track": "vo", "track_type": "audio", "at": 0.0, "duration": 3.0, "src_in": 0.0, "speed": 1.0}]}
+    for dump in (seg, {"segments": []}):
+        kept, dropped = captions.to_timeline(out, dump)
+        assert [w["word"] for w in kept] == ["The", "cat", "sat"]
+        assert [w["word"] for w in dropped] == ["on", "the", "mat", "today", "friends."]
+        assert _texts(captions.chunk(kept)) == ["The cat sat"]
+    assert _texts(captions.chunk(out)) == ["The cat sat"]
+
+
+def test_leading_script_words_not_in_the_vo_are_unmatched():
+    out = captions.script_words(_asr("sat on the mat"), ["Hello there, the cat sat on the mat."])
+    assert [w.get("unmatched", False) for w in out] == [True, True, True, True, False, False, False, False]
+    assert out[4]["start"] == pytest.approx(0.0)
+    kept, dropped = captions.to_timeline(out, {"segments": []})
+    assert [w["word"] for w in dropped] == ["Hello", "there,", "the", "cat"]
+
+
+def test_interior_missed_word_is_interpolated_and_kept():
+    out = captions.script_words(_asr("the cat sat on mat"), ["The cat sat on the mat."])
+    the = out[4]
+    assert the["interpolated"] and not the.get("unmatched")
+    assert out[3]["end"] <= the["start"] <= the["end"] <= out[5]["start"]
+    kept, dropped = captions.to_timeline(out, {"segments": []})
+    assert not dropped and len(kept) == 6

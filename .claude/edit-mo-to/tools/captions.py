@@ -65,7 +65,8 @@ def script_words(words: list[dict], script_lines: list[str]) -> list[dict]:
     """The script's words with the ASR times, by word-level alignment. One script word matches 1-3
     consecutive ASR words (cost 1 - similarity, plus a little per extra word); an ASR word the script lacks
     (an ad-lib) is skipped cheaply, and before or after the script for free; a script word the ASR lacks is
-    skipped dearly and gets the time between its neighbours. Ties go to the earliest match."""
+    skipped dearly: between two matched words it gets the time between them (interpolated: True); before the
+    first or after the last match it has no times (start/end None, unmatched: True). Ties go to the earliest match."""
     st = []
     for li, line in enumerate(script_lines):
         st += [{"word": t, "line": li} for t in line.split()]
@@ -137,20 +138,26 @@ def script_words(words: list[dict], script_lines: list[str]) -> list[dict]:
             k = how[1]
             st[i - 1]["start"], st[i - 1]["end"] = asr[j - k]["start"], asr[j - 1]["end"]
             i, j = i - 1, j - k
-    # words the ASR missed sit between their neighbours
+    # words the ASR missed between two matched words sit between their neighbours (interpolated); words
+    # before the first or after the last match are not in the VO at all: no times (unmatched)
+    hit = [k for k, t in enumerate(st) if t["start"] != INF]
+    first, last = (hit[0], hit[-1]) if hit else (len(st), -1)
+    out = []
     for i, t in enumerate(st):
-        if t["start"] != INF:
-            continue
-        p = next((k for k in range(i - 1, -1, -1) if st[k]["start"] != INF), None)
-        q = next((k for k in range(i + 1, len(st)) if st[k]["start"] != INF), None)
-        a = st[p]["end"] if p is not None else (st[q]["start"] if q is not None else 0.0)
-        b = st[q]["start"] if q is not None else a + LINGER
-        t["start"], t["end"] = a, max(a, min(b, a + _allow(len(sn[i]))))
-    for i in range(1, len(st)):
-        if st[i]["start"] < st[i - 1]["start"]:
-            st[i]["start"] = st[i - 1]["start"]
-    return [{"word": t["word"], "start": round(t["start"], 3), "end": round(max(t["start"], t["end"]), 3),
-             "line": t["line"]} for t in st]
+        row = {"word": t["word"], "line": t["line"]}
+        if i < first or i > last:
+            row.update(start=None, end=None, unmatched=True)
+        else:
+            if t["start"] == INF:
+                a = out[-1]["end"]
+                b = next(st[k]["start"] for k in range(i + 1, len(st)) if st[k]["start"] != INF)
+                t["start"], t["end"] = a, max(a, min(b, a + _allow(len(sn[i]))))
+                row["interpolated"] = True
+            if out and out[-1]["start"] is not None and t["start"] < out[-1]["start"]:
+                t["start"] = out[-1]["start"]
+            row.update(start=round(t["start"], 3), end=round(max(t["start"], t["end"]), 3))
+        out.append(row)
+    return [{k: r[k] for k in ("word", "start", "end", "line", "unmatched", "interpolated") if k in r} for r in out]
 
 
 def _text(ws: list[dict]) -> str:
@@ -159,7 +166,7 @@ def _text(ws: list[dict]) -> str:
 
 def chunk(words: list[dict], max_words: int = 4, max_chars: int = 22, pause: float = 0.25) -> list[dict]:
     """Caption chunks {text, start, end, words} from timed words (ugc-captions rules, language-neutral)."""
-    ws = [dict(w) for w in words if str(w.get("word", "")).strip()]
+    ws = [dict(w) for w in words if str(w.get("word", "")).strip() and not w.get("unmatched") and w.get("start") is not None]
     if not ws:
         return []
     for i, w in enumerate(ws):
@@ -297,7 +304,9 @@ def to_timeline(words: list[dict], dump: dict, vo_in: float = 0.0, vo_track: str
     kept, dropped = [], []
     for w in words:
         hit = None
-        if spans:
+        if w.get("unmatched") or w.get("start") is None:
+            pass                                           # a script word the VO never says
+        elif spans:
             ov = [(min(w["end"], sp["f1"]) - max(w["start"], sp["f0"]), sp) for sp in spans]
             ov = [(o, sp) for o, sp in ov if o > EPS or (o >= -EPS and sp["f0"] - EPS <= w["start"] and w["end"] <= sp["f1"] + EPS)]
             if ov and sum(o for o, _ in ov) >= (w["end"] - w["start"]) - 1e-3:
