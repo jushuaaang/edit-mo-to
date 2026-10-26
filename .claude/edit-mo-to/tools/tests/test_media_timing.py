@@ -262,3 +262,30 @@ def test_mlx_language_only_for_non_english(tmp_path, monkeypatch):
     mt._transcribe_mlx(tmp_path / "a.wav", "en")
     mt._transcribe_mlx(tmp_path / "a.wav", "es")
     assert "language" not in seen[0] and seen[1]["language"] == "es"
+
+
+def test_cli_rejects_an_unknown_language_and_missing_values(monkeypatch):
+    monkeypatch.setattr(mt, "transcribe", lambda *a, **k: pytest.fail("must not transcribe"))
+    with pytest.raises(SystemExit, match="unknown --lang 'xx'"):
+        mt.main(["vo", "x.mp3", "--lang", "xx"])
+    with pytest.raises(SystemExit, match="--lang needs a value"):
+        mt.main(["vo", "x.mp3", "--lang"])
+    with pytest.raises(SystemExit, match="--fps needs a value"):
+        mt.main(["vo", "x.mp3", "--fps"])
+    with pytest.raises(SystemExit, match="--fps needs a whole number"):
+        mt.main(["vo", "x.mp3", "--fps", "abc"])
+
+
+def test_language_list_matches_faster_whisper():
+    tok = pytest.importorskip("faster_whisper.tokenizer")
+    assert set(mt.LANGUAGES) == set(tok._LANGUAGE_CODES)
+
+
+def test_cli_reads_a_cp1252_script_with_a_note(tmp_path, monkeypatch, capsys):
+    script = tmp_path / "s.txt"
+    script.write_bytes("Año nuevo\n".encode("cp1252"))
+    monkeypatch.setattr(mt, "transcribe", lambda a, c, lang="en": [{"word": "Año", "start": 0.0, "end": 0.4},
+                                                                     {"word": "nuevo", "start": 0.5, "end": 0.9}])
+    mt.main(["vo", "x.mp3", str(script), "--lang", "es"])
+    cap = capsys.readouterr()
+    assert json.loads(cap.out)["lines"][0]["line"] == "Año nuevo" and "cp1252" in cap.err

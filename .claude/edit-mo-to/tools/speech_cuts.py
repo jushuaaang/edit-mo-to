@@ -6,8 +6,9 @@ pauses are found from the audio itself, and every cut edge is snapped to the qui
 point nearby, because Whisper word times can be ~0.25s off and would clip consonants.
 
 CLI (prints a short JSON summary; the full detail goes to the out file):
-    propose <media> [--words vo.json] [--gap 0.55] [--breath S] [--out cuts.json]
-        Transcribes (or takes `media_timing.py vo` JSON via --words), then writes every
+    propose <media> [--words vo.json] [--lang xx] [--gap 0.55] [--breath S] [--out cuts.json]
+        Transcribes (in --lang, the script's language as for `media_timing.py vo`, default en; or takes
+        `media_timing.py vo` JSON via --words), then writes every
         candidate cut: dead air (recommend cut) and stutters / false starts / retakes
         (recommend cut or review). Show the user the mistakes table before applying.
     apply <cuts.json> [--approve c003,c007] [--reject c001] [--script script.txt] [--out keep.json]
@@ -265,9 +266,10 @@ def main(argv: list[str]) -> None:
     if cmd == "propose":
         words_file, out = _opt(argv, "--words"), _opt(argv, "--out")
         gap, breath = float(_opt(argv, "--gap", 0.55)), _opt(argv, "--breath")
+        lang = _opt(argv, "--lang", "en")
         media = Path(argv[0])
         samples = _load_16k(media)
-        words = load_words(Path(words_file)) if words_file else transcribe(media)
+        words = load_words(Path(words_file)) if words_file else transcribe(media, lang=lang)
         data = propose(media, words, samples, gap=gap, breath=float(breath) if breath else None)
         out = Path(out or media.with_suffix(".cuts.json"))
         out.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")

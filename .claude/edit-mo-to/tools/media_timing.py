@@ -23,6 +23,22 @@ NUMBERS = {str(i): w for i, w in enumerate(
     "fifteen sixteen seventeen eighteen nineteen twenty".split())}
 
 
+# faster-whisper's language codes (faster_whisper.tokenizer._LANGUAGE_CODES); mlx-whisper takes the same
+LANGUAGES = ("af am ar as az ba be bg bn bo br bs ca cs cy da de el en es et eu fa fi fo fr gl gu ha haw he hi hr ht "
+             "hu hy id is it ja jw ka kk km kn ko la lb ln lo lt lv mg mi mk ml mn mr ms mt my ne nl nn no oc pa pl "
+             "ps pt ro ru sa sd si sk sl sn so sq sr su sv sw ta te tg th tk tl tr tt uk ur uz vi yi yo zh yue").split()
+
+
+def read_text(path) -> str:
+    """UTF-8 (with or without BOM); files saved by Windows tools in cp1252 are read as such, with a note."""
+    raw = Path(path).read_bytes()
+    try:
+        return raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        print(f"note: {path} is not UTF-8; read as cp1252", file=sys.stderr)
+        return raw.decode("cp1252", errors="replace")
+
+
 def to_sf(seconds: float, fps: int = 30) -> str:
     """CapCut-style timecode: s:ff under a minute, m:ss:ff from 60s on."""
     frames = round(seconds * fps)
@@ -208,16 +224,26 @@ def compact(report: dict, fps: int = 30) -> str:
 def main(argv: list[str]) -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")   # Windows consoles default to cp1252
-    fps = 30
-    if "--fps" in argv:
-        i = argv.index("--fps")
-        fps = int(argv[i + 1])
+    def take(name: str, default: str) -> str:
+        nonlocal argv
+        if name not in argv:
+            return default
+        i = argv.index(name)
+        if i + 1 >= len(argv) or argv[i + 1].startswith("--"):
+            raise SystemExit(f"{name} needs a value\n{__doc__}")
+        val = argv[i + 1]
         argv = argv[:i] + argv[i + 2:]
-    lang = "en"
-    if "--lang" in argv:
-        i = argv.index("--lang")
-        lang = argv[i + 1]
-        argv = argv[:i] + argv[i + 2:]
+        return val
+
+    fps_s, lang = take("--fps", "30"), take("--lang", "en")
+    if not fps_s.isdigit() or int(fps_s) < 1:
+        raise SystemExit(f"--fps needs a whole number of frames per second, got {fps_s!r}")
+    fps = int(fps_s)
+    if lang not in LANGUAGES:
+        raise SystemExit(f"unknown --lang {lang!r}: use a Whisper language code such as en, es, de, fr, pt, it "
+                         f"(all: {' '.join(LANGUAGES)}). Filipino / Tagalog / Taglish scripts use en.")
+    if not argv:
+        raise SystemExit(__doc__)
     cache = "--no-cache" not in argv
     as_compact = "--compact" in argv
     argv = [a for a in argv if a not in ("--no-cache", "--compact")]
@@ -226,7 +252,7 @@ def main(argv: list[str]) -> None:
         words = transcribe(Path(args[0]), cache, lang=lang)
         lines = None
         if len(args) > 1:
-            lines = [l.strip() for l in Path(args[1]).read_text(encoding="utf-8").splitlines() if l.strip()]
+            lines = [l.strip() for l in read_text(args[1]).splitlines() if l.strip()]
         out = vo_report(words, lines, fps)
     elif cmd == "beats":
         out = beats(Path(args[0]), fps)

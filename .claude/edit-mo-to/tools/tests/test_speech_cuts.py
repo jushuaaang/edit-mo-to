@@ -110,3 +110,16 @@ def test_propose_end_to_end_on_synthetic_audio():
     assert [c["id"] for c in data["candidates"]] == ["c001", "c002", "c003"]
     res = sc.apply(data, set(), set())
     assert res["cut_duration"] == pytest.approx(0.22 + 1 + 0.20 + 1 + 0.34, abs=0.08)
+
+
+def test_propose_cli_passes_lang_to_transcribe(tmp_path, monkeypatch, capsys):
+    import media_timing as mt
+    seen = {}
+    monkeypatch.setattr(mt, "_load_16k", lambda p: np.zeros(SR))
+    monkeypatch.setattr(mt, "transcribe", lambda media, cache=True, lang="en": seen.setdefault("lang", lang) and [])
+    monkeypatch.setattr(sc, "propose", lambda media, words, samples, gap, breath: {"candidates": [], "duration": 1.0})
+    sc.main(["propose", str(tmp_path / "a.wav"), "--lang", "es", "--out", str(tmp_path / "c.json")])
+    assert seen["lang"] == "es"
+    seen.clear()
+    sc.main(["propose", str(tmp_path / "a.wav"), "--out", str(tmp_path / "c.json")])
+    assert seen["lang"] == "en"
