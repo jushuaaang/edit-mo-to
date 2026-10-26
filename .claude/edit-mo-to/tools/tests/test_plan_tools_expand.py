@@ -84,3 +84,16 @@ def test_brand_fills_only_vars_whose_default_is_the_same_kind():
     assert card["accent"] == "#ff0000" and card["font"] == "Inter"
     assert pt._brand_fits("accent", "#123", "rgba(8,12,30,0.86)") and not pt._brand_fits("font", "#fff", "Inter")
     assert not pt._brand_fits("font", "Inter", "#ffffff")
+
+
+def test_expand_copies_temp_en():
+    p = pt.expand(_p2(temp_en={"english": "script_en.txt", "timings": "C:/vo/vo.json"}, temp_en_removed=False,
+                      captions_style={"font_size": 11},
+                      timelines=[{"name": "T1", "seq": [{"clips": [["a.mp4", 0, 0, 30]]}]},
+                                 {"name": "T2", "seq": [{"clips": [["a.mp4", 30, 0, 30]]}],
+                                  "temp_en": {"english": "hook_en.txt", "timings": "hook.json"}}]))
+    assert p["temp_en"] == {"english": "/v/script_en.txt", "timings": "C:/vo/vo.json"}
+    assert p["temp_en_removed"] is False and p["captions_style"] == {"font_size": 11}
+    assert "temp_en" not in p["timelines"][0]
+    assert p["timelines"][1]["temp_en"] == {"english": "/v/hook_en.txt", "timings": "/v/hook.json"}
+    assert "temp_en" not in pt.expand(_p2(timelines=[]))

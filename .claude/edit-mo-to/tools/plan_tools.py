@@ -4,7 +4,8 @@ CLI (prints JSON):
     expand <plan2.json> [--out plan.json] [--table plan_table.txt]
                          expand the compact frame plan (plan2) into the edit-plan JSON the editor builds from
     check <plan.json> [--limits limits.json]
-                         timing, reuse, VO edges, overlay, template and scale problems; exit code 1 when any
+                         timing, reuse, VO edges, overlay, template and scale problems, and a temp_en English
+                         file whose line count differs from its timings' lines; exit code 1 when any
     prompts <prompts2.json> [--script script.txt] [--timings vo.json] [--out prompts.txt]
                          expand the compact prompt spec into the table(s) and one full prompt block per prompt
     check-prompts <prompts2.json> [--script script.txt] [--timings vo.json]
@@ -160,15 +161,42 @@ def _timeline(tl: dict, plan2: dict) -> dict:
            "clips": clips, "overlays": overlays, "texts": texts, "manual": tl.get("manual", [])}
     if effects:
         out["effects"] = effects
+    if "temp_en" in tl:   # a timeline's own English lines and timings (e.g. a hook with its own VO)
+        out["temp_en"] = _temp_en(tl["temp_en"], base)
     return out
+
+
+def _temp_en(te: dict | None, base: str) -> dict | None:
+    """{"english": <script_en.txt>, "timings": <vo.json>} with both paths joined to base (None stays None)."""
+    return {k: _join(base, te[k]) for k in ("english", "timings")} if te else None
 
 
 def expand(plan2: dict) -> dict:
     """Compact frame plan (plan2) -> contract plan: frames become 10-decimal seconds, blocks are resolved,
     brand vars are filled into the overlays whose template declares them."""
     plan = {k: plan2[k] for k in ("project", "style", "fps", "width", "height", "base", "brand") if k in plan2}
+    if "temp_en" in plan2:
+        plan["temp_en"] = _temp_en(plan2["temp_en"], plan2.get("base", ""))
+    for k in ("temp_en_removed", "captions_style"):
+        if k in plan2:
+            plan[k] = plan2[k]
     plan["timelines"] = [_timeline(tl, plan2) for tl in plan2.get("timelines", [])]
     return plan
+
+
+def _temp_en_errors(te: dict, where: str) -> list[str]:
+    """The English file must have one line per script line; the plan has no script, so the count comes from
+    the `lines` of the VO timings the build reads."""
+    from captions import _lines
+    try:
+        n_script = len(json.loads(Path(te["timings"]).read_text(encoding="utf-8-sig")).get("lines") or [])
+        n_en = len(_lines(te["english"]))
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        return [f"{where}: cannot read {te}: {e}"]
+    if n_en != n_script:
+        return [f"{where}: {n_en} English lines in {te['english']} but {n_script} script lines in {te['timings']}; "
+                f"write one English line per script line"]
+    return []
 
 
 def plan_table(plan: dict) -> str:
@@ -321,6 +349,8 @@ def check(plan: dict, limits: dict | None = None, probe=probe_media, silent=edge
                 info[path] = e
         return info[path]
 
+    if plan.get("temp_en") and not plan.get("temp_en_removed"):
+        errs += _temp_en_errors(plan["temp_en"], "plan: temp_en")
     seen = []   # (timeline label, clip number, clip) of every clip so far, for reuse checks
     for ti, tl in enumerate(plan.get("timelines", []), 1):
         T = f"T{ti}"
@@ -376,6 +406,8 @@ def check(plan: dict, limits: dict | None = None, probe=probe_media, silent=edge
                     if not silent(tl["vo"], t):
                         errs.append(f"{T} vo: {label} {t} is not silent (above -60 dB within the 0.8 s probe); "
                                     f"move it into the gap between words")
+        if tl.get("temp_en") and not plan.get("temp_en_removed"):
+            errs += _temp_en_errors(tl["temp_en"], f"{T} temp_en")
         cuts, by_track = [c["at"] for c in clips], {}
         for oi, o in enumerate(tl.get("overlays", []), 1):
             errs += _overlay_errors(o, oi, cuts, T, templates, limits, cv)

@@ -19,6 +19,17 @@ CLI (prints JSON only):
     music <plan.json> "<name>" --music f --volume v [--end-s S]
         a music-only draft as long as that timeline, or S seconds (the captioned timeline's `segments`
         duration) (for add-tracks ... audio); prints the draft folder
+    captions <plan.json> "<timeline>" --project "<folder>" [--script s.txt] [--timings vo.json] [--max-words 4]
+             [--vo-track NAME]
+        step 10, Claude's captions: script words timed by the VO words, mapped through the timeline's live VO
+        segments, chunked, made into a draft with one text track `captions` and merged into the timeline
+        (add-tracks ... text); TEMP_EN_delete_me, if there, stays on top. --script / --timings default to the
+        plan's captions.script / captions.timings (timings also to temp_en.timings). Prints
+        {draft, chunks, dropped_words, track}
+
+A plan with `temp_en` ({"english": script_en.txt, "timings": vo.json}, per timeline or top level) gets one
+temporary English row per script line on a TEMP_EN_delete_me text track, raised above every text track after
+compose; `temp_en_removed: true` skips it.
 
 Timing is whole frames at 30 fps, passed to VectCutAPI as integer microseconds / 1e6 (US(frame)).
 """
@@ -155,22 +166,53 @@ TEXT_STYLES = {
              "transform_y": 0},
     "cta": {"font_color": "#FFFFFF", "bold": True, "font_size": 10, "background_alpha": 1,
             "background_round_radius": 0.3, "transform_y": -0.55},
+    # the temporary English review track (top of the frame, deleted by the editor before export)
+    "temp_en": {"font_color": "#FFFFFF", "font_size": 7, "background_alpha": 0.6, "background_color": "#000000",
+                "transform_y": 0.85, "fixed_width": 0.9},
+    # Claude's step-10 captions; the plan's `captions_style` overrides any of these keys
+    "caption": {"font_color": "#FFFFFF", "bold": True, "font_size": 12, "background_alpha": 0, "border_width": 0.08,
+                "border_color": "#000000", "shadow_enabled": True, "transform_y": -0.62,
+                "intro_animation": "Pop_Up", "intro_duration": 0.13},
 }
 TEXT_BG = "#E53935"   # badge / cta box when neither the text nor the brand gives a colour
+TEMP_EN_TRACK = "TEMP_EN_delete_me"
+CAPTIONS_TRACK = "captions"
 
 
-def text_body(draft_id: str, text: dict, plan: dict) -> dict:
-    """A contract text row -> add_text body styled by its preset; `bg` (else the brand accent) colours the box,
-    `font` is passed only when the row gives one."""
+def text_body(draft_id: str, text: dict, plan: dict, track_name: str = "text_main") -> dict:
+    """A contract text row -> add_text body styled by its preset; `bg` (else the preset's own box colour, else
+    the brand accent) colours the box, `font` is passed only when the row gives one."""
     a = _f(text["at"])
+    style = text.get("style", "badge")
     b = {"draft_id": draft_id, "text": text["text"], "start": _s(US(a)), "end": _s(US(a + _f(text["duration"]))),
-         "track_name": "text_main", "width": _canvas(plan)[0], "height": _canvas(plan)[1],
-         **TEXT_STYLES[text.get("style", "badge")]}
-    if b["background_alpha"]:
-        b["background_color"] = text.get("bg") or (plan.get("brand") or {}).get("accent") or TEXT_BG
+         "track_name": track_name, "width": _canvas(plan)[0], "height": _canvas(plan)[1], **TEXT_STYLES[style],
+         **((plan.get("captions_style") or {}) if style == "caption" else {})}
+    if b.get("background_alpha"):
+        b["background_color"] = (text.get("bg") or b.get("background_color")
+                                 or (plan.get("brand") or {}).get("accent") or TEXT_BG)
     if text.get("font"):
         b["font"] = text["font"]
     return b
+
+
+def temp_en_texts(plan: dict, timeline: dict, end_f: int) -> list[dict]:
+    """The temporary English rows of one timeline (its own `temp_en`, else the plan's; none when the plan says
+    `temp_en_removed` or the timeline has no VO), moved from VO-file time onto the timeline through the
+    timeline's VO span (as vo_body places it): rows outside it are dropped, rows partly outside are clipped."""
+    from captions import _lines, temp_en_rows
+
+    te = timeline["temp_en"] if "temp_en" in timeline else plan.get("temp_en")
+    if not te or plan.get("temp_en_removed") or not timeline.get("vo"):
+        return []
+    lines = json.loads(Path(te["timings"]).read_text(encoding="utf-8-sig")).get("lines") or []
+    v = vo_body("", timeline, end_f)
+    out = []
+    for r in temp_en_rows(lines, _lines(te["english"])):
+        a = _f(max(r["at"], v["start"]) - v["start"])
+        e = _f(min(r["at"] + r["duration"], v["end"]) - v["start"])
+        if e > a:
+            out.append({**r, "at": a / 30, "duration": (e - a) / 30})
+    return out
 
 
 def vo_body(draft_id: str, timeline: dict, end_frame: int) -> dict:
@@ -264,7 +306,8 @@ def render_assets(plan: dict, timelines: list[dict], render_fn=mr.render) -> dic
 def build_timeline(plan: dict, timeline: dict, post=post, render=True) -> dict:
     """One timeline -> one saved VectCutAPI draft. Order: create_draft, overlays (they create the overlay
     track before the second add_video, which sidesteps the one-video-track StopIteration bug), main-track
-    clips, other video tracks, keyframes, effects, cutouts, texts, VO, music, SFX cues, save_draft, wait."""
+    clips, other video tracks, keyframes, effects, cutouts, texts, temporary English rows, VO, music, SFX cues,
+    save_draft, wait."""
     if render:
         render_assets(plan, [timeline])
     canvas = _canvas(plan)
@@ -274,8 +317,8 @@ def build_timeline(plan: dict, timeline: dict, post=post, render=True) -> dict:
     if missing:
         raise ValueError(f"{timeline['name']}: overlays without a rendered file: {missing}")
     did = post("create_draft", {"width": canvas[0], "height": canvas[1]})["output"]["draft_id"]
-    counts = {"overlays": 0, "clips": 0, "keyframes": 0, "effects": 0, "cutouts": 0, "texts": 0, "vo": 0, "music": 0,
-              "sfx": 0}
+    counts = {"overlays": 0, "clips": 0, "keyframes": 0, "effects": 0, "cutouts": 0, "texts": 0, "temp_en": 0, "vo": 0,
+              "music": 0, "sfx": 0}
     for o in frames:
         post("add_video", _overlay_body(did, o, canvas))
         counts["overlays"] += 1
@@ -310,6 +353,9 @@ def build_timeline(plan: dict, timeline: dict, post=post, render=True) -> dict:
     for t in timeline.get("texts", []) or []:
         post("add_text", text_body(did, t, plan))
         counts["texts"] += 1
+    for t in temp_en_texts(plan, timeline, end_f):   # its own track; build() raises it above every text track
+        post("add_text", text_body(did, t, plan, TEMP_EN_TRACK))
+        counts["temp_en"] += 1
     if timeline.get("vo"):
         post("add_audio", vo_body(did, timeline, end_f))
         counts["vo"] = 1
@@ -458,6 +504,12 @@ def build(plan: dict, import_files=(), timelines=None, job=None, post=post, rend
     comp = cp.compose(project, [(n, Path(b["draft"])) for n, b in built], link_originals=True)
     imported = cp.import_media(project, _sources(tls) + [str(f) for f in import_files])
     failures, sheet_paths = [], []
+    for n, b in built:   # VectCutAPI's add_text has no layer: the review track goes on top after compose
+        if b["counts"]["temp_en"]:
+            try:
+                cp.raise_text_track(project, n, TEMP_EN_TRACK)
+            except Exception as e:  # noqa: BLE001  (the track is there, only maybe under another text track)
+                failures.append(f"raise {TEMP_EN_TRACK} {n}: {e}")
     base = Path(plan["base"]) if plan.get("base") else reports
     for tl in tls:
         try:  # the edit_diff snapshot: capcut_project.segments written as JSON
@@ -510,6 +562,41 @@ def music_draft(end_frame: int, music: str, volume: float, post=post, canvas=(10
     return str(cp.wait_for_draft(Path(BUILD) / did))
 
 
+def captions_draft(chunks: list[dict], plan: dict, post=post) -> str:
+    """A draft holding only the caption chunks (timeline seconds) on one text track `captions`, styled by
+    TEXT_STYLES["caption"] plus the plan's `captions_style`, for add-tracks ... text."""
+    canvas = _canvas(plan)
+    did = post("create_draft", {"width": canvas[0], "height": canvas[1]})["output"]["draft_id"]
+    for c in chunks:
+        a, e = _f(c["start"]), _f(c["end"])
+        post("add_text", text_body(did, {"text": c["text"], "at": a / 30, "duration": max(1, e - a) / 30,
+                                         "style": "caption"}, plan, CAPTIONS_TRACK))
+    _save(did, post)
+    return str(cp.wait_for_draft(Path(BUILD) / did))
+
+
+def add_captions(plan: dict, name: str, project: Path, script: str, timings: str, max_words: int = 4,
+                 vo_track: str | None = None) -> dict:
+    """Step 10, Claude's captions: the script's words timed by the VO words, mapped onto the timeline as it
+    is now (its real VO segments, so the editor's trims and moves are followed), chunked, made into a caption
+    draft and merged as a text track; the temporary English track, if there, is raised back on top."""
+    import captions as cap
+
+    vo = json.loads(cap._read(timings))
+    words = cap.script_words(vo.get("words", []), cap._lines(script))
+    dump = cp.segments(Path(project), name)
+    tl = next((t for t in plan.get("timelines", []) if t["name"] == name), {})
+    kept, dropped = cap.to_timeline(words, dump, vo_in=tl.get("vo_in", 0.0), vo_track=vo_track)
+    chunks = cap.chunk(kept, max_words=max_words)
+    if not chunks:
+        raise ValueError(f"no caption chunks for {name!r}: no script word lies in the timeline's VO")
+    draft = captions_draft(chunks, plan)
+    cp.add_tracks(Path(project), name, Path(draft), "text")
+    if any(s.get("track") == TEMP_EN_TRACK for s in dump.get("segments", [])):
+        cp.raise_text_track(Path(project), name, TEMP_EN_TRACK)
+    return {"draft": mr.plain_path(draft), "chunks": len(chunks), "dropped_words": dropped, "track": CAPTIONS_TRACK}
+
+
 def _dump_short(d: dict) -> str:
     """One top-level key per line: valid JSON that stays within the 25-line summary."""
     return "{\n" + ",\n".join(f" {json.dumps(k)}: {json.dumps(v, ensure_ascii=False)}" for k, v in d.items()) + "\n}"
@@ -548,6 +635,20 @@ def main(argv: list[str]) -> None:
         end_f = round(float(opt("--end-s")) * 30) if opt("--end-s") else end_frame(tl)
         print(json.dumps({"draft": music_draft(end_f, opt("--music"), float(opt("--volume", 0.1)),
                                                canvas=_canvas(plan))}, ensure_ascii=False))
+    elif cmd == "captions" and rest and opt("--project"):
+        tl = next((t for t in plan.get("timelines", []) if t["name"] == rest[0]), {})
+        te = tl.get("temp_en") or plan.get("temp_en") or {}
+        given = plan.get("captions") or {}
+        script = opt("--script") or given.get("script")
+        timings = opt("--timings") or given.get("timings") or te.get("timings")
+        if not script or not timings:
+            raise SystemExit("captions needs --script and --timings (or the plan's captions.script / .timings)")
+        try:
+            out = add_captions(plan, rest[0], Path(opt("--project")), script, timings,
+                               int(opt("--max-words", 4)), opt("--vo-track"))
+        except ValueError as e:
+            raise SystemExit(str(e))
+        print(json.dumps(out, ensure_ascii=False))
     else:
         raise SystemExit(__doc__)
 

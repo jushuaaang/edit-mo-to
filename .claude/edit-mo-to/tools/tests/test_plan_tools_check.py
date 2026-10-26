@@ -148,3 +148,20 @@ def test_cutout_overlay_must_sit_inside_one_main_clip():
                               ["badge", 45, 30, {"text": "Z", "top": 300}, "flash", "none", {"cutout": True, "on": "word"}]])])
     errs = pt.check(plan, probe=PROBE, silent=QUIET)
     assert [e for e in errs if "cutout" in e] and all(e.startswith("T1 overlay 3") for e in errs if "cutout" in e)
+
+
+def test_check_temp_en_line_count(tmp_path):
+    import json
+    vo = tmp_path / "vo.json"
+    vo.write_text(json.dumps({"lines": [{"start": 0, "end": 1}, {"start": 1, "end": 2}]}), encoding="utf-8")
+    en = tmp_path / "en.txt"
+    en.write_text("One.\nTwo.\n", encoding="utf-8")
+    te = {"english": en.as_posix(), "timings": vo.as_posix()}
+    assert pt.check({**PLAN_OK, "temp_en": te}, probe=PROBE, silent=QUIET) == []
+    en.write_text("One.\n\nTwo.\nThree.\n", encoding="utf-8")
+    errs = pt.check({**PLAN_OK, "temp_en": te}, probe=PROBE, silent=QUIET)
+    assert len(errs) == 1 and errs[0].startswith("plan: temp_en") and "3 English lines" in errs[0] and "2 script lines" in errs[0]
+    tl = {**PLAN_OK["timelines"][0], "temp_en": {"english": en.as_posix(), "timings": (tmp_path / "nope.json").as_posix()}}
+    errs = pt.check({**PLAN_OK, "timelines": [tl]}, probe=PROBE, silent=QUIET)
+    assert len(errs) == 1 and errs[0].startswith("T1 temp_en: cannot read")
+    assert pt.check({**PLAN_OK, "temp_en": te, "temp_en_removed": True}, probe=PROBE, silent=QUIET) == []
