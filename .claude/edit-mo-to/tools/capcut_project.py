@@ -579,31 +579,33 @@ def replace_timeline(project: Path, name: str, draft: Path) -> dict:
 def add_tracks(project: Path, name: str, draft: Path, track_type: str = "audio", on_top: bool = False) -> dict:
     """Merge one draft's tracks of `track_type` (music, text, ...) into an existing timeline, keeping
     everything already there (the user's captions and hand edits). Refuses a track whose name is already
-    on the timeline. With `on_top`, merged tracks get a render_index above every existing track of that
-    type. Backs the timeline up first."""
+    on the timeline (text tracks only; music merges are unchanged). With `on_top` (text only), the merged
+    tracks draw above every existing text track. Checks first, then backs the timeline up, so a refused
+    call leaves nothing behind."""
     project = Path(project)
+    if on_top and track_type != "text":
+        raise ValueError("on_top only applies to text tracks")
     _check_not_busy(project)
     _ensure_timelines_layout(project)
     tl = _find(project, name)
-    backup = backup_timeline(project, name)
     folder = project / "Timelines" / tl["id"]
     timeline_file = _content_file(folder)
     timeline = _read(timeline_file)
+    peek = [t for t in _read(_content_file(Path(draft))).get("tracks", [])
+            if t.get("type") == track_type and t.get("segments")]
+    if not peek:
+        raise ValueError(f"draft {draft} has no {track_type} tracks with segments")
+    if track_type == "text":
+        have_names = {t.get("name") for t in timeline.get("tracks", []) if t.get("name")}
+        for t in peek:
+            if t.get("name") in have_names:
+                raise ValueError(f"track '{t['name']}' already on timeline")
+    backup = backup_timeline(project, name)
     incoming, report = _import_draft(project, Path(draft))
 
     new_tracks = [t for t in incoming.get("tracks", []) if t.get("type") == track_type and t.get("segments")]
-    if not new_tracks:
-        raise ValueError(f"draft {draft} has no {track_type} tracks with segments")
-    have_names = {t.get("name") for t in timeline.get("tracks", []) if t.get("name")}
-    for t in new_tracks:
-        if t.get("name") in have_names:
-            raise ValueError(f"track '{t['name']}' already on timeline")
     if on_top:
-        top = max((t.get("render_index", 0) for t in timeline.get("tracks", []) if t.get("type") == track_type),
-                  default=0)
-        for t in new_tracks:
-            top += 1
-            t["render_index"] = top
+        _layer_text_on_top(timeline, new_tracks)
     wanted = set()
     for t in new_tracks:
         for s in t["segments"]:
@@ -637,21 +639,38 @@ def add_tracks(project: Path, name: str, draft: Path, track_type: str = "audio",
     return {"name": name, "id": tl["id"], "backup": str(backup), "last_snapshot": saved, "tracks_added": len(new_tracks), **report}
 
 
+def _layer_text_on_top(timeline: dict, targets: list) -> None:
+    """CapCut layers text by each SEGMENT's render_index (14000, 14001, ...) and track_render_index, not by
+    anything on the track. Give every segment of each target track a render_index above all other text
+    segments and a track_render_index above every other segment on the timeline."""
+    ids = {id(t) for t in targets}
+    others = [t for t in timeline.get("tracks", []) if id(t) not in ids]
+    top = max([s.get("render_index", 0) for t in others if t.get("type") == "text" for s in t.get("segments", [])]
+              + [13999])
+    trk = max([s.get("track_render_index", 0) for t in others for s in t.get("segments", [])] + [0])
+    for t in targets:
+        top += 1
+        trk += 1
+        for s in t.get("segments", []):
+            s["render_index"] = top
+            s["track_render_index"] = trk
+
+
 def raise_text_track(project: Path, name: str, track_name: str) -> dict:
-    """Put the text track `track_name` above every other text track (render_index = max + 1), so it draws
-    on top. Everything else stays as is. Backs the timeline up first."""
+    """Put the text track `track_name` above every other text track (its segments' render_index and
+    track_render_index set above all the others), so it draws on top. Everything else stays as is.
+    Backs the timeline up first (after checking the track exists)."""
     project = Path(project)
     _check_not_busy(project)
     _ensure_timelines_layout(project)
     tl = _find(project, name)
-    backup = backup_timeline(project, name)
     folder = project / "Timelines" / tl["id"]
     timeline = _read(_content_file(folder))
-    texts = [t for t in timeline.get("tracks", []) if t.get("type") == "text"]
-    target = next((t for t in texts if t.get("name") == track_name), None)
+    target = next((t for t in timeline.get("tracks", []) if t.get("type") == "text" and t.get("name") == track_name), None)
     if target is None:
         raise ValueError(f"no text track '{track_name}' on timeline {name!r}")
-    target["render_index"] = max([t.get("render_index", 0) for t in texts if t is not target] + [0]) + 1
+    backup = backup_timeline(project, name)
+    _layer_text_on_top(timeline, [target])
     for fname in CONTENT_FILES:
         _write(folder / fname, timeline)
     if tl["main"]:
@@ -659,7 +678,7 @@ def raise_text_track(project: Path, name: str, track_name: str) -> dict:
     _save_project_json(project, _project_json(project))
     saved = _save_last(project, name)
     return {"name": name, "id": tl["id"], "backup": str(backup), "last_snapshot": saved,
-            "track": track_name, "render_index": target["render_index"]}
+            "track": track_name, "render_index": target["segments"][0]["render_index"]}
 
 
 def _span(seg: dict) -> tuple[int, int]:

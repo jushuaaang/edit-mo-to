@@ -711,8 +711,9 @@ def test_add_timeline_and_add_tracks_write_last_snapshot(tmp_path, drafts, base_
     assert snap == cp.segments(target, "Timeline 03") and any(s["track_type"] == "audio" for s in snap["segments"])
 
 
-def _text_draft(base_draft, tmp_path, track_name="TEMP_EN_delete_me", render_index=15000):
-    """A draft (copy of the base draft) whose only track of interest is a text track of two segments."""
+def _text_draft(base_draft, tmp_path, track_name="TEMP_EN_delete_me", render_index=14000):
+    """A draft (copy of the base draft) whose only track of interest is a text track of two segments, each
+    with a text material and a material_animations companion; layering lives on the segments, as in CapCut."""
     d = tmp_path / f"src_text_{track_name}"
     shutil.copytree(base_draft, d)
     for n in cp.CONTENT_FILES:
@@ -720,13 +721,26 @@ def _text_draft(base_draft, tmp_path, track_name="TEMP_EN_delete_me", render_ind
         if not f.exists():
             continue
         c = json.loads(f.read_text(encoding="utf-8"))
-        c["tracks"] = [{"type": "text", "name": track_name, "render_index": render_index, "segments": [
-            {"id": f"S-{track_name}-{i}", "material_id": f"T-{track_name}-{i}", "extra_material_refs": [],
+        c["tracks"] = [{"type": "text", "name": track_name, "segments": [
+            {"id": f"S-{track_name}-{i}", "material_id": f"T-{track_name}-{i}",
+             "extra_material_refs": [f"A-{track_name}-{i}"],
+             "render_index": render_index, "track_render_index": 1,
              "target_timerange": {"start": i * 1_000_000, "duration": 1_000_000}} for i in range(2)]}]
-        c.setdefault("materials", {})["texts"] = [
-            {"id": f"T-{track_name}-{i}", "content": json.dumps({"text": f"line {i}", "styles": []})} for i in range(2)]
+        mats = c.setdefault("materials", {})
+        mats["texts"] = [{"id": f"T-{track_name}-{i}", "content": json.dumps({"text": f"line {i}", "styles": []})}
+                         for i in range(2)]
+        mats["material_animations"] = [{"id": f"A-{track_name}-{i}", "animations": []} for i in range(2)]
         f.write_text(json.dumps(c), encoding="utf-8")
     return d
+
+
+def _text_layers(project, name):
+    return {t["name"]: (t["segments"][0]["render_index"], t["segments"][0]["track_render_index"])
+            for t in _timeline_json(project, name)["tracks"] if t["type"] == "text"}
+
+
+def _files(project):
+    return sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file())
 
 
 def test_add_tracks_text_merges_text_materials(tmp_path, drafts, base_draft):
@@ -737,38 +751,60 @@ def test_add_tracks_text_merges_text_materials(tmp_path, drafts, base_draft):
     after = _timeline_json(target, "Timeline 02 - Hook 1")
     assert after["tracks"][-1]["type"] == "text" and after["tracks"][-1]["name"] == "TEMP_EN_delete_me"
     assert {m["id"] for m in after["materials"]["texts"]} >= {"T-TEMP_EN_delete_me-0", "T-TEMP_EN_delete_me-1"}
+    assert {m["id"] for m in after["materials"]["material_animations"]} >= {"A-TEMP_EN_delete_me-0", "A-TEMP_EN_delete_me-1"}
     segs = [s for s in cp.segments(target, "Timeline 02 - Hook 1")["segments"] if s["track"] == "TEMP_EN_delete_me"]
     assert [s["text"] for s in segs] == ["line 0", "line 1"]
 
 
-def test_add_tracks_refuses_duplicate_track_name(tmp_path, drafts, base_draft):
+def test_add_tracks_refuses_duplicate_track_name_and_leaves_nothing(tmp_path, drafts, base_draft):
     target = _composed(tmp_path, drafts)
     text_draft = _text_draft(base_draft, tmp_path)
     cp.add_tracks(target, "Timeline 02 - Hook 1", text_draft, track_type="text")
+    before = _files(target)
     with pytest.raises(ValueError, match="already on timeline"):
         cp.add_tracks(target, "Timeline 02 - Hook 1", text_draft, track_type="text")
+    assert _files(target) == before  # no backup, no copied assets
     after = _timeline_json(target, "Timeline 02 - Hook 1")
     assert [t["name"] for t in after["tracks"]].count("TEMP_EN_delete_me") == 1
 
 
-def test_add_tracks_on_top_raises_render_index_above_existing(tmp_path, drafts, base_draft):
+def test_add_tracks_audio_duplicate_name_is_still_allowed(tmp_path, drafts, audio_draft):
+    target = _composed(tmp_path, drafts)
+    cp.add_tracks(target, "Timeline 02 - Hook 1", audio_draft, track_type="audio")
+    cp.add_tracks(target, "Timeline 02 - Hook 1", audio_draft, track_type="audio")
+    names = [t["name"] for t in _timeline_json(target, "Timeline 02 - Hook 1")["tracks"] if t["type"] == "audio"]
+    assert names.count("music") == 2
+
+
+def test_add_tracks_on_top_only_for_text(tmp_path, drafts, audio_draft):
+    target = _composed(tmp_path, drafts)
+    with pytest.raises(ValueError, match="text"):
+        cp.add_tracks(target, "Timeline 02 - Hook 1", audio_draft, track_type="audio", on_top=True)
+
+
+def test_add_tracks_on_top_layers_segments_above_existing(tmp_path, drafts, base_draft):
     target = _composed(tmp_path, drafts)
     cp.add_tracks(target, "Timeline 02 - Hook 1", _text_draft(base_draft, tmp_path, "first"), track_type="text")
     cp.add_tracks(target, "Timeline 02 - Hook 1", _text_draft(base_draft, tmp_path, "second"), track_type="text",
                   on_top=True)
-    ri = {t["name"]: t.get("render_index") for t in _timeline_json(target, "Timeline 02 - Hook 1")["tracks"]
-          if t["type"] == "text"}
-    assert ri["first"] == 15000 and ri["second"] > 15000
+    lay = _text_layers(target, "Timeline 02 - Hook 1")
+    assert lay["first"] == (14000, 1)
+    assert lay["second"][0] > 14000 and lay["second"][1] > 1
+    second = next(t for t in _timeline_json(target, "Timeline 02 - Hook 1")["tracks"] if t["name"] == "second")
+    assert all(s["render_index"] == lay["second"][0] for s in second["segments"])
+    assert "render_index" not in second  # no invented track-level field
 
 
 def test_raise_text_track_puts_it_on_top(tmp_path, drafts, base_draft):
     target = _composed(tmp_path, drafts)
     cp.add_tracks(target, "Timeline 02 - Hook 1", _text_draft(base_draft, tmp_path, "TEMP_EN_delete_me"), track_type="text")
-    cp.add_tracks(target, "Timeline 02 - Hook 1", _text_draft(base_draft, tmp_path, "captions"), track_type="text")
+    cp.add_tracks(target, "Timeline 02 - Hook 1", _text_draft(base_draft, tmp_path, "captions", 14001), track_type="text")
     res = cp.raise_text_track(target, "Timeline 02 - Hook 1", "TEMP_EN_delete_me")
-    ri = {t["name"]: t["render_index"] for t in _timeline_json(target, "Timeline 02 - Hook 1")["tracks"]
-          if t["type"] == "text"}
-    assert ri["TEMP_EN_delete_me"] == 15001 and ri["captions"] == 15000
+    lay = _text_layers(target, "Timeline 02 - Hook 1")
+    assert lay["TEMP_EN_delete_me"][0] == 14002 and lay["TEMP_EN_delete_me"][1] > lay["captions"][1]
+    assert lay["captions"] == (14001, 1)
     assert Path(res["backup"]).exists()
+    before = _files(target)
     with pytest.raises(ValueError):
         cp.raise_text_track(target, "Timeline 02 - Hook 1", "nope")
+    assert _files(target) == before
