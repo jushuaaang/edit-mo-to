@@ -14,6 +14,7 @@ CLI (prints JSON):
 import json
 import re
 import sys
+from difflib import SequenceMatcher
 from pathlib import Path
 
 import capcut_project
@@ -28,8 +29,31 @@ MIN_SHOWN = 0.5    # a chunk on screen for less merges with a neighbour
 EPS = 1e-6
 
 
+ONES = "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split()
+TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()
+SKIP_ASR = 0.6     # an ad-lib in the VO that the script does not have: first word
+SKIP_ASR_MORE = 0.15  # each further word of the same ad-lib (a long ad-lib must not push a script word out)
+SKIP_SCRIPT = 2.0  # a script word the VO does not have (it gets interpolated times)
+EXTRA_ASR = 0.6    # per extra VO word one script word takes ("70%" -> "seventy percent")
+MIN_SIM = 0.5      # a weaker match is no match
+
+
+def _spell(n: int) -> str:
+    """English number words without spaces, as ASR may write numbers either way ("70" / "seventy")."""
+    if n < 20:
+        return ONES[n]
+    if n < 100:
+        return TENS[n // 10] + (ONES[n % 10] if n % 10 else "")
+    if n < 1000:
+        return ONES[n // 100] + "hundred" + (_spell(n % 100) if n % 100 else "")
+    if n < 1_000_000:
+        return _spell(n // 1000) + "thousand" + (_spell(n % 1000) if n % 1000 else "")
+    return str(n)
+
+
 def _norm(word: str) -> str:
-    return "".join(_tokens(word))
+    """A word as one comparable string: media_timing tokens, digits spelled out, joined."""
+    return "".join(_spell(int(t)) if t.isdigit() and len(t) < 7 else t for t in _tokens(word))
 
 
 def _allow(chars: int) -> float:
@@ -38,103 +62,90 @@ def _allow(chars: int) -> float:
 
 
 def script_words(words: list[dict], script_lines: list[str]) -> list[dict]:
-    """The script's words with the ASR times, by character-level semi-global alignment: ASR speech before
-    and after the script is free to skip (a script that is a prefix of the VO takes no time from the rest),
-    ties go to the earliest match, and each word is timed from its longest contiguous run of aligned
-    characters (a run spread over far more time than the word needs is rejected and the word interpolated)."""
+    """The script's words with the ASR times, by word-level alignment. One script word matches 1-3
+    consecutive ASR words (cost 1 - similarity, plus a little per extra word); an ASR word the script lacks
+    (an ad-lib) is skipped cheaply, and before or after the script for free; a script word the ASR lacks is
+    skipped dearly and gets the time between its neighbours. Ties go to the earliest match."""
     st = []
     for li, line in enumerate(script_lines):
-        st += [{"word": t, "line": li, "chars": len(_norm(t))} for t in line.split()]
+        st += [{"word": t, "line": li} for t in line.split()]
     asr = [w for w in words if str(w.get("word", "")).strip()]
-    A, a_tok, B, b_tok = [], [], [], []
-    for i, t in enumerate(st):
-        for c in _norm(t["word"]):
-            A.append(c)
-            a_tok.append(i)
-    for i, w in enumerate(asr):
-        for c in _norm(str(w["word"])):
-            B.append(c)
-            b_tok.append(i)
-    n, m = len(A), len(B)
-    # dir: 0 diagonal, 1 up (script char unmatched), 2 left (ASR char unmatched)
-    dirs = [bytearray(m + 1) for _ in range(n + 1)]
+    sn = [_norm(t["word"]) for t in st]
+    an = [_norm(str(w["word"])) for w in asr]
+    n, m = len(st), len(asr)
+    INF = float("inf")
+    cost = [[INF] * (m + 1) for _ in range(n + 1)]
+    back = [[None] * (m + 1) for _ in range(n + 1)]
     for j in range(m + 1):
-        dirs[0][j] = 2
-    # costs: substitution 2, script char unmatched 3, ASR char unmatched 1 (the VO may hold ad-libs; the
-    # script's words should be found)
-    prev = [0] * (m + 1)                     # leading ASR before the script is free
-    for i in range(1, n + 1):
-        cur = [3 * i] + [0] * m
-        dirs[i][0] = 1
-        ai, row = A[i - 1], dirs[i]
-        for j in range(1, m + 1):
-            d = prev[j - 1] + 2 * (ai != B[j - 1])
-            u = prev[j] + 3
-            l = cur[j - 1] + 1
-            if l <= d and l <= u:            # ties: skip the later ASR char, so the match lands earliest
-                cur[j] = l
-                row[j] = 2
-            elif d <= u:
-                cur[j] = d
+        cost[0][j] = 0.0                                   # leading ASR before the script is free
+    sim_cache = {}
+
+    def sim(i, j0, j1):
+        key = (i, j0, j1)
+        if key not in sim_cache:
+            a, b = sn[i], "".join(an[j0:j1])
+            if not a or not b:
+                sim_cache[key] = 0.0
             else:
-                cur[j] = u
-                row[j] = 1
-        prev = cur
-    end = min(range(m + 1), key=lambda j: (prev[j], j)) if n else 0   # trailing ASR after the script is free
-    mapping = [-1] * n
-    i, j = n, end
+                sm = SequenceMatcher(None, a, b, autojunk=False)
+                sim_cache[key] = sm.ratio() if sm.real_quick_ratio() >= MIN_SIM and sm.quick_ratio() >= MIN_SIM else 0.0
+        return sim_cache[key]
+
+    # gap[i][j]: best cost of the first i script words against the first j ASR words, ending in an ASR skip
+    gap = [[INF] * (m + 1) for _ in range(n + 1)]
+    gback = [[None] * (m + 1) for _ in range(n + 1)]
+    for j in range(m + 1):
+        gap[0][j] = 0.0
+    for i in range(1, n + 1):
+        skip_s = SKIP_SCRIPT if sn[i - 1] else 0.0
+        for j in range(m + 1):
+            if j > 0:
+                w = 1.0 if an[j - 1] else 0.0
+                o, e = cost[i][j - 1] + SKIP_ASR * w, gap[i][j - 1] + SKIP_ASR_MORE * w
+                gap[i][j], gback[i][j] = (e, "g") if e < o - 1e-9 else (o, "c")
+            # candidates in tie order: skip the ASR word (the match lands earlier), match, skip the script word
+            best, how = gap[i][j], ("a",)
+            for k in range(1, 4):
+                if j - k < 0 or cost[i - 1][j - k] == INF:
+                    continue
+                s_ = sim(i - 1, j - k, j)
+                if s_ < MIN_SIM:
+                    continue
+                c = cost[i - 1][j - k] + (1 - s_) + EXTRA_ASR * (k - 1)
+                if c < best - 1e-9:
+                    best, how = c, ("m", k)
+            c = cost[i - 1][j] + skip_s
+            if c < best - 1e-9:
+                best, how = c, ("s",)
+            cost[i][j], back[i][j] = best, how
+
+    for t in st:
+        t["start"], t["end"] = INF, -INF
+    j = min(range(m + 1), key=lambda j: (round(cost[n][j], 9), j)) if n else 0   # trailing ASR is free
+    i, state = n, "c"
     while i > 0:
-        d = dirs[i][j]
-        if j > 0 and d == 0:
-            mapping[i - 1] = j - 1
-            i, j = i - 1, j - 1
-        elif j == 0 or d == 1:
+        if state == "g":
+            state = gback[i][j]
+            j -= 1
+            continue
+        how = back[i][j]
+        if how[0] == "a":
+            state = "g"
+        elif how[0] == "s":
             i -= 1
         else:
-            j -= 1
-
-    # per script word: runs of consecutive aligned chars; the best (most exact matches, then longest, then earliest) times it
-    runs = {}
-    for i in range(n):
-        if mapping[i] < 0:
-            continue
-        k, exact = a_tok[i], A[i] == B[mapping[i]]
-        rs = runs.setdefault(k, [])
-        if rs and rs[-1]["i"] == i - 1 and rs[-1]["j"] == mapping[i] - 1:
-            r = rs[-1]
-        else:
-            r = {"exact": 0, "len": 0, "b0": b_tok[mapping[i]]}
-            rs.append(r)
-        r.update(i=i, j=mapping[i], b1=b_tok[mapping[i]])
-        r["exact"] += exact
-        r["len"] += 1
-    for k, t in enumerate(st):
-        t["start"], t["end"] = float("inf"), float("-inf")
-        if k not in runs:
-            continue
-        r = max(runs[k], key=lambda r: (r["exact"], r["len"]))
-        s0, s1 = asr[r["b0"]]["start"], asr[r["b1"]]["end"]
-        if r["b1"] > r["b0"] and s1 - s0 > _allow(t["chars"]):
-            continue
-        t["start"], t["end"] = s0, s1
-    # a word whose run starts before its predecessor ends is a stray match: interpolate it instead
-    last = float("-inf")
-    for t in st:
-        if t["start"] == float("inf"):
-            continue
-        if t["start"] < last - 1e-6:
-            t["start"], t["end"] = float("inf"), float("-inf")
-        else:
-            last = t["end"]
+            k = how[1]
+            st[i - 1]["start"], st[i - 1]["end"] = asr[j - k]["start"], asr[j - 1]["end"]
+            i, j = i - 1, j - k
     # words the ASR missed sit between their neighbours
     for i, t in enumerate(st):
-        if t["start"] != float("inf"):
+        if t["start"] != INF:
             continue
-        p = next((k for k in range(i - 1, -1, -1) if st[k]["start"] != float("inf")), None)
-        q = next((k for k in range(i + 1, len(st)) if st[k]["start"] != float("inf")), None)
+        p = next((k for k in range(i - 1, -1, -1) if st[k]["start"] != INF), None)
+        q = next((k for k in range(i + 1, len(st)) if st[k]["start"] != INF), None)
         a = st[p]["end"] if p is not None else (st[q]["start"] if q is not None else 0.0)
         b = st[q]["start"] if q is not None else a + LINGER
-        t["start"], t["end"] = a, max(a, min(b, a + _allow(t["chars"])))
+        t["start"], t["end"] = a, max(a, min(b, a + _allow(len(sn[i]))))
     for i in range(1, len(st)):
         if st[i]["start"] < st[i - 1]["start"]:
             st[i]["start"] = st[i - 1]["start"]

@@ -192,3 +192,30 @@ def test_cli_reads_cp1252_crlf(tmp_path, capsys):
     cap = capsys.readouterr()
     assert "cp1252" in cap.err
     assert json.loads(out.read_text(encoding="utf-8"))[0]["text"] == "Boron \u2014 zinc"
+
+
+def _asr(text, step=0.3):
+    return [{"word": w, "start": round(i * step, 3), "end": round(i * step + 0.25, 3)} for i, w in enumerate(text.split())]
+
+
+@pytest.mark.parametrize("vo,script,expected", [
+    ("the cat basically honestly really sat on the mat", "The cat sat on the mat.",
+     [0.0, 0.3, 1.5, 1.8, 2.1, 2.4]),
+    ("after one week basically honestly really the stress starts to drop", "After one week, the stress starts to drop.",
+     [0.0, 0.3, 0.6, 1.8, 2.1, 2.4, 2.7, 3.0]),
+    ("if you recognize basically honestly really one of those signs", "If you recognize one of those signs",
+     [0.0, 0.3, 0.6, 1.8, 2.1, 2.4, 2.7]),
+    ("the cat sat on the uh you know like mat today", "The cat sat on the mat.",
+     [0.0, 0.3, 0.6, 0.9, 1.2, 2.7]),
+])
+def test_script_words_ad_libs_do_not_move_neighbours(vo, script, expected):
+    out = captions.script_words(_asr(vo), [script])
+    assert [w["start"] for w in out] == [pytest.approx(e, abs=0.05) for e in expected]
+    assert all(w["end"] - w["start"] == pytest.approx(0.25, abs=0.05) for w in out)
+
+
+def test_script_words_number_spans_both_asr_words():
+    out = captions.script_words(_asr("save seventy percent today"), ["Save 70% today."])
+    assert [w["word"] for w in out] == ["Save", "70%", "today."]
+    assert (out[1]["start"], out[1]["end"]) == (pytest.approx(0.3), pytest.approx(0.85))
+    assert out[2]["start"] == pytest.approx(0.9)
