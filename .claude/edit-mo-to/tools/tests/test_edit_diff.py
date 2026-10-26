@@ -128,3 +128,7 @@ def test_temp_en_deletion_is_not_a_pattern():
     assert d["removed"] == [] and d["added"] == [] and d["patterns"] == []
     d = ed.diff(tl([keep]), tl([keep, *en]))
     assert d["caption_segments_added"] == 0 and d["added"] == []
+    # a change to any other text is still reported
+    txt = seg("text", None, 0, 1.0, ttype="text", text="Buy now")
+    d = ed.diff(tl([keep, txt, *en]), tl([keep, *en]))
+    assert [r["kind"] for r in d["removed"]] == ["text"]

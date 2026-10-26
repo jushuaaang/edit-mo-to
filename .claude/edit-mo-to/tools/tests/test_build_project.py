@@ -623,3 +623,35 @@ def test_captions_timings_prefer_the_timelines_own_temp_en(tmp_path, monkeypatch
     p.write_text(json.dumps(plan), encoding="utf-8")
     bp.main(["captions", str(p), "Timeline 01", "--project", "/x"])
     assert seen["timings"] == "/plan_vo.json"
+
+
+def test_captions_pass_qa_check_on_a_real_build(tmp_path, monkeypatch):
+    """Real VectCutAPI draft: Claude's captions sit in the bottom band and match the script, per qa_check."""
+    if not _api_up():
+        pytest.skip("VectCutAPI not running on :9001")
+    import qa_check as qc
+    monkeypatch.setattr(cp, "_capcut_running", lambda: False)
+    base = TMP / "_test_fixture" / "build_project"
+    a = _synthetic(base / "clip_a.mp4", "testsrc2")
+    vo = _synthetic(base / "vo.mp4", "testsrc")
+    words = "hola a todos esto es una prueba de subtitulos".split()
+    timings = tmp_path / "vo.json"
+    timings.write_text(json.dumps({"words": [{"word": w, "start": 0.2 + i * 0.4, "end": 0.55 + i * 0.4}
+                                             for i, w in enumerate(words)]}), encoding="utf-8")
+    script = tmp_path / "script.txt"
+    script.write_text("Hola a todos.\nEsto es una prueba de subtitulos.\n", encoding="utf-8")
+    name = f"_test_qacaps_{time.strftime('%Y%m%d-%H%M%S')}"
+    plan = {"project": name, "fps": 30, "width": 1080, "height": 1920, "base": tmp_path.as_posix(),
+            "timelines": [{"name": "Timeline 01", "vo": vo, "vo_in": 0.0, "vo_out": 4.0, "vo_volume": 1.0,
+                           "music": None, "music_volume": 0.1, "manual": [], "texts": [], "overlays": [],
+                           "clips": [{**CLIP, "file": a, "src_in": 0.0, "src_out": 4.0, "at": 0.0}]}]}
+    project = Path(PATHS["capcut_drafts"]) / name
+    try:
+        bp.build(plan, job=name, render=False)
+        bp.add_captions(plan, "Timeline 01", project, str(script), str(timings))
+        r = qc.check_captions(plan, project, "Timeline 01", ["Hola a todos.", "Esto es una prueba de subtitulos."],
+                              json.loads(timings.read_text(encoding="utf-8"))["words"])
+        assert r["verdict"] == "PASS" and r["rows"] == [], r["rows"]
+    finally:
+        if project.exists() and project.name.startswith("_test_"):
+            shutil.rmtree(project, ignore_errors=True)

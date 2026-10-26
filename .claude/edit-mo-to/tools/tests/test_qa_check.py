@@ -371,3 +371,34 @@ def test_captions_band_and_gaps():
     d = _cap_dump(_text_seg("captions", "Hello", 0.0, 0.4), _text_seg("captions", "world", 2.0, 0.5))
     gaps = [x for x in _cap_run(d, words=gappy)["rows"] if x["check"] == "caption_gaps"]
     assert len(gaps) == 1 and gaps[0]["status"] == "OPEN"
+
+
+def test_captions_symbol_word_in_script_does_not_shift_the_sync_walk():
+    asr = [{"word": w, "start": s, "end": e} for w, s, e in
+           [("hello", 1.0, 1.4), ("big", 2.0, 2.4), ("world", 3.0, 3.4)]]
+    d = _cap_dump(_text_seg("captions", "Hello", 0.0, 0.4), _text_seg("captions", "big", 1.0, 0.4),
+                  _text_seg("captions", "world", 2.0, 0.4))
+    r = _cap_run(d, script=("Hello \u2014 big world.",), words=asr)
+    assert not [x for x in r["rows"] if x["check"] in ("caption_sync", "caption_words")], r["rows"]
+
+
+def _cli_captions(tmp_path, monkeypatch, capsys, caption_text, *extra):
+    d = _cap_dump(_text_seg("captions", caption_text, 0.0, 1.5))
+    monkeypatch.setattr(qc.cp, "segments", lambda p, n, s=(): copy.deepcopy(d))
+    plan, script, timings = tmp_path / "plan.json", tmp_path / "s.txt", tmp_path / "vo.json"
+    plan.write_text(json.dumps(_plan()), encoding="utf-8")
+    script.write_text("Hello big world.\n", encoding="utf-8")
+    timings.write_text(json.dumps({"words": ASR}), encoding="utf-8")
+    code = 0
+    try:
+        qc.main(["captions", str(plan), "/p", "A", "--script", str(script), "--timings", str(timings), *extra])
+    except SystemExit as e:
+        code = e.code
+    return code, json.loads(capsys.readouterr().out)
+
+
+def test_cli_captions_exit_code_follows_the_verdict(tmp_path, monkeypatch, capsys):
+    code, out = _cli_captions(tmp_path, monkeypatch, capsys, "Hello big world", "--vo-track", "vo")
+    assert code == 0 and out["verdict"] == "PASS"
+    code, out = _cli_captions(tmp_path, monkeypatch, capsys, "Hello big word")
+    assert code == 1 and out["verdict"].startswith("FAIL")

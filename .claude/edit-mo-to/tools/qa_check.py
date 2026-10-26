@@ -7,7 +7,7 @@ CLI (prints JSON {"rows": [...], "passed": N, "verdict": ...}; exit code 1 on a 
                          SFX repeats, music level, duration, canvas, captions, unknown sources.
                          --changed limits present/extras/overlay_on_cut/reuse to those clips (numbers) and
                          overlays (ovN) and their neighbours, and prefixes the verdict with DELTA
-    captions <plan.json> "<project>" "<timeline>" [--script s.txt] [--timings vo.json] [--limits limits.json] [--search dir ...]
+    captions <plan.json> "<project>" "<timeline>" [--script s.txt] [--timings vo.json] [--limits limits.json] [--vo-track NAME] [--search dir ...]
                          Claude's `captions` text track against the script and the timeline's live VO: caption_words,
                          caption_sync, caption_band, caption_gaps (--script / --timings default to the plan's captions.*)
     prompts <prompts2.json> [--script script.txt] [--timings t.json]
@@ -188,8 +188,10 @@ def check_captions(plan: dict, project: Path, timeline: str, script_lines: list[
     for s in caps:
         take, cnt, n = [], 0, len(_words_of(s.get("text")))
         while cnt < n and i < len(kept):
-            take.append(kept[i])
-            cnt += len(_words_of(kept[i]["word"])) or 1
+            k = len(_words_of(kept[i]["word"]))   # a bare symbol ("-", "&") has no token and no caption of its own
+            if k:
+                take.append(kept[i])
+                cnt += k
             i += 1
         if not take:
             break
@@ -553,7 +555,7 @@ def main(argv: list[str]) -> None:
                     search.append(x)
         try:
             res = check_captions(plan, Path(args[1]), args[2], cap._lines(script), json.loads(cap._read(timings)).get("words", []),
-                                 load(opt("--limits")) if opt("--limits") else None, search=search)
+                                 load(opt("--limits")) if opt("--limits") else None, search=search, vo_track=opt("--vo-track"))
         except ValueError as e:
             raise SystemExit(f"qa_check: {e}")
     elif cmd == "prompts":
