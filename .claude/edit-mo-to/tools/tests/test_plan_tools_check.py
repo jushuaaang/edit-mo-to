@@ -180,3 +180,43 @@ def test_check_temp_en_hook_with_its_own_vo_needs_its_own_lines(tmp_path):
     assert len(errs) == 1 and errs[0].startswith("T2 temp_en: this timeline has its own VO")
     plan["timelines"][1]["temp_en"] = None
     assert pt.check(plan, probe=PROBE, silent=QUIET) == []
+
+
+def _te_files(tmp_path):
+    import json
+    vo = tmp_path / "vo.json"
+    vo.write_text(json.dumps({"lines": [{"start": 0, "end": 1}]}), encoding="utf-8")
+    en = tmp_path / "en.txt"
+    en.write_text("One.\n", encoding="utf-8")
+    return {"english": en.as_posix(), "timings": vo.as_posix()}
+
+
+def test_check_plan_temp_en_without_a_plan_vo_needs_each_own_vo_timeline_to_have_its_own(tmp_path):
+    te = _te_files(tmp_path)
+    plan = _p2([_tl("A", clips=[["a.mp4", 0, 0, 60]], vo={"file": "a_vo.mp3"}),
+                _tl("B", clips=[["b.mp4", 0, 0, 60]])], temp_en=te)          # no top-level vo
+    errs = pt.check(plan, probe=PROBE, silent=QUIET)
+    assert len(errs) == 1 and errs[0].startswith("T1 temp_en: this timeline has its own VO"), errs
+    plan["timelines"][0]["temp_en"] = te
+    assert pt.check(plan, probe=PROBE, silent=QUIET) == []
+    plan["timelines"][0]["temp_en"] = None
+    assert pt.check(plan, probe=PROBE, silent=QUIET) == []
+
+
+def test_check_skips_temp_en_on_a_timeline_marked_removed(tmp_path):
+    te = _te_files(tmp_path)
+    plan = _p2([_tl("A", clips=[["a.mp4", 0, 0, 60]]),
+                _tl("H", clips=[["b.mp4", 0, 0, 60]], vo={"file": "hook.mp3"}, temp_en_removed=True)],
+               vo={"file": "vo.mp3"}, temp_en=te)
+    assert pt.check(plan, probe=PROBE, silent=QUIET) == []
+    bad = {**te, "timings": (tmp_path / "nope.json").as_posix()}
+    plan["timelines"][1]["temp_en"] = bad
+    assert pt.check(plan, probe=PROBE, silent=QUIET) == []
+
+
+def test_caption_text_row_error_states_the_step_10_rule():
+    plan = _p2([_tl(clips=[["a.mp4", 0, 0, 60]])])
+    plan["timelines"][0]["texts"] = [{"text": "hi", "at": 0.0, "duration": 1.0, "style": "word", "role": "caption"}]
+    errs = pt.check(plan, probe=PROBE, silent=QUIET)
+    assert len(errs) == 1 and "no captions before step 10" in errs[0] and "TEMP_EN_delete_me" in errs[0]
+    assert "added by the editor" not in errs[0]

@@ -163,6 +163,10 @@ def _timeline(tl: dict, plan2: dict) -> dict:
         out["effects"] = effects
     if "temp_en" in tl:   # a timeline's own English lines and timings (e.g. a hook with its own VO)
         out["temp_en"] = _temp_en(tl["temp_en"], base)
+    if "temp_en_removed" in tl:   # the editor deleted TEMP_EN on this timeline only
+        out["temp_en_removed"] = tl["temp_en_removed"]
+    if tl.get("captions"):   # a timeline's own step-10 script and VO timings (e.g. a hook with its own VO)
+        out["captions"] = _captions(tl["captions"], base)
     return out
 
 
@@ -177,12 +181,23 @@ def _temp_en(te: dict | None, base: str, vo: dict | None = None) -> dict | None:
     return out
 
 
+def _captions(c: dict, base: str, vo: dict | None = None) -> dict:
+    """{"script": <script.txt>, "timings": <vo.json>} with both paths joined to base; the plan-wide one also
+    records the VO file its timings belong to ("vo"), so captions.caption_inputs never uses them on another VO."""
+    out = {k: _join(base, c[k]) for k in ("script", "timings") if c.get(k)}
+    if vo:
+        out["vo"] = _join(base, vo["file"])
+    return out
+
+
 def expand(plan2: dict) -> dict:
     """Compact frame plan (plan2) -> contract plan: frames become 10-decimal seconds, blocks are resolved,
     brand vars are filled into the overlays whose template declares them."""
     plan = {k: plan2[k] for k in ("project", "style", "fps", "width", "height", "base", "brand") if k in plan2}
     if "temp_en" in plan2:
         plan["temp_en"] = _temp_en(plan2["temp_en"], plan2.get("base", ""), plan2.get("vo"))
+    if plan2.get("captions"):
+        plan["captions"] = _captions(plan2["captions"], plan2.get("base", ""), plan2.get("vo"))
     for k in ("temp_en_removed", "captions_style"):
         if k in plan2:
             plan[k] = plan2[k]
@@ -412,13 +427,15 @@ def check(plan: dict, limits: dict | None = None, probe=probe_media, silent=edge
                     if not silent(tl["vo"], t):
                         errs.append(f"{T} vo: {label} {t} is not silent (above -60 dB within the 0.8 s probe); "
                                     f"move it into the gap between words")
-        if tl.get("temp_en") and not plan.get("temp_en_removed"):
+        te_off = plan.get("temp_en_removed") or tl.get("temp_en_removed")
+        if tl.get("temp_en") and not te_off:
             errs += _temp_en_errors(tl["temp_en"], f"{T} temp_en")
         te = plan.get("temp_en") or {}
-        if ("temp_en" not in tl and te.get("vo") and tl.get("vo") and tl["vo"] != te["vo"]
-                and not plan.get("temp_en_removed")):
+        # a plan-wide temp_en with no plan VO recorded is timed to some other VO: every own-VO timeline differs
+        if te and "temp_en" not in tl and tl.get("vo") and tl["vo"] != te.get("vo") and not te_off:
             errs.append(f"{T} temp_en: this timeline has its own VO ({tl['vo']}) but uses the plan's English lines, "
-                        f"timed to {te['vo']}; give it its own temp_en (english + timings), or temp_en: null")
+                        f"timed to {te.get('vo') or 'another VO (plan2 has no top-level vo)'}; give it its own "
+                        f"temp_en (english + timings), or temp_en: null")
         cuts, by_track = [c["at"] for c in clips], {}
         for oi, o in enumerate(tl.get("overlays", []), 1):
             errs += _overlay_errors(o, oi, cuts, T, templates, limits, cv)
@@ -441,7 +458,8 @@ def check(plan: dict, limits: dict | None = None, probe=probe_media, silent=edge
             if limits.get("no_text"):
                 errs.append(f"{T} text {xi}: this job allows no text on screen")
             if x.get("role") == "caption":
-                errs.append(f"{T} text {xi}: captions are added by the editor in CapCut, never in the plan")
+                errs.append(f"{T} text {xi}: captions are never in the plan: no captions before step 10, except the "
+                            f"TEMP_EN_delete_me review track (the build adds it from temp_en)")
     return errs
 
 

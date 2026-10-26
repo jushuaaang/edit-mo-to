@@ -97,3 +97,15 @@ def test_expand_copies_temp_en():
     assert "temp_en" not in p["timelines"][0]
     assert p["timelines"][1]["temp_en"] == {"english": "/v/hook_en.txt", "timings": "/v/hook.json"}
     assert "temp_en" not in pt.expand(_p2(timelines=[]))
+
+
+def test_expand_copies_captions_and_per_timeline_overrides():
+    p = pt.expand(_p2(captions={"script": "script.txt", "timings": "C:/vo/vo.json"},
+                      timelines=[{"name": "T1", "seq": [{"clips": [["a.mp4", 0, 0, 30]]}]},
+                                 {"name": "H", "seq": [{"clips": [["a.mp4", 30, 0, 30]]}], "vo": {"file": "hook.mp3"},
+                                  "captions": {"script": "hook.txt", "timings": "hook.json"}, "temp_en_removed": True}]))
+    assert p["captions"] == {"script": "/v/script.txt", "timings": "C:/vo/vo.json", "vo": "/v/vo.mp3"}
+    assert "captions" not in p["timelines"][0] and "temp_en_removed" not in p["timelines"][0]
+    assert p["timelines"][1]["captions"] == {"script": "/v/hook.txt", "timings": "/v/hook.json"}
+    assert p["timelines"][1]["temp_en_removed"] is True
+    assert "captions" not in pt.expand(_p2(timelines=[]))
