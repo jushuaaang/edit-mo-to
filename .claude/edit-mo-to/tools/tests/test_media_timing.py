@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 import wave
 from pathlib import Path
@@ -239,3 +240,25 @@ def test_align_lines_matches_spanish_script():
     words = [{"word": "¿Sabías", "start": 0, "end": .4}, {"word": "que", "start": .4, "end": .6}]
     out = mt.align_lines(words, ["¿Sabías que"])
     assert out[0]["matched"] is True
+
+
+@pytest.mark.parametrize("text", ["'hello'", "dogs' toys", "rock'n'roll", "''", "snake_case _x_", "well-known", "3d 2nd 5pm",
+                                  "50% off", "I have 5 apples and 20", "Don't STOP", "it's 100%"])
+def test_english_tokens_match_old_regex(text):
+    old = [mt.NUMBERS.get(t, t) for t in re.findall(r"[a-z0-9']+", text.lower().replace("%", " percent"))]
+    assert mt._tokens(text) == old
+
+
+def test_tokens_nfc_combining_accent():
+    assert mt._tokens("Sabi\u0301as") == ["sabías"]
+
+
+def test_mlx_language_only_for_non_english(tmp_path, monkeypatch):
+    import types
+
+    seen = []
+    fake = types.SimpleNamespace(transcribe=lambda path, **kw: (seen.append(kw), {"segments": []})[1])
+    monkeypatch.setitem(sys.modules, "mlx_whisper", fake)
+    mt._transcribe_mlx(tmp_path / "a.wav", "en")
+    mt._transcribe_mlx(tmp_path / "a.wav", "es")
+    assert "language" not in seen[0] and seen[1]["language"] == "es"

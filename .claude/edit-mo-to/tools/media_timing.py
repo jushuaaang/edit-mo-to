@@ -11,6 +11,7 @@ CLI (prints JSON):
 import json
 import re
 import sys
+import unicodedata
 from difflib import SequenceMatcher
 from pathlib import Path
 
@@ -32,7 +33,8 @@ def to_sf(seconds: float, fps: int = 30) -> str:
 
 
 def _tokens(text: str) -> list[str]:
-    toks = re.findall(r"[^\W_]+(?:'[^\W_]+)?", text.lower().replace("%", " percent"))
+    text = unicodedata.normalize("NFC", text).lower().replace("%", " percent")  # NFC keeps combining accents inside words
+    toks = re.findall(r"(?:[^\W_]|')+", text)
     return [NUMBERS.get(t, t) for t in toks]
 
 
@@ -143,8 +145,8 @@ def _transcribe_faster_whisper(audio: Path, lang: str = "en") -> list[dict]:
 def _transcribe_mlx(audio: Path, lang: str = "en") -> list[dict]:
     import mlx_whisper
 
-    res = mlx_whisper.transcribe(str(audio), path_or_hf_repo="mlx-community/whisper-large-v3-turbo", word_timestamps=True,
-                              language=lang)
+    extra = {} if lang == "en" else {"language": lang}  # English keeps auto-detect, as before
+    res = mlx_whisper.transcribe(str(audio), path_or_hf_repo="mlx-community/whisper-large-v3-turbo", word_timestamps=True, **extra)
     return [{"word": w["word"].strip(), "start": w["start"], "end": w["end"]}
             for s in res["segments"] for w in s.get("words", [])]
 
