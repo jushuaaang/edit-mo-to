@@ -1,0 +1,124 @@
+import json
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import pytest
+
+GUI = Path(__file__).resolve().parents[2] / "gui"
+sys.path.insert(0, str(GUI))
+import jobstate as js  # noqa: E402
+
+WAIT = GUI / "wait.py"
+_procs: list[subprocess.Popen] = []
+
+
+def _kill_tree(p):
+    # the venv python on Windows is a launcher: p.pid is the launcher, the waiter its child
+    if sys.platform == "win32":
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(p.pid)], capture_output=True)
+    else:
+        p.kill()
+
+
+@pytest.fixture(autouse=True)
+def _reap():
+    yield
+    for p in _procs:
+        if p.poll() is None:
+            _kill_tree(p)
+        p.wait()
+        for s in (p.stdout, p.stderr):
+            if s:
+                s.close()
+    _procs.clear()
+
+
+def _start(folder, *args, step="storyboard"):
+    cmd = [sys.executable, str(WAIT), str(folder), "--after", "0", "--step", step, "--poll", "0.1", *args]
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    _procs.append(p)
+    return p
+
+
+def _until(cond, timeout=10.0):
+    end = time.time() + timeout
+    while time.time() < end:
+        if cond():
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def _out(p, timeout=10):
+    out, _ = p.communicate(timeout=timeout)
+    return json.loads(out.decode("utf-8").strip().splitlines()[-1])
+
+
+def test_returns_existing_unread_event_immediately(tmp_path):
+    js.append_event(tmp_path, {"type": "message", "text": "hi"})
+    t = time.time()
+    p = _start(tmp_path, "--timeout", "5")
+    out = _out(p)
+    assert p.returncode == 0
+    assert time.time() - t < 2 + 3  # interpreter start slack
+    assert [e["seq"] for e in out["events"]] == [1]
+    assert js.listening(tmp_path) is None
+
+
+def test_wakes_on_new_event(tmp_path):
+    p = _start(tmp_path, "--timeout", "10")
+    assert _until(lambda: js.listening(tmp_path) is not None)
+    js.append_event(tmp_path, {"type": "answer", "text": "ok"})
+    out = _out(p)
+    assert p.returncode == 0
+    assert out["events"][0]["text"] == "ok"
+    assert not (js.state_dir(tmp_path) / "listening.json").exists()
+
+
+def test_timeout_exit_code(tmp_path):
+    p = _start(tmp_path, "--timeout", "1")
+    assert _out(p) == {"events": []}
+    assert p.returncode == 3
+    assert js.listening(tmp_path) is None
+
+
+def test_listening_visible_while_waiting(tmp_path):
+    p = _start(tmp_path, "--timeout", "10")
+    assert _until(lambda: js.listening(tmp_path) is not None)
+    info = js.listening(tmp_path)
+    assert info["step"] == "storyboard" and js.pid_alive(info["pid"])
+    first = info["beat"]
+    assert _until(lambda: (js.listening(tmp_path) or {}).get("beat", first) > first)
+
+
+def test_second_waiter_takes_over(tmp_path):
+    a = _start(tmp_path, "--timeout", "20")
+    assert _until(lambda: js.listening(tmp_path) is not None)
+    a_pid = js.listening(tmp_path)["pid"]
+    b = _start(tmp_path, "--timeout", "20")
+    assert _until(lambda: a.poll() is not None)
+    assert a.returncode == 4
+    assert json.loads(a.stdout.read().decode().strip()) == {"superseded": True}
+    assert _until(lambda: (js.listening(tmp_path) or {}).get("pid") not in (None, a_pid))
+    assert b.poll() is None
+
+
+def test_folder_with_spaces_and_accents(tmp_path):
+    folder = tmp_path / "Café vidéo"
+    folder.mkdir()
+    js.append_event(folder, {"type": "message", "text": "ñandú ✓"})
+    out = _out(_start(folder, "--timeout", "5"))
+    assert out["events"][0]["text"] == "ñandú ✓"
+
+
+def test_terminate_clears_listening_and_exits_130(tmp_path):
+    p = _start(tmp_path)
+    assert _until(lambda: js.listening(tmp_path) is not None)
+    p.terminate()
+    p.wait(timeout=10)
+    # Windows terminate() is a hard kill; POSIX gets the handler
+    if sys.platform != "win32":
+        assert p.returncode == 130
+        assert not (js.state_dir(tmp_path) / "listening.json").exists()
