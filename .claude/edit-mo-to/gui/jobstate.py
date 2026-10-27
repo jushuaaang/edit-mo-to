@@ -71,11 +71,20 @@ def validate(job: dict) -> None:
     if gate is not None:
         if not isinstance(gate, dict):
             raise ValueError("gate must be an object")
-        for field in ("id", "text", "kind"):
-            if not gate.get(field):
+        for field in ("id", "title"):
+            if not isinstance(gate.get(field), str) or not gate[field]:
                 raise ValueError(f"gate is missing {field}")
-        if gate["kind"] not in GATE_KINDS:
-            raise ValueError(f"gate kind must be one of {GATE_KINDS}, got {gate['kind']!r}")
+        questions = gate.get("questions")
+        if not isinstance(questions, list) or not questions:
+            raise ValueError("gate needs a non-empty questions list")
+        for i, q in enumerate(questions, 1):
+            if not isinstance(q, dict):
+                raise ValueError(f"gate question {i} must be an object")
+            for field in ("id", "text", "kind"):
+                if not q.get(field):
+                    raise ValueError(f"gate question {i} is missing {field}")
+            if q["kind"] not in GATE_KINDS:
+                raise ValueError(f"gate question {q['id']}: kind must be one of {GATE_KINDS}, got {q['kind']!r}")
 
 
 def _retry(fn):

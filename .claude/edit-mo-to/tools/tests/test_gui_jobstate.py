@@ -51,14 +51,29 @@ def test_validate_rejects_unknown_step_and_bad_gate(tmp_path):
     with pytest.raises(ValueError, match="nope"):
         js.validate(job)
     del job["steps"]["nope"]
-    job["gate"] = {"id": "g-1", "text": "?", "kind": "weird"}
+    def gate(*qs, **kw):
+        return {"id": "g-1", "title": "T", "questions": list(qs), **kw}
+
+    job["gate"] = gate({"id": "q", "text": "?", "kind": "weird"})
     with pytest.raises(ValueError, match="kind"):
         js.validate(job)
-    job["gate"] = {"id": "g-1", "kind": "text"}
+    job["gate"] = gate({"id": "q", "text": "?"})
+    with pytest.raises(ValueError, match="kind"):
+        js.validate(job)
+    job["gate"] = gate({"id": "q", "kind": "text"})
     with pytest.raises(ValueError, match="text"):
         js.validate(job)
-    job["gate"] = {"id": "g-1", "text": "?", "kind": "choice"}
-    js.validate(job)
+    job["gate"] = gate("not a dict")
+    with pytest.raises(ValueError, match="object"):
+        js.validate(job)
+    job["gate"] = gate()
+    with pytest.raises(ValueError, match="questions"):
+        js.validate(job)
+    job["gate"] = {"id": "g-1", "questions": [{"id": "q", "text": "?", "kind": "text"}]}
+    with pytest.raises(ValueError, match="title"):
+        js.validate(job)
+    job["gate"] = gate({"id": "a", "text": "?", "kind": "choice"}, {"id": "b", "text": "?", "kind": "text"})
+    js.validate(job)  # mixed kinds are fine
 
 
 def test_events_get_increasing_seq_and_survive_reload(tmp_path):
@@ -71,7 +86,7 @@ def test_events_get_increasing_seq_and_survive_reload(tmp_path):
 
 def test_answer_to_closed_gate_is_stale(tmp_path):
     job = _job(tmp_path)
-    job["gate"] = {"id": "g-1", "text": "ok?", "kind": "confirm"}
+    job["gate"] = {"id": "g-1", "title": "ok?", "questions": [{"id": "q", "text": "ok?", "kind": "confirm"}]}
     js.save(tmp_path, job)
     assert "stale" not in js.append_event(tmp_path, {"type": "answer", "gate": "g-1"})
     job["gate"] = None

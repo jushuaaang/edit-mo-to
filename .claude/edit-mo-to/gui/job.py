@@ -22,6 +22,7 @@ init and open also make the folder the "current" job ({tmp}/gui/current.json).
 """
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -95,17 +96,10 @@ def cmd_step(a) -> dict:
 
 
 def _gate_from(spec: dict, gate_id: str, step: str) -> dict:
-    if not isinstance(spec, dict) or not spec.get("title"):
-        raise ValueError("gate file needs a title")
-    questions = spec.get("questions") or []
-    for i, q in enumerate(questions, 1):
-        for field in ("id", "text", "kind"):
-            if not q.get(field):
-                raise ValueError(f"question {i} is missing {field}")
-        if q["kind"] not in js.GATE_KINDS:
-            raise ValueError(f"question {q['id']}: kind must be one of {js.GATE_KINDS}, got {q['kind']!r}")
-    gate = {"id": gate_id, "step": step, "title": spec["title"], "text": spec["title"],
-            "kind": questions[0]["kind"] if questions else "confirm", "questions": questions}
+    """Build the gate; jobstate.validate (on save) checks title and every question."""
+    if not isinstance(spec, dict):
+        raise ValueError("gate file must be a JSON object")
+    gate = {"id": gate_id, "step": step, "title": spec.get("title"), "questions": spec.get("questions")}
     if spec.get("detail"):
         gate["detail"] = spec["detail"]
     return gate
@@ -133,10 +127,51 @@ def cmd_close_gate(a) -> dict:
     return {}
 
 
+def _need(obj, field: str, typ, where: str):
+    if not isinstance(obj, dict) or field not in obj:
+        raise ValueError(f"{where}: missing {field}")
+    if not isinstance(obj[field], typ):
+        raise ValueError(f"{where}.{field}: expected {typ.__name__}")
+    return obj[field]
+
+
+def _items(obj: dict, field: str, where: str, required: tuple) -> None:
+    for i, item in enumerate(_need(obj, field, list, where)):
+        for key in required:
+            _need(item, key, object, f"{where}.{field}[{i}]")
+        if not isinstance(item, dict):
+            raise ValueError(f"{where}.{field}[{i}]: expected object")
+
+
+def validate_output(kind: str, data) -> None:
+    """Shape of a `--file` output: checklist, script, or (any other kind) a generic table."""
+    if kind == "checklist":
+        for f in ("style", "language"):
+            _need(data, f, str, kind)
+        _items(data, "rules", kind, ("n", "rule", "source", "status"))
+        _items(data, "questions", kind, ("id", "text", "why"))
+    elif kind == "script":
+        _need(data, "lang", str, kind)
+        _need(data, "temp_en", bool, kind)
+        _items(data, "lines", kind, ("id", "text"))
+    else:
+        _need(data, "title", str, kind)
+        cols = _need(data, "columns", list, kind)
+        if not all(isinstance(c, str) for c in cols):
+            raise ValueError(f"{kind}.columns: expected strings")
+        _items(data, "rows", kind, ("id", "cells"))
+        for i, row in enumerate(data["rows"]):
+            cells = _need(row, "cells", list, f"{kind}.rows[{i}]")
+            if len(cells) != len(cols) or not all(isinstance(c, str) for c in cells):
+                raise ValueError(f"{kind}.rows[{i}].cells: need {len(cols)} strings, one per column")
+
+
 def cmd_output(a) -> dict:
     folder = Path(a.folder)
     job = js.load(folder)
     _step(a.step)
+    if not re.fullmatch(r"[a-z0-9_-]+", a.kind):
+        raise ValueError(f"kind must match [a-z0-9_-]+, got {a.kind!r}")
     if bool(a.file) == bool(a.source):
         raise ValueError("give --file data.json or --from <adapter> <path>")
     if a.source:
@@ -146,6 +181,7 @@ def cmd_output(a) -> dict:
         data = adapters.ADAPTERS[name](_read_json(path))
     else:
         data = _read_json(a.file)
+        validate_output(a.kind, data)
     rel = f".edit-mo-to/outputs/{a.step}-{a.kind}.json"
     js._write_atomic(folder / rel, json.dumps(data, ensure_ascii=False, indent=2))
     job.setdefault("outputs", {}).setdefault(a.step, {})[a.kind] = {"path": rel, "at": js._now()}
@@ -217,12 +253,15 @@ def main(argv: list[str]) -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     a = build_parser().parse_args(argv)
+    a.folder = Path(a.folder).resolve()
     try:
         result = a.fn(a)
     except FileNotFoundError as e:
         _fail(f"not found: {e.filename or e}")
-    except (ValueError, KeyError, OSError) as e:  # ValueError covers bad JSON too
-        _fail(f"{type(e).__name__}: {e}" if isinstance(e, KeyError) else str(e))
+    except (ValueError, OSError) as e:  # ValueError covers bad JSON too
+        _fail(str(e))
+    except (KeyError, AttributeError, TypeError) as e:  # malformed input files
+        _fail(f"malformed input ({type(e).__name__}: {e})")
     print(json.dumps({"ok": True, **result}, ensure_ascii=False))
 
 

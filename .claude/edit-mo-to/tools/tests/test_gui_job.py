@@ -87,9 +87,75 @@ def test_output_from_qa_adapter(tmp_path):
     stored = json.loads((folder / rec["path"]).read_text(encoding="utf-8"))
     assert [r["status"] for r in stored["rows"]] == ["ok", "err", "you"]
     assert rec["at"]
-    run("output", folder, "script", "script", "--file", qa)
-    assert "script" in js.load(folder)["outputs"]
     run("output", folder, "build", "qa", "--from", "nope", qa, ok=False)
+
+
+def _file(tmp_path, data, name="d.json"):
+    p = tmp_path / name
+    p.write_text(json.dumps(data), encoding="utf-8")
+    return p
+
+
+def test_output_file_shapes(tmp_path):
+    folder = init(tmp_path)
+    script = {"lang": "es", "temp_en": True, "lines": [{"id": "l1", "text": "Hola", "en": "Hi"}]}
+    run("output", folder, "script", "script", "--file", _file(tmp_path, script))
+    assert "script" in js.load(folder)["outputs"]["script"]
+    checklist = {"style": "ugc", "language": "en", "rules": [{"n": 1, "rule": "r", "source": "s", "status": "ok"}],
+                 "questions": []}
+    run("output", folder, "brief", "checklist", "--file", _file(tmp_path, checklist))
+    table = {"title": "T", "columns": ["A", "B"], "rows": [{"id": "1", "cells": ["x", "y"]}]}
+    run("output", folder, "build", "custom", "--file", _file(tmp_path, table))
+
+    bad = run("output", folder, "script", "script", "--file", _file(tmp_path, {**script, "temp_en": "yes"}), ok=False)
+    assert "temp_en" in bad["error"]
+    bad = run("output", folder, "brief", "checklist", "--file",
+              _file(tmp_path, {**checklist, "rules": [{"n": 1, "rule": "r"}]}), ok=False)
+    assert "source" in bad["error"]
+    bad = run("output", folder, "build", "custom", "--file",
+              _file(tmp_path, {**table, "rows": [{"id": "1", "cells": ["x"]}]}), ok=False)
+    assert "cells" in bad["error"]
+    bad = run("output", folder, "build", "custom", "--file", _file(tmp_path, {"columns": []}), ok=False)
+    assert "title" in bad["error"]
+
+
+def test_output_kind_is_sanitized(tmp_path):
+    folder = init(tmp_path)
+    table = {"title": "T", "columns": ["A"], "rows": []}
+    out = run("output", folder, "build", "../evil", "--file", _file(tmp_path, table), ok=False)
+    assert "kind" in out["error"]
+
+
+def test_malformed_input_prints_json_error(tmp_path):
+    folder = init(tmp_path)
+    run("gate", folder, "script", "--file", _file(tmp_path, ["not", "an", "object"]), ok=False)
+    run("gate", folder, "script", "--file", _file(tmp_path, {"title": "T", "questions": ["x"]}), ok=False)
+    run("gate", folder, "script", "--file", _file(tmp_path, {"title": "T", "questions": []}), ok=False)
+    run("output", folder, "build", "qa", "--from", "qa", _file(tmp_path, [1, 2]), ok=False)
+
+
+def test_mixed_kind_gate_accepted(tmp_path):
+    folder = init(tmp_path)
+    g = {"title": "Mixed", "questions": [{"id": "a", "text": "?", "kind": "choice"},
+                                         {"id": "b", "text": "?", "kind": "text"}]}
+    assert run("gate", folder, "script", "--file", _file(tmp_path, g))["gate"] == "g-1"
+
+
+def test_folder_is_resolved(tmp_path, monkeypatch):
+    (tmp_path / "sub").mkdir()
+    monkeypatch.chdir(tmp_path)
+    run("init", "sub/../vid", "--client", "A", "--product", "B")
+    assert js.load(tmp_path / "vid")["folder"] == (tmp_path / "vid").resolve().as_posix()
+
+
+def test_run_launcher_help():
+    import shutil
+    if not shutil.which("sh"):
+        pytest.skip("no sh")
+    root = Path(__file__).resolve().parents[4]
+    p = subprocess.run(["sh", ".claude/edit-mo-to/run", "gui/job.py", "--help"], cwd=root,
+                       capture_output=True, text=True)
+    assert p.returncode == 0 and "init" in p.stdout
 
 
 def test_init_and_open_set_current(tmp_path):
