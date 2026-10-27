@@ -1,0 +1,309 @@
+import http.client
+import json
+import sys
+import threading
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+import pytest
+
+GUI = Path(__file__).resolve().parents[2] / "gui"
+sys.path.insert(0, str(GUI))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import jobstate as js  # noqa: E402
+import machine  # noqa: E402
+import server  # noqa: E402
+
+TOKEN = "test-token-123"
+DEMO = "Uvola Cereza Ácida"
+
+
+class Client:
+    def __init__(self, port, root, tmp):
+        self.port, self.root, self.tmp = port, root, tmp
+        self.base = f"http://127.0.0.1:{port}"
+
+    def call(self, method, path, body=None, token=TOKEN, headers=None, raw=None):
+        data = raw if raw is not None else (None if body is None else json.dumps(body).encode("utf-8"))
+        h = dict(headers or {})
+        if token:
+            h["X-EMT-Token"] = token
+        if body is not None:
+            h["Content-Type"] = "application/json"
+        req = urllib.request.Request(self.base + path, data=data, method=method, headers=h)
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return r.status, dict(r.headers), r.read()
+        except urllib.error.HTTPError as e:
+            return e.code, dict(e.headers), e.read()
+
+    def json(self, method, path, body=None, **kw):
+        status, headers, data = self.call(method, path, body, **kw)
+        return status, (json.loads(data) if data else None)
+
+
+@pytest.fixture
+def api(tmp_path, monkeypatch):
+    root, tmp = tmp_path / "root", tmp_path / "tmp"
+    root.mkdir()
+    tmp.mkdir()
+    monkeypatch.setenv("EDIT_MO_TO_GUI_TMP", str(tmp))
+    srv = server.make_server(0, root, tmp, TOKEN)
+    t = threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
+    t.start()
+    yield Client(srv.server_address[1], root, tmp)
+    srv.shutdown()
+    srv.server_close()
+
+
+def _demo(api):
+    folder = api.root / DEMO
+    folder.mkdir()
+    js.save(folder, js.new_job(folder, "Uvola", "Cereza Ácida"))
+    return folder
+
+
+def _q(**kw):
+    return "?" + urllib.parse.urlencode({k: str(v) for k, v in kw.items()})
+
+
+def test_ping_needs_no_token(api):
+    status, data = api.json("GET", "/api/ping", token=None)
+    assert status == 200 and data == {"app": "edit-mo-to-gui", "version": 1}
+
+
+def test_api_needs_token(api):
+    assert api.json("GET", "/api/jobs", token=None)[0] == 401
+    assert api.json("GET", "/api/jobs", token="wrong")[0] == 401
+    assert api.json("GET", "/api/jobs")[0] == 200
+
+
+def test_token_link_sets_cookie(api):
+    conn = http.client.HTTPConnection("127.0.0.1", api.port, timeout=10)
+    conn.request("GET", f"/?k={TOKEN}")
+    r = conn.getresponse()
+    r.read()
+    assert r.status == 302 and r.getheader("Location") == "/"
+    cookie = r.getheader("Set-Cookie")
+    assert f"emt={TOKEN}" in cookie and "HttpOnly" in cookie and "SameSite=Strict" in cookie
+    conn.request("GET", "/api/jobs", headers={"Cookie": f"emt={TOKEN}"})
+    r = conn.getresponse()
+    r.read()
+    assert r.status == 200
+    conn.close()
+
+
+def test_foreign_origin_refused(api):
+    assert api.json("GET", "/api/jobs", headers={"Origin": "http://evil.example"})[0] == 403
+    ok = api.json("GET", "/api/jobs", headers={"Origin": f"http://127.0.0.1:{api.port}"})
+    assert ok[0] == 200
+
+
+def test_foreign_host_refused(api):
+    conn = http.client.HTTPConnection("127.0.0.1", api.port, timeout=10)
+    conn.request("GET", "/api/ping", headers={"Host": f"evil.example:{api.port}"})
+    r = conn.getresponse()
+    r.read()
+    assert r.status == 403
+    conn.close()
+
+
+def test_static_index_served(api):
+    status, headers, data = api.call("GET", "/", token=None)
+    assert status == 200 and headers["Content-Type"].startswith("text/html")
+    assert api.call("GET", "/static/../server.py", token=None)[0] in (403, 404)
+
+
+def test_job_roundtrip_and_etag(api):
+    folder = _demo(api)
+    status, headers, body = api.call("GET", "/api/job" + _q(folder=folder))
+    assert status == 200
+    data = json.loads(body)
+    assert data["job"]["card"]["product"] == "Cereza Ácida"
+    assert data["listening"] is None and data["pending"] == [] and data["keyframes"] == {}
+    assert data["storyboard"] is None and data["gui"] == {} and data["outputs"] == {}
+    assert headers["Content-Type"] == "application/json; charset=utf-8"
+    etag = headers["ETag"]
+    assert api.call("GET", "/api/job" + _q(folder=folder), headers={"If-None-Match": etag})[0] == 304
+    js.append_event(folder, {"type": "message", "text": "hola"})
+    assert api.call("GET", "/api/job" + _q(folder=folder), headers={"If-None-Match": etag})[0] == 200
+
+
+def test_job_outputs_parsed(api):
+    folder = _demo(api)
+    rel = ".edit-mo-to/outputs/brief-checklist.json"
+    (folder / rel).parent.mkdir(parents=True)
+    (folder / rel).write_text(json.dumps({"style": "ugc"}), encoding="utf-8")
+    job = js.load(folder)
+    job["outputs"] = {"brief": {"checklist": {"path": rel, "at": "x"}}}
+    js.save(folder, job)
+    data = api.json("GET", "/api/job" + _q(folder=folder))[1]
+    assert data["outputs"] == {"brief": {"checklist": {"style": "ugc"}}}
+
+
+def test_job_outside_root_refused(api, tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    js.save(outside, js.new_job(outside, "c", "p"))
+    assert api.json("GET", "/api/job" + _q(folder=outside))[0] == 403
+
+
+def test_inbox_post_assigns_seq(api):
+    folder = _demo(api)
+    s1, e1 = api.json("POST", "/api/inbox", {"folder": str(folder), "event": {"type": "message", "text": "a"}})
+    s2, e2 = api.json("POST", "/api/inbox", {"folder": str(folder), "event": {"type": "comment", "text": "b"}})
+    assert (s1, s2) == (200, 200) and (e1["seq"], e2["seq"]) == (1, 2) and e1["at"]
+    assert api.json("POST", "/api/inbox", {"folder": str(folder), "event": {"type": "nope"}})[0] == 400
+
+
+def test_pending_lists_unhandled_edits(api):
+    folder = _demo(api)
+    for t in ("edit", "message", "approve", "action", "comment"):
+        js.append_event(folder, {"type": t})
+    job = js.load(folder)
+    job["handled"] = [3]
+    js.save(folder, job)
+    data = api.json("GET", "/api/job" + _q(folder=folder))[1]
+    assert [e["type"] for e in data["pending"]] == ["edit", "action"]
+
+
+def test_gui_patch_merges(api):
+    folder = _demo(api)
+    assert api.json("POST", "/api/gui", {"folder": str(folder), "patch": {"page": "script", "x": 1}}) == \
+        (200, {"page": "script", "x": 1})
+    assert api.json("POST", "/api/gui", {"folder": str(folder), "patch": {"x": None, "y": 2}}) == \
+        (200, {"page": "script", "y": 2})
+    assert api.json("GET", "/api/job" + _q(folder=folder))[1]["gui"] == {"page": "script", "y": 2}
+
+
+def test_keyframe_saved_outside_shows_up(api):
+    folder = _demo(api)
+    first = api.call("GET", "/api/job" + _q(folder=folder))
+    (folder / "storyboard").mkdir()
+    (folder / "storyboard" / "SB-2.png").write_bytes(b"png")
+    (folder / "storyboard" / "CHAR-1.webp").write_bytes(b"webp")
+    (folder / "storyboard" / "notes.png").write_bytes(b"x")
+    status, _, body = api.call("GET", "/api/job" + _q(folder=folder), headers={"If-None-Match": first[1]["ETag"]})
+    assert status == 200
+    kf = json.loads(body)["keyframes"]
+    assert sorted(kf) == ["CHAR-1", "SB-2"]
+    assert Path(kf["SB-2"]) == (folder / "storyboard" / "SB-2.png").resolve()
+
+
+def test_upload_rules(api):
+    folder = _demo(api)
+    up = "/api/upload"
+    s, d = api.json("PUT", up + _q(folder=folder, kind="keyframe", id="SB-5", name="shot.png"), raw=b"one")
+    assert s == 200 and Path(d["path"]) == (folder / "storyboard" / "SB-5.png").resolve()
+    s, d = api.json("PUT", up + _q(folder=folder, kind="keyframe", id="SB-5", name="other.png"), raw=b"two")
+    assert s == 200 and (folder / "storyboard" / "SB-5.png").read_bytes() == b"two"
+    assert sorted(p.name for p in (folder / "storyboard").iterdir()) == ["SB-5.png"]
+    assert api.json("PUT", up + _q(folder=folder, kind="refs", name="virus.exe"), raw=b"x")[0] == 415
+    assert api.json("PUT", up + _q(folder=folder, kind="keyframe", id="SB-x", name="a.png"), raw=b"x")[0] == 400
+    assert api.json("PUT", up + _q(folder=folder, kind="refs", name="../a.pdf"), raw=b"x")[0] == 400
+    assert api.json("PUT", up + _q(folder=folder, kind="refs", name=".a.pdf"), raw=b"x")[0] == 400
+    api.json("PUT", up + _q(folder=folder, kind="refs", name="a.pdf"), raw=b"1")
+    s, d = api.json("PUT", up + _q(folder=folder, kind="refs", name="a.pdf"), raw=b"2")
+    assert s == 200 and Path(d["path"]).name == "a (2).pdf"
+    assert (folder / "refs" / "a.pdf").read_bytes() == b"1"
+    events = js.read_events(folder)
+    assert events[0]["type"] == "upload" and events[0]["step"] == "storyboard"
+    assert events[0]["target"] == "keyframe:SB-5"
+    assert events[-1]["step"] == "brief" and events[-1]["target"] == "refs:a.pdf"
+    assert events[-1]["value"].endswith("refs/a (2).pdf")
+    assert not [p for p in (folder / "refs").iterdir() if p.name.startswith(".")]
+
+
+def test_upload_too_big_refused_before_reading(api):
+    folder = _demo(api)
+    conn = http.client.HTTPConnection("127.0.0.1", api.port, timeout=10)
+    conn.putrequest("PUT", "/api/upload" + _q(folder=folder, kind="keyframe", id="SB-1", name="a.png"))
+    conn.putheader("X-EMT-Token", TOKEN)
+    conn.putheader("Content-Length", str(51 * 1024 * 1024))
+    conn.endheaders()
+    r = conn.getresponse()
+    r.read()
+    assert r.status == 413
+    conn.close()
+    assert not (folder / "storyboard" / "SB-1.png").exists()
+
+
+def test_file_route_blocks_escape(api, tmp_path):
+    (tmp_path / "secret").write_text("s", encoding="utf-8")
+    assert api.call("GET", "/api/file" + _q(path=f"{api.root}/../secret"))[0] == 403
+    (api.root / "x.txt").write_text("hi", encoding="utf-8")
+    s, h, body = api.call("GET", "/api/file" + _q(path=api.root / "x.txt"))
+    assert s == 200 and body == b"hi" and h["Content-Type"].startswith("text/plain")
+    assert api.call("GET", "/api/file" + _q(path=api.root / "missing.txt"))[0] == 404
+
+
+def test_new_job_conflict(api):
+    folder = api.root / "Nativia New"
+    body = {"client": "Nativia", "product": "Serum", "folder": str(folder)}
+    s, d = api.json("POST", "/api/new", body)
+    assert s == 200 and (folder / ".edit-mo-to" / "job.json").is_file()
+    assert Path(api.json("GET", "/api/current")[1]["folder"]) == folder.resolve()
+    assert Path(d["folder"]) == folder.resolve() and d["job"]["card"]["client"] == "Nativia"
+    assert api.json("POST", "/api/new", body)[0] == 409
+    assert api.json("POST", "/api/new", {**body, "folder": str(api.root / ".." / "out")})[0] == 403
+
+
+def test_jobs_lists_folders(api):
+    folder = _demo(api)
+    job = js.load(folder)
+    job["card"]["style"] = "ugc"
+    job["steps"]["brief"]["state"] = "done"
+    job["steps"]["script"]["state"] = "waiting"
+    job["gate"] = {"id": "g-1", "title": "Approve", "questions": [{"id": "q", "text": "ok?", "kind": "confirm"}]}
+    js.save(folder, job)
+    (api.root / "Old").mkdir()
+    data = {j["name"]: j for j in api.json("GET", "/api/jobs")[1]}
+    assert data[DEMO]["has_job"] and data[DEMO]["client"] == "Uvola" and data[DEMO]["style"] == "ugc"
+    assert data[DEMO]["step"] == "script" and data[DEMO]["waiting"] is True
+    assert data[DEMO]["progress"] == pytest.approx(1 / 12)
+    assert data["Old"]["has_job"] is False and data["Old"]["waiting"] is False
+
+
+def test_settings_write_only_known_keys(api, tmp_path, monkeypatch):
+    cfg = tmp_path / "machine.json"
+    cfg.write_text(json.dumps({"_note": "keep", "asr": "mlx", "root": "old"}), encoding="utf-8")
+    monkeypatch.setattr(machine, "CONFIG", cfg)
+    s, _ = api.json("POST", "/api/settings", {"root": str(api.root), "gui_port": 4811, "evil": "x"})
+    assert s == 200
+    saved = json.loads(cfg.read_text(encoding="utf-8"))
+    assert "evil" not in saved and saved["_note"] == "keep" and saved["asr"] == "mlx"
+    assert saved["root"] == str(api.root) and saved["gui_port"] == 4811
+    assert api.json("POST", "/api/settings", {"gui_port": 80})[0] == 400
+    assert api.json("POST", "/api/settings", {"tmp": 5})[0] == 400
+    s, d = api.json("GET", "/api/settings")
+    assert s == 200 and d["paths"]["root"] == str(api.root) and d["found"]["root"] is True
+
+
+def test_checks_routes(api, monkeypatch):
+    import checks
+    monkeypatch.setattr(checks, "setup", lambda: [{"name": "x", "ok": True, "detail": "ok"}])
+    monkeypatch.setattr(checks, "capcut_running", lambda: False)
+    monkeypatch.setattr(checks, "temp_en_timelines", lambda p: ["Hook A"])
+    assert api.json("GET", "/api/checks")[1] == [{"name": "x", "ok": True, "detail": "ok"}]
+    assert api.json("GET", "/api/capcut")[1] == {"running": False}
+    proj = api.root / "proj"
+    proj.mkdir()
+    assert api.json("GET", "/api/temp-en" + _q(project=proj))[1] == {"timelines": ["Hook A"]}
+
+
+def test_feedback_saved_and_issue_url(api):
+    body = {"type": "bug", "title": "Upload fails & stops", "text": "It broke", "step": "storyboard",
+            "folder": str(api.root / DEMO)}
+    s, d = api.json("POST", "/api/feedback", body)
+    assert s == 200
+    url = d["issue_url"]
+    assert url.startswith("https://github.com/jushuaaang/edit-mo-to/issues/new?")
+    assert urllib.parse.urlencode({"title": "Upload fails & stops"}) in url
+    assert "labels=bug" in url
+    assert DEMO not in urllib.parse.unquote_plus(url) and str(api.root) not in urllib.parse.unquote_plus(url)
+    assert "folder" not in d
+    items = api.json("GET", "/api/feedback")[1]
+    assert [i["title"] for i in items] == ["Upload fails & stops"] and items[0]["at"]
+    assert api.json("POST", "/api/feedback", {"type": "rant", "title": "t", "text": "x"})[0] == 400

@@ -1,0 +1,603 @@
+"""Local API server for the edit-mo-to companion GUI (standard library only).
+
+Binds to 127.0.0.1. Reads job state, appends the editor's answers to the inbox, keeps gui.json, accepts
+uploads into the video folder and runs only read-only checks. It never writes a CapCut project and never
+runs a workflow tool that changes files: those buttons become inbox events that Claude acts on.
+
+    python server.py [--port N]      default: gui_port from machine.json, else 4810 (next free one if taken)
+                                     prints {"ok": true, "url": ...}; writes {tmp}/gui/server.json
+
+Security: every route except GET /api/ping and static files needs the per-launch token (cookie `emt`, set
+by GET /?k=<token>, or header X-EMT-Token). A Host other than 127.0.0.1:<port> / localhost:<port>, or a
+foreign Origin, is refused (403). Files are read or written only inside {root} and {tmp}.
+"""
+import argparse
+import hashlib
+import hmac
+import json
+import mimetypes
+import os
+import re
+import secrets
+import sys
+import threading
+import urllib.request
+import uuid
+from http import cookies
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlsplit
+
+GUI = Path(__file__).resolve().parent
+for _p in (GUI, GUI.parent / "tools"):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
+
+import checks  # noqa: E402
+import feedback  # noqa: E402
+import folders  # noqa: E402
+import jobstate as js  # noqa: E402
+import machine  # noqa: E402
+
+APP, API_VERSION, DEFAULT_PORT = "edit-mo-to-gui", 1, 4810
+STATIC = GUI / "static"
+MIB = 1 << 20
+CHUNK, MAX_JSON, BIG = MIB, MIB, 4 << 30
+MEDIA = {"mp3", "wav", "m4a", "aac"}
+UPLOADS = {  # kind: (subfolder, step for the event, allowed extensions, size limit)
+    "refs": ("refs", "brief", {"pdf", "docx", "doc", "txt", "md", "png", "jpg", "jpeg", "webp", "gif",
+                               "mp4", "mov", "m4v", "mp3", "wav", "m4a"}, BIG),
+    "keyframe": ("storyboard", "storyboard", {"png", "jpg", "jpeg", "webp"}, 50 * MIB),
+    "vo": ("vo", "voiceover", MEDIA, BIG),
+    "music": ("music", "music", MEDIA, BIG),
+}
+KEYFRAME_ID = re.compile(r"(SB|CHAR)-\d+")
+KEYFRAME_EXTS = UPLOADS["keyframe"][2]
+PENDING_TYPES = {"edit", "approve", "action"}
+SETTINGS_KEYS = ("root", "python", "tmp", "mcp_servers", "capcut_drafts", "gui_port")
+SETTINGS_DIRS = {"root": True, "python": False, "tmp": True, "mcp_servers": True, "capcut_drafts": True}
+RESERVED = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(10)), *(f"lpt{i}" for i in range(10))}
+TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+         ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8",
+         ".txt": "text/plain; charset=utf-8", ".md": "text/markdown; charset=utf-8",
+         ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+         ".webp": "image/webp", ".gif": "image/gif", ".woff2": "font/woff2", ".pdf": "application/pdf",
+         ".mp4": "video/mp4", ".mov": "video/quicktime", ".m4v": "video/x-m4v", ".mp3": "audio/mpeg",
+         ".wav": "audio/wav", ".m4a": "audio/mp4", ".aac": "audio/aac"}
+_upload_lock = threading.Lock()
+
+
+class HttpError(Exception):
+    def __init__(self, status: int, message: str):
+        super().__init__(message)
+        self.status, self.message = status, message
+
+
+def _content_type(path: Path) -> str:
+    return TYPES.get(path.suffix.lower()) or mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+
+
+def _read_json(path: Path, default=None):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return default
+
+
+def _stamp(path: Path) -> str:
+    try:
+        st = path.stat()
+        return f"{path.name}:{st.st_mtime_ns}:{st.st_size}"
+    except OSError:
+        return f"{path.name}:-"
+
+
+def _need_str(body: dict, key: str) -> str:
+    value = body.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise HttpError(400, f"{key} is required")
+    return value.strip()
+
+
+# ---------- job helpers ----------
+
+def _keyframes(folder: Path) -> dict:
+    try:
+        entries = sorted((folder / "storyboard").iterdir())
+    except OSError:
+        return {}
+    out = {}
+    for p in entries:
+        if KEYFRAME_ID.fullmatch(p.stem) and p.suffix[1:].lower() in KEYFRAME_EXTS and p.is_file():
+            out.setdefault(p.stem, p.resolve().as_posix())
+    return out
+
+
+def _output_paths(folder: Path, job: dict) -> dict:
+    out = {}
+    for step, kinds in (job.get("outputs") or {}).items():
+        for kind, ref in (kinds or {}).items():
+            path = Path(ref.get("path", "")) if isinstance(ref, dict) else None
+            out.setdefault(step, {})[kind] = (path if path is None or path.is_absolute() else folder / path)
+    return out
+
+
+def _load_output(path, roots) -> object:
+    if path is None:
+        return None
+    try:
+        return _read_json(folders.safe_path(path, roots))
+    except PermissionError:
+        return None
+
+
+def _summary(entry: dict) -> dict:
+    out = {**entry, "client": None, "product": None, "style": None, "language": None,
+           "step": None, "waiting": False, "progress": 0.0}
+    if not entry["has_job"]:
+        return out
+    try:
+        job = js.load(Path(entry["path"]))
+    except (OSError, ValueError):
+        return {**out, "error": "job.json could not be read"}
+    card, steps = job.get("card") or {}, job.get("steps") or {}
+    state = {s: (steps.get(s) or {}).get("state", "pending") for s in js.STEPS}
+    active = [s for s in js.STEPS if state[s] in ("working", "waiting", "error")]
+    pending = [s for s in js.STEPS if state[s] == "pending"]
+    out.update({k: card.get(k) for k in ("client", "product", "style", "language")})
+    out["step"] = (active or pending or [None])[0]
+    out["waiting"] = bool(job.get("gate"))
+    out["progress"] = sum(state[s] in ("done", "skipped") for s in js.STEPS) / len(js.STEPS)
+    return out
+
+
+# ---------- routes: each takes (handler, query) and returns a JSON-able object, or None if it replied ----------
+
+def r_ping(h, q):
+    return {"app": APP, "version": API_VERSION}
+
+
+def r_jobs(h, q):
+    return [_summary(e) for e in folders.video_folders(h.server.root)]
+
+
+def r_current(h, q):
+    return {"folder": js.get_current()}
+
+
+def r_job(h, q):
+    folder = h.job_folder(q)
+    job = js.load(folder)
+    sd, sb = js.state_dir(folder), folder / "storyboard"
+    keyframes, listening = _keyframes(folder), js.listening(folder)
+    outputs = _output_paths(folder, job)
+    parts = [folder.as_posix(), *(_stamp(p) for p in (sd / "job.json", sd / "inbox.jsonl", sd / "gui.json",
+                                                      sb, sb / "storyboard.json")),
+             *(_stamp(Path(p)) for p in keyframes.values()),
+             *(_stamp(p) for kinds in outputs.values() for p in kinds.values() if p is not None),
+             json.dumps(listening, sort_keys=True)]
+    etag = '"' + hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()[:20] + '"'
+    if h.headers.get("If-None-Match") == etag:
+        h.reply(304, b"", None, {"ETag": etag})
+        return None
+    roots = [h.server.root, h.server.tmp]
+    body = {"job": job, "listening": listening,
+            "pending": [e for e in js.unhandled(folder) if e.get("type") in PENDING_TYPES],
+            "keyframes": keyframes, "storyboard": _read_json(sb / "storyboard.json"),
+            "gui": _read_json(sd / "gui.json", {}),
+            "outputs": {s: {k: _load_output(p, roots) for k, p in kinds.items()} for s, kinds in outputs.items()}}
+    h.send_json(200, body, {"ETag": etag})
+    return None
+
+
+def r_inbox(h, q):
+    body = h.json_body()
+    folder = h.folder(body.get("folder"))
+    event = body.get("event")
+    if not isinstance(event, dict):
+        raise HttpError(400, "event must be an object")
+    return js.append_event(folder, event)
+
+
+def r_gui(h, q):
+    body = h.json_body()
+    folder = h.folder(body.get("folder"))
+    patch = body.get("patch")
+    if not isinstance(patch, dict):
+        raise HttpError(400, "patch must be an object")
+    path = js.state_dir(folder) / "gui.json"
+    with js._lock(folder):
+        data = _read_json(path, {})
+        data = data if isinstance(data, dict) else {}
+        for key, value in patch.items():
+            if value is None:
+                data.pop(key, None)
+            else:
+                data[key] = value
+        js._write_atomic(path, json.dumps(data, ensure_ascii=False, indent=1))
+    return data
+
+
+def r_new(h, q):
+    body = h.json_body()
+    client, product, raw = _need_str(body, "client"), _need_str(body, "product"), _need_str(body, "folder")
+    root = h.server.root
+    folder = folders.safe_path(Path(raw) if Path(raw).is_absolute() else root / raw, [root])
+    if folder == Path(root).resolve():
+        raise HttpError(400, "pick a folder inside the root, not the root itself")
+    with js._lock(folder):
+        if (js.state_dir(folder) / "job.json").exists():
+            raise HttpError(409, "this folder already has a job")
+        folder.mkdir(parents=True, exist_ok=True)
+        job = js.new_job(folder, client, product)
+        js.save(folder, job)
+    js.set_current(folder)
+    return {"folder": folder.as_posix(), "job": job}
+
+
+def _check_name(name: str) -> None:
+    if (not name or len(name) > 255 or name.startswith(".") or name.endswith((".", " "))
+            or any(c in name for c in '/\\:\0') or name.split(".")[0].lower() in RESERVED):
+        raise HttpError(400, f"not an allowed file name: {name!r}")
+
+
+def _free_name(folder: Path, name: str) -> Path:
+    stem, suffix = Path(name).stem, Path(name).suffix
+    dest, n = folder / name, 2
+    while dest.exists():
+        dest, n = folder / f"{stem} ({n}){suffix}", n + 1
+    return dest
+
+
+def r_upload(h, q):
+    folder = h.folder(q.get("folder"))
+    kind = q.get("kind")
+    if kind not in UPLOADS:
+        raise HttpError(400, f"kind must be one of {', '.join(UPLOADS)}")
+    sub, step, exts, limit = UPLOADS[kind]
+    name = q.get("name", "")
+    _check_name(name)
+    ext = Path(name).suffix[1:].lower()
+    if ext not in exts:
+        raise HttpError(415, f"That file type can't go here. Allowed: {', '.join(sorted(exts))}.")
+    kid = q.get("id", "")
+    if kind == "keyframe" and not KEYFRAME_ID.fullmatch(kid):
+        raise HttpError(400, "keyframe id must look like SB-1 or CHAR-1")
+    length = h.content_length()
+    if length > limit:
+        raise HttpError(413, f"That file is too big (the limit here is {limit // MIB} MiB).")
+    target = folder / sub
+    target.mkdir(parents=True, exist_ok=True)
+    part = target / f".upload-{uuid.uuid4().hex}.part"
+    try:
+        h.read_body_to(part, length)
+        with _upload_lock:
+            if kind == "keyframe":
+                dest = target / f"{kid}.{ext}"
+                os.replace(part, dest)
+                for other in KEYFRAME_EXTS - {ext}:  # a replaced keyframe keeps a single file
+                    (target / f"{kid}.{other}").unlink(missing_ok=True)
+            else:
+                dest = _free_name(target, name)
+                os.replace(part, dest)
+    finally:
+        part.unlink(missing_ok=True)
+    saved = dest.resolve().as_posix()
+    event = js.append_event(folder, {"type": "upload", "step": step,
+                                     "target": f"{kind}:{kid if kind == 'keyframe' else name}", "value": saved})
+    return {"path": saved, "event": event}
+
+
+def r_file(h, q):
+    path = h.safe(q.get("path"), [h.server.root, h.server.tmp])
+    if not path.is_file():
+        raise HttpError(404, "file not found")
+    # sandbox: an HTML or SVG file from a video folder runs in an opaque origin, never with the API token
+    h.send_file(path, {"Content-Security-Policy": "sandbox allow-scripts"})
+    return None
+
+
+def _settings_file() -> dict:
+    cfg = Path(machine.CONFIG)
+    if not cfg.exists():
+        return {}
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{cfg} is not a JSON object")
+    return data
+
+
+def r_settings(h, q):
+    saved = _settings_file()
+    paths = {k: saved.get(k, machine.PATHS.get(k)) for k in SETTINGS_KEYS}
+    paths["gui_port"] = paths["gui_port"] or DEFAULT_PORT
+    found = {k: bool(paths[k]) and (Path(paths[k]).is_dir() if is_dir else Path(paths[k]).is_file())
+             for k, is_dir in SETTINGS_DIRS.items()}
+    running = {"root": Path(h.server.root).as_posix(), "tmp": Path(h.server.tmp).as_posix(),
+               "port": h.server.server_address[1]}
+    return {"config": Path(machine.CONFIG).as_posix(), "paths": paths, "found": found, "running": running}
+
+
+def r_settings_save(h, q):
+    body = h.json_body()
+    update = {}
+    for key in SETTINGS_KEYS:
+        if key not in body:
+            continue
+        value = body[key]
+        if key == "gui_port":
+            if isinstance(value, bool) or not isinstance(value, int) or not 1024 <= value <= 65535:
+                raise HttpError(400, "gui_port must be a number from 1024 to 65535")
+        elif not isinstance(value, str) or not value.strip() or len(value) > 1024:
+            raise HttpError(400, f"{key} must be a path")
+        update[key] = value.strip() if isinstance(value, str) else value
+    data = _settings_file()  # keeps keys already in the file (_note, asr, ...)
+    data.update(update)
+    js._write_atomic(Path(machine.CONFIG), json.dumps(data, ensure_ascii=False, indent=1) + "\n")
+    return r_settings(h, q)
+
+
+def r_checks(h, q):
+    return checks.setup()
+
+
+def r_capcut(h, q):
+    return {"running": checks.capcut_running()}
+
+
+def r_temp_en(h, q):
+    project = h.safe(q.get("project"), [h.server.root, h.server.tmp, machine.PATHS["capcut_drafts"]])
+    return {"timelines": checks.temp_en_timelines(project)}
+
+
+def r_feedback(h, q):
+    return feedback.items(h.server.root)
+
+
+def r_feedback_save(h, q):
+    root = h.server.root
+    entry = feedback.save(h.json_body(), root)
+    return {**entry, "issue_url": feedback.issue_url(entry, feedback.version(root), feedback.os_name())}
+
+
+ROUTES = {  # (method, path): (handler, needs token)
+    ("GET", "/api/ping"): (r_ping, False),
+    ("GET", "/api/jobs"): (r_jobs, True),
+    ("GET", "/api/current"): (r_current, True),
+    ("GET", "/api/job"): (r_job, True),
+    ("POST", "/api/inbox"): (r_inbox, True),
+    ("POST", "/api/gui"): (r_gui, True),
+    ("POST", "/api/new"): (r_new, True),
+    ("PUT", "/api/upload"): (r_upload, True),
+    ("GET", "/api/file"): (r_file, True),
+    ("GET", "/api/settings"): (r_settings, True),
+    ("POST", "/api/settings"): (r_settings_save, True),
+    ("GET", "/api/checks"): (r_checks, True),
+    ("GET", "/api/capcut"): (r_capcut, True),
+    ("GET", "/api/temp-en"): (r_temp_en, True),
+    ("GET", "/api/feedback"): (r_feedback, True),
+    ("POST", "/api/feedback"): (r_feedback_save, True),
+}
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = APP
+
+    def log_message(self, format, *args):  # quiet: no per-request stderr lines
+        pass
+
+    def do_GET(self):
+        self._handle("GET")
+
+    def do_POST(self):
+        self._handle("POST")
+
+    def do_PUT(self):
+        self._handle("PUT")
+
+    # ----- plumbing -----
+
+    def _handle(self, method: str) -> None:
+        self._sent = False
+        try:
+            url = urlsplit(self.path)
+            self._guard()
+            q = {k: v[-1] for k, v in parse_qs(url.query).items()}
+            route = ROUTES.get((method, url.path))
+            if route is None:
+                if method == "GET" and (url.path == "/" or url.path.startswith("/static/")):
+                    return self._static(url.path, q)
+                raise HttpError(404, "not found")
+            fn, needs_token = route
+            if needs_token and not self._token_ok():
+                raise HttpError(401, "missing or wrong token; open the link the server printed")
+            result = fn(self, q)
+            if result is not None:
+                self.send_json(200, result)
+        except (ConnectionError, TimeoutError):
+            self.close_connection = True
+        except Exception as e:  # noqa: BLE001 - every error becomes a JSON reply
+            status = (e.status if isinstance(e, HttpError) else 403 if isinstance(e, PermissionError)
+                      else 404 if isinstance(e, FileNotFoundError) else 400 if isinstance(e, (ValueError, TypeError))
+                      else 500)
+            message = e.message if isinstance(e, HttpError) else str(e) or type(e).__name__
+            if not self._sent:
+                self.send_json(status, {"error": message})
+            self.close_connection = True
+
+    def _guard(self) -> None:
+        port = self.server.server_address[1]
+        hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
+        if (self.headers.get("Host") or "").lower() not in hosts:
+            raise HttpError(403, "wrong host")
+        origin = self.headers.get("Origin")
+        if origin is not None and origin.lower() not in {f"http://{h}" for h in hosts}:
+            raise HttpError(403, "foreign origin")
+
+    def _token_ok(self, given: "str | None" = None) -> bool:
+        if given is None:
+            given = self.headers.get("X-EMT-Token")
+        if given is None:
+            jar = cookies.SimpleCookie()
+            try:
+                jar.load(self.headers.get("Cookie") or "")
+            except cookies.CookieError:
+                pass
+            given = jar["emt"].value if "emt" in jar else None
+        return given is not None and hmac.compare_digest(given.encode("utf-8"), self.server.token.encode("utf-8"))
+
+    def _static(self, path: str, q: dict) -> None:
+        if path == "/" and "k" in q:
+            if not self._token_ok(q["k"]):
+                raise HttpError(401, "wrong token")
+            cookie = f"emt={self.server.token}; HttpOnly; SameSite=Strict; Path=/"
+            return self.reply(302, b"", None, {"Location": "/", "Set-Cookie": cookie})
+        rel = "index.html" if path == "/" else unquote(path[len("/static/"):])
+        target = folders.safe_path(STATIC / rel, [STATIC])
+        if not target.is_file():
+            raise HttpError(404, "not found")
+        self.send_file(target)
+
+    def reply(self, status: int, data: bytes, ctype: "str | None", extra: "dict | None" = None) -> None:
+        self.send_response(status)
+        if ctype:
+            self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        for k, v in (extra or {}).items():
+            self.send_header(k, v)
+        self.end_headers()
+        self._sent = True
+        if data:
+            self.wfile.write(data)
+
+    def send_json(self, status: int, obj, extra: "dict | None" = None) -> None:
+        self.reply(status, json.dumps(obj, ensure_ascii=False).encode("utf-8"),
+                   "application/json; charset=utf-8", extra)
+
+    def send_file(self, path: Path, extra: "dict | None" = None) -> None:
+        with path.open("rb") as f:
+            size = os.fstat(f.fileno()).st_size
+            self.send_response(200)
+            self.send_header("Content-Type", _content_type(path))
+            self.send_header("Content-Length", str(size))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            for k, v in (extra or {}).items():
+                self.send_header(k, v)
+            self.end_headers()
+            self._sent = True
+            while chunk := f.read(CHUNK):
+                self.wfile.write(chunk)
+
+    def content_length(self) -> int:
+        if self.headers.get("Transfer-Encoding"):
+            raise HttpError(411, "send a Content-Length (chunked bodies are not accepted)")
+        raw = self.headers.get("Content-Length")
+        if raw is None:
+            raise HttpError(411, "Content-Length is required")
+        if not raw.strip().isdigit():
+            raise HttpError(400, "bad Content-Length")
+        return int(raw)
+
+    def json_body(self) -> dict:
+        length = self.content_length()
+        if length > MAX_JSON:
+            raise HttpError(413, "request body too big")
+        data = json.loads(self.rfile.read(length).decode("utf-8") or "null")
+        if not isinstance(data, dict):
+            raise HttpError(400, "body must be a JSON object")
+        return data
+
+    def read_body_to(self, path: Path, length: int) -> None:
+        """Stream exactly `length` body bytes into path, CHUNK at a time."""
+        remaining = length
+        with path.open("wb") as f:
+            while remaining:
+                chunk = self.rfile.read(min(CHUNK, remaining))
+                if not chunk:
+                    raise HttpError(400, "the upload ended early")
+                f.write(chunk)
+                remaining -= len(chunk)
+
+    def safe(self, raw, roots) -> Path:
+        if not isinstance(raw, str) or not raw:
+            raise HttpError(400, "a path is required")
+        return folders.safe_path(raw, roots)
+
+    def folder(self, raw) -> Path:
+        """A video folder: an absolute path inside root (not root itself)."""
+        if isinstance(raw, str) and raw and not Path(raw).is_absolute():
+            raise HttpError(400, "folder must be an absolute path")
+        folder = self.safe(raw, [self.server.root])
+        if folder == Path(self.server.root).resolve():
+            raise HttpError(400, "folder must be inside the root")
+        return folder
+
+    def job_folder(self, q: dict) -> Path:
+        folder = self.folder(q.get("folder"))
+        if not (js.state_dir(folder) / "job.json").is_file():
+            raise HttpError(404, "no job in this folder")
+        return folder
+
+
+class _Server(ThreadingHTTPServer):
+    daemon_threads = True
+    allow_reuse_address = sys.platform != "win32"  # on Windows SO_REUSEADDR would share a port in use
+
+    def handle_error(self, request, client_address):
+        if not isinstance(sys.exc_info()[1], (ConnectionError, TimeoutError)):
+            super().handle_error(request, client_address)
+
+
+def make_server(port: int, root: Path, tmp: Path, token: str) -> ThreadingHTTPServer:
+    srv = _Server(("127.0.0.1", port), Handler)
+    srv.root, srv.tmp, srv.token = Path(root), Path(tmp), token
+    return srv
+
+
+def _ours(port: int) -> bool:
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/ping", timeout=1) as r:
+            return json.loads(r.read()).get("app") == APP
+    except (OSError, ValueError):
+        return False
+
+
+def main(argv: "list[str] | None" = None) -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    p.add_argument("--port", type=int)
+    a = p.parse_args(argv)
+    paths = machine.PATHS
+    root, tmp = Path(paths["root"]), Path(paths["tmp"])
+    first = a.port or int(paths.get("gui_port") or DEFAULT_PORT)
+    token, srv = secrets.token_urlsafe(24), None
+    for port in range(first, first + 20):
+        try:
+            srv = make_server(port, root, tmp, token)
+            break
+        except OSError:  # taken: by our own server (reuse it), or by something else (try the next port)
+            if _ours(port):
+                print(json.dumps({"ok": True, "already_running": True, "port": port}), flush=True)
+                return
+    if srv is None:
+        print(json.dumps({"ok": False, "error": f"no free port from {first} to {first + 19}"}), flush=True)
+        sys.exit(1)
+    port = srv.server_address[1]
+    info = tmp / "gui" / "server.json"
+    js._write_atomic(info, json.dumps({"pid": os.getpid(), "port": port, "token": token, "version": API_VERSION}))
+    print(json.dumps({"ok": True, "url": f"http://127.0.0.1:{port}/?k={token}", "port": port}), flush=True)
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        srv.server_close()
+        if (_read_json(info) or {}).get("pid") == os.getpid():
+            info.unlink(missing_ok=True)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
