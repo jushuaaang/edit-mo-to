@@ -111,3 +111,96 @@ def test_folder_with_spaces_and_accents(tmp_path):
     js.write_listening(folder, None)
     assert js.listening(folder)["step"] is None
     assert job["card"]["folder"] == folder.as_posix()
+
+
+def test_unicode_line_separators_roundtrip(tmp_path):
+    _job(tmp_path)
+    js.append_event(tmp_path, {"type": "comment", "text": "a b c\u0085d"})
+    js.append_event(tmp_path, {"type": "comment", "text": "next"})
+    evs = js.read_events(tmp_path)
+    assert [e["seq"] for e in evs] == [1, 2]
+    assert evs[0]["text"] == "a b c\u0085d"
+    assert len(js.unhandled(tmp_path)) == 2
+
+
+def test_torn_last_line_is_skipped_and_append_continues(tmp_path):
+    _job(tmp_path)
+    js.append_event(tmp_path, {"type": "comment", "text": "one"})
+    inbox = js.state_dir(tmp_path) / "inbox.jsonl"
+    with inbox.open("ab") as f:
+        f.write(b'{"seq": 2, "at": "x", "ty')
+    assert [e["seq"] for e in js.read_events(tmp_path)] == [1]
+    assert js.append_event(tmp_path, {"type": "comment", "text": "two"})["seq"] == 2
+    assert [e["text"] for e in js.read_events(tmp_path)] == ["one", "two"]
+
+
+def test_bad_middle_line_still_raises(tmp_path):
+    _job(tmp_path)
+    js.append_event(tmp_path, {"type": "comment"})
+    inbox = js.state_dir(tmp_path) / "inbox.jsonl"
+    with inbox.open("ab") as f:
+        f.write(b"garbage\n")
+    js.append_event(tmp_path, {"type": "comment"})
+    with pytest.raises(ValueError):
+        js.read_events(tmp_path)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows sharing violation")
+def test_save_retries_while_target_is_open(tmp_path):
+    import threading
+    import time
+    job = _job(tmp_path)
+    target = js.state_dir(tmp_path) / "job.json"
+    ready = threading.Event()
+
+    def hold():
+        with open(target, "rb"):
+            ready.set()
+            time.sleep(0.1)
+
+    t = threading.Thread(target=hold)
+    t.start()
+    ready.wait()
+    js.save(tmp_path, job)
+    t.join()
+    assert js.load(tmp_path)["card"]["client"] == "Uvola"
+
+
+def test_listening_needs_fresh_heartbeat(tmp_path):
+    _job(tmp_path)
+    path = js.write_listening(tmp_path, "brief")
+    first = js.listening(tmp_path)
+    assert first["step"] == "brief"
+    js.write_listening(tmp_path, "script")
+    assert js.listening(tmp_path)["since"] == first["since"]
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["beat"] -= 60
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert js.listening(tmp_path) is None
+    assert js.listening(tmp_path, max_age=120)["pid"] == os.getpid()
+
+
+@pytest.mark.parametrize("content", ['{"pid": "x", "beat": 1}', '{"pid": null, "beat": 1}', "[1, 2]",
+                                     '{"pid": 1}', "not json"])
+def test_listening_malformed_is_none(tmp_path, content):
+    _job(tmp_path)
+    (js.state_dir(tmp_path) / "listening.json").write_text(content, encoding="utf-8")
+    assert js.listening(tmp_path) is None
+
+
+def test_validate_non_dict_step_or_gate(tmp_path):
+    job = js.new_job(tmp_path, "C", "P")
+    job["steps"]["brief"] = "done"
+    with pytest.raises(ValueError, match="brief"):
+        js.validate(job)
+    job["steps"]["brief"] = {"state": "done", "note": ""}
+    job["gate"] = "open"
+    with pytest.raises(ValueError, match="gate"):
+        js.validate(job)
+
+
+def test_append_event_rejects_unknown_type(tmp_path):
+    _job(tmp_path)
+    with pytest.raises(ValueError, match="type"):
+        js.append_event(tmp_path, {"type": "bogus"})
+    assert js.read_events(tmp_path) == []

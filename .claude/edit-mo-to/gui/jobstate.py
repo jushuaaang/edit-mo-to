@@ -3,7 +3,10 @@
 One video folder keeps its state in `<folder>/.edit-mo-to/`:
   job.json        step states, the open gate, outputs, log (written by job.py / server create; atomic)
   inbox.jsonl     editor events, one JSON line each (written only by the server; seq numbers)
-  listening.json  {"pid","since","step"} while Claude is blocked in wait.py for an answer
+  listening.json  {"pid","since","beat","step"} while Claude is blocked in wait.py for an answer.
+                  wait.py calls write_listening on every poll as a heartbeat (fresh "beat" epoch
+                  seconds); listening() only trusts the file while the pid is alive AND the beat
+                  is newer than max_age, so a reused pid cannot look like a live waiter.
 
 job.py, wait.py and server.py all build on this module. Standard library only; no machine paths.
 """
@@ -11,6 +14,7 @@ import json
 import os
 import sys
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -59,10 +63,14 @@ def validate(job: dict) -> None:
     for name, step in (job.get("steps") or {}).items():
         if name not in STEPS:
             raise ValueError(f"unknown step: {name}")
+        if not isinstance(step, dict):
+            raise ValueError(f"step {name} must be an object")
         if step.get("state") not in STATES:
             raise ValueError(f"unknown state for step {name}: {step.get('state')!r}")
     gate = job.get("gate")
     if gate is not None:
+        if not isinstance(gate, dict):
+            raise ValueError("gate must be an object")
         for field in ("id", "text", "kind"):
             if not gate.get(field):
                 raise ValueError(f"gate is missing {field}")
@@ -70,8 +78,19 @@ def validate(job: dict) -> None:
             raise ValueError(f"gate kind must be one of {GATE_KINDS}, got {gate['kind']!r}")
 
 
+def _retry(fn):
+    """Run fn, retrying PermissionError (Windows: file briefly open elsewhere) ~10 times."""
+    for attempt in range(10):
+        try:
+            return fn()
+        except PermissionError:
+            if attempt == 9:
+                raise
+            time.sleep(0.025)
+
+
 def load(folder: Path) -> dict:
-    return json.loads(_job_path(folder).read_text(encoding="utf-8"))
+    return json.loads(_retry(lambda: _job_path(folder).read_text(encoding="utf-8")))
 
 
 def _write_atomic(path: Path, text: str) -> None:
@@ -79,7 +98,7 @@ def _write_atomic(path: Path, text: str) -> None:
     tmp = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
     try:
         tmp.write_text(text, encoding="utf-8")
-        os.replace(tmp, path)
+        _retry(lambda: os.replace(tmp, path))
     finally:
         tmp.unlink(missing_ok=True)
 
@@ -94,16 +113,26 @@ def read_events(folder: Path, after: int = 0) -> list[dict]:
     path = _inbox_path(folder)
     if not path.exists():
         return []
+    # split on "\n" only: str.splitlines() also splits on U+2028/U+2029/U+0085, which
+    # json.dumps(ensure_ascii=False) leaves unescaped inside strings
+    text = _retry(lambda: path.read_text(encoding="utf-8"))
+    lines = [ln for ln in text.split("\n") if ln.strip()]
     events = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if line.strip():
+    for i, line in enumerate(lines):
+        try:
             ev = json.loads(line)
-            if ev.get("seq", 0) > after:
-                events.append(ev)
+        except ValueError:
+            if i == len(lines) - 1:
+                break  # torn final line (crash or half-written append): ignore it
+            raise
+        if ev.get("seq", 0) > after:
+            events.append(ev)
     return events
 
 
 def append_event(folder: Path, event: dict) -> dict:
+    if event.get("type") not in EVENT_TYPES:
+        raise ValueError(f"event type must be one of {EVENT_TYPES}, got {event.get('type')!r}")
     with _lock(folder):
         last = read_events(folder)
         ev = dict(event)
@@ -119,8 +148,15 @@ def append_event(folder: Path, event: dict) -> dict:
                 ev["stale"] = True
         path = _inbox_path(folder)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(ev, ensure_ascii=False) + "\n")
+        data = (json.dumps(ev, ensure_ascii=False) + "\n").encode("utf-8")
+        with path.open("ab+") as f:
+            raw = f.read() if f.seek(0) == 0 else b""
+            if raw and not raw.endswith(b"\n"):
+                # torn tail from a crash mid-append (we are the single writer, so never a live
+                # write): cut it back to the last complete line so it cannot glue onto our event
+                f.truncate(raw.rfind(b"\n") + 1)
+            f.seek(0, os.SEEK_END)
+            f.write(data)
         return ev
 
 
@@ -164,8 +200,17 @@ def _listening_path(folder: Path) -> Path:
 
 
 def write_listening(folder: Path, step: str | None) -> Path:
+    """Write (or refresh) listening.json; call it on every poll as the heartbeat."""
     path = _listening_path(folder)
-    _write_atomic(path, json.dumps({"pid": os.getpid(), "since": _now(), "step": step}, ensure_ascii=False))
+    pid, since = os.getpid(), _now()
+    try:
+        old = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(old, dict) and old.get("pid") == pid and old.get("since"):
+            since = old["since"]
+    except (OSError, ValueError):
+        pass
+    _write_atomic(path, json.dumps({"pid": pid, "since": since, "beat": time.time(), "step": step},
+                                   ensure_ascii=False))
     return path
 
 
@@ -173,9 +218,12 @@ def clear_listening(folder: Path) -> None:
     _listening_path(folder).unlink(missing_ok=True)
 
 
-def listening(folder: Path) -> dict | None:
+def listening(folder: Path, max_age: float = 10.0) -> dict | None:
     try:
-        data = json.loads(_listening_path(folder).read_text(encoding="utf-8"))
-    except (FileNotFoundError, ValueError):
+        data = json.loads(_retry(lambda: _listening_path(folder).read_text(encoding="utf-8")))
+        pid, beat = int(data["pid"]), float(data["beat"])
+    except (OSError, ValueError, TypeError, KeyError):
         return None
-    return data if pid_alive(int(data.get("pid", 0))) else None
+    if time.time() - beat > max_age:
+        return None
+    return data if pid_alive(pid) else None
