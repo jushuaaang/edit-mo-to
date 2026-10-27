@@ -256,3 +256,80 @@ def test_bad_gui_port_is_a_json_error(env, monkeypatch, capsys):
     assert e.value.code == 1
     out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert out["ok"] is False and "error" in out
+
+
+def test_start_waits_for_server_json_after_child_exits_zero(env, monkeypatch):
+    import launch as launch_mod
+    import server as server_mod
+    port = free_port()
+    srv = server_mod.make_server(port, env, env, "tok")
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+    holder = subprocess.Popen([sys.executable, "-c", SLEEPER])  # the pid the fixture will kill, never ours
+
+    class Child:  # exits 0 at once ("already running"); the real server's server.json shows up later
+        def poll(self):
+            return 0
+
+    def fake_popen(*a, **k):
+        threading.Timer(0.5, lambda: js.write_json_atomic(
+            env / "gui" / "server.json", {"pid": holder.pid, "port": port, "token": "tok", "version": 1})).start()
+        return Child()
+
+    import types
+    fake = types.SimpleNamespace(**{k: getattr(subprocess, k) for k in dir(subprocess) if not k.startswith("__")})
+    fake.Popen = fake_popen
+    monkeypatch.setattr(launch_mod, "subprocess", fake)
+    try:
+        info = launch_mod._start(port, env)
+    finally:
+        srv.shutdown()
+        srv.server_close()
+        holder.kill()
+        holder.wait()
+    assert info and info["port"] == port and info["token"] == "tok"
+
+
+def test_stale_lock_taken_over_by_exactly_one(env):
+    import launch as launch_mod
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait()
+    lock_path = env / "gui" / "launch.lock"
+    js.write_json_atomic(lock_path, {"pid": dead.pid, "time": time.time()})
+    barrier = threading.Barrier(2)
+    state = {"active": 0, "max": 0, "entered": 0}
+    guard = threading.Lock()
+    errors = []
+
+    def worker():
+        try:
+            barrier.wait()
+            with launch_mod._Lock(env):
+                with guard:
+                    state["active"] += 1
+                    state["entered"] += 1
+                    state["max"] = max(state["max"], state["active"])
+                time.sleep(0.3)
+                with guard:
+                    state["active"] -= 1
+        except Exception as e:  # noqa: BLE001
+            errors.append(e)
+
+    threads = [threading.Thread(target=worker) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(30)
+    assert not errors and state["entered"] == 2 and state["max"] == 1
+    assert not lock_path.exists() and not list((env / "gui").glob("launch.lock.*"))
+
+
+def test_unwritable_tmp_is_a_json_error(env, tmp_path, monkeypatch, capsys):
+    import launch as launch_mod
+    blocker = tmp_path / "file"
+    blocker.write_text("x")
+    monkeypatch.setenv("EDIT_MO_TO_GUI_TMP", str(blocker))  # a file where the folder should be
+    with pytest.raises(SystemExit) as e:
+        launch_mod.main(["--port", str(free_port())])
+    assert e.value.code == 1
+    assert json.loads(capsys.readouterr().out.strip().splitlines()[-1])["ok"] is False

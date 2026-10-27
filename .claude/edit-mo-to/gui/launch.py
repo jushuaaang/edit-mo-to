@@ -30,6 +30,7 @@ import jobstate as js  # noqa: E402
 import machine  # noqa: E402
 import server  # noqa: E402
 
+WAIT_LOCK, STALE_AFTER = 40, 120  # seconds: how long a launch waits for another, when a lock is abandoned
 PORT_TRIES = 11  # the first port and the next ten
 
 
@@ -115,14 +116,18 @@ def _start(port: int, tmp: Path) -> "dict | None":
         kwargs["start_new_session"] = True
     proc = subprocess.Popen([sys.executable, str(GUI / "server.py"), "--port", str(port), "--tmp", str(tmp)],
                             **kwargs)
-    deadline = time.time() + 10
+    deadline, grace = time.time() + 10, None
     while time.time() < deadline:
-        exited = proc.poll() is not None  # on Windows the venv launcher may exit 0 early: look once more, then stop
         info = _read_info(tmp)
         if _usable(info):
             return info
-        if exited:
+        code = proc.poll()
+        if code not in (None, 0):  # crashed: nothing will appear
             break
+        if code == 0:  # the child may have handed over to a server that is still writing server.json
+            grace = grace or time.time() + 2
+            if time.time() > grace:
+                break
         time.sleep(0.2)
     return None
 
@@ -133,25 +138,41 @@ class _Lock:
     def __init__(self, tmp: Path):
         self.path = tmp / "gui" / "launch.lock"
 
-    def _stale(self) -> bool:
+    def _stale(self, path: "Path | None" = None) -> bool:
+        path = path or self.path
         try:
-            data = json.loads(self.path.read_text(encoding="utf-8"))
-            return time.time() - float(data["time"]) > 30 or not js.pid_alive(int(data["pid"]))
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return time.time() - float(data["time"]) > STALE_AFTER or not js.pid_alive(int(data["pid"]))
         except (OSError, ValueError, KeyError, TypeError):
             try:
-                return time.time() - self.path.stat().st_mtime > 30  # half-written or unreadable
+                return time.time() - path.stat().st_mtime > STALE_AFTER  # half-written or unreadable
             except OSError:
                 return False
 
+    def _take_over(self) -> None:
+        """Only the waiter whose rename succeeds removes the stale lock; the others just retry the acquire."""
+        mine = self.path.with_name(f"launch.lock.{os.getpid()}.{time.time_ns()}.stale")
+        try:
+            os.replace(self.path, mine)
+        except OSError:
+            return
+        if not self._stale(mine):  # we moved a lock that another waiter had just re-created: put it back
+            try:
+                os.rename(mine, self.path)
+                return
+            except OSError:
+                pass
+        mine.unlink(missing_ok=True)
+
     def __enter__(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        deadline = time.time() + 15
+        deadline = time.time() + WAIT_LOCK
         while True:
             try:
                 fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
             except FileExistsError:
                 if self._stale():
-                    self.path.unlink(missing_ok=True)
+                    self._take_over()
                     continue
                 if time.time() > deadline:
                     raise RuntimeError("another launch is still running (launch.lock)")
@@ -213,7 +234,7 @@ def main(argv: "list[str] | None" = None) -> None:
     try:
         first = a.port or int(machine.PATHS.get("gui_port") or server.DEFAULT_PORT)
         info, reused = launch(first, _tmp())
-    except (RuntimeError, ValueError, TypeError) as e:
+    except (RuntimeError, ValueError, TypeError, OSError) as e:
         print(json.dumps({"ok": False, "error": str(e)}), flush=True)
         sys.exit(1)
     if a.folder:
