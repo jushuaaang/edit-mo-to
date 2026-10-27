@@ -9,7 +9,9 @@ runs a workflow tool that changes files: those buttons become inbox events that 
 
 Security: every route except GET /api/ping and static files needs the per-launch token (cookie `emt`, set
 by GET /?k=<token>, or header X-EMT-Token). A Host other than 127.0.0.1:<port> / localhost:<port>, or a
-foreign Origin, is refused (403). Files are read or written only inside {root} and {tmp}.
+foreign Origin, is refused (403). Files are read or written only inside {root} and {tmp}; writes (inbox,
+gui.json, uploads, new job) only inside a video folder of {root} (folders.is_video_folder). One exception,
+read-only: GET /api/temp-en may also read a CapCut project under {capcut_drafts}.
 """
 import argparse
 import hashlib
@@ -113,22 +115,26 @@ def _keyframes(folder: Path) -> dict:
     return out
 
 
-def _output_paths(folder: Path, job: dict) -> dict:
+def _output_paths(folder: Path, job: dict, roots: list) -> dict:
+    """{step: {kind: resolved path inside roots, or None}}; a path outside roots is never touched."""
     out = {}
     for step, kinds in (job.get("outputs") or {}).items():
         for kind, ref in (kinds or {}).items():
-            path = Path(ref.get("path", "")) if isinstance(ref, dict) else None
-            out.setdefault(step, {})[kind] = (path if path is None or path.is_absolute() else folder / path)
+            path = Path(ref["path"]) if isinstance(ref, dict) and isinstance(ref.get("path"), str) else None
+            try:
+                path = None if path is None else folders.safe_path(path if path.is_absolute() else folder / path,
+                                                                   roots)
+            except PermissionError:
+                path = None
+            out.setdefault(step, {})[kind] = path
     return out
 
 
-def _load_output(path, roots) -> object:
-    if path is None:
-        return None
-    try:
-        return _read_json(folders.safe_path(path, roots))
-    except PermissionError:
-        return None
+def _listening_key(listening: "dict | None") -> str:
+    """The listening state without the heartbeat, so a waiting Claude does not change the ETag every poll."""
+    if not listening:
+        return "not-listening"
+    return json.dumps({k: listening.get(k) for k in ("pid", "step", "since")}, sort_keys=True)
 
 
 def _summary(entry: dict) -> dict:
@@ -166,33 +172,33 @@ def r_current(h, q):
 
 
 def r_job(h, q):
-    folder = h.job_folder(q)
+    folder = h.job_folder(q.get("folder"))
     job = js.load(folder)
     sd, sb = js.state_dir(folder), folder / "storyboard"
     keyframes, listening = _keyframes(folder), js.listening(folder)
-    outputs = _output_paths(folder, job)
+    outputs = _output_paths(folder, job, [h.server.root, h.server.tmp])
     parts = [folder.as_posix(), *(_stamp(p) for p in (sd / "job.json", sd / "inbox.jsonl", sd / "gui.json",
                                                       sb, sb / "storyboard.json")),
              *(_stamp(Path(p)) for p in keyframes.values()),
              *(_stamp(p) for kinds in outputs.values() for p in kinds.values() if p is not None),
-             json.dumps(listening, sort_keys=True)]
+             _listening_key(listening)]
     etag = '"' + hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()[:20] + '"'
     if h.headers.get("If-None-Match") == etag:
         h.reply(304, b"", None, {"ETag": etag})
         return None
-    roots = [h.server.root, h.server.tmp]
     body = {"job": job, "listening": listening,
             "pending": [e for e in js.unhandled(folder) if e.get("type") in PENDING_TYPES],
             "keyframes": keyframes, "storyboard": _read_json(sb / "storyboard.json"),
             "gui": _read_json(sd / "gui.json", {}),
-            "outputs": {s: {k: _load_output(p, roots) for k, p in kinds.items()} for s, kinds in outputs.items()}}
+            "outputs": {s: {k: None if p is None else _read_json(p) for k, p in kinds.items()}
+                        for s, kinds in outputs.items()}}
     h.send_json(200, body, {"ETag": etag})
     return None
 
 
 def r_inbox(h, q):
     body = h.json_body()
-    folder = h.folder(body.get("folder"))
+    folder = h.job_folder(body.get("folder"))
     event = body.get("event")
     if not isinstance(event, dict):
         raise HttpError(400, "event must be an object")
@@ -201,12 +207,12 @@ def r_inbox(h, q):
 
 def r_gui(h, q):
     body = h.json_body()
-    folder = h.folder(body.get("folder"))
+    folder = h.job_folder(body.get("folder"))
     patch = body.get("patch")
     if not isinstance(patch, dict):
         raise HttpError(400, "patch must be an object")
     path = js.state_dir(folder) / "gui.json"
-    with js._lock(folder):
+    with js.lock(folder):
         data = _read_json(path, {})
         data = data if isinstance(data, dict) else {}
         for key, value in patch.items():
@@ -214,7 +220,7 @@ def r_gui(h, q):
                 data.pop(key, None)
             else:
                 data[key] = value
-        js._write_atomic(path, json.dumps(data, ensure_ascii=False, indent=1))
+        js.write_json_atomic(path, data)
     return data
 
 
@@ -222,13 +228,13 @@ def r_new(h, q):
     body = h.json_body()
     client, product, raw = _need_str(body, "client"), _need_str(body, "product"), _need_str(body, "folder")
     root = h.server.root
-    folder = folders.safe_path(Path(raw) if Path(raw).is_absolute() else root / raw, [root])
-    if folder == Path(root).resolve():
-        raise HttpError(400, "pick a folder inside the root, not the root itself")
-    with js._lock(folder):
+    folder = h.video_folder(str(Path(raw) if Path(raw).is_absolute() else Path(root) / raw))
+    if not folder.parent.is_dir():
+        raise HttpError(400, f"{folder.parent.name} does not exist yet; only the video folder itself is created")
+    with js.lock(folder):
         if (js.state_dir(folder) / "job.json").exists():
             raise HttpError(409, "this folder already has a job")
-        folder.mkdir(parents=True, exist_ok=True)
+        folder.mkdir(exist_ok=True)  # the video folder only, never its parents
         job = js.new_job(folder, client, product)
         js.save(folder, job)
     js.set_current(folder)
@@ -237,7 +243,8 @@ def r_new(h, q):
 
 def _check_name(name: str) -> None:
     if (not name or len(name) > 255 or name.startswith(".") or name.endswith((".", " "))
-            or any(c in name for c in '/\\:\0') or name.split(".")[0].lower() in RESERVED):
+            or any(c in name for c in '/\\:<>"|?*\0') or any(ord(c) < 32 for c in name)
+            or name.split(".")[0].strip().lower() in RESERVED):
         raise HttpError(400, f"not an allowed file name: {name!r}")
 
 
@@ -250,7 +257,7 @@ def _free_name(folder: Path, name: str) -> Path:
 
 
 def r_upload(h, q):
-    folder = h.folder(q.get("folder"))
+    folder = h.job_folder(q.get("folder"))
     kind = q.get("kind")
     if kind not in UPLOADS:
         raise HttpError(400, f"kind must be one of {', '.join(UPLOADS)}")
@@ -330,10 +337,12 @@ def r_settings_save(h, q):
                 raise HttpError(400, "gui_port must be a number from 1024 to 65535")
         elif not isinstance(value, str) or not value.strip() or len(value) > 1024:
             raise HttpError(400, f"{key} must be a path")
+        elif not Path(value.strip()).exists():
+            raise HttpError(400, f"{key}: {value.strip()} does not exist on this computer")
         update[key] = value.strip() if isinstance(value, str) else value
     data = _settings_file()  # keeps keys already in the file (_note, asr, ...)
     data.update(update)
-    js._write_atomic(Path(machine.CONFIG), json.dumps(data, ensure_ascii=False, indent=1) + "\n")
+    js.write_json_atomic(Path(machine.CONFIG), data)
     return r_settings(h, q)
 
 
@@ -346,7 +355,8 @@ def r_capcut(h, q):
 
 
 def r_temp_en(h, q):
-    project = h.safe(q.get("project"), [h.server.root, h.server.tmp, machine.PATHS["capcut_drafts"]])
+    roots = [r for r in (h.server.root, h.server.tmp, machine.PATHS.get("capcut_drafts")) if r]
+    project = h.safe(q.get("project"), roots)
     return {"timelines": checks.temp_en_timelines(project)}
 
 
@@ -525,17 +535,18 @@ class Handler(BaseHTTPRequestHandler):
             raise HttpError(400, "a path is required")
         return folders.safe_path(raw, roots)
 
-    def folder(self, raw) -> Path:
-        """A video folder: an absolute path inside root (not root itself)."""
+    def video_folder(self, raw) -> Path:
+        """An absolute path that is a video folder of root by the folders.py rule (it may not exist yet)."""
         if isinstance(raw, str) and raw and not Path(raw).is_absolute():
             raise HttpError(400, "folder must be an absolute path")
         folder = self.safe(raw, [self.server.root])
-        if folder == Path(self.server.root).resolve():
-            raise HttpError(400, "folder must be inside the root")
+        if not folders.is_video_folder(folder, self.server.root):
+            raise HttpError(403, "not a video folder (a direct subfolder of the root, or _practice/<name>)")
         return folder
 
-    def job_folder(self, q: dict) -> Path:
-        folder = self.folder(q.get("folder"))
+    def job_folder(self, raw) -> Path:
+        """A video folder that already has a job.json."""
+        folder = self.video_folder(raw)
         if not (js.state_dir(folder) / "job.json").is_file():
             raise HttpError(404, "no job in this folder")
         return folder
@@ -587,7 +598,7 @@ def main(argv: "list[str] | None" = None) -> None:
         sys.exit(1)
     port = srv.server_address[1]
     info = tmp / "gui" / "server.json"
-    js._write_atomic(info, json.dumps({"pid": os.getpid(), "port": port, "token": token, "version": API_VERSION}))
+    js.write_json_atomic(info, {"pid": os.getpid(), "port": port, "token": token, "version": API_VERSION})
     print(json.dumps({"ok": True, "url": f"http://127.0.0.1:{port}/?k={token}", "port": port}), flush=True)
     try:
         srv.serve_forever()

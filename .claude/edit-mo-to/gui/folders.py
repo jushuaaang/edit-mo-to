@@ -1,6 +1,7 @@
 """Which folders under the root are videos, and whether a path may be served. Read-only.
 
     video_folders(root) -> [{"name","path","has_job","practice"}]
+    is_video_folder(path, root) -> bool   the same rule for one path (which need not exist yet)
     safe_path(p, roots) -> resolved Path, or PermissionError when p is outside every root
 """
 import os
@@ -25,10 +26,30 @@ def video_folders(root: Path) -> list[dict]:
     """Direct subfolders of root (not starting with . or _, not docs / PYNK_AI_UGC_Studio), plus each
     root/_practice/<name>/ flagged practice."""
     root = Path(root)
-    out = [_entry(p, False) for p in _subfolders(root)
-           if not p.name.startswith((".", "_")) and p.name not in SKIP_NAMES]
-    out += [_entry(p, True) for p in _subfolders(root / "_practice")]
+    out = [_entry(p, False) for p in _subfolders(root) if _video_name(p.name, False)]
+    out += [_entry(p, True) for p in _subfolders(root / "_practice") if _video_name(p.name, True)]
     return out
+
+
+def _video_name(name: str, practice: bool) -> bool:
+    if practice:
+        return not name.startswith(".")
+    return not name.startswith((".", "_")) and name not in SKIP_NAMES
+
+
+def is_video_folder(path: "str | Path", root: "str | Path") -> bool:
+    """True when path (resolved) is a direct video subfolder of root, or root/_practice/<name>, by the
+    video_folders rule. The folder itself need not exist."""
+    try:
+        p, r = Path(path).resolve(), Path(root).resolve()
+    except (OSError, RuntimeError, ValueError):
+        return False
+    parent = _key(p.parent)
+    if parent == _key(r):
+        return _video_name(p.name, False)
+    if parent == _key(r / "_practice"):
+        return _video_name(p.name, True)
+    return False
 
 
 def _key(p: Path) -> str:

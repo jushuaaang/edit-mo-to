@@ -38,6 +38,11 @@ def _lock(folder: Path) -> threading.Lock:
         return _locks.setdefault(key, threading.Lock())
 
 
+def lock(folder: Path) -> threading.Lock:
+    """The per-folder lock shared by every writer in this process: `with jobstate.lock(folder): ...`."""
+    return _lock(folder)
+
+
 def state_dir(folder: Path) -> Path:
     return Path(folder) / ".edit-mo-to"
 
@@ -110,6 +115,11 @@ def _write_atomic(path: Path, text: str) -> None:
         _retry(lambda: os.replace(tmp, path))
     finally:
         tmp.unlink(missing_ok=True)
+
+
+def write_json_atomic(path: Path, data) -> None:
+    """Write data as UTF-8 JSON to path atomically (temp file + os.replace)."""
+    _write_atomic(Path(path), json.dumps(data, ensure_ascii=False, indent=1) + "\n")
 
 
 def save(folder: Path, job: dict) -> None:

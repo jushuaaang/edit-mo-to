@@ -1,4 +1,6 @@
 import json
+import platform
+import re
 import sys
 import urllib.parse
 from pathlib import Path
@@ -50,4 +52,7 @@ def test_issue_url():
 
 def test_version_and_os(tmp_path):
     assert feedback.version(tmp_path / "not-a-repo") == "unknown"
-    assert feedback.os_name() in ("Windows", "macOS") or feedback.os_name()
+    repo = Path(__file__).resolve().parents[4]  # the edit-mo-to checkout (or worktree) holding these tests
+    assert re.fullmatch(r"[0-9a-f]{7,}|unknown", feedback.version(repo))
+    assert feedback.os_name() in {"Windows", "macOS", platform.system()}
+    assert feedback.os_name() == {"win32": "Windows", "darwin": "macOS"}.get(sys.platform, platform.system())

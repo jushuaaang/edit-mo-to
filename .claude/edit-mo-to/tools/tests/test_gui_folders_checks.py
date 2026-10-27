@@ -28,6 +28,20 @@ def test_video_folder_rule(tmp_path):
     assert Path(by["Nativia"]["path"]) == tmp_path / "Nativia"
 
 
+def test_is_video_folder_matches_the_rule(tmp_path):
+    yes = ["Nativia", "Uvola Cereza Ácida", "_practice/run1", "Not Created Yet"]
+    no = ["", ".git", ".claude", "docs", "PYNK_AI_UGC_Studio", "_practice", "_misc", "Nativia/sub",
+          "_practice/run1/x", "_practice/.hidden", "../elsewhere"]
+    for rel in yes:
+        assert folders.is_video_folder(tmp_path / rel, tmp_path), rel
+    for rel in no:
+        assert not folders.is_video_folder(tmp_path / rel, tmp_path), rel
+    (tmp_path / "Nativia").mkdir()
+    (tmp_path / "_practice/run1").mkdir(parents=True)
+    listed = {Path(f["path"]).resolve() for f in folders.video_folders(tmp_path)}
+    assert all(folders.is_video_folder(p, tmp_path) for p in listed)
+
+
 def test_safe_path_blocks_escape(tmp_path):
     root = tmp_path / "root"
     (root / "Uvola Cereza Ácida/refs").mkdir(parents=True)

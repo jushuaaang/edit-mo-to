@@ -2,6 +2,7 @@ import http.client
 import json
 import sys
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -95,10 +96,32 @@ def test_token_link_sets_cookie(api):
     conn.close()
 
 
+def _raw(api, method, path, headers=None):
+    """One request with http.client, so the path is sent exactly as written (no client-side normalising)."""
+    conn = http.client.HTTPConnection("127.0.0.1", api.port, timeout=10)
+    try:
+        conn.request(method, path, headers=headers or {})
+        r = conn.getresponse()
+        r.read()
+        return r.status, r.getheader("Set-Cookie")
+    finally:
+        conn.close()
+
+
+def test_wrong_cookie_and_wrong_link_refused(api):
+    assert _raw(api, "GET", "/api/jobs", {"Cookie": "emt=nope"})[0] == 401
+    status, cookie = _raw(api, "GET", "/?k=nope")
+    assert status == 401 and cookie is None
+
+
 def test_foreign_origin_refused(api):
     assert api.json("GET", "/api/jobs", headers={"Origin": "http://evil.example"})[0] == 403
     ok = api.json("GET", "/api/jobs", headers={"Origin": f"http://127.0.0.1:{api.port}"})
     assert ok[0] == 200
+    folder = _demo(api)
+    post = {"folder": str(folder), "event": {"type": "message", "text": "x"}}
+    assert api.json("POST", "/api/inbox", post, headers={"Origin": "http://evil.example"})[0] == 403
+    assert js.read_events(folder) == []
 
 
 def test_foreign_host_refused(api):
@@ -113,7 +136,13 @@ def test_foreign_host_refused(api):
 def test_static_index_served(api):
     status, headers, data = api.call("GET", "/", token=None)
     assert status == 200 and headers["Content-Type"].startswith("text/html")
-    assert api.call("GET", "/static/../server.py", token=None)[0] in (403, 404)
+    assert _raw(api, "GET", "/static/index.html")[0] == 200
+    assert _raw(api, "GET", "/static/missing.js")[0] == 404
+    assert _raw(api, "GET", "/static/../server.py")[0] == 403
+    assert _raw(api, "GET", "/static/%2e%2e/server.py")[0] == 403
+    assert _raw(api, "GET", "/static/%2e%2e%2fserver.py")[0] == 403
+    # a backslash is a separator on Windows (escape: 403); elsewhere it is part of a name that does not exist
+    assert _raw(api, "GET", "/static/..%5Cserver.py")[0] == (403 if sys.platform == "win32" else 404)
 
 
 def test_job_roundtrip_and_etag(api):
@@ -129,6 +158,51 @@ def test_job_roundtrip_and_etag(api):
     assert api.call("GET", "/api/job" + _q(folder=folder), headers={"If-None-Match": etag})[0] == 304
     js.append_event(folder, {"type": "message", "text": "hola"})
     assert api.call("GET", "/api/job" + _q(folder=folder), headers={"If-None-Match": etag})[0] == 200
+
+
+def test_etag_ignores_listening_heartbeat(api):
+    folder = _demo(api)
+    js.write_listening(folder, "script")
+    try:
+        status, headers, body = api.call("GET", "/api/job" + _q(folder=folder))
+        assert status == 200 and json.loads(body)["listening"]["step"] == "script"
+        time.sleep(0.02)
+        js.write_listening(folder, "script")  # heartbeat: new beat, same pid/step/since
+        assert api.call("GET", "/api/job" + _q(folder=folder), headers={"If-None-Match": headers["ETag"]})[0] == 304
+        js.clear_listening(folder)  # Claude stops listening: the page must hear about it
+        assert api.call("GET", "/api/job" + _q(folder=folder), headers={"If-None-Match": headers["ETag"]})[0] == 200
+    finally:
+        js.clear_listening(folder)
+
+
+def test_output_outside_roots_not_read(api, tmp_path):
+    folder = _demo(api)
+    (tmp_path / "elsewhere.json").write_text('{"secret": 1}', encoding="utf-8")
+    job = js.load(folder)
+    job["outputs"] = {"brief": {"checklist": {"path": str(tmp_path / "elsewhere.json"), "at": "x"}}}
+    js.save(folder, job)
+    assert api.json("GET", "/api/job" + _q(folder=folder))[1]["outputs"] == {"brief": {"checklist": None}}
+
+
+def test_write_routes_need_a_video_folder(api):
+    (api.root / "_practice").mkdir()
+    bad = [".git", ".claude/edit-mo-to", "docs", "PYNK_AI_UGC_Studio", "_misc", "Nativia/sub/deeper"]
+    for rel in bad + ["_practice/run1"]:
+        js.save(api.root / rel, js.new_job(api.root / rel, "c", "p"))  # a job.json does not make it a video folder
+    for rel in bad + [""]:
+        folder = api.root / rel
+        ev = {"folder": str(folder), "event": {"type": "message"}}
+        assert api.json("POST", "/api/inbox", ev)[0] == 403, rel
+        assert api.json("POST", "/api/gui", {"folder": str(folder), "patch": {"a": 1}})[0] == 403, rel
+        assert api.json("PUT", "/api/upload" + _q(folder=folder, kind="refs", name="x.pdf"), raw=b"x")[0] == 403, rel
+        assert api.json("GET", "/api/job" + _q(folder=folder))[0] == 403, rel
+    assert not (api.root / ".git" / "refs").exists() and not (api.root / "docs" / "refs").exists()
+    practice = api.root / "_practice" / "run1"
+    assert api.json("POST", "/api/inbox", {"folder": str(practice), "event": {"type": "message"}})[0] == 200
+    missing = {"folder": str(api.root / "Not There"), "event": {"type": "message"}}
+    assert api.json("POST", "/api/inbox", missing)[0] == 404
+    assert not (api.root / "Not There").exists()
+    assert api.json("POST", "/api/inbox", {"folder": "relative/x", "event": {"type": "message"}})[0] == 400
 
 
 def test_job_outputs_parsed(api):
@@ -204,6 +278,9 @@ def test_upload_rules(api):
     assert api.json("PUT", up + _q(folder=folder, kind="keyframe", id="SB-x", name="a.png"), raw=b"x")[0] == 400
     assert api.json("PUT", up + _q(folder=folder, kind="refs", name="../a.pdf"), raw=b"x")[0] == 400
     assert api.json("PUT", up + _q(folder=folder, kind="refs", name=".a.pdf"), raw=b"x")[0] == 400
+    for ch in '<>"|?*:':
+        assert api.json("PUT", up + _q(folder=folder, kind="refs", name=f"a{ch}b.pdf"), raw=b"x")[0] == 400, ch
+    assert api.json("PUT", up + _q(folder=folder, kind="refs", name="nul.pdf"), raw=b"x")[0] == 400
     api.json("PUT", up + _q(folder=folder, kind="refs", name="a.pdf"), raw=b"1")
     s, d = api.json("PUT", up + _q(folder=folder, kind="refs", name="a.pdf"), raw=b"2")
     assert s == 200 and Path(d["path"]).name == "a (2).pdf"
@@ -248,6 +325,16 @@ def test_new_job_conflict(api):
     assert Path(d["folder"]) == folder.resolve() and d["job"]["card"]["client"] == "Nativia"
     assert api.json("POST", "/api/new", body)[0] == 409
     assert api.json("POST", "/api/new", {**body, "folder": str(api.root / ".." / "out")})[0] == 403
+    for rel in (".git", "docs", "_misc", "a/b"):
+        assert api.json("POST", "/api/new", {**body, "folder": str(api.root / rel)})[0] == 403, rel
+    assert not (api.root / "a").exists() and not (api.root / ".git").exists()
+    practice = {**body, "folder": str(api.root / "_practice" / "run1")}
+    assert api.json("POST", "/api/new", practice)[0] == 400  # never creates the _practice parent
+    assert not (api.root / "_practice").exists()
+    (api.root / "_practice").mkdir()
+    assert api.json("POST", "/api/new", practice)[0] == 200
+    assert api.json("POST", "/api/new", {**body, "folder": "By Name"})[0] == 200  # a bare name: under root
+    assert (api.root / "By Name" / ".edit-mo-to" / "job.json").is_file()
 
 
 def test_jobs_lists_folders(api):
@@ -277,6 +364,9 @@ def test_settings_write_only_known_keys(api, tmp_path, monkeypatch):
     assert saved["root"] == str(api.root) and saved["gui_port"] == 4811
     assert api.json("POST", "/api/settings", {"gui_port": 80})[0] == 400
     assert api.json("POST", "/api/settings", {"tmp": 5})[0] == 400
+    s, d = api.json("POST", "/api/settings", {"capcut_drafts": str(tmp_path / "nowhere")})
+    assert s == 400 and "capcut_drafts" in d["error"]
+    assert "capcut_drafts" not in json.loads(cfg.read_text(encoding="utf-8"))
     s, d = api.json("GET", "/api/settings")
     assert s == 200 and d["paths"]["root"] == str(api.root) and d["found"]["root"] is True
 
