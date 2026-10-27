@@ -223,6 +223,11 @@ def _placeholder(project: Path, first: Path | None = None) -> str | None:
 def _capcut_running() -> bool:
     import subprocess
 
+    if sys.platform != "win32":  # macOS: the process is named "CapCut"
+        try:
+            return subprocess.run(["pgrep", "-x", "CapCut"], capture_output=True, timeout=10).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return False
     try:
         out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq CapCut.exe", "/NH"],
                              capture_output=True, text=True, timeout=10).stdout

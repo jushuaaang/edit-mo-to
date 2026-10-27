@@ -808,3 +808,27 @@ def test_raise_text_track_puts_it_on_top(tmp_path, drafts, base_draft):
     with pytest.raises(ValueError):
         cp.raise_text_track(target, "Timeline 02 - Hook 1", "nope")
     assert _files(target) == before
+
+
+def test_capcut_running_mac(monkeypatch):
+    monkeypatch.undo()  # drop the autouse stub so the real check runs
+    monkeypatch.setattr(sys, "platform", "darwin")
+    calls = []
+
+    def fake(code):
+        def run(cmd, **kw):
+            calls.append(cmd)
+            return subprocess.CompletedProcess(cmd, code, b"", b"")
+        return run
+
+    monkeypatch.setattr(subprocess, "run", fake(0))
+    assert cp._capcut_running() is True
+    monkeypatch.setattr(subprocess, "run", fake(1))
+    assert cp._capcut_running() is False
+    assert calls[0] == ["pgrep", "-x", "CapCut"]
+
+    def boom(*a, **k):
+        raise OSError("no pgrep")
+
+    monkeypatch.setattr(subprocess, "run", boom)
+    assert cp._capcut_running() is False
