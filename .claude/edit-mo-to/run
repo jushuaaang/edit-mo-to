@@ -1,0 +1,35 @@
+#!/bin/sh
+# Launcher for the workflow's own Python scripts, so one permission rule covers every machine.
+# usage (from the project root): .claude/edit-mo-to/run <gui|tools>/<name>.py [args...]
+set -e
+
+script="$1"
+case "$script" in
+  gui/*.py | tools/*.py)
+    base="${script#*/}"
+    base="${base%.py}"
+    case "$base" in
+      "" | *[!A-Za-z0-9_]*)
+        echo "run: refused: $script" >&2
+        exit 2
+        ;;
+    esac
+    ;;
+  *)
+    echo "run: refused: $script" >&2
+    exit 2
+    ;;
+esac
+shift
+
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+TOOLS="$ROOT/.claude/edit-mo-to"
+if [ -x "$TOOLS/tools/.venv/Scripts/python.exe" ]; then
+  PY="$TOOLS/tools/.venv/Scripts/python.exe"
+else
+  PY="$TOOLS/tools/.venv/bin/python"
+fi
+
+PYTHONIOENCODING=utf-8
+export PYTHONIOENCODING
+exec "$PY" "$TOOLS/$script" "$@"
