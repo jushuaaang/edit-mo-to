@@ -39,15 +39,40 @@ def _release(folder: Path) -> None:
         js.clear_listening(folder)
 
 
+def _heartbeat(folder: Path, step: str | None) -> bool:
+    """Refresh our listening.json unless another live waiter took over. The temp file is written
+    first and the owner re-checked just before the atomic replace, so a take-over that lands
+    mid-heartbeat is not overwritten (window: one os.replace). Returns False if superseded."""
+    path = js._listening_path(folder)
+    since = js._now()
+    try:
+        old = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(old, dict) and old.get("pid") == os.getpid() and old.get("since"):
+            since = old["since"]
+    except (OSError, ValueError):
+        pass
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.hb.tmp")
+    try:
+        tmp.write_text(json.dumps({"pid": os.getpid(), "since": since, "beat": time.time(), "step": step},
+                                  ensure_ascii=False), encoding="utf-8")
+        if _superseded(folder):
+            return False
+        js._retry(lambda: os.replace(tmp, path))
+        return True
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def _emit(obj: dict) -> None:
     sys.stdout.write(json.dumps(obj, ensure_ascii=False) + "\n")
     sys.stdout.flush()
 
 
 def wait(folder: Path, after: int, step: str | None, timeout: float, poll: float) -> int:
-    js.write_listening(folder, step)  # a new waiter always takes over
     deadline = time.monotonic() + timeout if timeout > 0 else None
     try:
+        js.write_listening(folder, step)  # a new waiter always takes over
         while True:
             events = js.read_events(folder, after)
             if events:
@@ -56,10 +81,9 @@ def wait(folder: Path, after: int, step: str | None, timeout: float, poll: float
             if deadline is not None and time.monotonic() >= deadline:
                 _emit({"events": []})
                 return 3
-            if _superseded(folder):
+            if not _heartbeat(folder, step):
                 _emit({"superseded": True})
                 return 4
-            js.write_listening(folder, step)
             time.sleep(poll)
     finally:
         _release(folder)

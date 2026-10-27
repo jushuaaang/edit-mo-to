@@ -1,4 +1,6 @@
 import json
+import os
+import signal
 import subprocess
 import sys
 import time
@@ -11,23 +13,36 @@ sys.path.insert(0, str(GUI))
 import jobstate as js  # noqa: E402
 
 WAIT = GUI / "wait.py"
-_procs: list[subprocess.Popen] = []
+_procs: list = []
 
 
 def _kill_tree(p):
     # the venv python on Windows is a launcher: p.pid is the launcher, the waiter its child
     if sys.platform == "win32":
         subprocess.run(["taskkill", "/F", "/T", "/PID", str(p.pid)], capture_output=True)
-    else:
+    elif p.poll() is None:
         p.kill()
+
+
+def _kill_real(folder):
+    """Kill whatever pid listening.json names (the real waiter, even if its launcher is gone)."""
+    try:
+        pid = int(json.loads((js.state_dir(folder) / "listening.json").read_text(encoding="utf-8"))["pid"])
+    except (OSError, ValueError, KeyError):
+        return
+    if pid != os.getpid() and js.pid_alive(pid):
+        if sys.platform == "win32":
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
+        else:
+            os.kill(pid, signal.SIGKILL)
 
 
 @pytest.fixture(autouse=True)
 def _reap():
     yield
-    for p in _procs:
-        if p.poll() is None:
-            _kill_tree(p)
+    for p, folder in _procs:
+        _kill_tree(p)  # on Windows even if the launcher already exited
+        _kill_real(folder)
         p.wait()
         for s in (p.stdout, p.stderr):
             if s:
@@ -35,10 +50,10 @@ def _reap():
     _procs.clear()
 
 
-def _start(folder, *args, step="storyboard"):
+def _start(folder, *args, step="storyboard", **popen):
     cmd = [sys.executable, str(WAIT), str(folder), "--after", "0", "--step", step, "--poll", "0.1", *args]
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    _procs.append(p)
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **popen)
+    _procs.append((p, folder))
     return p
 
 
@@ -52,7 +67,8 @@ def _until(cond, timeout=10.0):
 
 
 def _out(p, timeout=10):
-    out, _ = p.communicate(timeout=timeout)
+    out, err = p.communicate(timeout=timeout)
+    assert err == b"", err.decode("utf-8", "replace")
     return json.loads(out.decode("utf-8").strip().splitlines()[-1])
 
 
@@ -113,12 +129,47 @@ def test_folder_with_spaces_and_accents(tmp_path):
     assert out["events"][0]["text"] == "ñandú ✓"
 
 
+def test_missing_inbox_times_out(tmp_path):
+    assert not js.state_dir(tmp_path).exists()
+    p = _start(tmp_path, "--timeout", "1")
+    assert _out(p) == {"events": []}
+    assert p.returncode == 3
+
+
+def test_superseded_waiter_leaves_new_file_intact(tmp_path):
+    a = _start(tmp_path, "--timeout", "20")
+    assert _until(lambda: js.listening(tmp_path) is not None)
+    a_pid = js.listening(tmp_path)["pid"]
+    b = _start(tmp_path, "--timeout", "20")
+    assert _until(lambda: a.poll() is not None)
+    assert a.returncode == 4
+    path = js.state_dir(tmp_path) / "listening.json"
+    first = json.loads(path.read_text(encoding="utf-8"))
+    assert first["pid"] != a_pid  # b took over and a did not overwrite it
+    time.sleep(0.5)
+    later = json.loads(path.read_text(encoding="utf-8"))
+    assert later["pid"] == first["pid"] and later["since"] == first["since"]
+    assert js.pid_alive(later["pid"]) and b.poll() is None
+
+
 def test_terminate_clears_listening_and_exits_130(tmp_path):
-    p = _start(tmp_path)
+    if sys.platform == "win32":
+        pytest.skip("terminate() is a hard kill on Windows; see the CTRL_BREAK test")
+    p = _start(tmp_path, "--timeout", "30")
     assert _until(lambda: js.listening(tmp_path) is not None)
     p.terminate()
     p.wait(timeout=10)
-    # Windows terminate() is a hard kill; POSIX gets the handler
-    if sys.platform != "win32":
-        assert p.returncode == 130
-        assert not (js.state_dir(tmp_path) / "listening.json").exists()
+    assert p.returncode == 130
+    assert not (js.state_dir(tmp_path) / "listening.json").exists()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows console break")
+def test_ctrl_break_clears_listening_and_exits_130(tmp_path):
+    p = _start(tmp_path, "--timeout", "30", creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+    assert _until(lambda: js.listening(tmp_path) is not None)
+    real = js.listening(tmp_path)["pid"]
+    os.kill(p.pid, signal.CTRL_BREAK_EVENT)
+    p.wait(timeout=10)
+    assert _until(lambda: not js.pid_alive(real))
+    assert not (js.state_dir(tmp_path) / "listening.json").exists()
+    assert p.returncode == 130
