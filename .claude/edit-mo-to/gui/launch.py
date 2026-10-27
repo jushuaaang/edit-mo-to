@@ -68,22 +68,24 @@ def _port_free(port: int) -> bool:
             return False
 
 
-def _terminate(pid: int) -> None:
+def _terminate(pid: int) -> str:
+    """Stop pid (and its children on Windows); returns "" or a note about what went wrong."""
     if sys.platform == "win32":
-        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
-        return
+        r = subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
+        return "" if r.returncode == 0 else f"taskkill exit code {r.returncode}"
     try:
         os.kill(pid, signal.SIGTERM)
-    except OSError:
-        return
+    except OSError as e:
+        return f"kill failed: {e}"
     deadline = time.time() + 3
     while time.time() < deadline and js.pid_alive(pid):
         time.sleep(0.1)
     if js.pid_alive(pid):
         try:
             os.kill(pid, signal.SIGKILL)
-        except OSError:
-            pass
+        except OSError as e:
+            return f"kill failed: {e}"
+    return ""
 
 
 def _wait_free(port: int, seconds: float = 5) -> bool:
@@ -95,9 +97,15 @@ def _wait_free(port: int, seconds: float = 5) -> bool:
     return _port_free(port)
 
 
+def _usable(info: "dict | None") -> bool:
+    return bool(info) and isinstance(info.get("port"), int) and isinstance(info.get("token"), str)         and _current(info["port"])
+
+
 def _start(port: int, tmp: Path) -> "dict | None":
     """Spawn server.py detached on `port`; return its server.json once it answers /api/ping, else None."""
-    (tmp / "gui" / "server.json").unlink(missing_ok=True)
+    info = _read_info(tmp)
+    if not (info and js.pid_alive(info["pid"])):  # never remove a server.json that names a live process
+        (tmp / "gui" / "server.json").unlink(missing_ok=True)
     kwargs = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL,
               "close_fds": True}
     if sys.platform == "win32":
@@ -109,14 +117,52 @@ def _start(port: int, tmp: Path) -> "dict | None":
                             **kwargs)
     deadline = time.time() + 10
     while time.time() < deadline:
+        exited = proc.poll() is not None  # on Windows the venv launcher may exit 0 early: look once more, then stop
         info = _read_info(tmp)
-        if info and isinstance(info.get("port"), int) and isinstance(info.get("token"), str) \
-                and _current(info["port"]):
+        if _usable(info):
             return info
-        if proc.poll() not in (None, 0):  # died at once (on Windows the venv launcher may exit 0 early)
+        if exited:
             break
         time.sleep(0.2)
     return None
+
+
+class _Lock:
+    """Exclusive-create lock file {tmp}/gui/launch.lock so two launches never start two servers."""
+
+    def __init__(self, tmp: Path):
+        self.path = tmp / "gui" / "launch.lock"
+
+    def _stale(self) -> bool:
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+            return time.time() - float(data["time"]) > 30 or not js.pid_alive(int(data["pid"]))
+        except (OSError, ValueError, KeyError, TypeError):
+            try:
+                return time.time() - self.path.stat().st_mtime > 30  # half-written or unreadable
+            except OSError:
+                return False
+
+    def __enter__(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        deadline = time.time() + 15
+        while True:
+            try:
+                fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            except FileExistsError:
+                if self._stale():
+                    self.path.unlink(missing_ok=True)
+                    continue
+                if time.time() > deadline:
+                    raise RuntimeError("another launch is still running (launch.lock)")
+                time.sleep(0.1)
+                continue
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump({"pid": os.getpid(), "time": time.time()}, f)
+            return self
+
+    def __exit__(self, *exc):
+        self.path.unlink(missing_ok=True)
 
 
 def _url(info: dict) -> str:
@@ -125,14 +171,26 @@ def _url(info: dict) -> str:
 
 def launch(first: int, tmp: Path) -> "tuple[dict, bool]":
     """(server.json info, reused). Raises RuntimeError with a plain message when nothing could start."""
+    with _Lock(tmp):
+        return _launch(first, tmp)
+
+
+def _launch(first: int, tmp: Path) -> "tuple[dict, bool]":
     info = _read_info(tmp)
-    stale_port = None
+    stale_port, note = None, ""
     if info and js.pid_alive(info["pid"]) and isinstance(info.get("port"), int):
-        if _current(info["port"]) and isinstance(info.get("token"), str):
+        ans = _ping(info["port"])
+        if _usable(info):
             return info, True
-        _terminate(info["pid"])  # ours (it wrote server.json) but old or not answering: replace it
-        if _wait_free(info["port"]):
-            stale_port = info["port"]
+        if ans and ans.get("app") == server.APP and ans.get("version") != server.API_VERSION:
+            note = _terminate(info["pid"])  # our own older server: the only thing this ever stops
+            if _wait_free(info["port"]):
+                stale_port = info["port"]
+            else:
+                raise RuntimeError(f"the old GUI server (pid {info['pid']}) did not release port "
+                                   f"{info['port']}" + (f" ({note})" if note else ""))
+    if info:  # stale record (dead pid, silent port, foreign app, replaced server): drop it, kill nothing else
+        (tmp / "gui" / "server.json").unlink(missing_ok=True)
     candidates = ([stale_port] if stale_port else []) + [p for p in range(first, first + PORT_TRIES)
                                                          if p != stale_port]
     for port in candidates:
@@ -152,10 +210,10 @@ def main(argv: "list[str] | None" = None) -> None:
     p.add_argument("--open", action="store_true")
     p.add_argument("--port", type=int)
     a = p.parse_args(argv)
-    first = a.port or int(machine.PATHS.get("gui_port") or server.DEFAULT_PORT)
     try:
+        first = a.port or int(machine.PATHS.get("gui_port") or server.DEFAULT_PORT)
         info, reused = launch(first, _tmp())
-    except RuntimeError as e:
+    except (RuntimeError, ValueError, TypeError) as e:
         print(json.dumps({"ok": False, "error": str(e)}), flush=True)
         sys.exit(1)
     if a.folder:
