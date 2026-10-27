@@ -195,6 +195,30 @@ def pid_alive(pid: int) -> bool:
     return True
 
 
+def _current_path() -> Path:
+    """<tmp>/gui/current.json; tmp from machine.PATHS at call time (EDIT_MO_TO_GUI_TMP overrides, for tests)."""
+    tmp = os.environ.get("EDIT_MO_TO_GUI_TMP")
+    if not tmp:
+        tools = str(Path(__file__).resolve().parents[1] / "tools")
+        if tools not in sys.path:
+            sys.path.insert(0, tools)
+        import machine
+        tmp = machine.PATHS["tmp"]
+    return Path(tmp) / "gui" / "current.json"
+
+
+def set_current(folder: Path) -> None:
+    _write_atomic(_current_path(), json.dumps({"folder": Path(folder).as_posix()}, ensure_ascii=False))
+
+
+def get_current() -> str | None:
+    try:
+        folder = json.loads(_retry(lambda: _current_path().read_text(encoding="utf-8"))).get("folder")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return folder or None
+
+
 def _listening_path(folder: Path) -> Path:
     return state_dir(folder) / "listening.json"
 
