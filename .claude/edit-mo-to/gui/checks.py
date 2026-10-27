@@ -66,10 +66,17 @@ def capcut_running() -> bool:
 
 
 def temp_en_timelines(project_dir: Path) -> list[str]:
-    """Names of timelines that still have a TEMP_EN_delete_me track (read-only)."""
+    """Names of timelines that still have a TEMP_EN_delete_me track, in the project's own order (read-only).
+
+    Never raises on bad data: a missing or unreadable project (project.json / content file) gives [],
+    and a single timeline whose content file is missing or unreadable is skipped."""
     project = Path(project_dir)
     found = []
-    for tl in capcut_project.list_timelines(project):
+    try:
+        timelines = capcut_project.list_timelines(project)
+    except (OSError, ValueError, KeyError):
+        return []
+    for tl in timelines:
         try:
             segs = capcut_project.segments(project, tl["name"])["segments"]
         except (OSError, ValueError, KeyError):
