@@ -56,6 +56,7 @@ UPLOADS = {  # kind: (subfolder, step for the event, allowed extensions, size li
 KEYFRAME_ID = re.compile(r"(SB|CHAR)-\d+")
 KEYFRAME_EXTS = UPLOADS["keyframe"][2]
 PENDING_TYPES = {"edit", "approve", "action"}
+RECENT_EVENTS = 200
 SETTINGS_KEYS = ("root", "python", "tmp", "mcp_servers", "capcut_drafts", "gui_port")
 SETTINGS_DIRS = {"root": True, "python": False, "tmp": True, "mcp_servers": True, "capcut_drafts": True}
 RESERVED = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(10)), *(f"lpt{i}" for i in range(10))}
@@ -188,6 +189,7 @@ def r_job(h, q):
         return None
     body = {"job": job, "listening": listening,
             "pending": [e for e in js.unhandled(folder) if e.get("type") in PENDING_TYPES],
+            "events": js.read_events(folder)[-RECENT_EVENTS:],  # step messages, answers already sent
             "keyframes": keyframes, "storyboard": _read_json(sb / "storyboard.json"),
             "gui": _read_json(sd / "gui.json", {}),
             "outputs": {s: {k: None if p is None else _read_json(p) for k, p in kinds.items()}
