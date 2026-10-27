@@ -4,7 +4,7 @@ Binds to 127.0.0.1. Reads job state, appends the editor's answers to the inbox, 
 uploads into the video folder and runs only read-only checks. It never writes a CapCut project and never
 runs a workflow tool that changes files: those buttons become inbox events that Claude acts on.
 
-    python server.py [--port N]      default: gui_port from machine.json, else 4810 (next free one if taken)
+    python server.py [--port N] [--tmp D]   default: gui_port from machine.json, else 4810 (next free one if taken)
                                      prints {"ok": true, "url": ...}; writes {tmp}/gui/server.json
 
 Security: every route except GET /api/ping and static files needs the per-launch token (cookie `emt`, set
@@ -580,9 +580,10 @@ def main(argv: "list[str] | None" = None) -> None:
         sys.stdout.reconfigure(encoding="utf-8")
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("--port", type=int)
+    p.add_argument("--tmp", help="state folder instead of {tmp} from machine.json (launch.py and tests)")
     a = p.parse_args(argv)
     paths = machine.PATHS
-    root, tmp = Path(paths["root"]), Path(paths["tmp"])
+    root, tmp = Path(paths["root"]), Path(a.tmp or paths["tmp"])
     first = a.port or int(paths.get("gui_port") or DEFAULT_PORT)
     token, srv = secrets.token_urlsafe(24), None
     for port in range(first, first + 20):
