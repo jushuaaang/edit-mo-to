@@ -1,0 +1,229 @@
+# Edit Mo To GUI (design)
+
+## Intent and why
+
+edit-mo-to runs as a conversation today. Claude walks the editor through the 12 gated steps in chat, sends the heavy work to the style, `editor` and `qa` agents, and shows clip lists, prompts, plans and QA results as chat tables. It works, but it is hard to follow for a new editor: the state of the job lives only in the chat, prompts have to be found and copied out of long messages, the storyboard is a static HTML page, and every gate answer is a typed reply.
+
+The GUI is a local web app that makes the same workflow easier to see and answer. Each step gets its own page, with the step's inputs, Claude's output, the gate question with buttons, and a text box. It is a **front end on top of the existing workflow, not a replacement**. The skill, the agents, the tools, the gates and their order stay as they are. Claude still does the work in the Claude Code session; the GUI shows it and carries the editor's answers back.
+
+It is for Joshua and for the other editors who install edit-mo-to from the GitHub repo (`jushuaaang/edit-mo-to`), on Windows and macOS.
+
+Requirements came from a ChatGPT-written spec (sections 1–6) and the conversation with Joshua on 2026-10-27. Where the spec and the repo disagreed, the repo and Joshua's answers win; the differences are listed under "Decisions that differ from the spec".
+
+## Goals
+
+- A polished local GUI, "Edit Mo To by Joshua Calonge", for every step of `/edit-mo-to` (and `/practice-muna`, which runs the same steps).
+- Every ⛔ gate is shown on its step's page and answered there (buttons, fields, a text box), and Claude carries on by itself after the answer, without the editor switching to chat.
+- The job's state is saved on disk, so the dashboard shows every video, its step and what waits on the editor, and it survives closing the app or the session.
+- The storyboard becomes an editable grid where each shot's prompt can be copied, and keyframes are added by dropping images on the cards.
+- Nothing new for an editor to install: Python from the existing tools `.venv`, plain HTML/CSS/JS, no Node build. "update edit-mo-to" (`git pull`) is enough to get a new version.
+- Settings and a setup check replace hand-editing `machine.json`.
+
+## Non-goals
+
+- Replacing Claude Code or the chat. The chat stays open and keeps working (see "How Claude and the GUI talk").
+- Running Claude or the agents from the GUI's server (no Agent SDK, no API key).
+- Generating clips, voiceovers, images or music; exporting the video. Those stay the editor's (the GUI says so on those steps).
+- Public hosting, accounts, logins or multi-user sync. One editor, one computer, `127.0.0.1` only.
+- Word-by-word animated captions (as today).
+- A `/edit-na-tayo` command (the spec named it; it does not exist in the repo).
+
+## Anti-goals (failure even if it "works")
+
+- The GUI lets the workflow move past a ⛔ gate the editor has not answered.
+- The GUI shows a step, build, check or file as done when the tool has not actually finished and verified it (the spec's "do not pretend").
+- The GUI says "Claude is listening" when no Claude session is waiting for it.
+- An answer or edit typed in the GUI is lost silently (for example, sent while Claude was not listening and never picked up).
+- The editor's own CapCut edits are lost or overwritten (the existing busy check, backups and `edit_diff` stay in force).
+- Client files, job state or personal files get committed to the repo.
+- Any name other than Joshua Calonge's appears in the app's branding.
+- The GUI becomes a second copy of the workflow's rules, so that changing the skill means also changing the GUI.
+
+## Constraints
+
+- The 12 steps, their order, their gates and their wording in `.claude/skills/edit-mo-to/SKILL.md` and `reference/steps.md` stay. The only workflow change is the storyboard order (below).
+- `CLAUDE.md` rules stay in force: times in `seconds:frames` (30 fps), full paths, 9:16 default, the user exports, no captions before step 10 except `TEMP_EN_delete_me`, deliverables shown as tables in chat.
+- Every CapCut write still goes through `capcut_project.py` (busy check, backup, last-write snapshot). The GUI never writes to a CapCut project.
+- Machine paths come from `.claude/edit-mo-to/machine.json` via `tools/machine.py` (Windows and Mac defaults).
+- `.gitignore` already tracks only the workflow (`/docs/`, `/.claude/agents|skills|edit-mo-to/`) and ignores video folders. GUI code goes under `.claude/edit-mo-to/gui/`, job state goes in the video folders.
+- Python 3.12 from the tools `.venv`; ffmpeg on PATH. No new required Python package (the standard library's `http.server` is enough); a small one may be added to `requirements.txt` only if the builder finds a real need.
+- Windows and macOS, Claude Code desktop (browser pane) first; the plain Claude Code CLI with a normal browser also works.
+
+## Approaches considered
+
+1. **Companion GUI next to the Claude session (picked).** A small local server shows job state that Claude writes to disk, and records the editor's answers for Claude to pick up. Claude keeps doing all the work in the session. Keeps the skill, agents and tools; uses the editor's existing Claude Code (no API bill); the chat still works when the GUI is closed. Costs: two panes side by side, and a file-based hand-off that has to be made reliable.
+2. **Standalone app that runs Claude itself** (Agent SDK inside the server). Most polished, one window. Rejected: a much bigger build, every gate re-wired as app logic, likely needs a paid API key, and it moves away from Claude Code Desktop, which is where editors run the workflow.
+3. **Viewer only.** Pages render the job's report files and an editable storyboard; all answers still in chat. Cheapest, but it does not make the flow easier to answer, which is the point.
+
+Joshua picked approach 1, matching the spec's "frontend and orchestration layer for the existing system".
+
+## How it fits together
+
+```
+ Claude Code session (skill + agents + tools)          GUI server (127.0.0.1)            Browser pane
+ ───────────────────────────────────────────         ──────────────────────           ────────────
+  job.py  ── writes ──▶  <video>/.edit-mo-to/job.json  ◀── reads ──  server.py  ◀── HTTP/SSE ──  pages
+  wait.py ◀── reads ───  <video>/.edit-mo-to/inbox.jsonl ◀── appends ─ server.py  ◀── answers ──  pages
+          (runs in the background; exits when the editor answers, which wakes Claude)
+```
+
+One writer per file:
+
+| File (in `<video folder>/.edit-mo-to/`) | Written by | Holds |
+|---|---|---|
+| `job.json` | Claude, only through `gui/job.py` | job card, step states, the open gate, step outputs (or paths to them), activity log |
+| `inbox.jsonl` | the GUI server only (append) | the editor's answers, approvals, edits, comments and messages, one event per line, numbered |
+| `gui.json` | the GUI server only | GUI-only state: comment drafts, last page, view choices |
+
+**Edits made in the GUI** (a script cell, a shot's prompt or visual direction, approving a shot, ticking cuts, a change request) are inbox events, not direct writes. Claude applies them to the real files (script file, `storyboard.json`, cuts) through the normal tools, so every workflow file keeps one writer. Until Claude has applied an edit, the GUI shows it as **pending** on that field or card (the editor's text, with a "pending" chip); once `job.json` or the file shows it applied, the chip goes. If Claude rewrites a shot that has a pending edit, Claude applies the editor's edit on top and says so in the activity log. Comments and drafts are GUI-only data (`gui.json`) and are also sent as events so Claude sees them. *(Builder check: the designer's call.)*
+
+**What the server runs by itself:** only read-only checks: reading `job.json`, reports and media for display, the setup check, whether files exist (keyframes saved from outside, clips in the folder), the CapCut-running check, and `capcut_project.py segments` / `list` for the Export banner. Every button that changes files or runs a workflow tool ("Check clips", "Apply selected cuts", builds, fixes, captions, music, the learning step) becomes an inbox event that Claude acts on; while Claude isn't listening, such a button shows "Saved, waiting for Claude". *(Builder check: the designer's call.)*
+
+Uploaded files are copied into the video folder (references to `refs/`, keyframes to `storyboard/`, VO and music files to folders the step names). Large outputs stay where the workflow already puts them (`{tmp}/reports/<job>/…`, `storyboard/storyboard.json`, `storyboard.html`); `job.json` points to them by path and the server reads them for display.
+
+### `gui/job.py` (Claude's side)
+
+A small CLI so Claude never hand-edits JSON, with commands along the lines of:
+
+- `job.py init <video folder> --client … --product …` (creates `.edit-mo-to/` and `job.json`)
+- `job.py card <folder> key=value …` (job card fields: style, language, TEMP_EN state, VO, generator, timelines, project name…)
+- `job.py step <folder> <step> <state>` (`pending | working | waiting | done | skipped | error`, with a short note)
+- `job.py gate <folder> <step> --file gate.json` (opens a gate: its questions, the answer type per question, and its options) / `job.py close-gate …`
+- `job.py output <folder> <step> <kind> <path>` (checklist, script table, timings, cuts, prompts, QA results, clip QC, change list…)
+- `job.py log <folder> "<line>"` (activity feed)
+
+It validates against a schema and refuses bad input, so a typo in a call fails loudly instead of breaking the page. Exact command names and the schema are the builder's (see "Left to the builder").
+
+### How Claude and the GUI talk
+
+- **At a gate:** Claude writes the gate with `job.py gate`, then runs `gui/wait.py <folder> --after <last event number>` **in the background**. `wait.py` blocks until the inbox has a newer event, prints those events, and exits. A finished background command wakes Claude in Claude Code, so Claude reads the answer and carries on. No polling by Claude, nothing for the editor to type in chat.
+- **Listening status:** while `wait.py` runs it keeps a small `listening` file (pid, time, step) next to `job.json`. The GUI shows "Claude is listening · <step>" only while that process is alive; otherwise it shows "Claude isn't listening. Your message is saved; it's picked up when Claude next checks, or type 'go' in chat." Nothing the editor sends is lost: it stays in the inbox, and Claude reads every unread event when it next reaches `wait.py` or the start of a step.
+- **Chat still works.** If the editor answers in chat instead, Claude takes that answer, closes the gate in `job.json` and stops the stale `wait.py`. Gate answers from either place are treated the same.
+- **Messages without a gate.** The text boxes can be used at any time. A message sent while Claude is working on something else is read when Claude next checks the inbox (between agent runs and at each step start).
+- **Long work** (agent runs, build, QA, timing, renders) is shown as `working` from `job.py step … working`, and becomes `done` or `error` only after the tool has returned and Claude has checked its result.
+
+### Permission allowlist (Joshua's call)
+
+A gate answered in the GUI only carries on by itself if Claude Code does not stop to ask permission before running `job.py`, `wait.py`, the server and the workflow tools. Each such prompt appears in the chat pane, and the GUI would stall with no sign of why. So edit-mo-to ships a **project allowlist** in `{root}/.claude/settings.json`, which pre-approves running only the workflow's own scripts: `.claude/edit-mo-to/gui/*.py` and `.claude/edit-mo-to/tools/*.py`, run with the tools `.venv` Python. Nothing broader: no general shell, no deletes, no git, no network commands.
+
+- It ships to every editor with "update edit-mo-to" (`git pull`), so `.gitignore` must re-include it (`!/.claude/settings.json`; today `/.claude/*` ignores it). Each editor's own `.claude/settings.local.json` stays ignored and untouched.
+- The tool commands contain machine-specific absolute paths (`{python}`, `{root}`), so the rules must be written so they match on every editor's machine, on Windows and on macOS, without listing anyone's paths. How (for example, running the tools with paths relative to `{root}`, or one small launcher with a fixed relative name) is the builder's call, but the result must be tested on a fresh checkout: a gate answered in the GUI runs through with no permission prompt.
+- If a prompt still appears (a command outside the allowlist), the GUI shows "Claude needs your OK in chat" while the job is waiting, rather than looking stuck.
+- The README says, in plain words, what the allowlist lets Claude run without asking.
+
+### Launching
+
+- `/edit-mo-to` (and `/practice-muna`) starts by making sure the GUI runs: if `http://127.0.0.1:<port>/api/ping` answers, reuse it; otherwise start `gui/server.py` in the background. Then open it: in Claude Code desktop, in the built-in browser pane (one tab, reused); elsewhere, the system browser. The page opens on the job being worked on, or on the dashboard when no job is known yet.
+- Port: a fixed default (for example 4810), overridable as `gui_port` in `machine.json`; if it is taken by something that is not our server, say so and use the next free one.
+- The server can also be started by hand (a one-line command in the README) to browse the dashboard without a session.
+
+### Security, kept light
+
+No login screen (the spec's wish), but the server must not be usable by other websites the editor visits: it binds to `127.0.0.1` only, prints a URL with a random per-launch token that it then keeps in a cookie, refuses API calls without it or with a foreign `Origin`, and only reads or writes files inside `{root}` and `{tmp}`.
+
+## The app
+
+### Look
+
+- Dark creative-studio look, **Obsidian Champagne** colours (chosen from 9 options):
+  `--bg #0C0B0A`, `--panel #151311`, `--panel2 #1D1A17`, `--line #2A2622`, `--line2 #3A342D`, `--text #F3EFE8`, `--muted #A69D91`, `--dim #6F675D`, `--accent #D4AF6A` (champagne gold), `--on-accent #1A1408`; status colours `ok #7DCB9C`, `wait #93B5E3`, `err #EE7B6E`, `optional #BBA6E0`, each with a 12% "soft" background. Text contrast at least 4.5:1; status is never shown by colour alone (every chip has a word).
+- Fonts: Space Grotesk (headings), Inter (text), JetBrains Mono (paths, times, prompts), served from the repo so the app works offline, with system fallbacks.
+- **Branding:** the sidebar header shows a gold **"JC" emblem**, "Edit Mo To" and "by Joshua Calonge". No other name appears anywhere, and there is no setting for one.
+- **Verse:** the bottom of the sidebar, on every page, shows in a muted italic serif: *"Remember the Lord your God, for it is he who gives you the ability to produce wealth."* with "DEUTERONOMY 8:18" in small gold capitals.
+- Step states in the sidebar: done (✓, green), working (blue), waiting on you (gold, "You" tag), optional (dashed, violet), error (red), not started (grey).
+
+### Layout
+
+Three columns: the sidebar (brand, Dashboard, Settings, the current video's 12 steps, the verse, the connection status), the page, and a right panel with the **job card** (the same fields as the skill's running card, including the TEMP_EN line), Claude's activity, the listening status, and a **"Tell Claude anything" text box for the whole job**. Below about 1100 px wide the right panel folds away behind a button.
+
+Every step page has the same shape: what the step needs, Claude's output, the gate bar when the step waits on the editor ("Waiting on you: …" with the buttons), and at the bottom a **"Tell Claude about this step"** text box with that step's earlier messages and Claude's replies above it. A step-box message goes with that step's answers; a right-panel message is for the job as a whole.
+
+Gates and questions are on the pages, not in pop-ups. Dialogs are only for confirmations, blocking warnings and close-up views (listed below).
+
+### Pages
+
+| Page | Skill step | What's on it | Gate on the page |
+|---|---|---|---|
+| Dashboard | — | a card per video folder (client, style, language, current step, what waits on the editor, progress), recent activity, the setup check, "New video". A video folder is any direct subfolder of `{root}`, except names starting with `.` or `_`, `docs` and `PYNK_AI_UGC_Studio`; folders without `.edit-mo-to/` show as "started before the GUI". Practice jobs (`{root}/_practice/<name>/`) show in their own "Practice" section *(builder check: the designer's call, matching the folders in `{root}` today)* | — |
+| Settings & setup | — | the `machine.json` paths with found / missing per path, Save; checks for Python, ffmpeg/ffprobe, CapCut drafts folder, the CapCut MCP set-up; **Report a bug / Suggest an improvement** (see below) | — |
+| Brief | 1–2 | brief link (Notion/URL), paste box, **one** "Additional instructions" box, reference file drop (copied to `refs/`), the picked style and script language, the brief checklist (rule, source, status), Claude's questions about the brief (up to 6) each with its own answer box | ⛔ confirm the checklist and style |
+| Script | 3 | "Use my script" or "Write one", the editable script table (with the "English (temporary)" column when TEMP_EN is on), the "Storyboard first?" choice | ⛔ script approval (when Claude wrote it); ⛔ storyboard first? |
+| Storyboard | 3 (optional) | see "Storyboard" below | ⛔ character sheet saved; ⛔ approve the direction |
+| Voiceover | 4 | VO file drop, one file or one per hook/body, "Reuse an older VO" (dialog), the script language and the `--lang` it means | ⛔ VO file; ⛔ older-VO spans |
+| Timing & cleanup | 5 | the line timings table with every `matched: false` line highlighted (Keep / Re-record); for talking-head A-roll, the cuts table (`id`, type, cut, removes, keeps, recommend) with a checkbox per cut and "Apply selected cuts" | ⛔ unmatched lines; ⛔ which cuts |
+| B-roll & prompts | 6 | B-roll source and generator as buttons (marked "already answered" when the storyboard step asked them), the prompts per timeline as rows with Copy buttons and the full prompt on expand, QA results | ⛔ source; ⛔ generator |
+| Clips | 7 | clips folder, "Check clips" (`qc_clips.py`), a row per expected clip (PASS / FLAG / missing); FLAG rows open the contact sheet; missing rows have Copy prompt | ⛔ regenerate real failures |
+| Build & QA | 7–8 | build status, the `qa_check` and `qa` PASS / FAIL / OPEN table per timeline, "Ask Claude to fix" on a FAIL, the CapCut banner when a write is coming | ⛔ project name taken (dialog) |
+| Review | 9 | the CapCut banner once per round, the change list (change, timeline, in place / new timeline, status), "Send changes", "I'm happy, go to captions", the editor's own edits found by `edit_diff` | ⛔ which timeline; ⛔ in place or new; ⛔ quit CapCut |
+| Captions | 10 | the two choices side by side: "I'll run CapCut auto-caption" (then "Auto-caption is done") or "Claude adds them" (timelines, then Add captions), the TEMP_EN reminder | ⛔ who adds captions; timelines; quit CapCut |
+| Music | 11 | Suno prompt from Claude (parts of max 18 s, Copy, crossfade notes) or the editor's own track, the music file drop, which timelines | ⛔ source; ⛔ timelines; quit CapCut |
+| Export | 12 | the red "Delete the TEMP_EN_delete_me track before export" banner while any timeline still has it (from a fresh `capcut_project.py segments` check, naming the timelines), the brief's export settings, "I've exported, run the learning step" | — (the editor's) |
+
+Steps the editor does outside the app (generate images, clips, VO, music; review in CapCut; export) carry a "You" tag and say what to do and where to put the file.
+
+### Report a bug / Suggest an improvement (Settings)
+
+Joshua asked for a place in Settings where editors report bugs and suggest improvements to the workflow.
+
+- A **Bug / Suggestion** switch, a title field, and a text box ("What happened, or what would make the workflow better?"), with an optional "which step" picker.
+- **Save** keeps it on this computer, one JSON line per report in `{root}/.claude/edit-mo-to/feedback.jsonl` (untracked, listed under the box with its date), so nothing is lost and Claude can read it ("look at my feedback").
+- **Send to Joshua** opens a pre-filled new issue on `github.com/jushuaaang/edit-mo-to` in the system browser, with the title, the text, the type as a label word, and plain facts: edit-mo-to version (git short commit), Windows or macOS, the step picked. The editor reads it and submits it there themselves (a GitHub account is needed; nothing is sent automatically). Client names, file paths and job data are never added; only what the editor typed.
+- *(Destination is the designer's proposal; confirm with Joshua at the plan review.)*
+
+### Storyboard
+
+The reason for the board is to copy each shot's prompt, so the board comes first and the images fill in.
+
+- **Skeleton first.** After the script, the style agent (`mode: storyboard`, phase `prompts`) writes `storyboard/storyboard.json` with one beat per shot: number, script line (and the English line when TEMP_EN is on), estimated time, shot type (client clip or AI), visual direction and the **keyframe prompt**. The GUI shows it at once as a **grid** of cards; no images yet.
+- **Character sheets on top.** For character ads (always Pixar and claymation; any ad with a recurring person or mascot) the first cards are the character sheet prompts, one per recurring character (`CHAR-1`, `CHAR-2`…). The shot cards show their shot info at once, but their keyframe prompts are **written only after every character sheet is saved**, by a second style-agent dispatch with the sheets attached as references, as the skill does today; until then the cards say "prompt comes after the character sheet". For other ads every shot's prompt is written in the first dispatch. *(Builder check: answered in the conversation.)*
+- **Each card:** shot number, status chip (prompt ready, image added, changed, comment open, approved), script line, time, shot type, the prompt with **Copy prompt**, Comment. Clicking the image opens the **shot detail** dialog: big image slot, editable visual direction and prompt, comments, Choose file, previous / next shot, Request change, Approve shot.
+- **Images drop in.** Dragging an image on a card saves it as `storyboard/SB-n.png` (or `CHAR-1.png`); saving a file with that name from outside also works (the page notices it). Replacing an image never changes the description or the prompt. `storyboard.py` already picks keyframes up by these names.
+- **Filters:** All, Needs image, Changed, Comments. Grid is the main view; the detail dialog is the close-up.
+- **Comments** per shot and a notes box for the whole board. When the editor requests changes, Claude rewrites only those shots and they are marked "changed".
+- **Approval:** **Approve all** approves every shot at once, and single shots can be approved one by one. Approve all is always available; when AI shots still have no keyframe, an inline line says "3 shots have no keyframe yet (SB-5, SB-6, SB-8). Approve anyway?" with "Approve anyway" and "Wait for images".
+- **Share page:** the existing self-contained `storyboard.html` (images embedded, safe to send a client) is still made from the same `storyboard.json`, linked as "Open share page".
+- An approved storyboard carries into step 6 exactly as today (its shots and graphics carry over, the keyframes become the AI clips' start frames).
+
+### Dialogs
+
+New video (client, product, folder with a found / will-be-created check, optional brief link) · Shot detail · CapCut is still running (rechecks every 2 s; "I quit it, check again" / "Cancel this change") · Project name already taken (suggests "<Product> 2"; never overwrites) · Contact sheet (a flagged clip's frames; Use anyway / Copy prompt / Mark for regenerate) · Reuse an older VO (transcribe, tick sentences, assign timelines) · Change in place? (shows where the backup goes; or make a new timeline) · Learning step (each proposed preference with Save / Decline, and whether it is a general rule or a client note).
+
+### CapCut safety in the GUI
+
+When the next action writes to a CapCut project, the page shows a red banner ("Quit CapCut completely before Claude writes", with the reason) and a "CapCut is closed" button, once per review round as the skill says. The server checks for a running CapCut the same way `capcut_project.py` does (`_capcut_running`, reused, not copied); if it still runs, the "CapCut is still running" dialog shows. The tools keep refusing on their own, so the GUI only makes the rule visible.
+
+`_capcut_running` only knows Windows today (`tasklist`); on a Mac it always reports "closed", so neither the tools nor the GUI would catch a running CapCut there. The build extends it for macOS (for example `pgrep -x CapCut`), with a test, so the tools and the GUI share one check that works on both. *(Builder check: the designer's call; it fixes an existing gap the anti-goals depend on.)*
+
+## Changes to the existing workflow
+
+- **SKILL.md / steps.md:** before step 1, start or reuse the GUI and create the job (`job.py init`); at each step keep `job.json` current (`job.py step`, `card`, `output`, `log`); at each ⛔ gate also open it in the GUI (`job.py gate`) and wait with `wait.py` in the background, accepting the answer from the GUI or the chat; read unread inbox events at each step start. The gate wording stays.
+- **Storyboard order** (`SKILL.md` step 3, `style-agent-contract.md` "Output: mode: storyboard", the style agents' storyboard sections): phase `prompts` also writes the skeleton `storyboard.json` (with a `prompt` field per beat and the character sheet beat), so the board exists before the images. Phase `board` then refines it from the saved images as today. The rule "never build the board before the images exist" becomes "never ask for approval of the direction as final while keyframes are missing, unless the editor chooses Approve anyway".
+- **`storyboard.py`:** accept the new per-beat `prompt` (and a `status`) without changing its output for old files; keep rendering a shot card where no keyframe exists.
+- **Deliverables in chat:** in this version Claude still shows the tables and prompts in chat exactly as today (the `CLAUDE.md` rule), and the GUI shows the same data from the files. This keeps the chat a full fallback. Whether to slim the chat output once the GUI is trusted is a later decision for Joshua.
+- **`/practice-muna`:** gets the GUI the same way, so a new editor learns the app in the practice run.
+- **README:** a line in "Step 1 · Install" and in the technical section on how the GUI opens and how to start it by hand. The install prompt itself stays.
+- **`machine.example.json`:** document the optional `gui_port`.
+- **`.claude/settings.json` and `.gitignore`:** the project allowlist above, and the `.gitignore` line that tracks it.
+- **`capcut_project.py`:** `_capcut_running` learns macOS (see "CapCut safety in the GUI").
+
+## Decisions that differ from the spec
+
+- No `/edit-na-tayo`; only `/edit-mo-to` (and `/practice-muna`) open the GUI.
+- No separate "Specific Instructions" box (agrees with the spec); one "Additional instructions" box on the Brief page.
+- Text boxes: one per step page **and** one in the right panel for the whole job (Joshua's call).
+- The storyboard "add clips" idea was dropped; the text boxes cover it.
+- The architecture is fixed as the companion GUI (the spec left it open "after inspecting the repository").
+- The spec's sections after 6 were never received; anything they held is not in this design.
+
+## Left to the builder
+
+- The exact `job.json` / `inbox.jsonl` schema and `job.py` command names (the fields named in this design must be covered).
+- Server structure (standard-library `http.server` with server-sent events or short polling for live updates), file layout under `gui/`, and how static files are served.
+- Upload limits and allowed types (at least PDF, DOCX, images, MP4/MOV, MP3/WAV; unsupported types refused with a clear message); streaming large video uploads to disk.
+- How the page notices files saved from outside (polling the folder is fine).
+- Tests: pytest for `job.py`, `wait.py` and the server API next to the existing tests in `tools/tests/`; a manual run of one practice job through the GUI on Windows, and on a Mac if one is available.
+- Visual details within the look above (spacing, icons as SVG, motion that respects reduced-motion).
+
+## Reference
+
+A clickable mockup of every page and dialog was reviewed with Joshua on 2026-10-27 (session scratchpad, not kept in the repo). This document is the source of truth.
