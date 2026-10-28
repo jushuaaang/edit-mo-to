@@ -124,12 +124,12 @@ def test_old_version_restarts(env):
         "import json\nfrom http.server import BaseHTTPRequestHandler, HTTPServer\n"
         "class H(BaseHTTPRequestHandler):\n"
         "    def do_GET(self):\n"
-        "        b = json.dumps({'app': 'edit-mo-to-gui', 'version': 0}).encode()\n"
+        "        b = json.dumps({'app': 'edit-mo-to-gui', 'version': 0, 'pid': __import__('os').getpid()}).encode()\n"
         "        self.send_response(200); self.send_header('Content-Length', str(len(b)))\n"
         "        self.end_headers(); self.wfile.write(b)\n"
         "    def log_message(self, *a): pass\n"
         f"HTTPServer(('127.0.0.1', {port}), H).serve_forever()\n")
-    proc = subprocess.Popen([sys.executable, "-c", stub_code])
+    proc = subprocess.Popen([sys.executable, "-c", stub_code, str(GUI / "server.py"), "--port", str(port)])  # looks like ours
     try:
         deadline = time.time() + 10
         while time.time() < deadline:
@@ -356,7 +356,7 @@ def test_older_code_version_restarts(env):
         "        self.end_headers(); self.wfile.write(b)\n"
         "    def log_message(self, *a): pass\n"
         f"HTTPServer(('127.0.0.1', {port}), H).serve_forever()\n")
-    proc = subprocess.Popen([sys.executable, "-c", stub_code])
+    proc = subprocess.Popen([sys.executable, "-c", stub_code, str(GUI / "server.py"), "--port", str(port)])  # looks like ours
     try:
         deadline = time.time() + 10
         while time.time() < deadline:
@@ -428,3 +428,84 @@ def test_changed_port_moves_the_server(env):
     assert r2.returncode == 0, r2.stderr
     assert b["reused"] is False and b["port"] == other
     assert _wait_dead(old_pid)
+
+
+def _fake_ping_server(port, pid):
+    class H(BaseHTTPRequestHandler):
+        def do_GET(self):
+            b = json.dumps({"app": "edit-mo-to-gui", "version": "x", "pid": pid}).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(b)))
+            self.end_headers()
+            self.wfile.write(b)
+
+        def log_message(self, *a):
+            pass
+
+    srv = HTTPServer(("127.0.0.1", port), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+
+def test_impersonating_ping_never_gets_a_pid_killed(env, sleepers):
+    """A program answering our ping with someone else's pid is not our server.py: nothing is killed, the port skipped."""
+    port = free_port()
+    victim = _sleeper(sleepers)
+    srv = _fake_ping_server(port, victim.pid)
+    try:
+        r, a = launch("--port", str(port))
+        assert r.returncode == 0, r.stderr
+        assert victim.poll() is None and a["port"] == port + 1 and a["reused"] is False
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
+def test_server_json_pid_must_match_the_ping(env, sleepers):
+    """server.json names a live pid and the port answers as ours, but with another pid: kill nothing."""
+    port = free_port()
+    victim = _sleeper(sleepers)
+    srv = _fake_ping_server(port, victim.pid + 100000)
+    try:
+        js.write_json_atomic(env / "gui" / "server.json", {"pid": victim.pid, "port": port, "token": "x", "version": "x"})
+        r, a = launch("--port", str(port))
+        assert r.returncode == 0, r.stderr
+        assert victim.poll() is None and a["port"] == port + 1
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
+@pytest.mark.parametrize("bad", [-1, 0, 1, True, "123", None])
+def test_bad_pids_are_never_signalled(env, monkeypatch, bad):
+    import launch as launch_mod
+    port = free_port()
+    killed = []
+    monkeypatch.setattr(launch_mod, "_terminate", lambda pid: killed.append(pid) or "")
+    monkeypatch.setattr(launch_mod.os, "kill", lambda *a: killed.append(a))
+    monkeypatch.setattr(launch_mod, "_start", lambda p, t, r=None: {"pid": 1, "port": p, "token": "t"})
+    srv = _fake_ping_server(port, bad)
+    try:
+        info, reused = launch_mod._launch(port, env, env)
+    finally:
+        srv.shutdown()
+        srv.server_close()
+    assert killed == [] and info["port"] == port + 1
+    assert launch_mod._is_our_server(bad, port) is False
+
+
+def test_own_pid_is_never_ours():
+    import launch as launch_mod
+    assert launch_mod._is_our_server(os.getpid(), 4810) is False
+
+
+def test_is_our_server_reads_the_command_line(sleepers):
+    import launch as launch_mod
+    port = free_port()
+    p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)", str(GUI / "server.py"), "--port", str(port)])
+    sleepers.append(p)
+    time.sleep(0.3)
+    assert launch_mod._is_our_server(p.pid, port) is True
+    assert launch_mod._is_our_server(p.pid, port + 1) is False  # another port
+    other = _sleeper(sleepers)
+    assert launch_mod._is_our_server(other.pid, port) is False  # not server.py

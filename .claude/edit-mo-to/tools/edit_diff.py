@@ -251,11 +251,11 @@ def main(argv: list[str]) -> None:
     if cmd == "snapshot":
         from capcut_project import segments
 
-        project, timeline, out = argv[0], argv[1], Path(argv[2])
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps(segments(Path(project), timeline, [Path(p) for p in argv[3:]]), ensure_ascii=False),
-                       encoding="utf-8")
-        res = {"saved": str(out)}
+        project, timeline, dest = argv[0], argv[1], Path(argv[2])  # dest, not out: --out is the result file
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(json.dumps(segments(Path(project), timeline, [Path(p) for p in argv[3:]]), ensure_ascii=False),
+                        encoding="utf-8")
+        res = {"saved": str(dest)}
     elif cmd == "diff":
         from capcut_project import last_path, segments
 

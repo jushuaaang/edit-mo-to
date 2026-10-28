@@ -111,3 +111,18 @@ def test_capcut_segments_out(tmp_path, monkeypatch, capsys):
     assert seen["folders"] == [tmp_path] and _out(capsys)["saved"] == str(out)
     capcut_project.main(["segments", "proj", "T1"])
     assert _out(capsys) == [{"track": "video", "n": 1}]
+
+
+def test_edit_diff_snapshot_with_and_without_out(tmp_path, monkeypatch, capsys):
+    """snapshot writes the timeline to its own <out.json> argument; --out only redirects the short result."""
+    seg = {"segments": [{"track": "video", "n": 1}]}
+    monkeypatch.setattr(capcut_project, "segments", lambda *a, **k: seg)
+    snap = tmp_path / "built" / "T1.json"
+    edit_diff.main(["snapshot", "proj", "T1", str(snap)])
+    assert json.loads(snap.read_text(encoding="utf-8")) == seg
+    assert _out(capsys) == {"saved": str(snap)}
+    snap2, res = tmp_path / "b2" / "T1.json", tmp_path / "r" / "res.json"
+    edit_diff.main(["snapshot", "proj", "T1", str(snap2), "--out", str(res)])
+    assert json.loads(snap2.read_text(encoding="utf-8")) == seg  # the snapshot is not overwritten
+    assert json.loads(res.read_text(encoding="utf-8")) == {"saved": str(snap2)}
+    assert _out(capsys)["saved"] == str(res)

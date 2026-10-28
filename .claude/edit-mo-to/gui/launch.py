@@ -7,7 +7,9 @@ Prints one JSON line {"url": "http://127.0.0.1:<port>/?k=<token>", "port": N, "r
 Reuse needs {tmp}/gui/server.json with a live pid whose port (in the port range) answers /api/ping as our app, with
 the same code version (a hash of gui/*.py and static/**) and the same root and tmp (`config`). Anything else of
 ours is stopped and replaced: an older server after an update, one started before Settings changed root, tmp or
-gui_port, or one of ours on a port of the range without a matching server.json (tmp moved). So a Settings change
+gui_port, or one of ours on a port of the range without a matching server.json (tmp moved). "Ours" is
+verified, never taken from the ping: the pid must be an int > 1 whose command line runs our server.py with
+--port <that port> (and, for server.json, the ping's pid must equal the recorded one); otherwise nothing is killed. So a Settings change
 applies on the next launch, and two of our servers never write the same inboxes. A foreign program on a port is
 never touched (the next port is tried). The new server is detached: it outlives this command. --folder makes that
 folder the current job; --open also opens the URL in the browser.
@@ -15,6 +17,7 @@ folder the current job; --open also opens the URL in the browser.
 import argparse
 import json
 import os
+import re
 import signal
 import socket
 import subprocess
@@ -116,6 +119,32 @@ def _wait_free(port: int, seconds: float = 5) -> bool:
 def _usable(info: "dict | None", ports: range, root: Path, tmp: Path) -> bool:
     return (bool(info) and isinstance(info.get("port"), int) and info["port"] in ports
             and isinstance(info.get("token"), str) and _current(info["port"], root, tmp))
+
+
+def _command_line(pid: int) -> str:
+    """The process's command line, or "" when it can't be read (then it is never treated as ours)."""
+    try:
+        if sys.platform == "win32":
+            cmd = ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                   f'(Get-CimInstance Win32_Process -Filter "ProcessId={pid}").CommandLine']
+        else:
+            cmd = ["ps", "-o", "command=", "-p", str(pid)]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def _is_our_server(pid, port: int) -> bool:
+    """pid is a real other process (an int > 1, not this one) whose command line runs our server.py with --port <port>
+    (as _start launches it). Only such a process is ever stopped: a ping alone proves nothing."""
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 1 or pid == os.getpid():
+        return False
+    line = _command_line(pid)
+    server_py = str(GUI / "server.py")
+    if sys.platform == "win32":
+        line, server_py = line.lower(), server_py.lower()
+    return server_py in line and re.search(rf"--port\s+{int(port)}(?!\d)", line) is not None
 
 
 def _stop(pid: int, port: int) -> None:
@@ -226,15 +255,18 @@ def _launch(first: int, tmp: Path, root: Path) -> "tuple[dict, bool]":
     if info and js.pid_alive(info["pid"]) and isinstance(info.get("port"), int):
         if _usable(info, ports, root, tmp):
             return info, True
-        if _ours(_ping(info["port"])):  # our own server, but older code, other paths or another port range
+        ans = _ping(info["port"])
+        # our own server, but older code, other paths or another port range: stopped only when the ping names the
+        # same pid as server.json and that process really runs our server.py on that port
+        if _ours(ans) and ans.get("pid") == info["pid"] and _is_our_server(info["pid"], info["port"]):
             _stop(info["pid"], info["port"])
     if info:  # stale record (dead pid, silent port, foreign app, replaced server): drop it, kill nothing else
         (tmp / "gui" / "server.json").unlink(missing_ok=True)
     for port in ports:
         if not _port_free(port):
             ans = _ping(port)
-            if not (_ours(ans) and isinstance(ans.get("pid"), int) and not isinstance(ans["pid"], bool)):
-                continue  # a foreign program (or something else): leave it alone
+            if not (_ours(ans) and _is_our_server(ans.get("pid"), port)):
+                continue  # a foreign program, or a ping we can't verify: never kill, try the next port
             # ours, yet not the server.json we could reuse (tmp moved, or the record was lost): stop it, so two
             # servers never write the same inboxes
             _stop(ans["pid"], port)
