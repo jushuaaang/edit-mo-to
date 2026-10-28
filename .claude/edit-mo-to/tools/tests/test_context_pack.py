@@ -13,6 +13,8 @@ general rule
 prompt rule
 ## Google Flow
 flow rule
+## Higgsfield · Seedance
+higgsfield seedance rule
 ## Seedance
 seedance rule
 ## UGC
@@ -45,7 +47,7 @@ def test_pack_has_general_style_generator_and_failures_only(tmp_path):
     pack = cp.build_pack("broll", generator="google-flow", root=_root(tmp_path))
     for s in ("## General", "## B-roll", "## Google Flow", "## Known generation failures", "## Prompts (all generators)", "## Editing in CapCut"):
         assert s in pack
-    for s in ("## UGC", "## Pixar", "## Seedance", "intro text"):
+    for s in ("## UGC", "## Pixar", "Seedance", "Higgsfield", "intro text"):
         assert s not in pack
 
 
@@ -69,3 +71,30 @@ def test_pack_without_optional_files(tmp_path):
     pack = cp.build_pack("ugc", generator="seedance", root=_root(tmp_path))
     assert "Editor's own rules" not in pack and "# Client" not in pack
     assert "## Seedance" in pack and "## UGC" in pack
+
+
+def test_pack_names_the_higgsfield_model_and_its_limits(tmp_path):
+    pack = cp.build_pack("ugc", generator="higgsfield", model="kling-3.0", root=_root(tmp_path))
+    assert "Higgsfield · Kling 3.0" in pack
+    assert "not verified" in pack and "generators.json" in pack
+    assert "seedance rule" not in pack and "## Google Flow" not in pack
+
+
+def test_pack_for_a_seedance_model_has_the_higgsfield_seedance_rules(tmp_path):
+    root = _root(tmp_path, mine="## Seedance\nmy seedance\n")
+    pack = cp.build_pack("pixar", generator="higgsfield", model="seedance-2.5", root=root)
+    assert "## Higgsfield · Seedance" in pack and "Higgsfield · Seedance 2.5" in pack
+    assert "my seedance" in pack   # an editor's own "Seedance" section applies to the Seedance models
+    assert "Start on @Image1." in pack
+
+
+def test_pack_generator_aliases_and_cli(tmp_path, monkeypatch):
+    root = _root(tmp_path)
+    monkeypatch.setattr(cp, "ROOT", root)
+    out = tmp_path / "pack.md"
+    cp.main(["ugc", "--generator", "seedance", "--out", str(out)])       # old name still accepted
+    assert "Higgsfield · Seedance 2.0" in out.read_text(encoding="utf-8")
+    cp.main(["ugc", "--generator", "higgsfield", "--model", "kling-3.0", "--out", str(out)])
+    assert "Higgsfield · Kling 3.0" in out.read_text(encoding="utf-8")
+    cp.main(["ugc", "--generator", "flow", "--out", str(out)])
+    assert "## Google Flow" in out.read_text(encoding="utf-8")

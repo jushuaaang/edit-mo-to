@@ -98,6 +98,10 @@ def test_prompt_rows_carry_the_prompt_the_chat_shows():
         assert f"**{pid}**\n```\n{rows[pid]['prompt']}\n```" in chat
     assert rows["AI-1"]["prompt"].startswith("Start on @Image1.") and "NO TEXT LOCK" in rows["AI-1"]["prompt"]
     assert rows["C-1"]["prompt"] is None  # a picked client clip has no prompt to copy
+    hf = {**spec, "mode": "prompts", "generator": "higgsfield", "generator_model": "seedance-2.5"}
+    t = adapters.ADAPTERS["prompts"](hf)
+    ai = next(r for r in t["rows"] if r["id"] == "AI-1")
+    assert ai["prompt"] == pt._block(hf, hf["prompts"][0]) == rows["AI-1"]["prompt"]   # same text as old "seedance"
 
 
 def test_clip_rows_carry_sheet_and_match_name():

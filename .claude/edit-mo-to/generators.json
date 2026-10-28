@@ -1,0 +1,33 @@
+{
+ "about": "AI-clip generators and their limits, read by tools/generators.py (plan_tools, context_pack, qa_check, the GUI). Per row: label; clip length as min_s/max_s (null = no limit) or fixed lengths_s; max_attach (null = no cap); start_frame / end_frame supported; start_line = the line a video prompt starts with (null = none); verified = the date someone confirmed these limits, or null (Claude then says the limits are not verified). An unknown Higgsfield model gets the fallback: the strictest length and attachment limits in this table. Correct a row here when a site changes.",
+ "generators": {
+  "higgsfield": {
+   "label": "Higgsfield",
+   "models": {
+    "seedance-2.0": {"label": "Seedance 2.0", "min_s": 4, "max_s": null, "max_attach": null,
+                     "start_frame": true, "start_line": "Start on @Image1.", "end_frame": true, "verified": null,
+                     "prefs": ["Higgsfield · Seedance", "Seedance"],
+                     "notes": "Reported (unverified): up to 15 s, start + end frame slots, about 9 reference inputs."},
+    "seedance-2.5": {"label": "Seedance 2.5", "min_s": 4, "max_s": null, "max_attach": null,
+                     "start_frame": true, "start_line": "Start on @Image1.", "end_frame": false, "verified": null,
+                     "prefs": ["Higgsfield · Seedance", "Seedance"],
+                     "notes": "Reported (unverified): up to 30 s, up to 50 references; start/end frame pinning reportedly not supported (the reference Pixar job used @Image1 as the opening reference)."},
+    "kling-3.0": {"label": "Kling 3.0", "min_s": 5, "max_s": 10, "max_attach": 4,
+                  "start_frame": true, "start_line": "Start from the attached image.", "end_frame": false, "verified": null,
+                  "notes": "Reported (unverified): about 5-10 s, about 4 reference images."},
+    "veo-3.1": {"label": "Veo 3.1", "lengths_s": [4, 6, 8], "max_attach": 3,
+                "start_frame": true, "start_line": "Start from the attached image.", "end_frame": true, "verified": null,
+                "notes": "Reported (unverified): 4, 6 or 8 s; start-only or start + end frame; up to 3 reference images, and 8 s when using reference images."}
+   },
+   "fallback": {"label": "unverified model", "start_frame": true, "start_line": "Start from the attached image.",
+                "end_frame": false}
+  },
+  "google-flow": {"label": "Google Flow", "min_s": 4, "max_s": 8, "max_attach": 7,
+                  "start_frame": true, "start_line": null, "end_frame": true, "verified": "2026-10-28",
+                  "notes": "Ingredients to Video, or Frames to Video (start + end frame); limits as in preferences.md."}
+ },
+ "aliases": {
+  "seedance": {"generator": "higgsfield", "model": "seedance-2.0"},
+  "flow": {"generator": "google-flow"}
+ }
+}
