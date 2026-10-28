@@ -1,6 +1,7 @@
 """Mechanical build QA: every build-gate check of qa.md that needs no eyes, reporting only failures.
 
-CLI (prints JSON {"rows": [...], "passed": N, "verdict": ...}; exit code 1 on a FAIL verdict):
+CLI (prints JSON {"rows": [...], "passed": N, "verdict": ...}; exit code 1 on a FAIL verdict; every command takes
+--out <file>: the JSON goes to that file, its folder created, and stdout gets {"saved", "verdict"}):
     build <plan.json> "<project>" [--timelines "A,B"] [--changed 3,7,ov2] [--limits limits.json] [--search dir ...]
                          clips/overlays present at their time and length, extras, tracks and volumes, VO span and
                          edges, rotation, layout, overlays on cuts, reuse, dead stretches, talking head > 5 s,
@@ -514,12 +515,39 @@ def check_prompts_rows(spec: dict, script_lines: list[str], timings: dict | None
     return {"rows": rows, "passed": 0 if errs else 1, "verdict": f"FAIL ({len(errs)} issues)" if errs else "PASS"}
 
 
+def _pop_out(argv: list) -> "str | None":
+    """Remove `--out <path>` from argv and return the path (None when absent)."""
+    if "--out" not in argv:
+        return None
+    i = argv.index("--out")
+    if i + 1 >= len(argv):
+        raise SystemExit("--out needs a path")
+    path = argv[i + 1]
+    del argv[i:i + 2]
+    return path
+
+
+def _emit(res, out: "str | None", indent=1) -> None:
+    """The JSON result: to stdout, or with --out to that file (its folder created) and {"saved", "verdict"?} to stdout."""
+    text = json.dumps(res, ensure_ascii=False, indent=indent)
+    if out is None:
+        print(text)
+        return
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    Path(out).write_text(text + "\n", encoding="utf-8")
+    short = {"saved": out}
+    if isinstance(res, dict) and "verdict" in res:
+        short["verdict"] = res["verdict"]
+    print(json.dumps(short, ensure_ascii=False))
+
+
 def main(argv: list[str]) -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")   # Windows consoles default to cp1252
     if not argv or argv[0] in ("-h", "--help"):
         raise SystemExit(__doc__)
-    cmd, args = argv[0], argv[1:]
+    cmd, args = argv[0], list(argv[1:])
+    out = _pop_out(args)
 
     def opt(k):
         return args[args.index(k) + 1] if k in args else None
@@ -569,7 +597,7 @@ def main(argv: list[str]) -> None:
         res = check_prompts_rows(load(args[0]), lines, load(opt("--timings")) if opt("--timings") else None)
     else:
         raise SystemExit(f"unknown command {cmd!r}\n{__doc__}")
-    print(json.dumps(res, indent=1, ensure_ascii=False))
+    _emit(res, out)
     if "FAIL" in res["verdict"]:
         raise SystemExit(1)
 

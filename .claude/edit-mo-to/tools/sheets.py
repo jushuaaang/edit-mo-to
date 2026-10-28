@@ -1,7 +1,8 @@
 """Tiled, labelled frame sheets: one image to look at instead of dozens of single frames.
 clip_sheets / overlay_sheets for a plan timeline, inventory for a folder of raw clips.
 CLI: clips <plan.json> "<timeline>" <out_dir> [--ai] | overlays <plan.json> "<timeline>" <out_dir>
-     | inventory <folder> <out_dir> [--max N]"""
+     | inventory <folder> <out_dir> [--max N]
+Each takes --out <file.json>: the JSON goes to that file (its folder created) instead of stdout."""
 import hashlib
 import json
 import shutil
@@ -191,12 +192,39 @@ def inventory(folder: Path, out_dir: Path, max_clips: int | None = None, workers
     return {"clips": clips, "skipped": skipped, "sheets": _strip_sheets(strips, out_dir)}
 
 
+def _pop_out(argv: list) -> "str | None":
+    """Remove `--out <path>` from argv and return the path (None when absent)."""
+    if "--out" not in argv:
+        return None
+    i = argv.index("--out")
+    if i + 1 >= len(argv):
+        raise SystemExit("--out needs a path")
+    path = argv[i + 1]
+    del argv[i:i + 2]
+    return path
+
+
+def _emit(res, out: "str | None", indent=1) -> None:
+    """The JSON result: to stdout, or with --out to that file (its folder created) and {"saved", "verdict"?} to stdout."""
+    text = json.dumps(res, ensure_ascii=False, indent=indent)
+    if out is None:
+        print(text)
+        return
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    Path(out).write_text(text + "\n", encoding="utf-8")
+    short = {"saved": out}
+    if isinstance(res, dict) and "verdict" in res:
+        short["verdict"] = res["verdict"]
+    print(json.dumps(short, ensure_ascii=False))
+
+
 def main(argv: list[str]) -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")   # Windows consoles default to cp1252
     if not argv:
         sys.exit(__doc__)
-    cmd, rest = argv[0], argv[1:]
+    cmd, rest = argv[0], list(argv[1:])
+    out = _pop_out(rest)
     mx = None
     if "--max" in rest:
         i = rest.index("--max")
@@ -212,7 +240,7 @@ def main(argv: list[str]) -> None:
         r = inventory(Path(args[0]), Path(args[1]), mx)
     else:
         sys.exit(__doc__)
-    print(json.dumps(r, indent=2, ensure_ascii=False))
+    _emit(r, out, indent=2)
 
 
 if __name__ == "__main__":

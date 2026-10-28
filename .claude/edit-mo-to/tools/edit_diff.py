@@ -1,6 +1,6 @@
 """Learn how the editor edits: compare a timeline as we built it with how the editor finished it in CapCut.
 
-CLI (prints JSON):
+CLI (prints JSON; diff and history take --out <file.json>: the JSON goes to that file, its folder created):
     snapshot <project> <timeline> <out.json> [client folder ...]
         Right after a build or revision: save the timeline as built (the editor agent does this).
     diff <built.json> <project> <timeline> [client folder ...] [--log patterns.jsonl --video <name>]
@@ -218,9 +218,36 @@ def _opt(argv, name):
     return None
 
 
+def _pop_out(argv: list) -> "str | None":
+    """Remove `--out <path>` from argv and return the path (None when absent)."""
+    if "--out" not in argv:
+        return None
+    i = argv.index("--out")
+    if i + 1 >= len(argv):
+        raise SystemExit("--out needs a path")
+    path = argv[i + 1]
+    del argv[i:i + 2]
+    return path
+
+
+def _emit(res, out: "str | None", indent=1) -> None:
+    """The JSON result: to stdout, or with --out to that file (its folder created) and {"saved", "verdict"?} to stdout."""
+    text = json.dumps(res, ensure_ascii=False, indent=indent)
+    if out is None:
+        print(text)
+        return
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    Path(out).write_text(text + "\n", encoding="utf-8")
+    short = {"saved": out}
+    if isinstance(res, dict) and "verdict" in res:
+        short["verdict"] = res["verdict"]
+    print(json.dumps(short, ensure_ascii=False))
+
+
 def main(argv: list[str]) -> None:
     argv = list(argv)
     cmd = argv.pop(0) if argv else ""
+    out = _pop_out(argv)
     if cmd == "snapshot":
         from capcut_project import segments
 
@@ -260,7 +287,7 @@ def main(argv: list[str]) -> None:
         res = recurring(Path(argv[0]) if argv else Path(__file__).resolve().parents[1] / "edit-patterns.jsonl")
     else:
         raise SystemExit(__doc__)
-    print(json.dumps(res, ensure_ascii=False, indent=1))
+    _emit(res, out)
 
 
 if __name__ == "__main__":
