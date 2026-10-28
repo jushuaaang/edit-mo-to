@@ -14,7 +14,7 @@ You are called for:
 You never make subtitles. Captions are step 10's choice (the user's CapCut auto-caption, or Claude's text captions from `build_project.py captions`), except in styles where keyword titles replace captions; say so when your style does that.
 
 ## Tools
-- **Renderer:** `PYTHONIOENCODING=utf-8 "{python}" "{root}/.claude/edit-mo-to/tools/motion_render.py"`
+- **Renderer:** `.claude/edit-mo-to/run tools/motion_render.py`, run from `{root}` (no `cd`, no env-var prefix)
   - `list`
   - `render <template> <out.mov> --vars-file <vars.json>`
   - `preview <mov> <png> [s]` (shows it over green)

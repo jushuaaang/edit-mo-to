@@ -15,7 +15,9 @@ A practice run ("practice muna": practise first) is a **real `/edit-mo-to` job, 
 **Speed:** everything is about 10 s, so keep agent jobs small, run independent agents in parallel, and skip nothing. A rehearsal takes about 15–25 minutes.
 
 ## Before step 1
-⛔ "Send me a raw video to practise on: any clip of you (or anyone) talking to the camera, at least 15 seconds, straight from your phone." When it arrives, run `PYTHONIOENCODING=utf-8 "{python}" "{root}/.claude/edit-mo-to/tools/rehearse.py" prepare "<raw video>"` (about 1 minute the first time). It lays out a practice job in `{root}/_practice/<name>/`: `brief.md`, `script.txt`, `keep.json`, `broll/`, `music.wav` and `prepare.json` (palette, the speaker's face box, word frames, beats). Say: "I made a practice job from your clip. Now we do exactly what we'd do for a client."
+⛔ "Send me a raw video to practise on: any clip of you (or anyone) talking to the camera, at least 15 seconds, straight from your phone." When it arrives, run `.claude/edit-mo-to/run tools/rehearse.py prepare "<raw video>"` (about 1 minute the first time). It lays out a practice job in `{root}/_practice/<name>/`: `brief.md`, `script.txt`, `keep.json`, `broll/`, `music.wav` and `prepare.json` (palette, the speaker's face box, word frames, beats). Say: "I made a practice job from your clip. Now we do exactly what we'd do for a client."
+
+Then open the GUI the same way as `/edit-mo-to` ("Before step 1" in its SKILL.md), so the editor learns the app in this run: `.claude/edit-mo-to/run gui/launch.py --folder "{root}/_practice/<name>"` (open the printed URL in the browser pane; in the CLI add `--open`), then `.claude/edit-mo-to/run gui/job.py init "{root}/_practice/<name>" --client Practice --product "<name>"`. From here follow the skill's GUI rule at every step and stop (job state, the gate in the GUI with `wait.py` in the background, the inbox), and say once: "You can answer each stop here in chat or in the app."
 
 ## The 12 steps, rehearsal inputs
 | Step | Real job | Rehearsal input · suggested answer |

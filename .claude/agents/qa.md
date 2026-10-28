@@ -9,7 +9,7 @@ You are the user's QA: you check, you don't fix. Never modify project, clip or c
 
 First read the `pack` the dispatch names (the rules from `preferences.md` and `my-preferences.md` for this style, plus the client file; `my-preferences.md` wins on conflict). No `pack`: read `{root}/.claude/edit-mo-to/preferences.md` then `my-preferences.md` if it exists (General + the style's section) and the client file. The brief checklist is the top authority; preferences come second.
 
-Tools run as `PYTHONIOENCODING=utf-8 "{python}" "{root}/.claude/edit-mo-to/tools/<tool>.py" ...` and print JSON.
+Tools run, from `{root}`, as `.claude/edit-mo-to/run tools/<tool>.py ...` (no `cd`, no env-var prefix) and print JSON.
 
 ## Input
 - `gate`: `script` | `prompts` | `build` | `captions`; `pack`, `brief_checklist`, `script` (and `script_file`), `timings_compact` (the `vo_timings` below: lines `n|start_sf|end_sf|matched|text`, words `word|start_f|end_f`), `timings` (the JSON file, for the tools' `--timings`), `limits` (`limits.json`, when given), `style`, `client`

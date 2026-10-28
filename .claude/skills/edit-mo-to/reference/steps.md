@@ -90,3 +90,99 @@ scope: full | delta   changed: <clip #s per timeline, ovN / prompt ids / ops sin
 Turn each request into: target timeline, mode (new or in place), new timeline name ("Timeline 0N – <Hook/Body> rev k"), and the exact changes (clip #, what to swap, new times). Pass these to the style agent as `revision`. Small timing or swap changes don't need new prompts unless new AI clips are required. If they are, go back to step 6 for just those clips.
 
 When dispatching `revise-in-place`, don't ask the editor to back up first: `replace` and `patch` already back the timeline up and return the path (an extra request makes two backups). Pass `old_plan` = `<base>/.edit-mo-to/built/<timeline>.plan.json` (what the timeline was last built or patched from; `build_project` writes it, and the editor refreshes it with `mark-built` after each patch) and `new_plan` = the re-expanded `plan.json`. Expand always overwrites `plan.json`, so it can never be the old plan: small timing, swap and scale changes then go in as `patch` ops, keeping the user's edits. A job built before the built plan copy existed has none: the editor seeds it from the plan the timeline was built from (`mark-built`), or falls back to `revise-new-timeline` / `replace` (editor.md).
+
+## GUI (the "Edit Mo To" companion app)
+Every command runs from `{root}` as `.claude/edit-mo-to/run gui/job.py <command> "<folder>" …` and prints one JSON line (`{"ok": true, …}`). Steps: `brief script storyboard voiceover timing prompts clips build review captions music export` (build covers steps 7–8). `job.py --help` lists the commands.
+
+### Gates
+`gate.json` is `{"title", "detail"?, "questions": [{"id", "text", "why"?, "kind", "options"?, "default"?}]}`; `kind` is `choice | multi | text | confirm | file`. `text` is the gate wording above, word for word. `options` are strings or `{"value", "label"}`. Write it to `{tmp}/reports/<job>/gate.json`, then `job.py gate "<folder>" <step> --file …` (the step becomes `waiting`) and `wait.py "<folder>" --after <last seq> --step <step>` in the background. `wait.py` prints `{"events": [...]}` and exits 0 when the editor sends something (exit 3: `--timeout` passed; exit 4: another `wait.py` took over). A gate answer is an `answer` event with `gate` = the gate id and `target` = the question id; a `stale` answer (to a gate that was replaced) doesn't count.
+
+One example per kind:
+```json
+{"title": "approve the storyboard direction", "questions": [
+  {"id": "approve", "kind": "confirm", "text": "Here's the full storyboard built from your images. Approve this direction, or tell me what to change."}]}
+{"title": "B-roll and generator", "questions": [
+  {"id": "broll_source", "kind": "choice", "text": "Use the client's B-roll, generate AI videos, or both?", "options": [{"value": "client", "label": "Client's B-roll"}, {"value": "ai", "label": "Generate AI video"}, {"value": "both", "label": "Both"}]},
+  {"id": "generator", "kind": "choice", "text": "Where will you generate: Seedance or Google Flow?", "options": [{"value": "seedance", "label": "Seedance"}, {"value": "flow", "label": "Google Flow"}]}]}
+{"title": "music: timelines", "questions": [
+  {"id": "timelines", "kind": "multi", "text": "Which timeline(s)?", "options": ["Timeline 01 – H1 + Body + CTA", "Timeline 02 – Hook 2"], "default": ["Timeline 01 – H1 + Body + CTA"]},
+  {"id": "capcut_closed", "kind": "confirm", "text": "Please quit CapCut completely before I write to the project, and tell me when it's closed."}]}
+{"title": "script approval", "questions": [
+  {"id": "approve", "kind": "confirm", "text": "Approve this script, or tell me what to change."},
+  {"id": "changes", "kind": "text", "text": "What should change?"}]}
+{"title": "voiceover", "questions": [
+  {"id": "vo", "kind": "file", "text": "Generate the voiceover in ElevenLabs and send me the file."}]}
+```
+Working ahead, e.g. the editor picked the music source early: `{"id": "source", "kind": "confirm", "text": "You chose Suno earlier. Still right?", "default": "suno"}` in the music gate, where `source` is asked today.
+
+| Gate (wording above) | Step | Question ids (kind; values) |
+|---|---|---|
+| Brief | `brief` | `brief` (text). The page's own inputs answer it too: `brief:link`, `brief:paste`, `brief:instructions`, uploads into `refs/` |
+| Checklist | `brief` | `checklist` (confirm). The brief questions come back as one `answer` with target `questions` (value `{"<question id>": "<answer>"}`), so don't list them as gate questions |
+| Script approval | `script` | `approve` (confirm), `changes` (text) |
+| Storyboard first? | `script` | `storyboard_first` (confirm); when yes, then `broll_source` and `generator` (as step 6) |
+| Character sheet | `storyboard` | `CHAR-1`, `CHAR-2`… (file; saved as `storyboard/CHAR-n.png`) |
+| Keyframes | `storyboard` | `keyframes` (confirm; the editor drops `SB-n` images on the cards) |
+| Storyboard approval | `storyboard` | `approve` (confirm; the page's Approve all answers it with `true`) |
+| VO | `voiceover` | `vo` (file) |
+| Older-VO spans | `voiceover` | `oldvo` (text; the "Reuse an older VO" dialog answers it with `[{"id", "timeline"}]`) |
+| Unmatched lines | `timing` | `unmatched` (choice; `keep` \| `rerecord`) |
+| Which cuts | `timing` | `cuts` (multi; the cut ids, recommended ones as `default`) |
+| B-roll source / Generator | `prompts` | `broll_source` (choice; `client` \| `ai` \| `both`), `generator` (choice; `seedance` \| `flow`; `flow` = `google-flow` in dispatches) |
+| Clips ready / regenerate | `clips` | `clips_folder` (text), `regenerate` (multi; the FLAG clips) |
+| Project name taken | `build` | `project_name` (text, `default` "<Product> 2"; the page's dialog answers it) |
+| Review | `review` | `timeline` (choice; the timelines), `mode` (choice; `inplace` \| `new`), `capcut_closed` (confirm) once per round |
+| Captions | `captions` | `who` (choice; `me` \| `claude`); then `timelines` (multi) and `capcut_closed` (confirm) |
+| Music | `music` | `source` (choice; `suno` \| `own`); then `timelines` (multi) and `capcut_closed` (confirm) |
+| Learning step | `export` | `save` (confirm); each proposal also comes back as `learn:<id>` (below) |
+
+Every gate before a CapCut write includes `capcut_closed` (confirm): the page shows the red "Quit CapCut" banner and the "CapCut is still running" dialog for it. On a `capcut_closed` answer of `"cancel"`, drop that change.
+
+### Events the pages send
+Read them with `job.py inbox "<folder>" --unhandled`, act on them, then `job.py handled "<folder>" <seq> …`. An early input has `"early": true` and `gate: null` (latest per target wins). `message` events are the "Tell Claude" boxes (a step box has `step`; the right panel has none).
+
+| Step | Event (type, target) | What it asks |
+|---|---|---|
+| brief | `answer` `brief:link` / `brief:paste` / `brief:instructions`; `upload` `refs:<file>` (+ early `brief:upload`) | the brief, its link, extra instructions, reference files (in `refs/`) |
+| brief | `answer` `brief:questions` (no gate) or `questions` (gate) | answers to the brief questions, `{"<id>": "<text>"}`: checklist rows with source `editor, <date>` |
+| script | `answer` `script:mode` (`mine` \| `write`), `script:own_script` (early) | use the editor's script / write one |
+| script | `edit` `script:<line id>` | the new text of that line (or its English line): update the script and `script_en.txt`, re-store the `script` output |
+| storyboard | `edit` `storyboard:<id>:prompt` / `storyboard:<id>:visual` | new keyframe prompt / visual direction for that shot: write it to `storyboard.json` |
+| storyboard | `comment` `storyboard:<id>`; `action` `storyboard:<id>` (`"request change"`, `text`) | change that shot: rewrite only it, set its `status` to `changed` |
+| storyboard | `comment` `storyboard` | notes on the whole board |
+| storyboard | `approve` `storyboard:<id>` | that shot approved: `status` `approved` |
+| storyboard | `approve` `storyboard` (Approve all, no gate open) | the whole direction approved, as the approval gate |
+| storyboard | `upload` `keyframe:<SB-n \| CHAR-n>` | an image saved as `storyboard/<id>.png` |
+| voiceover | `upload` `vo:<file>` (+ early `voiceover:upload`) | the VO file(s) in `vo/` |
+| voiceover | `action` `voiceover:oldvo-transcribe` (value: the file) | transcribe an older VO (`media_timing.py vo` with no script), store it as the `oldvo` output |
+| voiceover | `answer` `voiceover:oldvo` (no gate) or `oldvo` (gate), `[{"id", "timeline"}]` | the picked sentences and their timelines |
+| timing | `edit` `timing:<line id>` (`keep` \| `rerecord`) | an unmatched line: keep it, or the editor re-records |
+| timing | `action` `timing:apply-cuts` (`{"approve": [ids], "reject": [ids]}`) | run `speech_cuts.py apply` with those ids |
+| prompts | `answer` `prompts:broll_source`, `prompts:generator` (early) | step 6's two answers |
+| clips | `answer` `clips:clips_folder` (early); `action` `clips:check` (value: the folder) | run `qc_clips.py run` on that folder |
+| clips | `edit` `clips:<file>` (`regenerate` \| `use`) | from the contact sheet: regenerate that clip, or use it anyway |
+| build | `action` `build:fix:<kind>:<row id>` (`{"check": [cells]}`) | fix that FAIL row of that QA output |
+| review | `edit` `review:changes` (`[{"text", "timeline", "mode": "inplace" \| "new"}]`) | the editor's change list for this round |
+| review | `action` `review:done` | the editor is happy: go to captions |
+| captions | `answer` `captions:who` (early); `action` `captions:auto-done`; `action` `captions:add` (value: timelines) | who adds captions; auto-caption is done; add them on those timelines |
+| music | `answer` `music:source` (early); `upload` `music:<file>` (+ early `music:upload`) | Suno or own track; the track in `music/` |
+| export | `action` `export:learn` | the editor exported: run the learning step |
+| export | `answer` `learn:<id>` (`{"decision": "save" \| "decline", "scope": "general" \| "client"}`) | one learning proposal: `learn.py save` (with `--client` for `client`) or `learn.py decline` |
+
+### Outputs the pages read
+`job.py output "<folder>" <step> <kind> --file data.json` (checklist, script, or a table `{"title", "columns", "rows": [{"id", "cells": [strings, one per column], "status"?, "note"?}]}`; `status` is `ok | wait | you | err | opt | mute`), or `--from <adapter> <tool output>` (`timings`, `cuts`, `qa`, `clips`, `prompts`). Store each deliverable when you show it in chat:
+- Brief checklist: `.claude/edit-mo-to/run gui/job.py output "<folder>" brief checklist --file checklist.json`, with `{"style", "language", "rules": [{"n", "rule", "source", "status": "confirmed|open|question|missing|conflict"}], "questions": [{"id", "text", "why"}]}`.
+- Script: `.claude/edit-mo-to/run gui/job.py output "<folder>" script script --file script.json`, with `{"lang": "es", "temp_en": true, "lines": [{"id": "H1", "text": "…", "en": "…"}]}` (`en` only with TEMP_EN). Script QA: `.claude/edit-mo-to/run gui/job.py output "<folder>" script qa --from qa <qa json>`.
+- Storyboard: no output; the GUI reads `<folder>/storyboard/storyboard.json` and the `SB-n` / `CHAR-n` images directly.
+- Older VO: `.claude/edit-mo-to/run gui/job.py output "<folder>" voiceover oldvo --file oldvo.json` (a table, one row per sentence, `id` = the sentence number, cells time and text).
+- Timings: `.claude/edit-mo-to/run gui/job.py output "<folder>" timing timings --from timings "{tmp}/reports/<job>/timings.json"`.
+- Cuts: `.claude/edit-mo-to/run gui/job.py output "<folder>" timing cuts --from cuts "{tmp}/cuts/<name>.cuts.json"`.
+- Prompts: `.claude/edit-mo-to/run gui/job.py output "<folder>" prompts prompts --from prompts "{tmp}/reports/<job>/prompts2.json"` (one per timeline: kind `prompts-t02` etc.; every kind starting with `prompts` shows). Prompt QA: `… output "<folder>" prompts qa --from qa <qa json>`.
+- Clips: `.claude/edit-mo-to/run gui/job.py output "<folder>" clips clips --from clips "<qc report.json>"`.
+- QA: `.claude/edit-mo-to/run gui/job.py output "<folder>" build qa --from qa "{tmp}/reports/<job>/qa_check.json"` (per timeline `qa-t02` etc.; every kind starting with `qa` shows on Build & QA).
+- Review: `.claude/edit-mo-to/run gui/job.py output "<folder>" review changes --file changes.json` (columns Change, Timeline, In place / new, Status) and, from `edit_diff`, `… output "<folder>" review edits --file edits.json`.
+- Captions: `.claude/edit-mo-to/run gui/job.py output "<folder>" captions qa --from qa "<qa_captions json>"`.
+- Music: `.claude/edit-mo-to/run gui/job.py output "<folder>" music suno --file suno.json`, one row per part of at most 18 s; every row carries a `prompt` field with the full Suno prompt (the page shows Copy only when `prompt` is set), cells such as length and crossfade note.
+- Learning: `.claude/edit-mo-to/run gui/job.py output "<folder>" export learn --file learn.json`, one row per proposal (`id`, cells rule, section, why).
+
+Card fields the pages read: `client`, `product`, `folder`, `style`, `language`, `temp_en` (`on | partial:<names> | removed | off`), `timelines` (`a|b|c`), `broll_source`, `generator`, `clips_folder`, `project`, e.g. `.claude/edit-mo-to/run gui/job.py card "<folder>" "style=UGC selfie review" "temp_en=on" "timelines=Hook 1|Hook 2"`.
