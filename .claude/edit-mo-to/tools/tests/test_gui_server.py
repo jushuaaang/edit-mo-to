@@ -1,5 +1,6 @@
 import http.client
 import json
+import re
 import os
 import sys
 import threading
@@ -499,23 +500,41 @@ def test_upload_into_a_symlinked_subfolder_refused(api, tmp_path):
 
 
 def test_prefs_known_keys_only_on_this_computer(api):
-    """Per-computer GUI prefs ({tmp}/gui/prefs.json): alert switches; unknown keys are refused, nothing else written."""
+    """Per-computer GUI prefs ({tmp}/gui/prefs.json): alert switches and the language; unknown keys are refused."""
+    defaults = {"notify": True, "sound": True, "ui_lang": "auto", "ui_lang_detected": "en"}
     s, d = api.json("GET", "/api/prefs")
-    assert s == 200 and d == {"notify": True, "sound": True}          # defaults before anything is saved
+    assert s == 200 and d == defaults                                  # defaults before anything is saved
     assert not (api.tmp / "gui" / "prefs.json").exists()
     s, d = api.json("POST", "/api/prefs", {"sound": False})
-    assert s == 200 and d == {"notify": True, "sound": False}
+    assert s == 200 and d == {**defaults, "sound": False}
     assert json.loads((api.tmp / "gui" / "prefs.json").read_text(encoding="utf-8")) == {"sound": False}
     s, d = api.json("POST", "/api/prefs", {"notify": False})
-    assert d == {"notify": False, "sound": False}                      # earlier keys stay
-    assert api.json("GET", "/api/prefs")[1] == {"notify": False, "sound": False}
+    assert d == {**defaults, "notify": False, "sound": False}          # earlier keys stay
+    assert api.json("GET", "/api/prefs")[1] == {**defaults, "notify": False, "sound": False}
     assert api.json("POST", "/api/prefs", {"evil": 1})[0] == 400
     assert api.json("POST", "/api/prefs", {"sound": "yes"})[0] == 400
     assert api.json("POST", "/api/prefs", {})[0] == 400
     assert api.json("GET", "/api/prefs", token=None)[0] == 401
     assert json.loads((api.tmp / "gui" / "prefs.json").read_text(encoding="utf-8")) == {"notify": False, "sound": False}
     (api.tmp / "gui" / "prefs.json").write_text("not json", encoding="utf-8")   # a broken file reads as the defaults
-    assert api.json("GET", "/api/prefs")[1] == {"notify": True, "sound": True}
+    assert api.json("GET", "/api/prefs")[1] == defaults
+
+
+def test_prefs_language_choice_and_detected_language(api):
+    """Settings picks ui_lang (auto | en | tl); Claude's `job.py lang` sets ui_lang_detected (en | tl). Both are kept."""
+    for good in ("tl", "en", "auto"):
+        s, d = api.json("POST", "/api/prefs", {"ui_lang": good})
+        assert s == 200 and d["ui_lang"] == good
+    for bad in ("fr", "", "Taglish", True, 1, None):
+        assert api.json("POST", "/api/prefs", {"ui_lang": bad})[0] == 400, bad
+    assert api.json("POST", "/api/prefs", {"ui_lang_detected": "auto"})[0] == 400  # detected is en or tl only
+    js.update_prefs(api.tmp / "gui", {"ui_lang_detected": "tl"})       # what `job.py lang tl` does
+    assert api.json("GET", "/api/prefs")[1]["ui_lang_detected"] == "tl"
+    assert api.json("POST", "/api/prefs", {"sound": False})[1] == {
+        "notify": True, "sound": False, "ui_lang": "auto", "ui_lang_detected": "tl"}   # a Settings save keeps it
+    (api.tmp / "gui" / "prefs.json").write_text(json.dumps({"ui_lang": "klingon", "ui_lang_detected": "tl"}),
+                                                encoding="utf-8")
+    assert api.json("GET", "/api/prefs")[1]["ui_lang"] == "auto"         # a bad value on disk reads as the default
 
 
 def test_job_lists_voice_files_in_vo_even_when_copied_by_hand(api):
@@ -534,3 +553,4 @@ def test_job_lists_voice_files_in_vo_even_when_copied_by_hand(api):
     (vo / "body.wav").write_bytes(b"RIFF")
     assert api.call("GET", "/api/job" + _q(folder=folder), headers={"If-None-Match": headers["ETag"]})[0] == 200
     assert [Path(p).name for p in api.json("GET", "/api/job" + _q(folder=folder))[1]["vo"]] == ["body.wav", "Hook 1 VO.MP3"]  # by name, case ignored
+

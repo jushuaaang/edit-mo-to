@@ -2,6 +2,7 @@
 // still has it (a fresh read-only /api/temp-en check, naming the timelines), the brief's export settings,
 // "I've exported, run the learning step" (an action), and the learning step's proposals (the `learn` dialog).
 import { h, helpTip } from "../ui.js";
+import { t } from "../words.js";
 import { stepPage, outputsOf, isTable, actionButton, card } from "../steppage.js";
 
 const RECHECK_MS = 10000;
@@ -22,26 +23,26 @@ async function projectPath(ctx) {
  *  the card's red banner (on / partial), or "Could not check" (removed). An empty check result is the only "clean". */
 function tempEnBanner(ctx, data) {
   const box = h("div", { "aria-live": "polite" });
-  const t = String(card(data).temp_en || "");
-  const onCard = t === "on" || t.startsWith("partial:");
-  const everOn = onCard || t === "removed";
+  const te = String(card(data).temp_en || "");
+  const onCard = te === "on" || te.startsWith("partial:");
+  const everOn = onCard || te === "removed";
   const project = String(card(data).project || "");
   const key = `${ctx.folder}|${project}`;
   const cardBanner = (why) => h("div", { class: "banner err", role: "alert" },
-    h("b", {}, "Delete the TEMP_EN_delete_me track before export", helpTip("temp_en")),
-    h("span", {}, `${t.startsWith("partial:") ? `Still on: ${t.slice(8)}` : "The job card says it is still on."} ${why}`));
+    h("b", {}, t("export.delete_h"), helpTip("temp_en")),
+    h("span", {}, `${te.startsWith("partial:") ? t("export.still_on", { names: te.slice(8) }) : t("export.card_says")} ${why}`));
   const cantCheck = (why) => h("div", { class: "banner wait", role: "alert" },
-    h("b", {}, "Could not check: delete TEMP_EN_delete_me before export if present"), h("span", {}, why));
+    h("b", {}, t("export.cant_check_h")), h("span", {}, why));
   const draw = () => {
-    const why = tempEn.error ? `Couldn't check the project (${tempEn.error}).` : "Couldn't check: no CapCut project on the job card yet.";
+    const why = tempEn.error ? t("export.cant_check_err", { err: tempEn.error }) : t("export.no_project");
     let node = null;
     if (tempEn.timelines?.length) {
-      node = h("div", { class: "banner err", role: "alert" }, h("b", {}, "Delete the TEMP_EN_delete_me track before export", helpTip("temp_en")),
-        h("span", {}, `Still on: ${tempEn.timelines.join(", ")}`));
+      node = h("div", { class: "banner err", role: "alert" }, h("b", {}, t("export.delete_h"), helpTip("temp_en")),
+        h("span", {}, t("export.still_on", { names: tempEn.timelines.join(", ") })));
     } else if (tempEn.timelines) {
-      node = everOn ? h("div", { class: "banner ok", role: "status" }, h("span", {}, "Checked the project: no TEMP_EN_delete_me track left.")) : null;
+      node = everOn ? h("div", { class: "banner ok", role: "status" }, h("span", {}, t("export.clean"))) : null;
     } else if (tempEn.checking) {
-      node = everOn ? h("div", { class: "banner wait", role: "status" }, h("span", {}, "Checking the project for the TEMP_EN_delete_me track…")) : null;
+      node = everOn ? h("div", { class: "banner wait", role: "status" }, h("span", {}, t("export.checking"))) : null;
     } else if (onCard) {
       node = cardBanner(why);
     } else if (everOn || tempEn.error) {
@@ -56,13 +57,13 @@ function tempEnBanner(ctx, data) {
       let next;
       try {
         const path = project ? await projectPath(ctx) : null;
-        if (!path) next = { timelines: null, error: project ? "the CapCut drafts folder isn't set in Settings" : null };
+        if (!path) next = { timelines: null, error: project ? t("export.no_drafts") : null };
         else {
           const r = await ctx.api(`/api/temp-en?project=${encodeURIComponent(path)}`);
-          next = Array.isArray(r?.timelines) ? { timelines: r.timelines, error: null } : { timelines: null, error: "no answer" };
+          next = Array.isArray(r?.timelines) ? { timelines: r.timelines, error: null } : { timelines: null, error: t("export.no_answer") };
         }
       } catch (e) {
-        next = { timelines: null, error: e.message || "unknown error" };
+        next = { timelines: null, error: e.message || t("export.unknown") };
       }
       if (tempEn.key === key) tempEn = { key, at: Date.now(), checking: false, ...next };
       if (box.isConnected) draw();
@@ -75,25 +76,25 @@ function tempEnBanner(ctx, data) {
 function settingsCard(data) {
   const rules = data?.outputs?.brief?.checklist?.rules || [];
   const shown = rules.filter((r) => EXPORTISH.test(String(r.rule ?? "")));
-  return h("section", { class: "card" }, h("h3", {}, "Export settings from the brief"),
+  return h("section", { class: "card" }, h("h3", {}, t("export.settings_h")),
     (shown.length ? shown : rules).length ? h("ul", { class: "files" }, (shown.length ? shown : rules).map((r) => h("li", {},
       h("span", {}, String(r.rule ?? "")), h("span", { class: "hint" }, String(r.source ?? "")))))
-      : h("p", { class: "hint" }, "Default: 9:16, 1080×1920, 30 fps."));
+      : h("p", { class: "hint" }, t("export.default")));
 }
 
 export function render(root, data, ctx) {
   const learn = outputsOf(data, "export").learn;
   stepPage(root, "export", data, ctx, {
-    you: "Export each timeline in CapCut yourself, with the settings below.",
+    you: t("export.you"),
     body: () => [
       tempEnBanner(ctx, data),
       settingsCard(data),
-      h("section", { class: "card" }, h("h3", {}, "Done exporting?"),
-        h("p", { class: "hint" }, "Claude then runs the learning step: it proposes preferences from this video, and you save or decline each."),
+      h("section", { class: "card" }, h("h3", {}, t("export.done_h")),
+        h("p", { class: "hint" }, t("export.done_p")),
         h("div", { class: "row", style: "margin-top:10px" },
-          actionButton(ctx, data, "export", "export:learn", "I've exported, run the learning step", { primary: true }),
+          actionButton(ctx, data, "export", "export:learn", t("export.learn"), { primary: true }),
           isTable(learn) && learn.rows.length ? h("button", { class: "btn", type: "button",
-            onclick: () => ctx.openDialog("learn", { table: learn }) }, `Review what Claude learned (${learn.rows.length})`) : null)),
+            onclick: () => ctx.openDialog("learn", { table: learn }) }, t("export.review_learned", { n: learn.rows.length })) : null)),
     ],
   });
 }

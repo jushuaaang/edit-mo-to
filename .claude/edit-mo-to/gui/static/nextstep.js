@@ -7,9 +7,11 @@
 //   watchQuestion(folder, data)  call after each poll of the open video: when the open question's id changes to a new
 //                            one (not on the first reply for a folder) a pop-up and a soft sound, if switched on; the tab
 //                            title carries "(1)" while a question is open and unanswered.
-//   loadPrefs(api) / savePrefs(api, patch) / getPrefs()   this computer's switches (GET/POST /api/prefs)
+//   loadPrefs(api) / savePrefs(api, patch) / getPrefs()   this computer's switches (GET/POST /api/prefs); both set the
+//                            app's language: ui_lang "en" | "tl", or "auto" = ui_lang_detected (Claude sets it with
+//                            `job.py lang`). onLangChange(fn) runs fn when the language changes, so the app re-renders.
 import { h, chip, STEPS, stepTitle } from "./ui.js";
-import { t, label, listText } from "./words.js";
+import { t, label, listText, setLang } from "./words.js";
 import { picturesToMake } from "./board.js";
 
 // ---------- the rule table: the first rule whose test is true wins (keys are WORDS.now.*) ----------
@@ -73,19 +75,35 @@ export function nowStrip(data, where = "page") {
 
 // ---------- this computer's switches ----------
 
-let prefs = { notify: true, sound: true };
+let prefs = { notify: true, sound: true, ui_lang: "auto", ui_lang_detected: "en" };
+const langListeners = new Set();
 
 export const getPrefs = () => ({ ...prefs });
 
-export async function loadPrefs(api) {
-  try { prefs = { ...prefs, ...(await api("/api/prefs")) }; } catch { /* defaults; Settings shows the error */ }
+/** The language the app shows: a language picked in Settings wins; "auto" follows what Claude detected. */
+export const langOf = (p) => (p.ui_lang === "auto" ? p.ui_lang_detected : p.ui_lang);
+
+/** fn() runs after the language changed (Settings, or Claude's `job.py lang` seen on a prefs refresh). */
+export function onLangChange(fn) {
+  langListeners.add(fn);
+  return () => langListeners.delete(fn);
+}
+
+function applyPrefs(next) {
+  prefs = { ...prefs, ...(next || {}) };
+  if (setLang(langOf(prefs))) {
+    langListeners.forEach((fn) => { try { fn(); } catch (e) { console.error(e); } });
+  }
   return getPrefs();
+}
+
+export async function loadPrefs(api) {
+  try { return applyPrefs(await api("/api/prefs")); } catch { return getPrefs(); }  // defaults; Settings shows the error
 }
 
 /** Saves on the server; resolves to what the server now holds (the switches show only that). */
 export async function savePrefs(api, patch) {
-  prefs = { ...prefs, ...(await api("/api/prefs", { body: patch })) };
-  return getPrefs();
+  return applyPrefs(await api("/api/prefs", { body: patch }));
 }
 
 // ---------- alerts ----------

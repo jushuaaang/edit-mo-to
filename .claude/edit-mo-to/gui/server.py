@@ -17,7 +17,8 @@ by GET /?k=<token>, or header X-EMT-Token). A Host other than 127.0.0.1:<port> /
 foreign Origin, is refused (403). Files are read or written only inside {root} and {tmp}; writes (inbox,
 gui.json, uploads, new job) only inside a video folder of {root} (folders.is_video_folder). One exception,
 read-only: GET /api/temp-en may also read a CapCut project under {capcut_drafts}. GET/POST /api/prefs keep this computer's
-GUI prefs (PREFS: known keys only) in {tmp}/gui/prefs.json.
+GUI prefs (jobstate.PREFS: known keys only) in {tmp}/gui/prefs.json.
+
 """
 import argparse
 import hashlib
@@ -405,34 +406,19 @@ def r_settings_save(h, q):
     return r_settings(h, q)
 
 
-PREFS = {"notify": True, "sound": True}  # per-computer GUI prefs and their defaults; each value is a bool for now
-
-
-def _prefs_path(h) -> Path:
-    return Path(h.server.tmp) / "gui" / "prefs.json"
+def _gui_dir(h) -> Path:
+    return Path(h.server.tmp) / "gui"
 
 
 def r_prefs(h, q):
-    saved = _read_json(_prefs_path(h), {})
-    saved = saved if isinstance(saved, dict) else {}
-    return {k: saved[k] if isinstance(saved.get(k), type(v)) else v for k, v in PREFS.items()}
+    return js.read_prefs(_gui_dir(h) / "prefs.json")
 
 
 def r_prefs_save(h, q):
-    body = h.json_body()
-    if not body:
-        raise HttpError(400, "nothing to save")
-    for key, value in body.items():
-        if key not in PREFS:
-            raise HttpError(400, f"unknown setting: {key}")
-        if not isinstance(value, type(PREFS[key])):
-            raise HttpError(400, f"{key} must be true or false")
-    path = _prefs_path(h)
-    with _prefs_lock:
-        saved = _read_json(path, {})
-        saved = {k: v for k, v in (saved if isinstance(saved, dict) else {}).items() if k in PREFS}
-        js.write_json_atomic(path, {**saved, **body})
-    return r_prefs(h, q)
+    try:  # known keys and values only (jobstate.PREFS); the same lock as `job.py lang`
+        return js.update_prefs(_gui_dir(h), h.json_body())
+    except ValueError as e:
+        raise HttpError(400, str(e)) from None
 
 
 def r_checks(h, q):

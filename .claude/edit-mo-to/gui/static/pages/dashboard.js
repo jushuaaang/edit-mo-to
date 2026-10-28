@@ -22,18 +22,18 @@ const jobLink = (folder, step) => `#/job/${encodeURIComponent(folder)}${step ? "
 
 function greeting() {
   const hr = new Date().getHours();
-  return hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening";
+  return t(hr < 12 ? "dash.morning" : hr < 18 ? "dash.afternoon" : "dash.evening");
 }
 
 /** [chip text, status] for a video from its job (or its summary while the job is loading). */
 function videoStatus(summary, job) {
-  if (job?.gate || summary.waiting) return ["Waiting on you", "you"];
+  if (job?.gate || summary.waiting) return [t("state.waiting"), "you"];
   const states = STEPS.map((s) => job?.steps?.[s]?.state);
-  if (states.includes("error")) return ["Error", "err"];
-  if (states.includes("working")) return ["Claude working", "wait"];
-  if (summary.progress >= 1) return ["Done", "ok"];
-  if (!summary.progress) return ["Not started", "mute"];
-  return ["In progress", "mute"];
+  if (states.includes("error")) return [t("state.error"), "err"];
+  if (states.includes("working")) return [t("state.working"), "wait"];
+  if (summary.progress >= 1) return [t("state.done"), "ok"];
+  if (!summary.progress) return [t("state.pending"), "mute"];
+  return [t("dash.in_progress"), "mute"];
 }
 
 function card(summary, reply) {
@@ -43,20 +43,22 @@ function card(summary, reply) {
   const c = job?.card || {};
   const style = c.style || summary.style;
   const lang = c.language || summary.language;
-  const temp = c.temp_en === "on" || String(c.temp_en || "").startsWith("partial:") ? " (TEMP_EN on)" : "";
-  const timelines = Array.isArray(c.timelines) && c.timelines.length ? `${c.timelines.length} timeline${c.timelines.length > 1 ? "s" : ""}` : "";
+  const temp = c.temp_en === "on" || String(c.temp_en || "").startsWith("partial:") ? t("dash.temp_on") : "";
+  const n = Array.isArray(c.timelines) ? c.timelines.length : 0;
+  const timelines = n ? t(n > 1 ? "dash.timelines" : "dash.timelines_one", { n }) : "";
   const client = c.client || summary.client;
-  const meta = [client, style, lang ? lang + temp : "", timelines].filter(Boolean).join(" · ") || "Style and language come from the brief";
+  const meta = [client, style, lang ? lang + temp : "", timelines].filter(Boolean).join(" · ") || t("dash.meta_none");
   const step = job?.gate?.step || summary.step;
   const what = job?.gate?.title || stepTitle(step);
-  const now = step ? `Step ${STEPS.indexOf(step) + 1} · ${what.charAt(0).toUpperCase()}${what.slice(1)}` : "All steps done";
+  const now = step ? t("dash.step_now", { n: STEPS.indexOf(step) + 1, what: `${what.charAt(0).toUpperCase()}${what.slice(1)}` })
+    : t("dash.all_done");
   const pct = Math.round((summary.progress || 0) * 100);
   return h("a", { class: "proj", href: jobLink(folder, step), "aria-label": `${summary.name}: ${text}, ${now}` },
     h("div", { class: "thumb", style: `background:${THUMB[status]}` }, chip(text, status)),
     h("h3", {}, summary.name), h("div", { class: "meta" }, meta), h("div", { class: "now" }, now),
     reply ? nowStrip(reply, "card") : null,
     h("div", { class: "bar", role: "progressbar", "aria-valuenow": String(pct), "aria-valuemin": "0", "aria-valuemax": "100",
-      "aria-label": "Progress" }, h("i", { style: `width:${pct}%;background:var(--${BAR[status]})` })));
+      "aria-label": t("dash.progress") }, h("i", { style: `width:${pct}%;background:var(--${BAR[status]})` })));
 }
 
 function practiceCard() {
@@ -66,23 +68,23 @@ function practiceCard() {
       copyButton(PRACTICE, t("practice.copy"))));
 }
 
-const setupTable = (checks, older) => checksTable(checks, [["Older folders (no GUI history)", chip(String(older), "mute")]]);
+const setupTable = (checks, older) => checksTable(checks, [[t("dash.older_check"), chip(String(older), "mute")]]);
 
 export function render(root, data, ctx) {
-  const sub = h("p", {}, "Looking for your videos…");
+  const sub = h("p", {}, t("dash.looking"));
   const grid = h("div", { class: "grid3" });
   const practice = h("div", {});
   const tryIt = practiceCard();
   const older = h("div", {});
-  const activity = h("ul", { class: "act" }, h("li", {}, "Loading…"));
-  const setup = h("div", {}, h("p", { class: "hint" }, "Checking…"));
-  const newBtn = h("button", { class: "btn pri", type: "button", onclick: () => ctx.openDialog("new") }, icon("plus"), "New video");
+  const activity = h("ul", { class: "act" }, h("li", {}, t("common.loading")));
+  const setup = h("div", {}, h("p", { class: "hint" }, t("common.checking")));
+  const newBtn = h("button", { class: "btn pri", type: "button", onclick: () => ctx.openDialog("new") }, icon("plus"), t("dash.new_video"));
   root.append(
     h("div", { class: "head" }, h("div", {}, h("h1", {}, greeting()), sub), newBtn),
     grid, tryIt, practice, older,
     h("div", { class: "grid2", style: "margin-top:20px" },
-      h("section", { class: "card" }, h("h3", {}, "Recent activity"), activity),
-      h("section", { class: "card" }, h("h3", {}, "Setup check"), setup)));
+      h("section", { class: "card" }, h("h3", {}, t("dash.recent")), activity),
+      h("section", { class: "card" }, h("h3", {}, t("checks.title")), setup)));
 
   const jobs = new Map();  // folder -> the /api/job reply (job, keyframes, storyboard, events, listening)
   const etags = new Map();  // folder -> {value}: If-None-Match per video, so an unchanged job costs a 304
@@ -94,15 +96,14 @@ export function render(root, data, ctx) {
     const without = summaries.filter((s) => !s.has_job);
     const waiting = withJob.filter((s) => s.waiting).length;
     const active = withJob.filter((s) => (s.progress || 0) < 1).length;
-    sub.textContent = `${active} video${active === 1 ? "" : "s"} in progress · ${waiting} waiting on you`;
+    sub.textContent = t(active === 1 ? "dash.sub_one" : "dash.sub", { active, waiting });
     grid.replaceChildren(...(withJob.length ? withJob.map((s) => card(s, jobs.get(posix(s.path))))
-      : [h("section", { class: "card" }, h("h3", {}, "No videos in the GUI yet"),
-        h("p", { class: "hint" }, "Start one with /edit-mo-to in Claude Code. It shows here as soon as Claude creates the job."))]));
-    practice.replaceChildren(...(practiceJobs.length ? [h("h2", { class: "section-h" }, "Practice"),
+      : [h("section", { class: "card" }, h("h3", {}, t("dash.none_h")), h("p", { class: "hint" }, t("dash.none_p")))]));
+    practice.replaceChildren(...(practiceJobs.length ? [h("h2", { class: "section-h" }, t("dash.practice_h")),
       h("div", { class: "grid3" }, practiceJobs.map((s) => card(s, jobs.get(posix(s.path)))))] : []));
     older.replaceChildren(...(without.length ? [h("details", { class: "older" },
-      h("summary", {}, `Started before the GUI (${without.length})`),
-      h("ul", {}, without.map((s) => h("li", { title: posix(s.path) }, s.name, s.practice ? " · practice" : ""))))] : []));
+      h("summary", {}, t("dash.older", { n: without.length })),
+      h("ul", {}, without.map((s) => h("li", { title: posix(s.path) }, s.name, s.practice ? t("dash.practice_tag") : ""))))] : []));
 
     const lines = [];
     for (const s of summaries) {
@@ -113,8 +114,8 @@ export function render(root, data, ctx) {
     activity.replaceChildren(...(lines.length ? lines.slice(0, 8).map((e) => h("li", {},
       h("time", { datetime: e.at, title: e.at }, relTime(e.at)),
       h("span", {}, e.text.replace(/^\s*\[[a-z]+\]\s*/, ""), " · ", h("a", { href: jobLink(e.folder) }, e.video))))
-      : [h("li", {}, "Nothing yet.")]));
-    setup.replaceChildren(checks ? setupTable(checks, without.length) : h("p", { class: "hint" }, "Checking…"));
+      : [h("li", {}, t("common.nothing_yet"))]));
+    setup.replaceChildren(checks ? setupTable(checks, without.length) : h("p", { class: "hint" }, t("common.checking")));
   };
 
   const round = async () => {
@@ -141,7 +142,7 @@ export function render(root, data, ctx) {
     try { await round(); } finally { busy = false; }
   };
   const loadChecks = async () => {
-    try { checks = await ctx.api("/api/checks"); } catch (e) { checks = [{ name: "Setup check", ok: false, detail: e.message }]; }
+    try { checks = await ctx.api("/api/checks"); } catch (e) { checks = [{ name: t("checks.title"), ok: false, detail: e.message }]; }
     if (alive) draw();
   };
 

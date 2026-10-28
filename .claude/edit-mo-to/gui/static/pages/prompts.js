@@ -3,25 +3,25 @@
 // prompts per timeline as rows with Copy and the full prompt on expand, and QA results. Gates: source; generator;
 // generator_model. The generators and models come from generators.json (`data.generators`), never a list in this page.
 import { h, helpTip } from "../ui.js";
-import { t, label } from "../words.js";
+import { t, tEn, label } from "../words.js";
 import { stepPage, choiceInput, outputsOf, outputTables, isTable, card, promptText, copyButton, lastInput, gateAsks }
   from "../steppage.js";
 
-const SOURCES = [["client", "Client's B-roll"], ["ai", "Generate AI video"], ["both", "Both"]];
+const SOURCES = [["client", "prompts.src_client"], ["ai", "prompts.src_ai"], ["both", "prompts.src_both"]];  // value, word
 const OTHER = "other";   // the gate's "Other" model: Claude asks its name and uses the safe limits (data.generators.safe)
 const norm = (s) => String(s ?? "").trim().toLowerCase();
 
-/** The card says e.g. "Client's B-roll"; match it to an option value. */
+/** The card says e.g. "Client's B-roll" (Claude writes it in English); match it to an option value. */
 function cardValue(options, raw) {
   if (!raw) return undefined;
   const s = norm(raw);
-  const hit = options.find(([v, label]) => s === v || s === label.toLowerCase() || s.includes(v));
+  const hit = options.find(([v, key]) => s === v || s === tEn(key).toLowerCase() || s.includes(v));
   return hit ? hit[0] : String(raw);
 }
 
 function table(data) {
-  const t = data?.generators;
-  return t && typeof t.generators === "object" && t.generators ? t : null;
+  const g = data?.generators;
+  return g && typeof g.generators === "object" && g.generators ? g : null;
 }
 
 const labelled = (rows) => Object.entries(rows || {}).map(([k, v]) => [k, String(v?.label ?? k)]);
@@ -59,13 +59,13 @@ function modelNote(tbl, row, model) {
 
 function choices(ctx, data) {
   const c = card(data);
-  const items = [choiceInput(ctx, data, "prompts", "broll_source", "B-roll source", SOURCES,
-    { current: cardValue(SOURCES, c.broll_source), answeredNote: "already answered at the storyboard" })];
+  const items = [choiceInput(ctx, data, "prompts", "broll_source", t("prompts.broll_source"), SOURCES.map(([v, k]) => [v, t(k)]),
+    { current: cardValue(SOURCES, c.broll_source), answeredNote: t("prompts.answered_storyboard") })];
   const tbl = table(data);
   if (!tbl) return [...items, h("p", { class: "hint" }, t("prompts.no_table"))];
   const was = fromCard(tbl, c.generator);
-  items.push(choiceInput(ctx, data, "prompts", "generator", "Generator", labelled(tbl.generators),
-    { current: was.site, answeredNote: "already answered" }));
+  items.push(choiceInput(ctx, data, "prompts", "generator", t("prompts.generator"), labelled(tbl.generators),
+    { current: was.site, answeredNote: t("sp.already_answered") }));
   const site = lastInput(data, "prompts:generator")?.value ?? was.site;
   const row = tbl.generators[site];
   // a model answer belongs to the site that was chosen when it was given; after the site changes it no longer counts
@@ -77,8 +77,8 @@ function choices(ctx, data) {
   if (row?.models || gateAsks(data, "prompts", "generator_model")) {
     const model = kept ?? (site === was.site ? was.model : undefined);
     const note = modelNote(tbl, row, model);
-    items.push(choiceInput(ctx, data, "prompts", "generator_model", row?.label ? `${row.label} model` : "Model",
-      [...labelled(row?.models), [OTHER, "Other"]], { current: model, ignore: stale, answeredNote: "already answered" }));
+    items.push(choiceInput(ctx, data, "prompts", "generator_model", row?.label ? t("prompts.site_model", { site: row.label }) : t("prompts.model"),
+      [...labelled(row?.models), [OTHER, t("prompts.other")]], { current: model, ignore: stale, answeredNote: t("sp.already_answered") }));
     items.push(h("p", { class: "hint words" }, t("help.row"), h("span", { class: "word" }, t("word.model"), helpTip("model"))));
     if (note) items.push(h("p", { class: "hint" }, note));
   }
@@ -91,13 +91,13 @@ function promptRow(r) {
   const head = [h("b", {}, label(r.id)), " ", h("span", {}, (r.cells || []).slice(1).filter(Boolean).join(" · "))];
   return h("li", {},
     text ? h("details", {}, h("summary", {}, ...head), h("pre", { class: "prompt" }, text))
-      : h("div", {}, ...head, h("div", { class: "hint" }, "No prompt to copy (a client clip, or Claude hasn't written it yet).")),
-    text ? copyButton(text, "Copy") : null);
+      : h("div", {}, ...head, h("div", { class: "hint" }, t("prompts.no_prompt"))),
+    text ? copyButton(text, t("common.copy")) : null);
 }
 
 function promptCard(kind, tb) {
   return h("section", { class: "card" }, h("h3", {}, tb.title || kind, helpTip("prompt")),
-    tb.rows.length ? h("ul", { class: "prompts" }, tb.rows.map(promptRow)) : h("p", { class: "hint" }, "No prompts yet."));
+    tb.rows.length ? h("ul", { class: "prompts" }, tb.rows.map(promptRow)) : h("p", { class: "hint" }, t("prompts.none_yet")));
 }
 
 export function render(root, data, ctx) {
@@ -106,9 +106,9 @@ export function render(root, data, ctx) {
   stepPage(root, "prompts", data, ctx, {
     early: () => choices(ctx, data),
     body: () => [
-      h("section", { class: "card" }, h("h3", {}, "B-roll", helpTip("b_roll")), h("div", { class: "stack" }, choices(ctx, data))),
+      h("section", { class: "card" }, h("h3", {}, t("prompts.broll_h"), helpTip("b_roll")), h("div", { class: "stack" }, choices(ctx, data))),
       ...(promptKinds.length ? promptKinds.map((k) => promptCard(k, out[k]))
-        : [h("section", { class: "card" }, h("h3", {}, "Prompts", helpTip("prompt")), h("p", { class: "hint" }, "Claude writes the prompts per timeline here."))]),
+        : [h("section", { class: "card" }, h("h3", {}, t("prompts.prompts_h"), helpTip("prompt")), h("p", { class: "hint" }, t("prompts.empty_p")))]),
       ...outputTables(ctx, data, "prompts", { skip: promptKinds }),
     ],
   });

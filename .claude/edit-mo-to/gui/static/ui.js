@@ -8,6 +8,8 @@
 //   extras: ctx.api(path, opts), ctx.upload(query, file, onProgress), ctx.data (latest /api/job reply),
 //           ctx.go(hash)
 // Inputs that carry a `data-key` keep what the editor typed when the page re-renders after a poll.
+// Every word the editor reads comes from words.js (t), looked up when the element is built, so a language change
+// shows on the next render.
 
 import { t, timeTitle } from "./words.js";
 
@@ -39,7 +41,8 @@ export function fileTarget(step, q) {
   if (step === "storyboard" && KEYFRAME_ID.test(q.id || "")) return ["keyframe", q.id];
   return [STEP_UPLOAD[step] || "refs", undefined];
 }
-export const STALE_TEXT = "That question closed; Claude asked something new";
+/** "That question closed; Claude asked something new" in the current language. */
+export const staleText = () => t("gate.stale");
 
 // ---------- tiny DOM helpers ----------
 
@@ -87,10 +90,10 @@ export function icon(name) {
 }
 
 export function relTime(iso) {
-  const t = Date.parse(iso || "");
-  if (Number.isNaN(t)) return "";
-  const s = Math.max(0, (Date.now() - t) / 1000);
-  if (s < 60) return "now";
+  const ms = Date.parse(iso || "");
+  if (Number.isNaN(ms)) return "";
+  const s = Math.max(0, (Date.now() - ms) / 1000);
+  if (s < 60) return t("common.now");
   if (s < 3600) return `${Math.floor(s / 60)}m`;
   if (s < 86400) return `${Math.floor(s / 3600)}h`;
   return `${Math.floor(s / 86400)}d`;
@@ -109,19 +112,18 @@ export function chip(text, status = "mute") {
   return h("span", { class: `chip ${status || "mute"}` }, text);
 }
 
-export const STATE_CHIP = {
-  pending: ["Not started", "mute"], working: ["Claude working", "wait"], waiting: ["Waiting on you", "you"],
-  done: ["Done", "ok"], skipped: ["Skipped", "mute"], error: ["Error", "err"],
+export const STATE_CHIP = {  // state -> chip look; the word is WORDS.state.<state>
+  pending: "mute", working: "wait", waiting: "you", done: "ok", skipped: "mute", error: "err",
 };
 
 /** The chip for a step state (pending | working | waiting | done | skipped | error). */
 export function stepChip(state) {
-  const [text, status] = STATE_CHIP[state] || STATE_CHIP.pending;
-  return chip(text, status);
+  const st = STATE_CHIP[state] ? state : "pending";
+  return chip(t(`state.${st}`), STATE_CHIP[st]);
 }
 
 export function pendingChip() {
-  return h("span", { class: "chip wait", title: "Saved. Claude hasn't applied it yet." }, "pending");
+  return h("span", { class: "chip wait", title: t("ui.pending_title") }, t("ui.pending"));
 }
 
 // ---------- word help (ⓘ) ----------
@@ -161,7 +163,7 @@ export function timeText(text, attrs = {}) {
 
 // ---------- copy ----------
 
-export function copyButton(text, label = "Copy") {
+export function copyButton(text, label = t("common.copy")) {
   const btn = h("button", { class: "btn sm", type: "button" }, icon("copy"), h("span", {}, label));
   const word = btn.querySelector("span");
   btn.addEventListener("click", async () => {
@@ -176,7 +178,7 @@ export function copyButton(text, label = "Copy") {
       try { ok = document.execCommand("copy"); } catch { ok = false; }
       ta.remove();
     }
-    word.textContent = ok ? "Copied ✓" : "Copy failed";
+    word.textContent = ok ? t("common.copied") : t("common.copy_failed");
     btn.classList.toggle("copied", ok);
     setTimeout(() => { word.textContent = label; btn.classList.remove("copied"); }, 1400);
   });
@@ -204,7 +206,7 @@ export function dialog(name, html, actions = [], opts = {}) {
   }
   el.append(
     h("div", { class: "dh" }, opts.head || null, h("h2", { id: titleId }, opts.title || name),
-      h("button", { class: "x", type: "button", "aria-label": "Close", onclick: close }, icon("x"))),
+      h("button", { class: "x", type: "button", "aria-label": t("common.close"), onclick: close }, icon("x"))),
     body, actions.length ? foot : null);
   document.body.append(el);
   el.showModal();
@@ -221,10 +223,10 @@ function ext(name) {
 /** Plain-words problem with a file for this kind, or "" when it may be sent. The server closes early on 413/415. */
 export function uploadProblem(kind, file) {
   const rule = UPLOAD_RULES[kind];
-  if (!rule) return "This kind of file can't be added here.";
-  if (!rule.exts.includes(ext(file.name))) return `${file.name}: that file type can't go here. Use ${rule.exts.join(", ")}.`;
-  if (file.size > rule.limit) return `${file.name} is too big. The limit here is ${rule.limitText}.`;
-  if (file.size === 0) return `${file.name} is empty.`;
+  if (!rule) return t("upload.kind");
+  if (!rule.exts.includes(ext(file.name))) return t("upload.type", { name: file.name, types: rule.exts.join(", ") });
+  if (file.size > rule.limit) return t("upload.big", { name: file.name, limit: rule.limitText });
+  if (file.size === 0) return t("upload.empty", { name: file.name });
   return "";
 }
 
@@ -236,9 +238,9 @@ export function dropZone(kind, ctx, opts = {}) {
     accept: rule.exts.map((e) => "." + e).join(","), multiple });
   const status = h("div", { class: "msg", role: "status" });
   const zone = h("div", { class: "drop", role: "button", tabindex: "0",
-    "aria-label": `${opts.label || "Add files"}: drop here or press Enter to choose` },
-  h("b", {}, opts.label || "Drop files here"), " or click to browse", h("br"),
-  h("span", { class: "hint" }, `${rule.exts.map((e) => e.toUpperCase()).join(", ")} · copied to `,
+    "aria-label": t("upload.zone_label", { label: opts.label || t("upload.add_files") }) },
+  h("b", {}, opts.label || t("upload.drop_files")), t("upload.or_click"), h("br"),
+  h("span", { class: "hint" }, t("upload.copied_to", { types: rule.exts.map((e) => e.toUpperCase()).join(", ") }), " ",
     h("span", { class: "mono" }, opts.id ? `${rule.where}${opts.id}.png` : rule.where)),
   input, status);
 
@@ -249,17 +251,17 @@ export function dropZone(kind, ctx, opts = {}) {
       if (problem) { status.className = "msg err"; status.textContent = problem; continue; }
       const bar = h("i", { style: "width:0%" });
       status.className = "msg";
-      status.replaceChildren(`Copying ${file.name}…`, h("div", { class: "bar" }, bar));
+      status.replaceChildren(t("upload.copying", { name: file.name }), h("div", { class: "bar" }, bar));
       try {
         const q = { folder: ctx.folder, kind, name: file.name };
         if (opts.id) q.id = opts.id;
         const res = await ctx.upload(q, file, (f) => { bar.style.width = `${Math.round(f * 100)}%`; });
         status.className = "msg ok";
-        status.textContent = `Saved ${file.name}.`;
+        status.textContent = t("upload.saved", { name: file.name });
         if (opts.onDone) opts.onDone(res);
       } catch (e) {
         status.className = "msg err";
-        status.textContent = e.message || "The upload didn't finish.";
+        status.textContent = e.message || t("upload.not_finished");
       }
     }
   };
@@ -286,9 +288,9 @@ function answered(ctx, gate, q) {
 }
 
 function answerText(value, file = false) {
-  if (value === true) return "Yes";
-  if (value === false) return "No";
-  if (Array.isArray(value)) return value.length ? value.join(", ") : "none";
+  if (value === true) return t("common.yes");
+  if (value === false) return t("common.no");
+  if (Array.isArray(value)) return value.length ? value.join(", ") : t("common.none");
   const s = String(value ?? "");
   return file ? s.split(/[\\/]/).pop() : s;  // a file answer is a path: show its name
 }
@@ -305,7 +307,7 @@ function questionControls(gate, q, ctx, done, label) {
       return true;
     } catch (e) {
       controls.forEach((c) => { c.disabled = false; });
-      toast(e.message || "Not sent. Try again.");
+      toast(e.message || t("common.not_sent"));
       return false;
     }
   };
@@ -319,25 +321,25 @@ function questionControls(gate, q, ctx, done, label) {
     }, o.label));
     box.append(...btns);
   } else if (q.kind === "confirm") {
-    // a page may relabel a confirm (labels: {yes, no}); no: null drops the No button ("It's saved" has no "no")
+    // a page may relabel a confirm (labels: {yes, no}); no: null drops the No button (the storyboard's "It's saved")
     const btns = [
-      h("button", { class: "btn pri", type: "button", "data-value": "true", onclick: () => answer(true, btns) }, label?.yes || "Yes"),
+      h("button", { class: "btn pri", type: "button", "data-value": "true", onclick: () => answer(true, btns) }, label?.yes || t("common.yes")),
       label?.no === null ? null
-        : h("button", { class: "btn", type: "button", "data-value": "false", onclick: () => answer(false, btns) }, label?.no || "No"),
+        : h("button", { class: "btn", type: "button", "data-value": "false", onclick: () => answer(false, btns) }, label?.no || t("common.no")),
     ].filter(Boolean);
     box.append(...btns);
   } else if (q.kind === "multi") {
     const defaults = Array.isArray(q.default) ? q.default : [];
     const checks = options.map((o) => h("input", { type: "checkbox", value: String(o.value), checked: defaults.includes(o.value),
       "data-key": `gate:${gate.id}:${q.id}:${o.value}` }));
-    const sendBtn = h("button", { class: "btn pri", type: "button" }, "Send");
+    const sendBtn = h("button", { class: "btn pri", type: "button" }, t("common.send"));
     sendBtn.addEventListener("click", () => answer(
       options.filter((o, i) => checks[i].checked).map((o) => o.value), [...checks, sendBtn]));
     box.append(...options.map((o, i) => h("label", { class: "check" }, checks[i], o.label)), sendBtn);
   } else if (q.kind === "text") {
     const ta = h("textarea", { class: "f", rows: 2, "data-key": `gate:${gate.id}:${q.id}`, "aria-label": q.text },
       typeof q.default === "string" ? q.default : "");
-    const sendBtn = h("button", { class: "btn pri", type: "button" }, "Send");
+    const sendBtn = h("button", { class: "btn pri", type: "button" }, t("common.send"));
     const go = () => { if (ta.value.trim()) answer(ta.value.trim(), [ta, sendBtn]); else ta.focus(); };
     sendBtn.addEventListener("click", go);
     ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); go(); } });
@@ -347,11 +349,11 @@ function questionControls(gate, q, ctx, done, label) {
   } else if (q.kind === "file") {
     const [kind, id] = fileTarget(gate.step, q);
     let saved = null;  // the uploaded path: a failed answer is sent again without uploading again
-    const retry = h("button", { class: "btn sm pri", type: "button", hidden: true }, "Send again");
+    const retry = h("button", { class: "btn sm pri", type: "button", hidden: true }, t("gate.send_again"));
     const sendPath = async () => { retry.hidden = await answer(saved, [retry]); };
     retry.addEventListener("click", sendPath);
     box.style.display = "block";
-    box.append(dropZone(kind, ctx, { label: "Drop the file here", id, onDone: (res) => { saved = res.path; sendPath(); } }),
+    box.append(dropZone(kind, ctx, { label: t("gate.drop_file"), id, onDone: (res) => { saved = res.path; sendPath(); } }),
       retry);
   }
   return box;
@@ -359,9 +361,9 @@ function questionControls(gate, q, ctx, done, label) {
 
 /** "Waiting on you: …" with every question of the open gate; each answer is an `answer` event. */
 export function gateBar(gate, ctx, labels = {}) {
-  const bar = h("section", { class: "gatebar", "aria-label": "Waiting on you" });
+  const bar = h("section", { class: "gatebar", "aria-label": t("gate.waiting") });
   bar.append(h("div", { class: "gh" }, h("div", { class: "ic", "aria-hidden": "true" }, "!"),
-    h("div", {}, h("b", {}, `Waiting on you: ${gate.title}`, helpTip("question")), gate.detail ? h("span", {}, gate.detail) : null)));
+    h("div", {}, h("b", {}, t("gate.waiting_title", { title: gate.title }), helpTip("question")), gate.detail ? h("span", {}, gate.detail) : null)));
   for (const q of gate.questions || []) {
     const wrap = h("div", { class: "gq" }, h("div", { class: "qt" }, q.text), q.why ? h("div", { class: "why" }, q.why) : null);
     const showSent = (ans) => {
@@ -377,8 +379,9 @@ export function gateBar(gate, ctx, labels = {}) {
       }
       if (!wrap.querySelector(".sent")) {
         wrap.append(h("div", { class: "sent row" },
-          ans.stale ? chip(STALE_TEXT, "err") : chip("Sent · waiting for Claude", "wait"),
-          h("span", { class: "hint" }, ans.stale ? `Not counted: ${answerText(ans.value, q.kind === "file")}` : `Your answer: ${answerText(ans.value, q.kind === "file")}`)));
+          ans.stale ? chip(staleText(), "err") : chip(t("common.sent_waiting"), "wait"),
+          h("span", { class: "hint" }, t(ans.stale ? "gate.not_counted" : "gate.your_answer",
+            { answer: answerText(ans.value, q.kind === "file") }))));
       }
     };
     wrap.append(questionControls(gate, q, ctx, showSent, labels[q.id]));
@@ -409,14 +412,14 @@ export function askBox(step, data, ctx) {
     .map((e) => ({ at: e.at, text: e.text, me: true }));
   const claude = logForStep(data?.job?.log, step).map((e) => ({ at: e.at, text: e.text, me: false }));
   const items = [...mine, ...claude].sort((a, b) => Date.parse(a.at) - Date.parse(b.at)).slice(-12);
-  const hist = h("ol", { class: "hist", "aria-label": "Earlier messages about this step" },
-    items.map((it) => h("li", { class: it.me ? "me" : "cl" }, it.me ? it.text : `Claude · ${it.text}`,
-      h("small", {}, it.me ? `You · ${relTime(it.at)}` : relTime(it.at)))));
+  const hist = h("ol", { class: "hist", "aria-label": t("ask.history") },
+    items.map((it) => h("li", { class: it.me ? "me" : "cl" }, it.me ? it.text : t("ask.claude_says", { text: it.text }),
+      h("small", {}, it.me ? t("ask.you_at", { when: relTime(it.at) }) : relTime(it.at)))));
   const id = `ask-${step}`;
   const ta = h("textarea", { class: "f", id, rows: 2, "data-key": `ask:${step}`,
-    placeholder: `Anything about ${stepTitle(step).toLowerCase()}…` });
+    placeholder: t("ask.placeholder", { step: stepTitle(step).toLowerCase() }) });
   const note = h("div", { class: "msg", role: "status" });
-  const btn = h("button", { class: "btn sm pri", type: "button" }, "Send");
+  const btn = h("button", { class: "btn sm pri", type: "button" }, t("common.send"));
   const go = async () => {
     const text = ta.value.trim();
     if (!text) { ta.focus(); return; }
@@ -425,10 +428,10 @@ export function askBox(step, data, ctx) {
       await ctx.send({ type: "message", step, text });
       ta.value = "";
       note.className = "msg ok";
-      note.textContent = data?.listening ? "Sent. Claude is listening." : "Saved. Claude reads it when it next checks.";
+      note.textContent = t(data?.listening ? "common.sent_listening" : "common.saved_later");
     } catch (e) {
       note.className = "msg err";
-      note.textContent = e.message || "Not sent. Try again.";
+      note.textContent = e.message || t("common.not_sent");
     } finally {
       btn.disabled = false;
     }
@@ -437,10 +440,10 @@ export function askBox(step, data, ctx) {
   ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); go(); } });
   return h("section", { class: "ask", "aria-labelledby": `${id}-h` },
     h("div", { class: "ah" }, h("span", { class: `pulse${data?.listening ? "" : " off"}`, "aria-hidden": "true" }),
-      h("b", { id: `${id}-h` }, "Tell Claude about this step"), h("span", {}, `${stepTitle(step)} · goes with your answers on this page`)),
+      h("b", { id: `${id}-h` }, t("ask.title")), h("span", {}, t("ask.sub", { step: stepTitle(step) }))),
     items.length ? hist : null,
-    h("label", { class: "sr", for: id }, `Message about ${stepTitle(step)}`), ta,
-    h("div", { class: "row spread", style: "margin-top:8px" }, h("span", { class: "hint" }, "Ctrl+Enter to send"), btn),
+    h("label", { class: "sr", for: id }, t("ask.label", { step: stepTitle(step) })), ta,
+    h("div", { class: "row spread", style: "margin-top:8px" }, h("span", { class: "hint" }, t("ask.ctrl_enter")), btn),
     note);
 }
 
@@ -450,27 +453,27 @@ export function askBox(step, data, ctx) {
 export function checksTable(checks, extra = []) {
   const rows = (checks || []).map((c) => h("tr", {},
     h("td", {}, c.name, c.detail ? h("div", { class: "note" }, c.detail) : null),
-    h("td", { style: "text-align:right" }, chip(c.ok ? "OK" : "Missing", c.ok ? "ok" : "err"))));
+    h("td", { style: "text-align:right" }, chip(t(c.ok ? "checks.ok" : "checks.missing"), c.ok ? "ok" : "err"))));
   for (const [label, node] of extra) rows.push(h("tr", {}, h("td", {}, label), h("td", { style: "text-align:right" }, node)));
   return h("table", {}, h("tbody", {}, rows));
 }
 
 // ---------- table ----------
 
-const STATUS_WORD = { ok: "OK", wait: "Working", you: "You", err: "Check", opt: "Optional", mute: "Info" };
+const STATUS_KEYS = ["ok", "wait", "you", "err", "opt", "mute"];  // words: WORDS.status.<status>
 const TIME = /^\d+:\d{2}(:\d{2})?(\s*[–-]\s*\d+:\d{2}(:\d{2})?)?$/;
 
 /** The generic table {title, columns, rows: [{id, cells, status, note}]}. opts: {words, actions(row) -> Node} */
-export function table(t, ctx, opts = {}) {
-  const words = { ...STATUS_WORD, ...(opts.words || {}) };
-  const rows = t?.rows || [];
+export function table(tb, ctx, opts = {}) {
+  const words = { ...Object.fromEntries(STATUS_KEYS.map((k) => [k, t(`status.${k}`)])), ...(opts.words || {}) };
+  const rows = tb?.rows || [];
   const hasStatus = rows.some((r) => r.status);
   const counts = {};
   rows.forEach((r) => { if (r.status) counts[r.status] = (counts[r.status] || 0) + 1; });
-  const head = h("div", { class: "row spread", style: "margin-bottom:8px" }, h("h3", { style: "margin:0" }, t?.title || ""),
+  const head = h("div", { class: "row spread", style: "margin-bottom:8px" }, h("h3", { style: "margin:0" }, tb?.title || ""),
     h("div", { class: "row" }, Object.entries(counts).map(([s, n]) => chip(`${n} ${words[s] || s}`, s))));
-  const thead = h("tr", {}, (t?.columns || []).map((c) => h("th", { scope: "col" }, c)),
-    hasStatus ? h("th", { scope: "col" }, "Status") : null, opts.actions ? h("th", {}, h("span", { class: "sr" }, "Actions")) : null);
+  const thead = h("tr", {}, (tb?.columns || []).map((c) => h("th", { scope: "col" }, c)),
+    hasStatus ? h("th", { scope: "col" }, t("table.status")) : null, opts.actions ? h("th", {}, h("span", { class: "sr" }, t("table.actions"))) : null);
   const body = rows.map((r) => h("tr", { "data-id": r.id },
     (r.cells || []).map((c, i) => h("td", { class: TIME.test(c) ? "mono" : null, title: TIME.test(c) ? timeTitle(c) : null }, c,
       i === 0 && r.note ? h("div", { class: "note" }, r.note) : null)),
@@ -478,5 +481,5 @@ export function table(t, ctx, opts = {}) {
     opts.actions ? h("td", {}, opts.actions(r) || null) : null));
   return h("section", { class: "card" }, head,
     h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, thead), h("tbody", {}, body))),
-    rows.length ? null : h("p", { class: "hint" }, "Nothing here yet."));
+    rows.length ? null : h("p", { class: "hint" }, t("table.empty")));
 }

@@ -50,8 +50,8 @@ def _now() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
-def _lock(folder: Path) -> threading.Lock:
-    key = str(Path(folder).resolve())
+def _lock(path: Path) -> threading.Lock:
+    key = str(Path(path).resolve())
     with _locks_guard:
         return _locks.setdefault(key, threading.Lock())
 
@@ -87,14 +87,11 @@ def _os_unlock(f) -> None:
 
 
 @contextmanager
-def lock(folder: Path):
-    """The per-folder writer lock, across threads and processes: `with jobstate.lock(folder): ...`.
-
-    A thread lock first (one waiter per process), then an OS lock (fcntl.flock / msvcrt.locking) on
-    <folder>/.edit-mo-to/job.lock. The OS releases it when the holder exits or crashes, so there is no
-    stale lock to clean up. Not re-entrant: never nest it."""
-    with _lock(folder):
-        path = state_dir(folder) / "job.lock"
+def _file_lock(path: Path):
+    """A thread lock first (one waiter per process), then an OS lock (fcntl.flock / msvcrt.locking) on `path`.
+    The OS releases it when the holder exits or crashes, so there is no stale lock to clean up. Not re-entrant."""
+    path = Path(path)
+    with _lock(path):
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "a+b") as f:
             deadline = time.monotonic() + LOCK_WAIT
@@ -106,6 +103,14 @@ def lock(folder: Path):
                 yield
             finally:
                 _os_unlock(f)
+
+
+@contextmanager
+def lock(folder: Path):
+    """The per-folder writer lock, across threads and processes: `with jobstate.lock(folder): ...`, on
+    <folder>/.edit-mo-to/job.lock (see _file_lock). Not re-entrant: never nest it."""
+    with _file_lock(state_dir(folder) / "job.lock"):
+        yield
 
 
 def state_dir(folder: Path) -> Path:
@@ -284,8 +289,8 @@ def pid_alive(pid: int) -> bool:
     return True
 
 
-def _current_path() -> Path:
-    """<tmp>/gui/current.json; tmp from machine.PATHS at call time (EDIT_MO_TO_GUI_TMP overrides, for tests)."""
+def gui_dir() -> Path:
+    """<tmp>/gui; tmp from machine.PATHS at call time (EDIT_MO_TO_GUI_TMP overrides, for tests)."""
     tmp = os.environ.get("EDIT_MO_TO_GUI_TMP")
     if not tmp:
         tools = str(Path(__file__).resolve().parents[1] / "tools")
@@ -293,7 +298,71 @@ def _current_path() -> Path:
             sys.path.insert(0, tools)
         import machine
         tmp = machine.PATHS["tmp"]
-    return Path(tmp) / "gui" / "current.json"
+    return Path(tmp) / "gui"
+
+
+def _current_path() -> Path:
+    return gui_dir() / "current.json"
+
+
+# ---------- this computer's GUI prefs: <tmp>/gui/prefs.json (the server's Settings and `job.py lang`) ----------
+
+PREFS = {"notify": True, "sound": True, "ui_lang": "auto", "ui_lang_detected": "en"}  # known keys and defaults
+PREF_CHOICES = {"ui_lang": ("auto", "en", "tl"), "ui_lang_detected": ("en", "tl")}   # string prefs: allowed values
+
+
+def check_pref(key: str, value) -> None:
+    """ValueError unless key is known and value has its type (and, for a string pref, is one of its choices)."""
+    if key not in PREFS:
+        raise ValueError(f"unknown setting: {key}")
+    if key in PREF_CHOICES:
+        if not isinstance(value, str) or value not in PREF_CHOICES[key]:
+            raise ValueError(f"{key} must be one of {', '.join(PREF_CHOICES[key])}")
+    elif not isinstance(value, bool):  # every other pref is a switch
+        raise ValueError(f"{key} must be true or false")
+
+
+def _valid(key: str, value) -> bool:
+    try:
+        check_pref(key, value)
+        return True
+    except ValueError:
+        return False
+
+
+def read_prefs(path: Path) -> dict:
+    """Every known pref: the saved value when it is valid, else the default (a missing or broken file = defaults)."""
+    try:
+        saved = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        saved = {}
+    saved = saved if isinstance(saved, dict) else {}
+    return {k: saved[k] if k in saved and _valid(k, saved[k]) else v for k, v in PREFS.items()}
+
+
+@contextmanager
+def prefs_lock(gui: Path):
+    """The cross-process lock for <gui>/prefs.json (<gui>/prefs.lock), shared by the server and job.py."""
+    with _file_lock(Path(gui) / "prefs.lock"):
+        yield
+
+
+def update_prefs(gui: Path, patch: dict) -> dict:
+    """Check every key of patch, then merge it into <gui>/prefs.json under prefs_lock; the file keeps only known,
+    valid keys that were saved (defaults are not written). Returns read_prefs."""
+    if not isinstance(patch, dict) or not patch:
+        raise ValueError("nothing to save")
+    for key, value in patch.items():
+        check_pref(key, value)
+    path = Path(gui) / "prefs.json"
+    with prefs_lock(gui):
+        try:
+            saved = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            saved = {}
+        saved = {k: v for k, v in (saved if isinstance(saved, dict) else {}).items() if k in PREFS and _valid(k, v)}
+        write_json_atomic(path, {**saved, **patch})
+    return read_prefs(path)
 
 
 def set_current(folder: Path) -> None:

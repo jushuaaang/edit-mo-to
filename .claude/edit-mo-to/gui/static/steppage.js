@@ -12,12 +12,11 @@
 // not started), an `upload`, or an `action` for buttons that change files (Claude acts on them). Every string from
 // job data, the inbox, outputs or file names reaches the DOM as text through h().
 import { h, chip, stepChip, gateBar, askBox, table, pendingChip, toast, dropZone, copyButton, stepTitle, previousStep,
-  STEPS, STALE_TEXT } from "./ui.js";
+  STEPS, staleText } from "./ui.js";
 import { t } from "./words.js";
 import { nowStrip } from "./nextstep.js";
 
 export const CAPCUT_Q = "capcut_closed";
-const NOT_LISTENING = "Claude isn't listening. Your answer is saved; it's picked up when Claude next checks, or type 'go' in chat.";
 
 // ---------- reading the job ----------
 
@@ -50,9 +49,8 @@ export function gateAnswer(data, gate, qid) {
 
 // ---------- sending ----------
 
-const sentText = (data, ev) => (ev?.early ? "Saved for later. Claude asks you to confirm it when it gets to this step."
-  : data?.listening ? "Sent. Claude is listening." : "Saved. Claude reads it when it next checks.");
-export const waitingText = (data) => (data?.listening ? "Sent. Claude is on it." : "Saved, waiting for Claude");
+const sentText = (data, ev) => t(ev?.early ? "sp.saved_early" : data?.listening ? "common.sent_listening" : "common.saved_later");
+export const waitingText = (data) => t(data?.listening ? "common.on_it" : "common.saved_waiting");
 
 /** An input for this step: early while the step is not started (gate null, "early": true). */
 export function sendInput(ctx, data, step, id, value, type = "answer") {
@@ -69,9 +67,9 @@ export function answerGate(ctx, gate, qid, value) {
 /** The chip for a saved input: "Saved for later" (early), "Sent · waiting for Claude", "Claude has it". */
 export function savedChip(data, ev) {
   if (!ev) return null;
-  if (handled(data).has(ev.seq)) return chip("Claude has it", "ok");
-  if (ev.early) return chip("Saved for later", "opt");
-  return chip("Sent · waiting for Claude", "wait");
+  if (handled(data).has(ev.seq)) return chip(t("common.claude_has_it"), "ok");
+  if (ev.early) return chip(t("sp.saved_for_later"), "opt");
+  return chip(t("common.sent_waiting"), "wait");
 }
 
 // ---------- inputs ----------
@@ -91,7 +89,7 @@ export function textInput(ctx, data, step, id, label, opts = {}) {
   const attrs = { class: `f${opts.mono ? " mono" : ""}`, id: fid, "data-key": `in:${step}:${id}`, placeholder: opts.placeholder || "" };
   const box = opts.rows ? h("textarea", { ...attrs, rows: String(opts.rows) }, value) : h("input", { ...attrs, value, spellcheck: "false" });
   const note = h("div", { class: "msg", role: "status" });
-  const btn = h("button", { class: "btn sm pri", type: "button" }, opts.button || "Save");
+  const btn = h("button", { class: "btn sm pri", type: "button" }, opts.button || t("common.save"));
   btn.addEventListener("click", async () => {
     const v = box.value.trim();
     if (!v) { box.focus(); return; }
@@ -102,7 +100,7 @@ export function textInput(ctx, data, step, id, label, opts = {}) {
       note.textContent = sentText(data, sent);
     } catch (e) {
       note.className = "msg err";
-      note.textContent = e.message || "Not sent. Try again.";
+      note.textContent = e.message || t("common.not_sent");
     } finally {
       btn.disabled = false;
     }
@@ -115,7 +113,7 @@ export function textInput(ctx, data, step, id, label, opts = {}) {
  *  opts: {current (a value already on the job card), answeredNote}. When the open gate asks the same question,
  *  the gate bar asks it and this shows a pointer instead. */
 export function choiceInput(ctx, data, step, id, label, options, opts = {}) {
-  if (gateAsks(data, step, id)) return field(label, null, null, h("p", { class: "hint" }, "Answer it in Claude's question above."));
+  if (gateAsks(data, step, id)) return field(label, null, null, h("p", { class: "hint" }, t("sp.answer_above")));
   const last = lastInput(data, `${step}:${id}`);
   const ev = last && opts.ignore?.(last) ? null : last;   // `ignore`: an answer that no longer belongs (e.g. a model chosen for the other site)
   const cur = ev ? ev.value : opts.current;
@@ -127,14 +125,14 @@ export function choiceInput(ctx, data, step, id, label, options, opts = {}) {
         const sent = await sendInput(ctx, data, step, id, value);
         toast(sentText(data, sent));
       } catch (e) {
-        toast(e.message || "Not sent. Try again.");
+        toast(e.message || t("common.not_sent"));
       } finally {
         btns.forEach((b) => { b.disabled = false; });
       }
     },
   }, text));
   const saved = ev ? savedChip(data, ev) : opts.current !== undefined && opts.current !== null && opts.current !== ""
-    ? chip(opts.answeredNote || "already answered", "ok") : null;
+    ? chip(opts.answeredNote || t("sp.already_answered"), "ok") : null;
   return field(label, null, saved, h("div", { class: "row", role: "group", "aria-label": label }, btns));
 }
 
@@ -152,7 +150,7 @@ export function uploadInput(ctx, data, step, kind, label) {
   return field(label, null, early ? savedChip(data, ev) : null,
     dropZone(kind, ctx, { label, onDone: async (res) => {
       if (!early) return;
-      try { await sendInput(ctx, data, step, "upload", res.path, "upload"); } catch (e) { toast(e.message || "Not saved. Try again."); }
+      try { await sendInput(ctx, data, step, "upload", res.path, "upload"); } catch (e) { toast(e.message || t("common.not_saved_try")); }
     } }),
     files.length ? h("ul", { class: "files" }, files.map((e) => h("li", { title: e.value },
       h("span", { class: "mono" }, baseName(e.value)), early ? null : savedChip(data, e)))) : null);
@@ -171,7 +169,7 @@ export function actionButton(ctx, data, step, target, label, opts = {}) {
       await ctx.send({ type: "action", step, target, value });
       note.textContent = waitingText(data);
     } catch (e) {
-      note.textContent = e.message || "Not sent. Try again.";
+      note.textContent = e.message || t("common.not_sent");
     } finally {
       btn.disabled = false;
     }
@@ -188,7 +186,7 @@ export async function sendEdit(ctx, step, target, value) {
 
 /** "You" steps: what to do outside the app and where the file goes. */
 export function youLine(text) {
-  return h("div", { class: "banner you" }, chip("You", "you"), h("span", {}, text));
+  return h("div", { class: "banner you" }, chip(t("tag.you"), "you"), h("span", {}, text));
 }
 
 /** The red "Quit CapCut" banner while the open gate asks `capcut_closed`. Its button checks /api/capcut first;
@@ -199,37 +197,37 @@ export function capcutBanner(ctx, data, step) {
   if (!q) return null;
   const sent = gateAnswer(data, gate, q.id);
   const status = h("span", { class: "hint", role: "status" });
-  const btn = h("button", { class: "btn pri", type: "button" }, "CapCut is closed");
+  const btn = h("button", { class: "btn pri", type: "button" }, t("sp.capcut_closed"));
   const answer = async (value) => {
     try {
       const ev = await answerGate(ctx, gate, q.id, value);
       btn.disabled = true;
-      status.textContent = ev?.stale ? STALE_TEXT : "Sent · waiting for Claude";
+      status.textContent = ev?.stale ? staleText() : t("common.sent_waiting");
     } catch (e) {
-      status.textContent = e.message || "Not sent. Try again.";
+      status.textContent = e.message || t("common.not_sent");
       btn.disabled = false;
     }
   };
   btn.addEventListener("click", async () => {
     btn.disabled = true;
-    status.textContent = "Checking…";
+    status.textContent = t("common.checking");
     try {
       const r = await ctx.api("/api/capcut");
       if (r?.running) {
-        status.textContent = "CapCut is still running.";
+        status.textContent = t("sp.capcut_running");
         btn.disabled = false;
         ctx.openDialog("capcut", { onClosed: () => answer(true), onCancel: () => answer("cancel") });
       } else {
         await answer(true);
       }
     } catch (e) {
-      status.textContent = e.message || "Could not check CapCut. Try again.";
+      status.textContent = e.message || t("sp.capcut_check_failed");
       btn.disabled = false;
     }
   });
   return h("div", { class: "banner err capcut", role: "alert" },
-    h("div", {}, h("b", {}, "Quit CapCut completely before Claude writes"), h("div", { class: "hint" }, q.why || q.text)),
-    sent ? h("span", { class: "row" }, chip(sent.value === "cancel" ? "Change cancelled" : "Sent · waiting for Claude", "wait"))
+    h("div", {}, h("b", {}, t("sp.capcut_quit")), h("div", { class: "hint" }, q.why || q.text)),
+    sent ? h("span", { class: "row" }, chip(t(sent.value === "cancel" ? "sp.change_cancelled" : "common.sent_waiting"), "wait"))
       : h("span", { class: "row" }, btn, status));
 }
 
@@ -240,7 +238,7 @@ export function outputTables(ctx, data, step, opts = {}) {
   for (const [kind, o] of Object.entries(outputsOf(data, step))) {
     if (skip.has(kind) || (opts.only && !opts.only(kind))) continue;
     if (o === null) {
-      out.push(h("section", { class: "card" }, h("p", { class: "hint" }, `Claude's ${kind} output could not be read.`)));
+      out.push(h("section", { class: "card" }, h("p", { class: "hint" }, t("sp.output_unreadable", { kind }))));
     } else if (isTable(o)) {
       out.push(table(o, ctx, opts.actions ? { actions: (r) => opts.actions(r, kind, o) } : {}));
     }
@@ -255,7 +253,7 @@ export const promptText = (row) => (typeof row?.prompt === "string" && row.promp
 /** Step 6's prompt rows by id, across every prompts output (one per timeline). */
 export function promptsById(data) {
   const by = new Map();
-  for (const t of Object.values(data?.outputs?.prompts || {})) if (isTable(t)) t.rows.forEach((r) => by.set(String(r.id), r));
+  for (const tb of Object.values(data?.outputs?.prompts || {})) if (isTable(tb)) tb.rows.forEach((r) => by.set(String(r.id), r));
   return by;
 }
 
@@ -275,28 +273,27 @@ export function stepPage(root, step, data, ctx, parts = {}) {
   const answeredSome = gate && (gate.questions || []).some((q) => gateAnswer(data, gate, q.id));
   let content;
   if (st === "pending" && data?.early?.[step]) {
-    content = [h("section", { class: "card early" }, h("div", { class: "row spread" }, h("h3", {}, "You can do this now"),
-      chip("Open now", "opt")),
-    h("p", { class: "hint" }, "Claude hasn't reached this step yet. What you save here waits for it; when Claude gets here it "
-      + "asks you to confirm it instead of asking again."),
+    content = [h("section", { class: "card early" }, h("div", { class: "row spread" }, h("h3", {}, t("sp.early_h")),
+      chip(t("tag.open"), "opt")),
+    h("p", { class: "hint" }, t("sp.early_p")),
     h("div", { class: "stack" }, parts.early ? parts.early() : []))];
   } else if (st === "pending") {
     const prev = previousStep(step, job);
-    content = [h("section", { class: "card coming" }, h("h2", {}, prev ? `Waits for: ${stepTitle(prev)}` : "Not started"),
-      h("p", {}, `Claude opens ${stepTitle(step)} when it gets here. You can still write to Claude about it below.`))];
+    content = [h("section", { class: "card coming" }, h("h2", {}, prev ? t("app.waits_for", { step: stepTitle(prev) }) : t("sp.not_started")),
+      h("p", {}, t("sp.not_started_p", { step: stepTitle(step) })))];
   } else {
     content = parts.body ? parts.body() : [];
   }
   root.append(...[  // the DOM's append stringifies null ("null" text), so the absent parts are filtered out
     nowStrip(data, "page"),
-    h("div", { class: "crumbs" }, `${name} · Step ${STEPS.indexOf(step) + 1}`),
+    h("div", { class: "crumbs" }, t("page.crumb", { name, n: STEPS.indexOf(step) + 1 })),
     h("div", { class: "head" }, h("div", {}, h("h1", {}, stepTitle(step)),
       h("p", { class: "why" }, h("span", { class: "sr" }, `${t("page.why_label")}: `), t(`why.${step}`), " ", h("span", { class: "takes" }, t(`time.${step}`))),
       job?.steps?.[step]?.note ? h("p", {}, job.steps[step].note) : null), stepChip(st)),
     parts.you ? youLine(parts.you) : null,
     shown ? gateBar(shown, ctx, parts.labels || {}) : null,
     capcutBanner(ctx, data, step),
-    answeredSome && !data?.listening ? h("div", { class: "banner wait", role: "status" }, h("span", {}, NOT_LISTENING)) : null,
+    answeredSome && !data?.listening ? h("div", { class: "banner wait", role: "status" }, h("span", {}, t("sp.not_listening"))) : null,
     h("div", { class: "stack" }, content),
     askBox(step, data, ctx)].filter(Boolean));
 }

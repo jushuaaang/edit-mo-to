@@ -50,6 +50,18 @@ def _js_files():
     return sorted(STATIC.glob("*.js")) + sorted((STATIC / "pages").glob("*.js"))
 
 
+def _x(text):
+    """A file's text plus the English words of every word key it uses (Task B2 moved the app's words to words.js),
+    so a check for a visible phrase still finds it."""
+    import json as j
+    import re as r
+    raw = (STATIC / "words.js").read_text(encoding="utf-8")
+    en = j.loads(raw.split("/* WORDS-START */", 1)[1].split("/* WORDS-END */", 1)[0].strip()
+                 .removeprefix("export const WORDS =").strip().removesuffix(";"))["en"]
+    extra = [en[g][k] for g, k in r.findall(r'["`]([a-z_]+)\.([a-z_]+)["`]', text) if g in en and k in en[g]]
+    return text + "\n" + "\n".join(extra)
+
+
 def test_index_and_assets_served(base):
     status, ctype, body = _get(base + "/")
     assert status == 200 and "text/html" in ctype and b'type="module"' in body
@@ -99,18 +111,18 @@ def test_no_external_network_at_runtime():
 
 
 def test_shell_contract():
-    app = (STATIC / "app.js").read_text(encoding="utf-8") + (STATIC / "index.html").read_text(encoding="utf-8")
+    app = _x((STATIC / "app.js").read_text(encoding="utf-8") + (STATIC / "index.html").read_text(encoding="utf-8"))
     for needle in ("#/settings", "/api/job", "If-None-Match", "1500", "This page is coming",
                    "Claude is listening", "Claude isn't listening. Your message is saved; it's picked up when "
                    "Claude next checks, or type 'go' in chat. If Claude asked for permission, answer it in chat.",
                    "Tell Claude anything"):
         assert needle in app, needle
-    ui = (STATIC / "ui.js").read_text(encoding="utf-8")
+    ui = _x((STATIC / "ui.js").read_text(encoding="utf-8"))
     for name in ("chip", "gateBar", "askBox", "table", "dropZone", "copyButton", "pendingChip", "dialog"):
         assert f"export function {name}(" in ui, name
     assert "Sent · waiting for Claude" in ui
     assert "Tell Claude about this step" in ui
-    settings = (STATIC / "pages" / "settings.js").read_text(encoding="utf-8")
+    settings = _x((STATIC / "pages" / "settings.js").read_text(encoding="utf-8"))
     for needle in ("Report a bug", "Suggest an improvement", "Send to Joshua", "/api/feedback", "issue_url"):
         assert needle in settings, needle
 
@@ -155,13 +167,13 @@ def test_step_pages_and_dialogs_served(base):
 
 
 def test_brief_page_has_one_instructions_box():
-    brief = (STATIC / "pages" / "brief.js").read_text(encoding="utf-8")
+    brief = _x((STATIC / "pages" / "brief.js").read_text(encoding="utf-8"))
     assert "Additional instructions" in brief
     assert "Specific Instructions".lower() not in brief.lower()
 
 
 def test_dialogs_cover_the_spec_list():
-    text = (STATIC / "dialogs.js").read_text(encoding="utf-8")
+    text = _x((STATIC / "dialogs.js").read_text(encoding="utf-8"))
     assert "export function open(" in text and "/api/new" in text
     for name in ("new", "capcut", "name", "contact", "oldvo", "inplace", "learn"):
         assert f'{name}:' in text or f'"{name}"' in text, name
@@ -171,7 +183,7 @@ def test_dialogs_cover_the_spec_list():
 
 
 def test_carry_overs_in_shell():
-    ui = (STATIC / "ui.js").read_text(encoding="utf-8")
+    ui = _x((STATIC / "ui.js").read_text(encoding="utf-8"))
     assert "That question closed; Claude asked something new" in ui
     assert "upload_kind" not in ui and "upload_id" not in ui
     dash = (STATIC / "pages" / "dashboard.js").read_text(encoding="utf-8")
@@ -179,20 +191,21 @@ def test_carry_overs_in_shell():
     css = (STATIC / "app.css").read_text(encoding="utf-8")
     copied = next(l for l in css.splitlines() if l.startswith(".btn.copied"))
     assert "#" not in copied
-    app = (STATIC / "app.js").read_text(encoding="utf-8")
+    app = _x((STATIC / "app.js").read_text(encoding="utf-8"))
     assert "Open now" in app and "Waits for: " in app
 
 
 def test_storyboard_js_has_approve_all_and_copy():
-    text = (STATIC / "pages" / "storyboard.js").read_text(encoding="utf-8")
+    text = _x((STATIC / "pages" / "storyboard.js").read_text(encoding="utf-8"))
     for needle in ("Approve all", "Approve anyway", "Wait for images", "Copy prompt", "prompt comes after the character sheet",
-                   "Open share page", "Needs image", 'dropZone("keyframe"', '"shot"'):
+                   "Open share page", 'dropZone("keyframe"', '"shot"', '"need"', "storyboard.f_${key}"):
         assert needle in text, needle
+    assert _words()["storyboard"]["f_need"] == "Needs image"
     assert ".innerHTML" not in text and "html:" not in text  # storyboard.json reaches the DOM as text only
     # the approval question leaves the gate bar only when Approve all is drawn (board read, step body shown)
     assert "hide: q && approveAllDrawn(data) ? [q.id] : []" in text
     assert 'approveAllDrawn = (data) => Boolean(data?.storyboard) && stateOf(data, STEP) !== "pending"' in text
-    dialogs = (STATIC / "dialogs.js").read_text(encoding="utf-8")
+    dialogs = _x((STATIC / "dialogs.js").read_text(encoding="utf-8"))
     for needle in ("function shot(", "learn, shot }", "Request change", "Approve shot", "Choose file"):
         assert needle in dialogs + text, needle
     if shutil.which("node"):
@@ -243,8 +256,8 @@ def test_storyboard_final_review_fixes():
     assert "SB-${i + 1}" in (STATIC / "board.js").read_text(encoding="utf-8")  # a beat without an id keeps its card
     assert "keyframe_mtimes" in text  # the image cache-buster is the file's mtime
     assert "approvedEv" not in text  # "approved" only from beat.status
-    assert '"approval sent"' in text
-    assert '"character_sheet"' in text and "It's saved" in text
+    assert '"storyboard.st_sent"' in text and "approval sent" in _x(text)
+    assert '"character_sheet"' in text and "It's saved" in _x(text)
 
 
 def test_gate_duplicating_buttons_answer_the_gate():
@@ -259,7 +272,7 @@ def test_gate_duplicating_buttons_answer_the_gate():
 def test_export_always_checks_temp_en():
     text = _page("export.js")
     assert 'if (t === "removed" || t === "off"' not in text  # no skipped check
-    assert "Could not check: delete TEMP_EN_delete_me before export if present" in text
+    assert "Could not check: delete TEMP_EN_delete_me before export if present" in _x(text)
 
 
 def test_approval_sent_counts_only_unhandled_approves():
@@ -290,11 +303,16 @@ HELP_KEYS = ("temp_en", "a_roll", "b_roll", "keyframe", "timeline", "vo", "chara
              "prompt")
 
 
-def _words():
+def _all_words():
     text = (STATIC / "words.js").read_text(encoding="utf-8")
     body = text.split("/* WORDS-START */", 1)[1].split("/* WORDS-END */", 1)[0]
     body = body.strip().removeprefix("export const WORDS =").strip().removesuffix(";")
     return _json.loads(body)
+
+
+def _words():
+    """The English word list (WORDS.en)."""
+    return _all_words()["en"]
 
 
 def _has(words, key):
@@ -319,16 +337,17 @@ def test_words_js_served_and_parses(base):
 
 def test_every_word_key_used_in_static_js_exists():
     w = _words()
-    key = _re.compile(r'["`](' + "|".join(WORD_GROUPS) + r')\.([a-z_]+)["`]')
+    key = _re.compile(r'["`](' + "|".join(sorted(w)) + r')\.([a-z_]+)["`]')
     used = set()
     for p in _js_files():
         if p.name == "words.js":
             continue
         for g, k in key.findall(p.read_text(encoding="utf-8")):
             used.add(f"{g}.{k}")
-    assert len(used) > 40, sorted(used)
-    missing = sorted(k for k in used if not _has(w, k))
-    assert not missing, missing
+    assert len(used) > 250, len(used)
+    for lang in ("en", "tl"):
+        missing = sorted(k for k in used if not _has(_all_words()[lang], k))
+        assert not missing, (lang, missing)
 
 
 def test_every_step_has_a_title_a_why_line_and_a_time_guess():
@@ -338,7 +357,7 @@ def test_every_step_has_a_title_a_why_line_and_a_time_guess():
         assert w["time"][s].startswith("About "), s
     for k in HELP_KEYS:
         assert _has(w, f"help.{k}") and _has(w, f"word.{k}"), k
-    assert "2 seconds and 12 frames" in w["help"]["time"] and "30 frames = 1 second" in w["help"]["time_value"]
+    assert "2 seconds and 12 frames" in w["help"]["time"] and "30 frames = 1 second" in w["help"]["fps"]
     for group in ("why", "help"):  # plain words: no internal names
         text = " ".join(w[group].values()).lower()
         for name in ("plan_tools", "job.json", "gate", "generators.json", "sb-", "char-"):
@@ -445,3 +464,200 @@ def test_prompts_page_asks_the_model_for_any_site_with_models():
     assert "=== \"higgsfield\"" not in text and "=== 'higgsfield'" not in text
     assert "row.label" in text            # the question group reads "<site> model" from the table
     assert "ignore: stale" in text        # a model answered for the other site does not carry over when the site changes
+
+
+# --- Task B2: every app word in English and Taglish, the language switch, Start practice ---
+
+def _flat(d, pre=""):
+    out = {}
+    for k, v in d.items():
+        if isinstance(v, dict):
+            out.update(_flat(v, f"{pre}{k}."))
+        else:
+            out[f"{pre}{k}"] = v
+    return out
+
+
+def test_taglish_has_every_english_key_with_the_same_blanks():
+    """A missing `tl` key fails here, so the shipped app never falls back to English for a missing word."""
+    w = _all_words()
+    assert set(w) == {"en", "tl"}
+    en, tl = _flat(w["en"]), _flat(w["tl"])
+    assert sorted(set(en) - set(tl)) == [], "missing in tl"
+    assert sorted(set(tl) - set(en)) == [], "only in tl"
+    for k in en:
+        assert isinstance(tl[k], str) and tl[k].strip(), k
+        assert sorted(_re.findall(r"\{(\w+)\}", en[k])) == sorted(_re.findall(r"\{(\w+)\}", tl[k])), k
+    differs = sum(en[k] != tl[k] for k in en)
+    assert differs / len(en) > 0.6, f"only {differs} of {len(en)} lines differ: is the Taglish really there?"
+    for k in [k for k in en if k.startswith(("step.", "word.temp_en", "label.shot"))]:
+        assert "{" not in tl[k] or tl[k].count("{") == en[k].count("{"), k
+
+
+def test_t_picks_the_language_and_falls_back_to_english():
+    text = (STATIC / "words.js").read_text(encoding="utf-8")
+    for needle in ("export function setLang(", "export const getLang", "WORDS[lang]", "WORDS.en", "export function tEn(",
+                   "export function parts("):
+        assert needle in text, needle
+    assert "(30 frames = 1 second)" not in text.split("/* WORDS-END */", 1)[1]  # the fps note is a word too
+
+
+def test_prompts_for_video_sites_and_brand_never_translated():
+    tl = _flat(_all_words()["tl"])
+    joined = " ".join(tl.values())
+    for keep in ("Higgsfield", "CapCut", "TEMP_EN"):
+        assert keep in joined, keep
+    idx = (STATIC / "index.html").read_text(encoding="utf-8")
+    for brand in (">JC<", ">Edit Mo To<", "by Joshua Calonge", "Deuteronomy 8:18", VERSE):
+        assert brand in idx, brand
+    for line in idx.splitlines():   # branding and the verse carry no word key, so they never change
+        if any(b in line for b in ("by Joshua Calonge", "Deuteronomy", "Remember the Lord", ">JC<")):
+            assert "data-w" not in line, line
+
+
+def test_index_html_words_have_keys():
+    idx = (STATIC / "index.html").read_text(encoding="utf-8")
+    keys = _re.findall(r'data-w(?:-label|-ph)?="([a-z_]+\.[a-z_]+)"', idx)
+    assert len(keys) >= 15, keys
+    for k in keys:
+        assert _has(_words(), k) and _has(_all_words()["tl"], k), k
+    body = idx[idx.index("<body>"):]
+    body = _re.sub(r"<(script|style)[^>]*>.*?</\1>", "", body, flags=_re.S)
+    for m in _re.finditer(r">([^<>]*[A-Za-z][^<>]*)<", body):
+        text = m.group(1).strip()
+        if not text or text in ("JC", "Edit Mo To", "by Joshua Calonge", "Claude", "Deuteronomy 8:18") or "Remember the Lord" in text:
+            continue
+        before = body[:m.start() + 1]
+        tag = before[before.rindex("<"):]
+        assert "data-w=" in tag, f"index.html text without a word key: {text!r}"
+    for attr in ("aria-label", "placeholder"):
+        for m in _re.finditer(attr + r'="([^"]+)"', body):
+            if m.group(1) == "Edit Mo To":
+                continue
+            tag = body[body.rindex("<", 0, m.start()):body.index(">", m.start())]
+            assert ("data-w-label" if attr == "aria-label" else "data-w-ph") in tag, m.group(0)
+
+
+# string literals that are not words for the editor: CSS classes, routes, ids, event names, key names, formats ...
+NOT_WORDS = {"Enter", "Escape", "ArrowLeft", "ArrowRight", "Notification", "Content-Type", "If-None-Match",
+             "X-EMT-Token", "ETag", "INPUT", "TEXTAREA", "SELECT", "PUT", "POST", "GET", "Edit Mo To", "TEMP_EN",
+             "JC", "PASS", "FLAG", "OK", "Copy"}
+
+
+def _literals(code):
+    """The string literals of JS code (comments removed): "..." and '...' as is, `...` with ${...} parts removed."""
+    code = _re.sub(r"/\*.*?\*/", "", code, flags=_re.S)
+    out, i, n = [], 0, len(code)
+    while i < n:
+        c = code[i]
+        if c == "/" and code[i + 1:i + 2] == "/":
+            i = code.find("\n", i)
+            i = n if i < 0 else i
+            continue
+        if c == "/" and _re.search(r"(^|[(,=:\[!&|?{};]|return)\s*$", code[max(0, i - 12):i]):  # a regex literal
+            j, cls = i + 1, False
+            while j < n and (code[j] != "/" or cls):
+                if code[j] == "\\":
+                    j += 1
+                elif code[j] == "[":
+                    cls = True
+                elif code[j] == "]":
+                    cls = False
+                j += 1
+            i = j + 1
+            continue
+        if c in "\"'`":
+            j, buf, depth = i + 1, [], 0
+            while j < n and not (code[j] == c and depth == 0):
+                if code[j] == "\\":
+                    buf.append(code[j:j + 2])
+                    j += 2
+                    continue
+                if c == "`" and code[j:j + 2] == "${":
+                    depth += 1
+                    j += 2
+                    continue
+                if depth and code[j] == "}":
+                    depth -= 1
+                    j += 1
+                    continue
+                if not depth:
+                    buf.append(code[j])
+                j += 1
+            out.append("".join(buf))
+            i = j + 1
+            continue
+        i += 1
+    return out
+
+
+def _wordy(s):
+    """A literal that reads as words for the editor: a capitalised word, or two words, or a sentence."""
+    s = s.strip()
+    if not s or s in NOT_WORDS or _re.fullmatch(r"[a-z_]+(\.[a-z_]+)+", s):          # a word key
+        return False
+    if not _re.search(r"[A-Za-z]", s) or _re.fullmatch(r"\d+ [KMG]iB", s) or s.endswith("· Edit Mo To"):
+        return False                                                                  # "?", sizes, the brand
+    if _re.search(r"[/<>=#{};()]|^\.|^-|https?:|\.(js|json|png|html|css)$", s):     # routes, selectors, markup, files
+        return False
+    if _re.fullmatch(r"[a-z0-9_:\-]+( [a-z0-9_:\-]+)*", s) and " " in s and not s.endswith((".", "?", "…")):
+        return False                                                                  # CSS class lists: "btn sm pri"
+    return bool(_re.search(r"\b[A-Z][a-z]+", s) or _re.search(r"[a-z]+ [a-z]+", s) or s.endswith(("…", "?")))
+
+
+LITERAL_ALLOWED = {  # (file, literal): not the app's own words
+    ("app.js", "emt-k"), ("nextstep.js", "emt-notify-asked"),
+}
+
+
+def test_no_user_facing_literals_left_in_page_builders():
+    """Every word the editor reads comes from words.js through t(); literals left are classes, routes, ids, codes."""
+    bad = []
+    for p in _js_files():
+        if p.name == "words.js":
+            continue
+        for lit in _literals(p.read_text(encoding="utf-8")):
+            if _wordy(lit) and (p.name, lit) not in LITERAL_ALLOWED:
+                bad.append(f"{p.name}: {lit!r}")
+    assert not bad, "\n".join(bad)
+
+
+def test_language_switch_in_settings_and_auto():
+    settings = _page("settings.js")
+    for needle in ('"ui_lang"', '"auto"', '"en"', '"tl"', "settings.lang_h", 'role: "radio"', "savePrefs("):
+        assert needle in settings, needle
+    nxt = (STATIC / "nextstep.js").read_text(encoding="utf-8")
+    assert "ui_lang_detected" in nxt and 'ui_lang === "auto"' in nxt and "setLang(" in nxt
+    assert "export function onLangChange(" in nxt
+    app = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert "onLangChange(" in app and "applyStaticWords" in app      # a change re-renders at once, no reload
+    assert "loadPrefs(api)" in app[app.index("async function refreshCurrent"):app.index("function setFolder")]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node not on PATH")
+def test_t_switches_language_in_node():
+    """t() answers in the language setLang picked, falls back to English for a key Taglish lacks, never blank."""
+    script = """
+import { WORDS, t, tEn, setLang, getLang, timeTitle, listText } from "%s";
+const out = {};
+out.en = t("now.working", { step: "Storyboard" });
+out.changed = setLang("tl"); out.again = setLang("tl"); out.lang = getLang();
+out.tl = t("now.working", { step: "Storyboard" });
+out.tEn = tEn("practice.start");
+delete WORDS.tl.practice.start; out.fallback = t("practice.start");
+out.unknown = t("no.such_key");
+out.time = timeTitle("0:00–2:12");
+out.list = listText(["Shot 1", "Shot 2"]);
+setLang("tagalog"); out.other = getLang();
+console.log(JSON.stringify(out));
+""" % (STATIC / "words.js").as_uri()
+    r = subprocess.run(["node", "--input-type=module", "-e", script], capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    out = _json.loads(r.stdout)
+    assert out["en"] == "Claude is working on Storyboard. Nothing to do yet."
+    assert out["changed"] is True and out["again"] is False and out["lang"] == "tl"
+    assert out["tl"] == "Si Claude ang gumagawa ng Storyboard. Wala pang gagawin."
+    assert out["tEn"] == "Start practice" and out["fallback"] == "Start practice" and out["unknown"] == "no.such_key"
+    assert out["time"] == "0 segundo at 0 frames hanggang 2 segundo at 12 frames (30 frames = 1 segundo)"
+    assert out["list"] == "Shot 1 at Shot 2"
+    assert out["other"] == "en"   # only "tl" turns Taglish on; Claude maps Tagalog to tl before it gets here

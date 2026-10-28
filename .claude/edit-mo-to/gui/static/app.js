@@ -4,13 +4,16 @@
 // Pages:   pages/<name>.js exports render(root, data, ctx); it may return a cleanup function.
 //          data = the /api/job reply for the open video (or null), ctx = see ui.js header.
 //          A page whose module is not there yet shows "This page is coming".
+// Words:   every word comes from words.js (t). index.html's fixed words carry data-w / data-w-label / data-w-ph keys
+//          (applyStaticWords). When the language changes (Settings, or Claude's `job.py lang` seen on the prefs refresh
+//          every CURRENT_MS) the shell and the open page re-render at once, keeping what the editor typed.
 
 import { h, icon, stepChip, STEPS, stepTitle, relTime, gateBar, askBox, dialog, previousStep, helpTip } from "./ui.js";
-import { watchQuestion, titled, loadPrefs } from "./nextstep.js";
+import { watchQuestion, titled, loadPrefs, onLangChange } from "./nextstep.js";
+import { t, getLang } from "./words.js";
 
 const POLL_MS = 1500;
-const CURRENT_MS = 5000;
-const LISTENING_OFF = "Claude isn't listening. Your message is saved; it's picked up when Claude next checks, or type 'go' in chat. If Claude asked for permission, answer it in chat.";
+const CURRENT_MS = 5000;  // /api/current and this computer's prefs (the language) are read again this often
 
 // ---------- API ----------
 
@@ -45,7 +48,7 @@ async function request(path, opts = {}) {
       credentials: "same-origin", cache: "no-store" });
   } catch {
     setConn(false);
-    throw new ApiError(0, "The GUI server isn't answering. Is it still running?");
+    throw new ApiError(0, t("app.no_server"));
   }
   setConn(true);
   if (res.status === 401) showKeyProblem();
@@ -63,7 +66,7 @@ export async function api(path, opts = {}) {
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = null; }
-  if (!res.ok) throw new ApiError(res.status, data?.error || `The server said ${res.status}.`);
+  if (!res.ok) throw new ApiError(res.status, data?.error || t("app.server_said", { status: res.status }));
   return data;
 }
 
@@ -78,10 +81,10 @@ export function upload(query, file, onProgress) {
       let data = null;
       try { data = JSON.parse(xhr.responseText); } catch { data = null; }
       if (xhr.status >= 200 && xhr.status < 300) { kick(); resolve(data); } else {
-        reject(new ApiError(xhr.status, data?.error || `The upload was refused (${xhr.status}).`));
+        reject(new ApiError(xhr.status, data?.error || t("app.upload_refused", { status: xhr.status })));
       }
     };
-    xhr.onerror = () => reject(new ApiError(0, "The upload stopped. Check the file type and size, then try again."));
+    xhr.onerror = () => reject(new ApiError(0, t("app.upload_stopped")));
     xhr.send(file);
   });
 }
@@ -165,6 +168,7 @@ async function pollOnce(folder, my) {
 }
 
 async function refreshCurrent() {
+  loadPrefs(api);  // the language may have changed (Settings in another tab, or Claude's `job.py lang`)
   try {
     const cur = (await api("/api/current"))?.folder || null;
     if (cur !== state.current) {
@@ -186,7 +190,7 @@ function setFolder(folder) {
 // ---------- context for pages ----------
 
 async function sendEvent(folder, event) {
-  if (!folder) throw new ApiError(0, "Open a video first.");
+  if (!folder) throw new ApiError(0, t("app.open_first"));
   const ev = await api("/api/inbox", { body: { folder, event } });
   kick();
   return ev;
@@ -196,10 +200,9 @@ async function openDialog(name, args) {
   let mod = null;
   try { mod = await import("./dialogs.js"); } catch { mod = null; }
   if (mod?.open) return mod.open(name, args, makeCtx(state.folder));
-  const text = name === "new"
-    ? "<p>The New video form arrives in a later build. For now, start a new video with /edit-mo-to in Claude Code.</p>"
-    : "<p>This dialog arrives in a later build.</p>";
-  return dialog(name, text, [{ label: "Close", primary: true }], { title: name === "new" ? "New video" : name });
+  const text = t(name === "new" ? "app.dialog_new_coming" : "app.dialog_coming");
+  return dialog(name, h("p", {}, text), [{ label: t("common.close"), primary: true }],
+    { title: name === "new" ? t("dash.new_video") : name });
 }
 
 function makeCtx(folder) {
@@ -220,15 +223,28 @@ function makeCtx(folder) {
 function setConn(ok) {
   if (state.connected === ok) return;
   state.connected = ok;
+  drawConn();
+}
+
+function drawConn() {
+  if (state.connected === null) return;
+  const ok = state.connected;
   $("#conn").replaceChildren(h("span", { class: `dot ${ok ? "ok" : "err"}` }),
-    ok ? `Connected · ${location.host}` : "Not connected · retrying");
+    ok ? t("app.connected", { host: location.host }) : t("app.not_connected"));
+}
+
+/** index.html's fixed words in the current language (branding and the verse carry no key and never change). */
+function applyStaticWords() {
+  document.documentElement.lang = getLang() === "tl" ? "fil" : "en";
+  document.querySelectorAll("[data-w]").forEach((el) => { el.textContent = t(el.dataset.w); });
+  document.querySelectorAll("[data-w-label]").forEach((el) => el.setAttribute("aria-label", t(el.dataset.wLabel)));
+  document.querySelectorAll("[data-w-ph]").forEach((el) => el.setAttribute("placeholder", t(el.dataset.wPh)));
 }
 
 function showKeyProblem() {
   if ($("#key-problem")) return;
   $("#view").prepend(h("div", { class: "banner err", id: "key-problem", role: "alert" },
-    h("b", {}, "This page needs its key."),
-    h("span", {}, "Open the link the server printed (it ends in ?k=…), or start the GUI again from Claude Code.")));
+    h("b", {}, t("app.key_h")), h("span", {}, t("app.key_p"))));
 }
 
 function activeStep(job) {
@@ -245,27 +261,26 @@ function stepLink(step, i, job, route) {
   const prev = st === "pending" && !open ? previousStep(step, job) : null;
   const cls = optional ? "optional" : st;
   const n = st === "done" ? icon("check") : st === "error" ? "!" : String(i + 1);
-  const tag = st === "waiting" ? ["You", "you"] : st === "working" ? ["Working", "wait"] : st === "error" ? ["Error", "err"]
-    : st === "skipped" ? ["Skipped", "mute"] : optional ? ["Optional", "opt"] : open ? ["Open now", "open"] : null;
+  const tag = st === "waiting" ? ["tag.you", "you"] : st === "working" ? ["tag.working", "wait"] : st === "error" ? ["tag.error", "err"]
+    : st === "skipped" ? ["tag.skipped", "mute"] : optional ? ["tag.optional", "opt"] : open ? ["tag.open", "open"] : null;
   const current = route.page === "job" && route.step === step;
   return h("a", { href: jobHash(state.folder, step), class: cls, "aria-current": current ? "page" : null },
     h("span", { class: "n", "aria-hidden": "true" }, n),
-    h("span", { class: "label" }, stepTitle(step), prev ? h("small", { class: "sub" }, `Waits for: ${stepTitle(prev)}`) : null),
-    st === "done" ? h("span", { class: "sr" }, ", done") : null,
-    tag ? h("span", { class: `tag ${tag[1]}` }, tag[0]) : null);
+    h("span", { class: "label" }, stepTitle(step), prev ? h("small", { class: "sub" }, t("app.waits_for", { step: stepTitle(prev) })) : null),
+    st === "done" ? h("span", { class: "sr" }, t("app.sr_done")) : null,
+    tag ? h("span", { class: `tag ${tag[1]}` }, t(tag[0])) : null);
 }
 
 const CARD_HELP = { temp_en: "temp_en", vo: "vo", timelines: "timeline", generator: "model" };  // ⓘ after these
-const CARD_ORDER = [["client", "Client"], ["product", "Product"], ["style", "Style"], ["language", "Language"],
-  ["temp_en", "TEMP_EN"], ["folder", "Folder"], ["vo", "VO"], ["generator", "Generator"], ["timelines", "Timelines"],
-  ["project", "Project"]];
+const CARD_ORDER = ["client", "product", "style", "language", "temp_en", "folder", "vo", "generator", "timelines",
+  "project"];  // labels: WORDS.card.<key>; other keys Claude adds show under their own name
 
 function tempEn(value) {
   if (!value) return null;
-  if (value === "on") return ["On · delete before export", "warn"];
-  if (value.startsWith("partial:")) return [`On for ${value.slice(8)} · delete before export`, "warn"];
-  if (value === "removed") return ["Removed", ""];
-  if (value === "off") return ["Off", ""];
+  if (value === "on") return [t("card.temp_on"), "warn"];
+  if (value.startsWith("partial:")) return [t("card.temp_partial", { names: value.slice(8) }), "warn"];
+  if (value === "removed") return [t("card.temp_removed"), ""];
+  if (value === "off") return [t("card.temp_off"), ""];
   return [value, ""];
 }
 
@@ -274,17 +289,18 @@ function renderRail() {
   const card = job?.card || {};
   const dl = $("#jobcard");
   if (!job) {
-    dl.replaceChildren(h("dt", {}, "Job"), h("dd", { class: "none" }, state.folder ? "Loading…" : "No video open"));
+    dl.replaceChildren(h("dt", {}, t("card.job")), h("dd", { class: "none" }, t(state.folder ? "common.loading" : "shell.no_video")));
   } else {
-    const keys = [...CARD_ORDER, ...Object.keys(card).filter((k) => !CARD_ORDER.some(([c]) => c === k)).map((k) => [k, k])];
+    const keys = [...CARD_ORDER.map((k) => [k, t(`card.${k}`)]),
+      ...Object.keys(card).filter((k) => !CARD_ORDER.includes(k)).map((k) => [k, k])];
     dl.replaceChildren(...keys.flatMap(([k, label]) => {
       let v = card[k];
       if (Array.isArray(v)) v = v.join(", ");
       if (k === "temp_en") {
-        const t = tempEn(v);
-        return [h("dt", {}, label, helpTip("temp_en")), t ? h("dd", { class: t[1] || null }, t[0]) : h("dd", { class: "none" }, "Not set")];
+        const te = tempEn(v);
+        return [h("dt", {}, label, helpTip("temp_en")), te ? h("dd", { class: te[1] || null }, te[0]) : h("dd", { class: "none" }, t("card.not_set"))];
       }
-      return [h("dt", {}, label, CARD_HELP[k] ? helpTip(CARD_HELP[k]) : null), v ? h("dd", { class: k === "folder" ? "mono" : null }, String(v)) : h("dd", { class: "none" }, "Not yet")];
+      return [h("dt", {}, label, CARD_HELP[k] ? helpTip(CARD_HELP[k]) : null), v ? h("dd", { class: k === "folder" ? "mono" : null }, String(v)) : h("dd", { class: "none" }, t("card.not_yet"))];
     }));
   }
   const log = (job?.log || []).slice(-20).reverse();
@@ -292,13 +308,13 @@ function renderRail() {
     const m = /^\s*\[([a-z]+)\]\s*/.exec(e.text || "");
     const text = m ? `${stepTitle(m[1])} · ${e.text.slice(m[0].length)}` : e.text;
     return h("li", {}, h("time", { datetime: e.at, title: e.at }, relTime(e.at)), h("span", {}, text));
-  }) : [h("li", {}, job ? "Nothing yet." : "Open a video to see what Claude is doing.")]));
+  }) : [h("li", {}, t(job ? "common.nothing_yet" : "app.open_to_see"))]));
 
   const lis = state.data?.listening;
   $("#listening").className = `status${lis ? " on" : ""}`;
   $("#listening").replaceChildren(h("span", { class: `pulse${lis ? "" : " off"}`, "aria-hidden": "true" }),
-    h("span", {}, !state.folder ? "No video open. Open one on the Dashboard to talk to Claude about it."
-      : lis ? `Claude is listening · ${stepTitle(lis.step) || "this job"}` : LISTENING_OFF));
+    h("span", {}, !state.folder ? t("app.no_video_talk")
+      : lis ? t("app.listening", { step: stepTitle(lis.step) || t("app.this_job") }) : t("app.listening_off")));
   $("#job-send").disabled = !state.folder || !job;
 }
 
@@ -309,12 +325,12 @@ function renderShell() {
   });
   const job = state.data?.job;
   const name = state.folder ? state.folder.split("/").filter(Boolean).pop() : "";
-  $("#job-name").textContent = name || "No video open";
+  $("#job-name").textContent = name || t("shell.no_video");
   $("#job-name").title = state.folder || "";
   const steps = $("#steps");
   if (!job) {
-    const msg = !state.folder ? "Open a video on the Dashboard."
-      : state.jobError ? jobErrorText(state.jobError) : "Loading…";
+    const msg = !state.folder ? t("app.open_on_dash")
+      : state.jobError ? jobErrorText(state.jobError) : t("common.loading");
     steps.replaceChildren(h("p", { class: "empty" }, msg));
   } else {
     steps.replaceChildren(...STEPS.map((s, i) => stepLink(s, i, job, route)));
@@ -323,9 +339,9 @@ function renderShell() {
 }
 
 function jobErrorText(err) {
-  if (err.status === 404) return "This folder has no job yet. It appears once /edit-mo-to starts it.";
-  if (err.status === 403) return "That folder isn't a video folder (a direct subfolder of the root).";
-  return err.message || "This video could not be loaded.";
+  if (err.status === 404) return t("app.err_404");
+  if (err.status === 403) return t("app.err_403");
+  return err.message || t("app.err_load");
 }
 
 // ---------- pages ----------
@@ -349,9 +365,9 @@ function keepInputs(root, fn) {
   const main = $("#page"), top = main.scrollTop;
   fn();
   root.querySelectorAll("[data-key]").forEach((el) => {
-    const t = typed.get(el.dataset.key);
-    if (!t) return;
-    if ("checked" in t) el.checked = t.checked; else el.value = t.value;
+    const was = typed.get(el.dataset.key);
+    if (!was) return;
+    if ("checked" in was) el.checked = was.checked; else el.value = was.value;
   });
   if (focusKey) {
     const el = [...root.querySelectorAll("[data-key]")].find((e) => e.dataset.key === focusKey);
@@ -368,12 +384,11 @@ function placeholder(root, step, data, ctx) {
   const st = job?.steps?.[step]?.state || "pending";
   const name = ctx.folder.split("/").filter(Boolean).pop();
   root.append(...[  // filtered: the DOM's append would write a null as the text "null"
-    h("div", { class: "crumbs" }, `${name} · Step ${STEPS.indexOf(step) + 1}`),
+    h("div", { class: "crumbs" }, t("page.crumb", { name, n: STEPS.indexOf(step) + 1 })),
     h("div", { class: "head" }, h("div", {}, h("h1", {}, stepTitle(step)),
       job?.steps?.[step]?.note ? h("p", {}, job.steps[step].note) : null), stepChip(st)),
     job?.gate && job.gate.step === step ? gateBar(job.gate, ctx) : null,
-    h("section", { class: "card coming" }, h("h2", {}, "This page is coming"),
-      h("p", {}, `The full ${stepTitle(step)} page arrives in a later build. Claude's questions for this step show above when it asks, and you can write to Claude below.`)),
+    h("section", { class: "card coming" }, h("h2", {}, t("app.coming_h")), h("p", {}, t("app.coming_p", { step: stepTitle(step) }))),
     askBox(step, data, ctx)].filter(Boolean));
 }
 
@@ -388,31 +403,31 @@ async function renderPage() {
   const name = route.page === "job" ? route.step : route.page;
   if (route.page === "job" && !route.step) {
     if (state.data) location.replace(jobHash(state.folder, activeStep(state.data.job)));
-    else if (state.jobError) draw(() => errorCard(view, "This video can't be opened", jobErrorText(state.jobError)));
-    else draw(() => view.append(h("p", { class: "hint" }, "Loading…")));
+    else if (state.jobError) draw(() => errorCard(view, t("app.cant_open"), jobErrorText(state.jobError)));
+    else draw(() => view.append(h("p", { class: "hint" }, t("common.loading"))));
     return;
   }
   const mod = await loadModule(name);
   if (my !== renderSeq) return;
-  document.title = titled(`${route.page === "job" ? stepTitle(name) : route.page === "settings" ? "Settings" : "Dashboard"} · Edit Mo To`);
+  document.title = titled(`${route.page === "job" ? stepTitle(name) : t(route.page === "settings" ? "shell.title_settings" : "shell.dashboard")} · Edit Mo To`);
   draw(() => {
     const ctx = makeCtx(state.folder);
     if (route.page === "job" && !state.data) {
-      if (state.jobError) errorCard(view, "This video can't be opened", jobErrorText(state.jobError));
-      else view.append(h("p", { class: "hint" }, "Loading…"));
+      if (state.jobError) errorCard(view, t("app.cant_open"), jobErrorText(state.jobError));
+      else view.append(h("p", { class: "hint" }, t("common.loading")));
       return;
     }
     try {
       if (!mod?.render) {
         if (route.page === "job") placeholder(view, name, state.data, ctx);
-        else errorCard(view, "This page is coming", "It arrives in a later build.");
+        else errorCard(view, t("app.coming_h"), t("app.coming_later"));
       } else {
         const done = mod.render(view, state.data, ctx);
         cleanup = typeof done === "function" ? done : null;
       }
     } catch (e) {
       console.error(e);
-      errorCard(view, "This page could not be shown", e.message || String(e));
+      errorCard(view, t("app.page_error"), e.message || String(e));
     }
   });
 }
@@ -472,10 +487,10 @@ function setupRail() {
       await sendEvent(state.folder, { type: "message", step: null, text });
       ta.value = "";
       note.className = "msg ok";
-      note.textContent = state.data?.listening ? "Sent. Claude is listening." : "Saved. Claude reads it when it next checks.";
+      note.textContent = t(state.data?.listening ? "common.sent_listening" : "common.saved_later");
     } catch (e) {
       note.className = "msg err";
-      note.textContent = e.message || "Not sent. Try again in a moment.";
+      note.textContent = e.message || t("common.not_sent_moment");
     } finally {
       btn.disabled = !state.folder;
     }
@@ -488,10 +503,20 @@ function setupNavIcons() {
   document.querySelectorAll("[data-icon]").forEach((el) => el.append(icon(el.dataset.icon)));
 }
 
+/** The language changed: every word on screen again, now, keeping what the editor typed (draw keeps inputs). */
+function relabel() {
+  applyStaticWords();
+  drawConn();
+  renderShell();
+  renderPage();
+}
+
 async function start() {
   setupNavIcons();
   setupRail();
-  loadPrefs(api);
+  await loadPrefs(api);  // before the first render, so the page opens in the editor's language
+  applyStaticWords();
+  onLangChange(relabel);
   window.addEventListener("hashchange", onRoute);
   await refreshCurrent();
   onRoute();
