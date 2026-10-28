@@ -16,10 +16,12 @@ GUI server read the table through here, so no tool or page keeps its own copy of
                                               default's site when no site is given) not in `avoid_models`; never an
                                               avoided one (None when every candidate is). prefs: {avoid_models,
                                               default_model}; None reads this computer's GUI prefs ({tmp}/gui/prefs.json;
-                                              a missing file = no avoid list, no default)
+                                              a missing file = no avoid list, no default; a broken or unreadable one
+                                              raises PrefsError: fail closed)
 
 CLI:  generators.py pick [--site S]           prints the model Claude picks as "<site>:<model>" (exit 1: every model
-                                              is avoided; exit 2: unknown site)
+                                              is avoided; exit 2: unknown site; exit 3: the prefs file can't be read,
+                                              so ask the editor which model)
 """
 import json
 import os
@@ -203,19 +205,34 @@ def prefs_file() -> Path:
     return Path(tmp) / "gui" / "prefs.json"
 
 
+class PrefsError(ValueError):
+    """The prefs file exists but can't be read or makes no sense: Claude must not guess the avoid list."""
+
+
 def read_prefs(file: "Path | None" = None, path: Path = FILE) -> dict:
-    """{avoid_models, default_model} from the GUI prefs, known ids only; a missing or broken file gives no avoid list
-    and no default."""
+    """{avoid_models, default_model} from the GUI prefs, known ids only. A missing file gives no avoid list and no
+    default; a file that can't be read, isn't JSON, or holds a wrong type raises PrefsError (fail closed: reading it
+    as "no avoid list" could pick a model the editor avoids)."""
+    f = Path(file or prefs_file())
     try:
-        saved = json.loads(Path(file or prefs_file()).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        saved = {}
-    saved = saved if isinstance(saved, dict) else {}
+        raw = f.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return {"avoid_models": [], "default_model": None}
+    except OSError as e:
+        raise PrefsError(f"can't read {f}: {e}") from None
+    try:
+        saved = json.loads(raw)
+    except ValueError:
+        raise PrefsError(f"{f} is not valid JSON") from None
+    if not isinstance(saved, dict):
+        raise PrefsError(f"{f} is not a settings object")
+    avoid, default = saved.get("avoid_models", []), saved.get("default_model")
+    if not isinstance(avoid, list) or not all(isinstance(x, str) for x in avoid):
+        raise PrefsError(f"{f}: avoid_models is not a list of model ids")
+    if default is not None and not isinstance(default, str):
+        raise PrefsError(f"{f}: default_model is not a model id")
     ids = set(model_ids(path))
-    avoid = saved.get("avoid_models")
-    avoid = [x for x in avoid if isinstance(x, str) and x in ids] if isinstance(avoid, list) else []
-    default = saved.get("default_model")
-    return {"avoid_models": avoid, "default_model": default if isinstance(default, str) and default in ids else None}
+    return {"avoid_models": [x for x in avoid if x in ids], "default_model": default if default in ids else None}
 
 
 def site_key(site: str, path: Path = FILE) -> str:
@@ -249,6 +266,9 @@ def main(argv: list[str]) -> int:
         return 2
     try:
         got = pick_model(site=argv[2] if len(argv) == 3 else None)
+    except PrefsError as e:
+        print(f"can't read your model settings; ask the editor which model ({e})", file=sys.stderr)
+        return 3
     except ValueError as e:
         print(str(e), file=sys.stderr)
         return 2

@@ -784,3 +784,11 @@ def test_got_flagged_is_a_pending_action(api):
     data = api.json("GET", "/api/job" + _q(folder=folder))[1]
     hit = [e for e in data["pending"] if e["target"] == "prompts:AI-1:flagged"]
     assert hit and hit[0]["text"] == "Your prompt may violate our policies"
+
+
+def test_broken_prefs_file_highlights_no_pick(api):
+    """Fix round 1: a broken prefs file fails closed: no model is offered as Claude's default."""
+    (api.tmp / "gui").mkdir(exist_ok=True)
+    (api.tmp / "gui" / "prefs.json").write_text("{broken", encoding="utf-8")
+    g = api.json("GET", "/api/generators")[1]
+    assert g["picks"] is None and "google-flow" in g["generators"]

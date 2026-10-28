@@ -78,9 +78,7 @@ def test_read_prefs_missing_broken_and_unknown(tmp_path):
     f = tmp_path / "gui" / "prefs.json"
     assert gens.read_prefs(f) == {"avoid_models": [], "default_model": None}       # missing file
     f.parent.mkdir()
-    f.write_text("not json", encoding="utf-8")
-    assert gens.read_prefs(f) == {"avoid_models": [], "default_model": None}
-    f.write_text(json.dumps({"sound": False, "avoid_models": [*VEOS, "x:y", 3], "default_model": OMNI}), encoding="utf-8")
+    f.write_text(json.dumps({"sound": False, "avoid_models": [*VEOS, "x:y"], "default_model": OMNI}), encoding="utf-8")
     assert gens.read_prefs(f) == {"avoid_models": VEOS, "default_model": OMNI}     # only known ids
 
 
@@ -109,3 +107,28 @@ def test_pick_cli(tmp_path):
     r = _cli(tmp_path, "pick")
     assert r.returncode == 1 and "avoid" in r.stderr
     assert _cli(tmp_path, "pick", "--site", "nowhere").returncode == 2
+
+
+@pytest.mark.parametrize("raw", ["not json", "[1, 2]", '{"avoid_models": "google-flow:veo-3.1-fast"}', "",
+                                 '{"avoid_models": ["higgsfield:veo-3.1", 3]}', '{"default_model": 7}'])
+def test_broken_prefs_fail_closed(tmp_path, monkeypatch, raw):
+    """Fix round 1: a broken prefs file never reads as "no avoid list" (that could pick an avoided model)."""
+    f = tmp_path / "gui" / "prefs.json"
+    f.parent.mkdir()
+    f.write_text(raw, encoding="utf-8")
+    with pytest.raises(gens.PrefsError):
+        gens.read_prefs(f)
+    monkeypatch.setenv("EDIT_MO_TO_GUI_TMP", str(tmp_path))
+    with pytest.raises(gens.PrefsError):
+        gens.pick_model()
+    r = _cli(tmp_path, "pick")
+    assert r.returncode == 3 and r.stdout == ""
+    assert "can't read your model settings; ask the editor which model" in r.stderr
+
+
+def test_unreadable_prefs_fail_closed(tmp_path, monkeypatch):
+    (tmp_path / "gui" / "prefs.json").mkdir(parents=True)   # a folder where the file should be: unreadable
+    monkeypatch.setenv("EDIT_MO_TO_GUI_TMP", str(tmp_path))
+    with pytest.raises(gens.PrefsError):
+        gens.pick_model()
+    assert _cli(tmp_path, "pick").returncode == 3

@@ -257,3 +257,22 @@ def test_safe_wording_section_in_the_contract():
     assert "## Safe wording" in c and "safe-words.json" in c
     for w in ("famous", "children", "skin", "cure", "blood", "start frame"):
         assert w in c.split("## Safe wording", 1)[1].split("\n## ", 1)[0], w
+
+
+def test_no_personal_model_defaults_in_shared_files():
+    """Task H3 fix: an editor's default model and avoid list live only in their own prefs ({tmp}/gui/prefs.json),
+    never in a shared doc Claude copies gate JSON from (the spec records the decision; it is not copied from)."""
+    import json as _j
+    ids = [m for s in _j.loads((CLAUDE / "edit-mo-to" / "generators.json").read_text(encoding="utf-8"))["generators"].values()
+           for m in s.get("models", {})]
+    tracked = subprocess.run(["git", "ls-files", "-z", "--", "docs/*.md"], cwd=ROOT, capture_output=True, text=True,
+                             check=True).stdout.split("\0")
+    files = [p for p in _docs() + [ROOT / f for f in tracked if f] if "superpowers" not in p.as_posix()]
+    files.append(CLAUDE / "edit-mo-to" / "generators.json")
+    for p in files:
+        t = _text(p)
+        for m in ids:
+            assert f'"default": "{m}"' not in t, (p.name, m)
+            assert f'"default_model": "' not in t, p.name
+        assert '"avoid_models": [' not in t or '"avoid_models": []' in t, p.name
+    assert '"default": "<model from generators.py pick --site google-flow, after the colon>"' in _text(STEPS)

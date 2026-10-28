@@ -232,15 +232,19 @@ def _generators(tmp: Path) -> "dict | None":
     of their own), plus `picks`: the model Claude picks per site and overall from this computer's prefs
     (generators.pick_model: the default unless avoided, never an avoided model; the page highlights it)."""
     try:
-        prefs = js.read_prefs(Path(tmp) / "gui" / "prefs.json")
         t = generators.load()
+        safe = generators.strictest()   # the limits used for an unknown model
+    except (OSError, ValueError):
+        return None
+    try:   # a broken prefs file fails closed: no pick is offered (never "no avoid list")
+        prefs = generators.read_prefs(Path(tmp) / "gui" / "prefs.json")
         picks = {"default": generators.pick_model(prefs)}
         for site in t["generators"]:
             got = generators.pick_model(prefs, site)
             picks[site] = got.split(":", 1)[1] if got else None
-        return {**t, "safe": generators.strictest(), "picks": picks}  # safe: the limits used for an unknown model
-    except (OSError, ValueError):
-        return None
+    except ValueError:
+        picks = None
+    return {**t, "safe": safe, "picks": picks}
 
 
 def r_generators(h, q):

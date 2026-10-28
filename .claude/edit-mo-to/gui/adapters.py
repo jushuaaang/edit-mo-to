@@ -89,13 +89,15 @@ def clips(data: dict) -> dict:
 
 def prompts(data: dict) -> dict:
     """Extra row field `prompt`: the full prompt exactly as the chat deliverable shows it (plan_tools._block, the
-    fenced block per prompt in render_prompts); None for a picked client clip, which has no prompt."""
+    fenced block per prompt in render_prompts); None for a picked client clip, which has no prompt. A prompt's own
+    `note` (Claude's, e.g. "rewritten after a flag") becomes the row's note; it never enters the prompt text."""
     import plan_tools  # the one renderer of prompt text (kept lazy: only this adapter needs the tools)
     rows = []
     for p in data.get("prompts") or []:
         vo = f"{p['vo_in_f']}-{p['vo_out_f']}f" if "vo_in_f" in p and "vo_out_f" in p else ""
         what = p.get("action") or p.get("subject") or ""
-        row = _row(p.get("id"), [p.get("id"), p.get("line"), vo, p.get("gen_len_s"), what, p.get("dialogue")], None)
+        note = p.get("note") if isinstance(p.get("note"), str) else None   # e.g. "rewritten after a flag"
+        row = _row(p.get("id"), [p.get("id"), p.get("line"), vo, p.get("gen_len_s"), what, p.get("dialogue")], None, note)
         row["prompt"] = None if plan_tools._kind(p) == plan_tools.CLIENT else plan_tools._block(data, p)
         rows.append(row)
     return _table("Generation prompts", ["Id", "Line", "VO span", "Length (s)", "Shot", "Dialogue"], rows)

@@ -114,3 +114,18 @@ def test_clip_rows_carry_sheet_and_match_name():
     assert a["match"] == "V01_L01" and a["sheet"] == "/tmp/qc/b1/flow 01_sheet.jpg"
     assert b["match"] is None and b["sheet"] == "/tmp/qc/b1/x_sheet.jpg"
     assert adapters.ADAPTERS["clips"]({"clips": data["clips"]})["rows"][0]["sheet"] is None  # no images folder
+
+
+def test_prompt_row_carries_the_rewritten_after_a_flag_note():
+    """Task H3 fix: a prompt Claude rewrote after "Got flagged" keeps its `note` on the prompts page row."""
+    import plan_tools as pt
+    spec = {"style": "broll", "generator": "google-flow", "locks": {"realism": "REALISM", "notext": "NO TEXT"},
+            "prompts": [{"id": "AI-1", "line": 1, "vo_in_f": 0, "vo_out_f": 120, "gen_len_s": 4, "subject": "a jar",
+                         "locks": ["realism", "notext"], "note": "rewritten after a flag"},
+                        {"id": "AI-2", "line": 2, "vo_in_f": 120, "vo_out_f": 240, "gen_len_s": 4, "subject": "a cup",
+                         "locks": ["realism", "notext"]}]}
+    rows = {r["id"]: r for r in adapters.ADAPTERS["prompts"](spec)["rows"]}
+    assert rows["AI-1"]["note"] == "rewritten after a flag"
+    assert rows["AI-2"]["note"] is None
+    assert "rewritten" not in rows["AI-1"]["prompt"]           # the note never goes into the prompt text
+    assert "rewritten" not in pt.render_prompts(spec, ["a", "b"], None)

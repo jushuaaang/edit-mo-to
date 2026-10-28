@@ -43,7 +43,7 @@
 Video and image sites block some prompts with a vague reason and may still charge the credits. Write every prompt so it is not blocked:
 - No real or famous people's names, no famous characters, and no other brands or their logos (only the client's product).
 - No children unless the brief needs them; then keep it everyday and fully clothed.
-- Neutral body words: never "skin", "bikini", "undress" or "body" as the subject. Describe the action instead ("hand applies cream to the arm").
+- Neutral body words: no "bare skin", "skin close-up" or "body shot", and never "bikini", "undress" or "naked". Plain lock words such as "skin tone" are fine. Describe the action instead ("hand applies cream to the arm").
 - No medical or "cure" claims in the picture ("she smiles after her morning routine", not "it cures acne").
 - No blood, weapons or violence.
 - Never a real person's photo as a start frame unless it is the client's own talent.
