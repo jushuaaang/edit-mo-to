@@ -259,7 +259,8 @@ export { copyButton };
 
 // ---------- the page frame ----------
 
-/** Draw a step page. parts: {you: text, early: () => Node[], body: () => Node[], hide: [gate question ids the page asks]} */
+/** Draw a step page. parts: {you: text, early: () => Node[], body: () => Node[], hide: [gate question ids the page asks],
+ *  labels: {question id: {yes, no}} (a confirm's button words in the gate bar; no: null drops No)} */
 export function stepPage(root, step, data, ctx, parts = {}) {
   const job = data?.job;
   const st = stateOf(data, step);
@@ -287,7 +288,7 @@ export function stepPage(root, step, data, ctx, parts = {}) {
     h("div", { class: "head" }, h("div", {}, h("h1", {}, stepTitle(step)),
       job?.steps?.[step]?.note ? h("p", {}, job.steps[step].note) : null), stepChip(st)),
     parts.you ? youLine(parts.you) : null,
-    shown ? gateBar(shown, ctx) : null,
+    shown ? gateBar(shown, ctx, parts.labels || {}) : null,
     capcutBanner(ctx, data, step),
     answeredSome && !data?.listening ? h("div", { class: "banner wait", role: "status" }, h("span", {}, NOT_LISTENING)) : null,
     h("div", { class: "stack" }, content),

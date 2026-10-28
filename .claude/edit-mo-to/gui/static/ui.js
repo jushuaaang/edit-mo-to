@@ -261,7 +261,7 @@ function answerText(value, file = false) {
   return file ? s.split(/[\\/]/).pop() : s;  // a file answer is a path: show its name
 }
 
-function questionControls(gate, q, ctx, done) {
+function questionControls(gate, q, ctx, done, label) {
   const box = h("div", { class: "opts" });
   const answer = async (value, controls) => {
     controls.forEach((c) => { c.disabled = true; });
@@ -287,10 +287,12 @@ function questionControls(gate, q, ctx, done) {
     }, o.label));
     box.append(...btns);
   } else if (q.kind === "confirm") {
+    // a page may relabel a confirm (labels: {yes, no}); no: null drops the No button ("It's saved" has no "no")
     const btns = [
-      h("button", { class: "btn pri", type: "button", "data-value": "true", onclick: () => answer(true, btns) }, "Yes"),
-      h("button", { class: "btn", type: "button", "data-value": "false", onclick: () => answer(false, btns) }, "No"),
-    ];
+      h("button", { class: "btn pri", type: "button", "data-value": "true", onclick: () => answer(true, btns) }, label?.yes || "Yes"),
+      label?.no === null ? null
+        : h("button", { class: "btn", type: "button", "data-value": "false", onclick: () => answer(false, btns) }, label?.no || "No"),
+    ].filter(Boolean);
     box.append(...btns);
   } else if (q.kind === "multi") {
     const defaults = Array.isArray(q.default) ? q.default : [];
@@ -324,7 +326,7 @@ function questionControls(gate, q, ctx, done) {
 }
 
 /** "Waiting on you: …" with every question of the open gate; each answer is an `answer` event. */
-export function gateBar(gate, ctx) {
+export function gateBar(gate, ctx, labels = {}) {
   const bar = h("section", { class: "gatebar", "aria-label": "Waiting on you" });
   bar.append(h("div", { class: "gh" }, h("div", { class: "ic", "aria-hidden": "true" }, "!"),
     h("div", {}, h("b", {}, `Waiting on you: ${gate.title}`), gate.detail ? h("span", {}, gate.detail) : null)));
@@ -347,7 +349,7 @@ export function gateBar(gate, ctx) {
           h("span", { class: "hint" }, ans.stale ? `Not counted: ${answerText(ans.value, q.kind === "file")}` : `Your answer: ${answerText(ans.value, q.kind === "file")}`)));
       }
     };
-    wrap.append(questionControls(gate, q, ctx, showSent));
+    wrap.append(questionControls(gate, q, ctx, showSent, labels[q.id]));
     const ans = answered(ctx, gate, q);
     if (ans) showSent(ans);
     bar.append(wrap);

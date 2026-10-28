@@ -433,11 +433,20 @@ def test_checks_routes(api, monkeypatch):
     monkeypatch.setattr(checks, "setup", lambda: [{"name": "x", "ok": True, "detail": "ok"}])
     monkeypatch.setattr(checks, "capcut_running", lambda: False)
     monkeypatch.setattr(checks, "temp_en_timelines", lambda p: ["Hook A"])
+    monkeypatch.setattr(checks.capcut_project, "list_timelines", lambda p: [{"name": "Hook A"}])
     assert api.json("GET", "/api/checks")[1] == [{"name": "x", "ok": True, "detail": "ok"}]
     assert api.json("GET", "/api/capcut")[1] == {"running": False}
     proj = api.root / "proj"
     proj.mkdir()
     assert api.json("GET", "/api/temp-en" + _q(project=proj))[1] == {"timelines": ["Hook A"]}
+
+
+def test_temp_en_missing_project_is_an_error_not_clean(api):
+    """A project path that isn't there must not read as "no TEMP_EN left" (the Export page shows "Could not check")."""
+    status, data = api.json("GET", "/api/temp-en" + _q(project=api.root / "no such project"))
+    assert status == 404 and "error" in data
+    (api.root / "empty").mkdir()  # a folder that is no CapCut project
+    assert api.json("GET", "/api/temp-en" + _q(project=api.root / "empty"))[0] == 404
 
 
 def test_feedback_saved_and_issue_url(api):

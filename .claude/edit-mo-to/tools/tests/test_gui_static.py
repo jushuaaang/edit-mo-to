@@ -229,3 +229,33 @@ def test_demo_job(tmp_path, monkeypatch):
     outputs = job["outputs"]
     assert any(outputs.get(s) for s in outputs)
     assert js.get_current() == folder.as_posix()
+
+
+def _page(name):
+    return (STATIC / "pages" / name).read_text(encoding="utf-8")
+
+
+def test_storyboard_final_review_fixes():
+    text = _page("storyboard.js")
+    assert "/approv/i" not in text  # the approval question is found by id only, never by its wording
+    assert 'qs.find((q) => q.id === "approve") || null' in text
+    assert "SB-${i + 1}" in text  # a beat without an id keeps its card
+    assert "keyframe_mtimes" in text  # the image cache-buster is the file's mtime
+    assert "approvedEv" not in text  # "approved" only from beat.status
+    assert '"approval sent"' in text
+    assert '"character_sheet"' in text and "It's saved" in text
+
+
+def test_gate_duplicating_buttons_answer_the_gate():
+    timing = _page("timing.js")
+    assert 'gateAsks(data, "timing", "cuts")' in timing and 'answerGate(ctx, gate, "cuts"' in timing
+    captions = _page("captions.js")
+    assert 'gateAsks(data, "captions", "timelines")' in captions and 'answerGate(ctx, gate, "timelines"' in captions
+    ui = (STATIC / "ui.js").read_text(encoding="utf-8")
+    assert "q.yes" not in ui and "labels" in ui  # a page can relabel a confirm question's buttons
+
+
+def test_export_always_checks_temp_en():
+    text = _page("export.js")
+    assert 'if (t === "removed" || t === "off"' not in text  # no skipped check
+    assert "Could not check: delete TEMP_EN_delete_me before export if present" in text

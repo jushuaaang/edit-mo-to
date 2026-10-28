@@ -390,6 +390,10 @@ def r_capcut(h, q):
 def r_temp_en(h, q):
     roots = [r for r in (h.server.root, h.server.tmp, machine.PATHS.get("capcut_drafts")) if r]
     project = h.safe(q.get("project"), roots)
+    try:  # never "clean" for a project that isn't there or can't be read: the page says it could not check
+        checks.capcut_project.list_timelines(project)
+    except (OSError, ValueError, KeyError):
+        raise HttpError(404, f"no readable CapCut project at {project.as_posix()}") from None
     return {"timelines": checks.temp_en_timelines(project)}
 
 

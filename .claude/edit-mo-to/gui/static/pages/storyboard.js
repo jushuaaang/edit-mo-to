@@ -1,8 +1,9 @@
 // Storyboard (step 3, optional; spec "Storyboard"): the board comes first and the images fill in. Character sheet
 // cards on top, then a card per shot with its status, line, time, shot type and keyframe prompt (Copy prompt).
 // Images are dropped on a card (saved as storyboard/SB-n.png or CHAR-n.png; a file saved there from outside shows on
-// the next poll). Clicking an image opens the `shot` dialog (dialogs.js). Gates: character sheet saved; approve the
-// direction. Approve all answers the open storyboard gate (or, with none open, sends an `approve` event).
+// the next poll). Clicking an image opens the `shot` dialog (dialogs.js). Gates: character sheet saved (`character_sheet`,
+// a confirm the gate bar shows as "It's saved"); approve the direction (`approve`). Approve all answers `approve` when
+// the open gate asks it; otherwise it sends an `approve` event that Claude confirms at the approval gate.
 //
 // Events: edits `edit` "storyboard:<id>:prompt|visual"; comments `comment` "storyboard:<id>" (or "storyboard" for the
 // whole board); `approve` "storyboard:<id>" / "storyboard"; Request change `action` "storyboard:<id>".
@@ -31,8 +32,9 @@ export function boardItems(data) {
   const sb = data?.storyboard;
   const chars = Array.isArray(sb?.characters) ? sb.characters : [];
   const beats = Array.isArray(sb?.beats) ? sb.beats : [];
-  return [...chars.map((c) => ({ id: str(c?.id), kind: "char", item: c || {} })),
-    ...beats.map((b) => ({ id: str(b?.id), kind: "shot", item: b || {} }))].filter((x) => x.id);
+  return [...chars.map((c) => ({ id: str(c?.id), kind: "char", item: c || {} })).filter((x) => x.id),
+    // a beat that lost its id in a refine keeps its card: SB-<n> by its place on the board (1-based)
+    ...beats.map((b, i) => ({ id: str(b?.id) || `SB-${i + 1}`, kind: "shot", item: b || {} }))];
 }
 
 /** A client-clip beat is the client's own footage: it needs no keyframe and no prompt. */
@@ -41,12 +43,13 @@ export const isClient = (it) => it.kind === "shot" && it.item?.shot?.type === "c
 /** The real prompt, or null (null on a shot = written after the character sheets are saved). */
 export const promptOf = (it) => (typeof it.item?.prompt === "string" && it.item.prompt.trim() ? it.item.prompt : null);
 
-/** /api/file URL of the keyframe, or null. `v` changes when the GUI replaces it under the same name. */
+/** /api/file URL of the keyframe, or null. `v` is the file's mtime, so a keyframe replaced under the same name (in the
+ *  GUI or from outside it) gets a new URL and the new picture shows. */
 export function keyframeUrl(data, id) {
   const path = data?.keyframes?.[id];
   if (typeof path !== "string" || !path) return null;
-  const up = [...(data?.events || [])].reverse().find((e) => e.type === "upload" && e.target === `keyframe:${id}`);
-  return `/api/file?path=${encodeURIComponent(path)}&v=${up ? up.seq : 0}`;
+  const v = data?.keyframe_mtimes?.[id];
+  return `/api/file?path=${encodeURIComponent(path)}&v=${encodeURIComponent(str(v ?? 0))}`;
 }
 
 /** This item's comment events (newest last); `open` = not handled by Claude yet. */
@@ -58,12 +61,13 @@ export function commentsFor(data, id) {
 
 const needsImage = (data, it) => !isClient(it) && !data?.keyframes?.[it.id];
 
-/** [word, chip status] for a card (every chip has a word). */
+/** [word, chip status] for a card (every chip has a word). "approved" only from the board itself (Claude applied it);
+ *  an approve the editor sent that the board doesn't show yet is "approval sent". */
 export function statusOf(data, it) {
-  const done = handledSet(data);
-  const approvedEv = (data?.events || []).some((e) => e.type === "approve" && done.has(e.seq)
+  if (it.item?.status === "approved") return ["approved", "ok"];
+  const approveSent = (data?.events || []).some((e) => e.type === "approve" && !e.stale
     && (e.target === `${STEP}:${it.id}` || e.target === STEP));
-  if (approvedEv || it.item?.status === "approved") return ["approved", "ok"];
+  if (approveSent) return ["approval sent", "wait"];
   if (it.item?.status === "changed") return ["changed", "opt"];
   if (commentsFor(data, it.id).some((c) => c.open)) return ["comment open", "you"];
   if (data?.keyframes?.[it.id]) return ["image added", "wait"];
@@ -83,11 +87,14 @@ export function shotText(it) {
   return ["AI", ...["framing", "subject", "action", "camera"].map((k) => str(s[k])).filter(Boolean)].join(" · ");
 }
 
-/** The open storyboard gate's approval question: id "approve", else a confirm question that mentions approving. */
+/** The open storyboard gate's approval question: the question with id "approve" (never matched by its wording). */
 export function approvalQuestion(gate) {
   const qs = gate?.questions || [];
-  return qs.find((q) => q.id === "approve") || qs.find((q) => q.kind === "confirm" && /approv/i.test(str(q.text))) || null;
+  return qs.find((q) => q.id === "approve") || null;
 }
+
+/** The character-sheet gate question (a confirm; the gate bar offers "It's saved"). */
+export const CHAR_Q = "character_sheet";
 
 /** Send one event; resolve true when stored. */
 export async function sendEvent(ctx, event, okText) {
@@ -194,7 +201,9 @@ function approveAll(ctx, data, items, view, rerender) {
   const gate = openGate(data, STEP);
   const q = approvalQuestion(gate);
   const sent = q ? gateAnswer(data, gate, q.id) : null;
-  const pend = !gate && pendingFor(data, STEP).some((e) => e.type === "approve");
+  // no approval question open (no gate, or the character-sheet / keyframes gate): an `approve` event, which Claude
+  // takes as the default and confirms at the approval gate; it never replaces that gate
+  const pend = !q && pendingFor(data, STEP).some((e) => e.type === "approve");
   if (sent) {
     return h("span", { class: "row" }, chip(sent.value === false ? "Not approved · sent" : "Approved · waiting for Claude", "wait"));
   }
@@ -292,6 +301,7 @@ export function render(root, data, ctx) {
     // Approve all answers the approval question (with the missing-keyframe check), so the gate bar hides it only
     // when Approve all is drawn on this render: the board exists and the step's body shows. Otherwise the gate bar asks it.
     hide: q && approveAllDrawn(data) ? [q.id] : [],
+    labels: { [CHAR_Q]: { yes: "It's saved", no: null } },
     body: () => {
       if (!data?.storyboard) {
         return [h("section", { class: "card" }, h("h3", {}, "Storyboard"),

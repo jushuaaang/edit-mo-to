@@ -16,6 +16,7 @@
 /* banners */
 .banner.you { background: var(--accent-soft); border: 1px solid var(--accent-line); }
 .banner.capcut { justify-content: space-between; }
+.banner.ok { background: var(--ok-soft); border: 1px solid var(--line2); }
 .banner .hint { margin-top: 2px; }
 
 /* lists of files, prompts, drafts, proposals */
