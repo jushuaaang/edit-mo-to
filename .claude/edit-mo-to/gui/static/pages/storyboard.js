@@ -7,13 +7,15 @@
 //
 // Events: edits `edit` "storyboard:<id>:prompt|visual"; comments `comment` "storyboard:<id>" (or "storyboard" for the
 // whole board); `approve` "storyboard:<id>" / "storyboard"; Request change `action` "storyboard:<id>"; Got flagged
-// `action` "storyboard:<id>:flagged" (steppage.flaggedBox, on a card with a prompt).
+// `action` "storyboard:<id>:flagged" (steppage.flaggedBox, on a card with a prompt); Generate picture `action`
+// "generate:storyboard:<id>" (steppage.generateButton, only where /api/job says generate: true).
 // Every string from storyboard.json, events and paths reaches the DOM as text through h(). On screen a card is "Shot 5"
 // or the character's name (words.js label), never its code; files and event targets keep SB-n / CHAR-n.
 import { h, chip, pendingChip, toast, dropZone, helpTip, timeText, staleText } from "../ui.js";
 import { t, label } from "../words.js";
 import { boardItems, isClient, promptOf, needsImage } from "../board.js";
-import { stepPage, stateOf, openGate, gateAnswer, answerGate, pendingFor, copyButton, waitingText, flaggedBox } from "../steppage.js";
+import { stepPage, stateOf, openGate, gateAnswer, answerGate, pendingFor, copyButton, waitingText, flaggedBox,
+  generateButton } from "../steppage.js";
 
 const STEP = "storyboard";
 const FILTERS = ["all", "need", "changed", "comments"];  // words: WORDS.storyboard.f_<filter>
@@ -134,12 +136,17 @@ function commentBox(ctx, data, it, view) {
   return det;
 }
 
+/** "Generate picture" (Generate for me; only where the server allows it): saved once storyboard/<id> is on disk. */
+export const generatePicture = (ctx, data, it) => generateButton(ctx, data, STEP, it.id,
+  { label: t("gen.picture"), done: Boolean(data?.keyframes?.[it.id]), doneLabel: t("gen.picture_saved") });
+
 function promptBlock(ctx, data, it) {
   const text = promptOf(it);
   const pend = pendingFor(data, `${STEP}:${it.id}:prompt`).length ? pendingChip() : null;
   if (text) {
     return h("div", { class: "sbprompt" }, h("pre", { class: "prompt" }, text),
-      h("div", { class: "row" }, copyButton(text, t("storyboard.copy_prompt")), pend), flaggedBox(ctx, data, STEP, it.id, "card"));
+      h("div", { class: "row" }, copyButton(text, t("storyboard.copy_prompt")), pend), generatePicture(ctx, data, it),
+      flaggedBox(ctx, data, STEP, it.id, "card"));
   }
   if (isClient(it)) return h("p", { class: "hint" }, t("storyboard.client_no_prompt"));
   return h("p", { class: "hint" }, t(it.kind === "char" ? "storyboard.no_prompt_char" : "storyboard.no_prompt_yet"), pend);

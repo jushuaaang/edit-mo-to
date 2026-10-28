@@ -22,6 +22,10 @@ Run as `.claude/edit-mo-to/run gui/job.py <command> ...` from the repo root.
                                                       Tagalog -> tl, English -> en), for this computer: writes
                                                       ui_lang_detected into {tmp}/gui/prefs.json (no folder; the
                                                       app follows it while its Language setting is "Auto")
+    can-generate                                      {"allowed": true|false}: may Claude act on a "Generate for me"
+                                                      click (`generate:<step>:<id>`) on this computer? True only when
+                                                      machine.json turns it on for the signed-in Claude account
+                                                      (gui/account.py); never prints the account
 
 init and open also make the folder the "current" job ({tmp}/gui/current.json).
 Every command that changes job.json runs its load-modify-save under jobstate.lock (a cross-process
@@ -242,6 +246,12 @@ def cmd_lang(a) -> dict:
     return {"ui_lang_detected": js.update_prefs(js.gui_dir(), {"ui_lang_detected": a.lang})["ui_lang_detected"]}
 
 
+def cmd_can_generate(a) -> dict:
+    """Checked before acting on any `generate:` event, so a stale page can't trigger it (fails closed)."""
+    import account
+    return {"allowed": account.generate_allowed()}
+
+
 def cmd_inbox(a) -> dict:
     folder = Path(a.folder)
     events = js.unhandled(folder) if a.unhandled else js.read_events(folder)
@@ -285,6 +295,7 @@ def build_parser() -> argparse.ArgumentParser:
     add("inbox", cmd_inbox, (["--unhandled"], {"action": "store_true"}),
         (["--after"], {"type": int, "default": 0}))
     add("lang", cmd_lang, (["lang"], {"choices": ("en", "tl")}), folder=False)
+    add("can-generate", cmd_can_generate, folder=False)
     return p
 
 

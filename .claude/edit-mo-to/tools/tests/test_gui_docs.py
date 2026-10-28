@@ -276,3 +276,25 @@ def test_no_personal_model_defaults_in_shared_files():
             assert f'"default_model": "' not in t, p.name
         assert '"avoid_models": [' not in t or '"avoid_models": []' in t, p.name
     assert '"default": "<model from generators.py pick --site google-flow, after the colon>"' in _text(STEPS)
+
+
+# --- Task G: Generate for me (Joshua only) ---
+
+def test_generate_for_me_section_in_the_skill():
+    s = _text(SKILL)
+    assert "## Generate for me" in s
+    sec = s.split("## Generate for me", 1)[1].split("\n## ", 1)[0]
+    for needle in (".claude/edit-mo-to/run gui/job.py can-generate", '"allowed": true', "generate:<step>:<id>",
+                   ".claude/edit-mo-to/run tools/generators.py pick", "Claude in Chrome", "Google Flow",
+                   ".claude/edit-mo-to/run tools/collect_download.py", "one item per click",
+                   "Got flagged", "never retry", ".claude/edit-mo-to/run tools/elevenlabs_vo.py estimate",
+                   ".claude/edit-mo-to/run tools/elevenlabs_vo.py make", "vo/", "gate", "never", "secrets.json"):
+        assert needle in sec, needle
+    assert "@" not in sec  # no account email in a shared file
+
+
+def test_generate_events_in_steps():
+    st = _text(STEPS)
+    for needle in ("`action` `generate:storyboard:<SB-n \\| CHAR-n>`", "`action` `generate:clips:<prompt id>`",
+                   "`action` `generate:voiceover:all`", "job.py can-generate"):
+        assert needle in st, needle

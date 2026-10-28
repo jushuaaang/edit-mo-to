@@ -14,7 +14,7 @@
 import { h, chip, stepChip, gateBar, askBox, table, pendingChip, toast, dropZone, copyButton, stepTitle, previousStep,
   STEPS, staleText } from "./ui.js";
 import { t } from "./words.js";
-import { nowStrip } from "./nextstep.js";
+import { nowStrip, getPrefs, savePrefs } from "./nextstep.js";
 
 export const CAPCUT_Q = "capcut_closed";
 
@@ -177,6 +177,66 @@ export function flaggedBox(ctx, data, step, id, where = "row") {
     }
   });
   return h("div", { class: "row flagrow" }, det, state, note);
+}
+
+const genConfirm = new Set();   // generate targets whose first-time warning is open, kept across re-renders
+
+/** "Generate for me" (spec "Generate for me (Joshua only)"): a button that sends an `action` event with target
+ *  "generate:<step>:<id>"; Claude makes the item in the session. Drawn only when /api/job says `generate: true` (the
+ *  server's account check; fails closed). Pending until Claude marks the event handled. The page claims nothing itself:
+ *  opts.done (the file is really there: keyframe on disk, clip in the clips folder, a file in vo/) shows opts.doneLabel
+ *  once a generate click was sent. The first click ever shows the image-site warning (words.js gen.warn) inline (not a dialog); Continue
+ *  saves generate_warned_at in this computer's prefs and it is never asked again. opts.vo: the ElevenLabs credits line
+ *  instead, and no account warning. opts: {label, done, doneLabel, vo} */
+export function generateButton(ctx, data, step, id, opts = {}) {
+  if (data?.generate !== true) return null;
+  const target = `generate:${step}:${id}`;
+  const pend = pendingFor(data, target).length > 0;
+  const asked = (data?.events || []).some((e) => e.type === "action" && e.target === target);
+  const state = h("span", { class: "row" }, pend ? pendingChip() : asked && opts.done ? chip(opts.doneLabel, "ok") : null);
+  const note = h("span", { class: "hint", role: "status" }, pend ? waitingText(data) : "");
+  const btn = h("button", { class: "btn sm", type: "button", disabled: pend }, opts.label);
+  const box = h("div", { class: "row genrow", "data-gen": target });
+  const send = async () => {
+    btn.disabled = true;
+    try {
+      await ctx.send({ type: "action", step, target });
+      state.replaceChildren(pendingChip());
+      note.textContent = waitingText(data);
+    } catch (e) {
+      note.textContent = e.message || t("common.not_sent");
+      btn.disabled = false;
+    }
+  };
+  const plain = () => box.replaceChildren(...[btn, state, note, opts.vo ? h("span", { class: "hint" }, t("gen.vo_line")) : null]
+    .filter(Boolean));
+  const warn = () => {
+    const msg = h("span", { class: "hint", role: "status" });
+    const go = h("button", { class: "btn sm pri", type: "button" }, t("gen.continue"));
+    const no = h("button", { class: "btn sm", type: "button" }, t("common.cancel"));
+    go.addEventListener("click", async () => {
+      go.disabled = no.disabled = true;
+      try {
+        await savePrefs(ctx.api, { generate_warned_at: new Date().toISOString() });
+      } catch (e) {
+        msg.textContent = e.message || t("common.not_sent");
+        go.disabled = no.disabled = false;
+        return;
+      }
+      genConfirm.delete(target);
+      plain();
+      send();
+    });
+    no.addEventListener("click", () => { genConfirm.delete(target); plain(); });
+    box.replaceChildren(h("div", { class: "genwarn", role: "alert" }, h("p", {}, t("gen.warn")), h("div", { class: "row" }, go, no, msg)));
+  };
+  btn.addEventListener("click", () => {
+    if (opts.vo || getPrefs().generate_warned_at) { send(); return; }
+    genConfirm.add(target);
+    warn();
+  });
+  if (genConfirm.has(target) && !pend && !opts.vo && !getPrefs().generate_warned_at) warn(); else plain();
+  return box;
 }
 
 /** Files the server copied in for this step (its own `upload` events), newest last. */

@@ -6,7 +6,9 @@
   "asr_device": "auto (default), cpu (skip the CUDA attempt, for GPUs without float16/cublas) or cuda (fail instead of falling back)",
   "render_workers": "hyperframes --workers per overlay render (default 1)",
   "render_concurrency": "overlay renders side by side (default min(4, cpu/2))",
-  "capcut_grade_cache": "CapCut's adjust-effect folder used by the patch grade op (default <CapCut User Data>/Cache/effect/7501974767453474064/20cd8db6531c21bf7e4053026d20e395)"
+  "capcut_grade_cache": "CapCut's adjust-effect folder used by the patch grade op (default <CapCut User Data>/Cache/effect/7501974767453474064/20cd8db6531c21bf7e4053026d20e395)",
+  "generate_for_me": "true shows the Generate for me buttons on this computer (default off); only for the accounts below",
+  "generate_for_me_accounts": "a list of the Claude Code login emails allowed to see them, e.g. [\"<your Claude login email>\"]"
  },
  "_windows": {
   "root": "D:/Video Editing",

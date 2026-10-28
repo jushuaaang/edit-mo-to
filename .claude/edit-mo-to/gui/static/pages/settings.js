@@ -1,6 +1,7 @@
 // Settings & setup: machine.json paths (found / missing, Save), the app's language (Auto / English / Taglish), the
 // alert switches, the models Claude picks (avoid list and Claude's default, from generators.json), setup checks, Report a bug / Suggest an improvement (saved on this computer; Send to Joshua opens a
-// pre-filled issue).
+// pre-filled issue). "Generate for me" (only where GET /api/generate says allowed): the ElevenLabs key as set / not set
+// (never the key), the voice and model ids (prefs), and where the key goes.
 import { h, chip, checksTable, STEPS, stepTitle } from "../ui.js";
 import { t, parts } from "../words.js";
 import { savePrefs, langOf } from "../nextstep.js";
@@ -218,6 +219,43 @@ function modelsCard(ctx) {
     msg);
 }
 
+/** "Generate for me" (spec "Generate for me (Joshua only)"): drawn only when GET /api/generate answers allowed: true
+ *  (fails closed: an error or any other answer leaves it hidden). The key is shown only as set / not set. */
+function generateCard(ctx) {
+  const box = h("section", { class: "card", hidden: true, "aria-labelledby": "gen-h" });
+  const say = (msg, text, kind) => { msg.className = `msg ${kind}`; msg.textContent = text; };
+  Promise.all([ctx.api("/api/generate"), ctx.api("/api/prefs")]).then(([g, p]) => {
+    if (g?.allowed !== true) return;
+    const set = g.elevenlabs_key === true;
+    const msg = h("div", { class: "msg", role: "status" });
+    const field = (key, labelKey) => h("div", {}, h("label", { class: "lbl", for: `pref-${key}` }, t(labelKey)),
+      h("input", { class: "f mono", id: `pref-${key}`, value: typeof p?.[key] === "string" ? p[key] : "", "data-key": `pref:${key}`,
+        spellcheck: "false", autocomplete: "off", maxlength: "64", style: "max-width:340px" }));
+    const save = h("button", { class: "btn sm pri", type: "button" }, t("common.save"));
+    save.addEventListener("click", async () => {
+      const v = (k) => document.getElementById(`pref-${k}`).value.trim() || null;
+      save.disabled = true;
+      try {
+        await savePrefs(ctx.api, { elevenlabs_voice: v("elevenlabs_voice"), elevenlabs_model: v("elevenlabs_model") });
+        say(msg, t("settings.saved"), "ok");
+      } catch (e) {
+        say(msg, t("settings.not_saved", { why: e.message || "" }), "err");
+      } finally {
+        save.disabled = false;
+      }
+    });
+    box.replaceChildren(h("h3", { id: "gen-h" }, t("settings.gen_h")), h("p", { class: "hint" }, t("settings.gen_p")),
+      h("div", { class: "row", style: "margin-top:10px" }, h("span", { class: "lbl" }, t("settings.el_key")),
+        chip(t(set ? "settings.key_set" : "settings.key_not_set"), set ? "ok" : "err")),
+      h("p", { class: "hint" }, t("settings.key_where")),
+      h("div", { class: "form", style: "margin-top:10px" }, field("elevenlabs_voice", "settings.el_voice"),
+        field("elevenlabs_model", "settings.el_model"), h("div", { class: "hint" }, t("settings.voice_hint")),
+        h("div", { class: "row" }, save)), msg);
+    box.hidden = false;
+  }).catch(() => {});   // fail closed: no card
+  return box;
+}
+
 function feedbackCard(ctx) {
   let type = "bug";
   const seg = h("div", { class: "seg", role: "radiogroup", "aria-label": t("fb.type") });
@@ -304,5 +342,5 @@ export function render(root, data, ctx) {
   root.append(
     h("div", { class: "head" }, h("div", {}, h("h1", {}, t("shell.settings")), h("p", {}, t("set.sub"))),
     h("div", { style: "text-align:right" }, h("button", { class: "btn pri", type: "button", onclick: paths.save }, t("common.save")), msg)),
-    h("div", { class: "stack" }, langCard(ctx), paths.node, alertsCard(ctx), modelsCard(ctx), checksCard(ctx), feedbackCard(ctx)));
+    h("div", { class: "stack" }, langCard(ctx), paths.node, alertsCard(ctx), modelsCard(ctx), generateCard(ctx), checksCard(ctx), feedbackCard(ctx)));
 }

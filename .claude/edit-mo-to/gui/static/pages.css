@@ -81,6 +81,10 @@ label.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13
 .sbcomment[open] summary { border-color: var(--accent); }
 .sbcomment .stack { margin-top: 8px; }
 .flagrow { flex-wrap: wrap; }
+.genrow { flex-wrap: wrap; }
+.genwarn { width: 100%; padding: 10px 12px; border: 1px solid var(--accent); border-radius: 10px; background: var(--panel2); }
+.genwarn p { margin: 0 0 8px; }
+.genlist li { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .flagbox[open] { width: 100%; }
 .flagbox summary { list-style: none; display: inline-flex; }
 .flagbox summary::-webkit-details-marker { display: none; }

@@ -755,3 +755,58 @@ def test_got_flagged_on_prompt_rows_cards_and_the_shot_dialog():
     assert en["flag"]["note_label"] == "What did the site say? (optional)"
     assert _is_label("flag.button") and _is_label("flag.note_label")
     assert "blocked this prompt" in en["flag"]["p"] and tl["flag"]["p"] != en["flag"]["p"]
+
+
+# --- Task G: "Generate for me" (Joshua only; spec "Generate for me (Joshua only, 2026-10-28)") ---
+
+GEN_WARN = ("Claude will use your own Chrome and your Google Flow credits. Google's terms may not allow automated use, "
+            "so this could flag your account. Continue?")
+
+
+def test_generate_buttons_only_when_the_server_says_so():
+    sp = (STATIC / "steppage.js").read_text(encoding="utf-8")
+    assert "export function generateButton(" in sp
+    assert "data?.generate !== true" in sp                    # hidden unless /api/job says true (fail closed)
+    assert "`generate:${step}:${id}`" in sp and 'type: "action"' in sp
+    assert "generate_warned_at" in sp and "savePrefs(" in sp   # the first-click warning, asked once
+    assert "pendingFor(data, target)" in sp
+    sb, clips, vo = _page("storyboard.js"), _page("clips.js"), _page("voiceover.js")
+    assert "generateButton(" in sb and '"gen.picture"' in sb
+    assert "generatePicture(" in (STATIC / "dialogs.js").read_text(encoding="utf-8")   # the same button as the card
+    assert "export const generatePicture" in sb
+    assert "generateButton(" in clips and '"gen.clip"' in clips and "clip_files" in clips
+    assert "generateButton(" in vo and '"gen.voiceover"' in vo and '"all"' in vo
+    n = (STATIC / "nextstep.js").read_text(encoding="utf-8")
+    assert "generate_warned_at: null" in n and "elevenlabs_voice: null" in n and "elevenlabs_model: null" in n
+
+
+def test_generate_words_labels_english_sentences_taglish():
+    en, tl = _words(), _all_words()["tl"]
+    assert en["gen"]["picture"] == "Generate picture" and en["gen"]["clip"] == "Generate clip"
+    assert en["gen"]["voiceover"] == "Generate voiceover"
+    for k in ("gen.picture", "gen.clip", "gen.voiceover", "gen.continue", "gen.h", "gen.picture_saved", "gen.clip_saved",
+              "gen.vo_saved", "settings.gen_h", "settings.el_key", "settings.key_set", "settings.key_not_set",
+              "settings.el_voice", "settings.el_model"):
+        assert _is_label(k), k
+    assert en["gen"]["warn"] == GEN_WARN
+    assert "ElevenLabs" in en["gen"]["vo_line"] and "account" not in en["gen"]["vo_line"]
+    assert en["settings"]["key_where"] == ("Paste your key into .claude/edit-mo-to/secrets.json on this Mac. "
+                                           "Never paste it in chat.")
+    for k in ("warn", "vo_line", "p"):
+        assert tl["gen"][k] and tl["gen"][k] != en["gen"][k], k
+    for k in ("gen_p", "key_where", "voice_hint"):
+        assert tl["settings"][k] and tl["settings"][k] != en["settings"][k], k
+
+
+def test_settings_generate_card_shows_only_set_or_not_set():
+    text = _page("settings.js")
+    assert '"/api/generate"' in text and "elevenlabs_key" in text
+    assert "allowed" in text and "elevenlabs_voice" in text and "elevenlabs_model" in text
+    assert "settings.key_where" in text and "api_key" not in text and "secrets.json" not in text
+    assert "generate_for_me_accounts" not in text and "email" not in text.lower()
+
+
+def test_no_email_or_key_in_the_page_code():
+    for p in _js_files():
+        t = p.read_text(encoding="utf-8")
+        assert "emailAddress" not in t and "xi-api-key" not in t and "elevenlabs_api_key" not in t, p.name

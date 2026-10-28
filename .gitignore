@@ -17,6 +17,8 @@
 
 # per-machine paths (see .claude/edit-mo-to/machine.example.json)
 /.claude/edit-mo-to/machine.json
+# the editor's own API keys (see .claude/edit-mo-to/secrets.example.json); never committed
+/.claude/edit-mo-to/secrets.json
 # GUI feedback log (per editor)
 /.claude/edit-mo-to/feedback.jsonl
 

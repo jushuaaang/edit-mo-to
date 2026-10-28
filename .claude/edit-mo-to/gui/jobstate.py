@@ -16,6 +16,7 @@ job.py, wait.py and server.py all build on this module. Standard library only; n
 import errno
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -308,9 +309,13 @@ def _current_path() -> Path:
 # ---------- this computer's GUI prefs: <tmp>/gui/prefs.json (the server's Settings and `job.py lang`) ----------
 
 PREFS = {"notify": True, "sound": True, "ui_lang": "auto", "ui_lang_detected": "en",   # known keys and defaults
-         "avoid_models": [], "default_model": None}   # the models Claude never picks / picks first ("<site>:<model>")
+         "avoid_models": [], "default_model": None,   # the models Claude never picks / picks first ("<site>:<model>")
+         # Generate for me (only shown where account.generate_allowed): when the editor accepted the Flow warning (ISO
+         # time; asked once), and the ElevenLabs voice id and model id elevenlabs_vo.py uses
+         "generate_warned_at": None, "elevenlabs_voice": None, "elevenlabs_model": None}
 PREF_CHOICES = {"ui_lang": ("auto", "en", "tl"), "ui_lang_detected": ("en", "tl")}   # string prefs: allowed values
 MODEL_PREFS = ("avoid_models", "default_model")   # checked against generators.json's model ids
+ID_PREFS = {"elevenlabs_voice": re.compile(r"[A-Za-z0-9]{1,64}"), "elevenlabs_model": re.compile(r"[a-z0-9_]{1,64}")}
 
 
 def _model_ids() -> set:
@@ -335,6 +340,16 @@ def check_pref(key: str, value) -> None:
     elif key == "default_model":
         if value is not None and (not isinstance(value, str) or value not in _model_ids()):
             raise ValueError(f"unknown model: {value}")
+    elif key == "generate_warned_at":
+        try:
+            ok = isinstance(value, str) and len(value) <= 40 and datetime.fromisoformat(value) is not None
+        except ValueError:
+            ok = False
+        if value is not None and not ok:
+            raise ValueError("generate_warned_at must be a time (ISO) or null")
+    elif key in ID_PREFS:
+        if value is not None and (not isinstance(value, str) or not ID_PREFS[key].fullmatch(value)):
+            raise ValueError(f"{key} must be an id (letters, digits{', _' if key == 'elevenlabs_model' else ''}) or null")
     elif key in PREF_CHOICES:
         if not isinstance(value, str) or value not in PREF_CHOICES[key]:
             raise ValueError(f"{key} must be one of {', '.join(PREF_CHOICES[key])}")

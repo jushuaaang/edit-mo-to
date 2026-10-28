@@ -34,8 +34,9 @@ export const WORDS = {
     "now": ["you", "claude", "none"],
     "alert": ["title_count"],
     "settings": ["alerts_h", "notify", "sound", "lang_h", "lang_auto", "lang_en", "lang_tl", "models_h", "avoid",
-      "default_model", "no_default", "th_model"],
+      "default_model", "no_default", "th_model", "gen_h", "el_key", "key_set", "key_not_set", "el_voice", "el_model"],
     "flag": ["button", "note_label"],
+    "gen": ["picture", "clip", "voiceover", "continue", "h", "picture_saved", "clip_saved", "vo_saved"],
     "practice": ["title", "copy", "start"],
     "page": ["why_label", "crumb"],
     "common": ["send", "save", "copy", "copied", "copy_failed", "close", "cancel", "done", "yes", "no", "none", "now",
@@ -169,7 +170,19 @@ export const WORDS = {
       "models_h": "Models Claude picks", "avoid": "When Claude picks, never use", "default_model": "Claude's default model",
       "no_default": "No default", "th_model": "Model",
       "models_p": "When Claude picks a model for you, it starts with its default and never uses a ticked model. You can still choose any model yourself. Saved on this computer only.",
-      "default_hint": "Claude suggests this model first. A model Claude never uses can't be the default."
+      "default_hint": "Claude suggests this model first. A model Claude never uses can't be the default.",
+      "gen_h": "Generate for me", "el_key": "ElevenLabs key", "key_set": "set", "key_not_set": "not set",
+      "el_voice": "ElevenLabs voice id", "el_model": "ElevenLabs model id",
+      "gen_p": "Claude makes the pictures and clips in Google Flow, and the voiceover with ElevenLabs, when you click Generate. Only on this computer.",
+      "key_where": "Paste your key into .claude/edit-mo-to/secrets.json on this Mac. Never paste it in chat.",
+      "voice_hint": "The voice and model Claude uses for the voiceover, from your ElevenLabs account. Saved on this computer only."
+    },
+    "gen": {
+      "picture": "Generate picture", "clip": "Generate clip", "voiceover": "Generate voiceover", "continue": "Continue",
+      "h": "Generate for me", "picture_saved": "Picture saved", "clip_saved": "Clip in folder", "vo_saved": "Voiceover in vo/",
+      "warn": "Claude will use your own Chrome and your Google Flow credits. Google's terms may not allow automated use, so this could flag your account. Continue?",
+      "vo_line": "Uses your ElevenLabs credits, about 1 credit per character. Claude shows the count before it makes the file.",
+      "p": "Claude makes one clip per click in your own Chrome, then saves it in the clips folder. You can stop it anytime in the browser."
     },
     "flag": {
       "button": "Got flagged", "note_label": "What did the site say? (optional)",
@@ -559,7 +572,15 @@ export const WORDS = {
       "lang_auto_hint": "Sinusundan ng Auto ang language na gamit mo kay Claude. Ngayon: {lang}.",
       "lang_manual_hint": "Hindi sinusunod ang hula ni Claude habang may pinili ka rito. Piliin ang Auto para gamitin ulit.",
       "models_p": "Kapag si Claude ang pipili ng model para sa iyo, uunahin niya ang default niya at hindi niya gagamitin ang naka-tick na model. Pwede mo pa ring piliin ang kahit anong model. Naka-save sa computer na ito lang.",
-      "default_hint": "Ito ang unang imumungkahi ni Claude. Hindi pwedeng default ang model na hindi ginagamit ni Claude."
+      "default_hint": "Ito ang unang imumungkahi ni Claude. Hindi pwedeng default ang model na hindi ginagamit ni Claude.",
+      "gen_p": "Si Claude ang gagawa ng pictures at clips sa Google Flow, at ng voiceover sa ElevenLabs, kapag pinindot mo ang Generate. Sa computer na ito lang.",
+      "key_where": "I-paste ang key mo sa .claude/edit-mo-to/secrets.json sa Mac na ito. Huwag itong i-paste sa chat.",
+      "voice_hint": "Ang voice at model na gagamitin ni Claude sa voiceover, galing sa ElevenLabs account mo. Naka-save sa computer na ito lang."
+    },
+    "gen": {
+      "warn": "Gagamitin ni Claude ang sarili mong Chrome at ang Google Flow credits mo. Baka hindi pinapayagan ng terms ng Google ang automated na paggamit, kaya pwedeng ma-flag ang account mo. Continue?",
+      "vo_line": "Gagamit ito ng ElevenLabs credits mo, mga 1 credit kada character. Ipapakita muna ni Claude ang bilang bago gawin ang file.",
+      "p": "Isang clip kada click ang gagawin ni Claude sa sarili mong Chrome, tapos ise-save niya sa clips folder. Pwede mo itong itigil anumang oras sa browser."
     },
     "flag": {
       "p": "Na-block ng site ang prompt na ito? Sabihin kay Claude, at isusulat niya ulit ang prompt na ito lang sa mas safe na words.",

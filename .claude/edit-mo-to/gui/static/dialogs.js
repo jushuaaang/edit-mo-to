@@ -4,7 +4,7 @@
 import { h, chip, dialog, toast, copyButton, dropZone, pendingChip, helpTip, timeText, staleText } from "./ui.js";
 import { t, label, parts } from "./words.js";
 import { boardItems, isClient, promptOf } from "./board.js";
-import { keyframeUrl, commentsFor, statusOf, shotText, sendEvent } from "./pages/storyboard.js";
+import { keyframeUrl, commentsFor, statusOf, shotText, sendEvent, generatePicture } from "./pages/storyboard.js";
 import { flaggedBox } from "./steppage.js";
 
 const CAPCUT_RECHECK_MS = 2000;
@@ -365,6 +365,7 @@ function shot(args, ctx) {
         b.en ? h("div", { class: "hint" }, t("storyboard.english_temp", { text: String(b.en) })) : null,
         it.kind === "shot" ? editField(it, "visual", t("storyboard.visual"), typeof b.visual === "string" ? b.visual : "") : null,
         isClient(it) ? null : editField(it, "prompt", t("storyboard.kf_prompt"), promptOf(it), true),
+        !isClient(it) && promptOf(it) ? generatePicture(ctx, ctx.data, it) : null,
         !isClient(it) && promptOf(it) ? flaggedBox(ctx, ctx.data, "storyboard", it.id, "dialog") : null,
         !isClient(it) && !promptOf(it) && it.kind === "shot" ? h("p", { class: "hint" }, t("storyboard.prompt_after")) : null,
         commentsPart(it)));

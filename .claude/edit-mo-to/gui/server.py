@@ -24,6 +24,12 @@ POST /api/practice is the one route that starts a program (spec "Try a practice 
 a visible Terminal (macOS) or command window (Windows) in {root} running `claude /practice-muna`, so the editor's own
 Claude starts the practice run. The command and the folder are fixed here (practice_argv); nothing in the request is
 read. At most one launch per PRACTICE_GAP seconds, and none while one is still starting.
+
+Generate for me (spec "Generate for me (Joshua only)"): GET /api/job carries "generate": true|false from
+account.generate_allowed() (never the account email), and only when true "clip_files" (video files in the job's clips
+folder, so a clip row can say its clip is there). GET /api/generate answers {"allowed": false}, or {"allowed": true,
+"elevenlabs_key": true|false} (whether secrets.json holds a key; the key itself is never read out). The buttons only
+send `action` events; the server never generates anything.
 """
 import argparse
 import hashlib
@@ -51,6 +57,7 @@ for _p in (GUI, GUI.parent / "tools"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
+import account  # noqa: E402
 import checks  # noqa: E402
 import feedback  # noqa: E402
 import folders  # noqa: E402
@@ -88,6 +95,7 @@ UPLOADS = {  # kind: (subfolder, step for the event, allowed extensions, size li
     "vo": ("vo", "voiceover", MEDIA, BIG),
     "music": ("music", "music", MEDIA, BIG),
 }
+VIDEO_EXTS = {"mp4", "mov", "m4v", "webm"}
 KEYFRAME_ID = re.compile(r"(SB|CHAR)-\d+")
 KEYFRAME_EXTS = UPLOADS["keyframe"][2]
 PENDING_TYPES = {"edit", "approve", "action"}
@@ -169,6 +177,25 @@ def _voice_files(folder: Path) -> list:
         return []
     return [p.resolve().as_posix() for p in entries
             if not p.name.startswith(".") and p.suffix[1:].lower() in MEDIA and p.is_file()]
+
+
+def _clips_dir(folder: Path, job: dict, root: Path) -> "Path | None":
+    """The job's clips folder (card clips_folder, else <folder>/clips), only when it is inside root."""
+    raw = (job.get("card") or {}).get("clips_folder")
+    path = Path(raw) if isinstance(raw, str) and raw.strip() else folder / "clips"
+    try:
+        return folders.safe_path(path if path.is_absolute() else folder / path, [root])
+    except (PermissionError, ValueError, OSError):
+        return None
+
+
+def _clip_files(clips: "Path | None") -> list:
+    """Names of the video files in the clips folder (hidden and partial files skipped)."""
+    try:
+        entries = sorted(clips.iterdir(), key=lambda p: p.name.lower()) if clips else []
+    except OSError:
+        return []
+    return [p.name for p in entries if not p.name.startswith(".") and p.suffix[1:].lower() in VIDEO_EXTS and p.is_file()]
 
 
 def _output_paths(folder: Path, job: dict, roots: list) -> dict:
@@ -258,7 +285,9 @@ def r_job(h, q):
     (keyframes, keyframe_mtimes), listening = _keyframes(folder), js.listening(folder)
     vo = _voice_files(folder)
     outputs = _output_paths(folder, job, [h.server.root, h.server.tmp])
-    parts = [folder.as_posix(), *(_stamp(p) for p in (sd / "job.json", sd / "inbox.jsonl", sd / "gui.json",
+    generate = account.generate_allowed()   # fails closed; the email never leaves account.py
+    clips = _clips_dir(folder, job, h.server.root) if generate else None
+    parts = [f"generate:{generate}", _stamp(clips) if clips else "-", folder.as_posix(), *(_stamp(p) for p in (sd / "job.json", sd / "inbox.jsonl", sd / "gui.json",
                                                       sb, sb / "storyboard.json")),
              *(_stamp(Path(p)) for p in keyframes.values()), _stamp(folder / "vo"), *(_stamp(Path(p)) for p in vo),
              *(_stamp(p) for kinds in outputs.values() for p in kinds.values() if p is not None),
@@ -274,9 +303,19 @@ def r_job(h, q):
             "storyboard": _read_json(sb / "storyboard.json"),
             "gui": _read_json(sd / "gui.json", {}), "early": js.EARLY, "generators": _generators(h.server.tmp),
             "outputs": {s: {k: None if p is None else _read_json(p) for k, p in kinds.items()}
-                        for s, kinds in outputs.items()}}
+                        for s, kinds in outputs.items()},
+            "generate": generate}
+    if generate:
+        body["clip_files"] = _clip_files(clips)
     h.send_json(200, body, {"ETag": etag})
     return None
+
+
+def r_generate(h, q):
+    """Settings' "Generate for me" card: nothing but yes/no answers (never the account or the key)."""
+    if not account.generate_allowed():
+        return {"allowed": False}
+    return {"allowed": True, "elevenlabs_key": account.elevenlabs_key_set()}
 
 
 def r_inbox(h, q):
@@ -568,6 +607,7 @@ ROUTES = {  # (method, path): (handler, needs token)
     ("POST", "/api/settings"): (r_settings_save, True),
     ("GET", "/api/prefs"): (r_prefs, True),
     ("GET", "/api/generators"): (r_generators, True),
+    ("GET", "/api/generate"): (r_generate, True),
     ("POST", "/api/prefs"): (r_prefs_save, True),
     ("GET", "/api/checks"): (r_checks, True),
     ("GET", "/api/capcut"): (r_capcut, True),
