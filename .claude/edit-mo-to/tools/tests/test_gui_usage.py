@@ -289,7 +289,8 @@ def test_api_usage_without_anything_says_so(api, home):
     assert s == 200
     assert d["auto"] is None and d["stale"] is True and d["tokens"] is None
     assert d["per_video_pct"] is None and d["videos_left"] is None
-    assert d["manual"] == {"last": None, "estimate_pct": None, "learned": False, "old": True, "readings": 0}
+    assert d["manual"] == {"last": None, "estimate_pct": None, "learned": False, "tokens_per_pct": None, "old": True,
+                           "readings": 0}
     assert api.json("GET", "/api/usage", token=None)[0] == 401
 
 
@@ -344,3 +345,128 @@ def test_dashboard_usage_box():
 def test_readme_and_steps_mention_usage():
     steps = (ROOT / ".claude" / "skills" / "edit-mo-to" / "reference" / "steps.md").read_text(encoding="utf-8")
     assert "usage-mark" in steps
+
+
+# ---------- fix round 1 ----------
+
+def test_partial_last_line_waits_until_complete(home, root):
+    usage._cache.clear()
+    d = home / ".claude" / "projects" / usage.project_log_name(root)
+    d.mkdir(parents=True)
+    log = d / "s.jsonl"
+    whole = json.dumps(msg(NOW, "a1", 0, 0, 0, 3)) + "\n"
+    half = json.dumps(msg(NOW, "a2", 0, 0, 0, 4))
+    log.write_text(whole + half[:40], encoding="utf-8")            # Claude Code is mid-write
+    assert [e["id"] for e in usage.entries(d)] == ["a1"]
+    with log.open("a", encoding="utf-8") as f:
+        f.write(half[40:])                                        # still no newline: still waits
+    assert [e["id"] for e in usage.entries(d)] == ["a1"]
+    with log.open("a", encoding="utf-8") as f:
+        f.write("\n")
+    assert [e["id"] for e in usage.entries(d)] == ["a1", "a2"]
+    assert usage._cache[str(log)]["offset"] == log.stat().st_size
+
+
+def test_logs_read_line_by_line_not_whole():
+    src = (GUI / "usage.py").read_text(encoding="utf-8")
+    assert "f.read()" not in src and ".split(b\"\\n\")" not in src
+    assert "for raw in f" in src
+
+
+def test_manual_mode_estimates_per_video_and_videos_left_from_tokens(api, home):
+    """No status line: two typed readings teach tokens per 1%; three finished videos then give "about N%" per video."""
+    usage._cache.clear()
+    logs = home / ".claude" / "projects" / usage.project_log_name(api.root)   # only this test's lines, on the real clock
+    resets = int(time.time()) + 3 * 86400
+    now = datetime.now().astimezone()
+    for i, name in enumerate(("V1", "V2", "V3")):
+        folder = api.root / name
+        folder.mkdir()
+        job = js.new_job(folder, "C", name)
+        job["created"] = (now - timedelta(hours=10 - 3 * i)).isoformat(timespec="seconds")
+        job["steps"]["export"]["state"] = "done"
+        job["finished"] = (now - timedelta(hours=9 - 3 * i)).isoformat(timespec="seconds")
+        js.save(folder, job)
+        write_log(logs / f"v{i}.jsonl", [msg(now - timedelta(hours=9.5 - 3 * i), f"v{i}", 0, 0, 0, 1000 * (i + 1))])
+    write_log(logs / "r.jsonl", [msg(now - timedelta(minutes=50), "r1", 0, 0, 0, 2000)])   # between the readings
+    js.update_prefs(api.tmp / "gui", {"usage_readings": [
+        {"pct": 10, "at": (now - timedelta(hours=1)).isoformat(timespec="seconds")},
+        {"pct": 20, "at": (now - timedelta(minutes=10)).isoformat(timespec="seconds")}]})    # 2000 tokens = 10%: 200 per 1%
+    s, d = api.json("GET", "/api/usage")
+    assert d["auto"] is None and d["manual"]["learned"] is True
+    assert d["manual"]["tokens_per_pct"] == pytest.approx(200)
+    assert d["per_video_pct"] == pytest.approx(10.0)              # (1000 + 2000 + 3000) / 3 / 200
+    assert d["per_video_source"] == "tokens" and d["videos_counted"] == 3
+    assert d["videos_left"] == 8                                  # floor((100 - 20) / 10)
+
+
+def test_manual_per_video_needs_three_finished_videos(api, logs):
+    now = datetime.now().astimezone()
+    js.update_prefs(api.tmp / "gui", {"usage_readings": [
+        {"pct": 10, "at": (NOW - timedelta(hours=4)).isoformat()},
+        {"pct": 20, "at": (NOW - timedelta(hours=1, minutes=30)).isoformat()}]})
+    finished = api.root / "One"
+    finished.mkdir()
+    job = js.new_job(finished, "C", "One")
+    job["steps"]["export"]["state"] = "done"
+    job["finished"] = now.isoformat(timespec="seconds")
+    js.save(finished, job)
+    s, d = api.json("GET", "/api/usage")
+    assert d["per_video_pct"] is None and d["videos_left"] is None
+
+
+def test_week_reading_kept_when_a_reply_has_only_the_five_hour_window(tmp_path, monkeypatch):
+    sys.path.insert(0, str(GUI))
+    import statusline
+    monkeypatch.setenv("EDIT_MO_TO_GUI_TMP", str(tmp_path / "t"))
+    gui = tmp_path / "t" / "gui"
+    resets = int(time.time()) + 86400
+    statusline.save({"rate_limits": {"seven_day": {"used_percentage": 30, "resets_at": resets},
+                                     "five_hour": {"used_percentage": 5, "resets_at": resets}}})
+    first = json.loads((gui / "usage.json").read_text(encoding="utf-8"))
+    statusline.save({"rate_limits": {"five_hour": {"used_percentage": 9, "resets_at": resets}}})
+    saved = json.loads((gui / "usage.json").read_text(encoding="utf-8"))
+    assert saved["five_hour"]["used_percentage"] == 9
+    assert saved["seven_day"]["used_percentage"] == 30
+    assert saved["seven_day"]["at"] == first["at"]                 # the week keeps its own time
+    a = usage.read_auto(gui)
+    assert a["week_pct"] == 30 and a["week_at"] == first["at"]
+    # a week reading taken over 30 minutes ago stays old even though the five-hour one is new
+    old = (datetime.now().astimezone() - timedelta(minutes=40)).isoformat(timespec="seconds")
+    saved["seven_day"]["at"] = old
+    (gui / "usage.json").write_text(json.dumps(saved), encoding="utf-8")
+    assert usage.read_auto(gui)["old"] is True
+    # a past week is not carried over
+    saved["seven_day"]["resets_at"] = int(time.time()) - 5
+    (gui / "usage.json").write_text(json.dumps(saved), encoding="utf-8")
+    statusline.save({"rate_limits": {"five_hour": {"used_percentage": 9, "resets_at": resets}}})
+    assert "seven_day" not in json.loads((gui / "usage.json").read_text(encoding="utf-8"))
+
+
+def test_job_with_a_missing_resets_at_is_left_out():
+    jobs = [job_with(10, 16), job_with(20, 24), job_with(30, 38)]
+    assert usage.per_video_pct(jobs + [job_with(1, 90, rs=None)]) == (6.0, 3)
+    assert usage.per_video_pct(jobs + [job_with(1, 90, rf=None)]) == (6.0, 3)
+    assert usage.per_video_pct([job_with(10, 16, rs=None, rf=None)] * 3) == (None, 0)
+
+
+def test_zero_percent_per_video_is_shown_not_not_enough():
+    dash = (STATIC / "pages" / "dashboard.js").read_text(encoding="utf-8")
+    assert "u?.per_video_pct ?" not in dash                        # 0 is a real average
+    assert "u.per_video_pct !== null" in dash and "usage.per_video_small" in dash
+    assert usage.per_video_pct([job_with(10, 10)] * 3) == (0.0, 3)
+
+
+def test_claude_config_dir_cleared_for_gui_tests():
+    import os
+    assert "CLAUDE_CONFIG_DIR" not in os.environ
+    assert str(usage.claude_dir()).startswith(str(Path.home()))
+
+
+def test_conftest_clears_claude_config_dir_even_when_the_shell_sets_it(tmp_path):
+    import os
+    env = {**os.environ, "CLAUDE_CONFIG_DIR": str(tmp_path / "real-looking")}
+    p = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", __file__,
+                        "-k", "test_claude_config_dir_cleared_for_gui_tests"], capture_output=True, text=True,
+                       cwd=Path(__file__).resolve().parents[1], env=env, timeout=120)
+    assert p.returncode == 0, p.stdout[-2000:]

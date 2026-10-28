@@ -84,7 +84,7 @@ def _usage_mark(job: dict, which: str) -> "dict | None":
     if not auto or auto["old"] or auto["week_pct"] is None:
         return None
     mark = job.setdefault("usage", {})
-    mark.update({f"{which}_pct": auto["week_pct"], f"{which}_at": auto["at"],
+    mark.update({f"{which}_pct": auto["week_pct"], f"{which}_at": auto["week_at"],
                  f"{which}_resets_at": auto["week_resets_at"]})
     return mark
 

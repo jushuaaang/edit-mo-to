@@ -2,6 +2,7 @@
 
 For every GUI test module (test_gui_*.py, test_generate_for_me.py) an autouse fixture
   - points HOME and USERPROFILE at an empty temp folder (subprocesses inherit it),
+  - clears CLAUDE_CONFIG_DIR (Claude Code's config folder override, which gui/usage.py follows),
   - points machine.CONFIG at a temp machine.json ({} : "Generate for me" off),
   - clears account._cache, and
   - makes account._home refuse the real home folder, so a read of the real ~/.claude.json fails the test.
@@ -49,6 +50,7 @@ def _no_real_home(request, tmp_path_factory, monkeypatch):
     cfg.write_text("{}", encoding="utf-8")
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)   # usage.claude_dir() follows it: never the real one
     monkeypatch.setattr(machine, "CONFIG", cfg)
     monkeypatch.setattr(account, "_home", _guarded_home)
     account._cache.clear()

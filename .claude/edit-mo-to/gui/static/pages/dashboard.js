@@ -167,11 +167,12 @@ function usageCard(ctx) {
       out.push(h("p", { class: "usage-big" }, t("usage.week_about",
         { pct: pct(Math.min(100, u.week_pct)), last: pct(man.last.pct), time: clock(man.last.at) })));
     }
-    if (fresh && auto.five_hour_pct !== null && auto.five_hour_pct !== undefined) {
+    if (fresh && !auto.five_hour_old && auto.five_hour_pct !== null && auto.five_hour_pct !== undefined) {
       out.push(h("p", {}, t("usage.now", { pct: pct(auto.five_hour_pct) })));
     }
-    out.push(h("p", {}, u?.per_video_pct ? t("usage.per_video", { pct: u.per_video_pct >= 1 ? pct(u.per_video_pct) : String(u.per_video_pct) })
-      : t("usage.not_enough", { n: Math.min(3, u?.videos_counted || 0) })));
+    const known = Boolean(u) && u.per_video_pct !== null && u.per_video_pct !== undefined;  // 0 is a real average
+    out.push(h("p", {}, !known ? t("usage.not_enough", { n: Math.min(3, u?.videos_counted || 0) })
+      : u.per_video_pct < 1 ? t("usage.per_video_small") : t("usage.per_video", { pct: pct(u.per_video_pct) })));
     if (u?.videos_left !== null && u?.videos_left !== undefined) {
       out.push(h("p", { class: "usage-left" }, u.videos_left === 1 ? t("usage.left_one") : t("usage.left", { n: u.videos_left })));
     }
@@ -180,7 +181,7 @@ function usageCard(ctx) {
     btn.className = old ? "btn sm pri" : "btn sm";
     btn.textContent = old ? t("usage.update_old") : t("usage.update");
     manualBox.hidden = !(!u || u.stale);
-    status.textContent = fresh && auto.at ? t("usage.read_at", { time: clock(auto.at) }) : "";
+    status.textContent = fresh && auto.week_at ? t("usage.read_at", { time: clock(auto.week_at) }) : "";
     details.replaceChildren(...usageDetails(u?.tokens));
   };
 

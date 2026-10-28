@@ -6,13 +6,16 @@ Reads Claude Code's status JSON on stdin (https://code.claude.com/docs/en/status
 `Week 41% · Now 23% · resets Fri 9 AM`, or, before the session's first reply or on a plan without limits, the model
 and the context % (`Opus · context 12%`). It saves the plan windows that are present (rate_limits.seven_day and
 rate_limits.five_hour: used_percentage 0-100 and resets_at in epoch seconds) with the time to {tmp}/gui/usage.json
-(atomic write): {"at", "seven_day"?: {"used_percentage", "resets_at"}, "five_hour"?: {...}}. Numbers and times only.
-With no window it writes nothing, so the last reading stays.
+(atomic write): {"at", "seven_day"?: {"used_percentage", "resets_at", "at"?}, "five_hour"?: {...}}. Numbers and times
+only. With no window it writes nothing, so the last reading stays. A window this reply lacks keeps its last reading
+while that window has not reset, with its own "at" (so a five-hour-only reply never wipes the week %, and the app still
+sees how old the week reading is).
 
 Fast and never fails the status line: standard library only, no network; any error still prints a line; exit 0.
 """
 import json
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -75,14 +78,33 @@ def line(data) -> str:
     return name or FALLBACK
 
 
+def _kept(old, name: str, now: float) -> "dict | None":
+    """The last saved reading of a window this reply lacks, with its own time, while it has not reset; else None."""
+    prev = old.get(name) if isinstance(old, dict) else None
+    if not isinstance(prev, dict):
+        return None
+    pct, resets = prev.get("used_percentage"), prev.get("resets_at")
+    at = prev.get("at") if isinstance(prev.get("at"), str) else old.get("at")
+    if not (_num(pct) and 0 <= pct <= 100 and _num(resets) and resets > now and isinstance(at, str) and len(at) <= 40):
+        return None
+    return {"used_percentage": pct, "resets_at": resets, "at": at}
+
+
 def save(data) -> None:
     w = windows(data)
     if not w:
         return
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import jobstate
-    jobstate.write_json_atomic(jobstate.gui_dir() / "usage.json",
-                               {"at": datetime.now().astimezone().isoformat(timespec="seconds"), **w})
+    path = jobstate.gui_dir() / "usage.json"
+    try:
+        old = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        old = None
+    for name in WINDOWS:
+        if name not in w and (kept := _kept(old, name, time.time())):
+            w[name] = kept
+    jobstate.write_json_atomic(path, {"at": datetime.now().astimezone().isoformat(timespec="seconds"), **w})
 
 
 def main() -> None:

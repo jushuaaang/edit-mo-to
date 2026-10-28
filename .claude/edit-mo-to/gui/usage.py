@@ -83,9 +83,16 @@ def _count(v) -> int:
     return int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0 else 0
 
 
-def _parse_lines(data: bytes, helper: bool) -> list:
-    out = []
-    for raw in data.split(b"\n"):
+def _parse_lines(f, start: int, helper: bool) -> "tuple[list, int]":
+    """Read the open log `f` from byte `start` one line at a time: (entries, the offset after the last complete line).
+    A last line without its newline (Claude Code is still writing it) is left for the next read. One line is in
+    memory at a time, so a large log never is whole."""
+    out, pos = [], start
+    f.seek(start)
+    for raw in f:
+        if not raw.endswith(b"\n"):
+            break
+        pos += len(raw)
         if b'"usage"' not in raw:
             continue   # most lines (the editor's messages, tool results) have no usage: not even parsed
         try:
@@ -99,9 +106,9 @@ def _parse_lines(data: bytes, helper: bool) -> list:
             continue
         mid = msg.get("id")
         entry = {"t": t, "id": mid if isinstance(mid, str) and len(mid) <= 100 else None, "helper": helper}
-        entry.update({k: _count(use.get(f)) for k, f in FIELDS})
+        entry.update({k: _count(use.get(field)) for k, field in FIELDS})
         out.append(entry)
-    return out
+    return out, pos
 
 
 def _file_entries(path: Path, helper: bool) -> list:
@@ -118,14 +125,12 @@ def _file_entries(path: Path, helper: bool) -> list:
     start, kept = (c["offset"], c["entries"]) if c and st.st_size >= c["offset"] else (0, [])
     try:
         with path.open("rb") as f:
-            f.seek(start)
-            data = f.read()
+            new, offset = _parse_lines(f, start, helper)
     except OSError:
         return c["entries"] if c else []
-    end = data.rfind(b"\n") + 1          # a half-written last line waits for the next read
-    got = kept + _parse_lines(data[:end], helper)
+    got = kept + new
     with _cache_lock:
-        _cache[key] = {"size": st.st_size, "mtime": st.st_mtime_ns, "offset": start + end, "entries": got}
+        _cache[key] = {"size": st.st_size, "mtime": st.st_mtime_ns, "offset": offset, "entries": got}
     return got
 
 
@@ -166,21 +171,25 @@ def tokens(ents: list, start: float, end: float) -> dict:
 # ---------- the status line's reading ----------
 
 def _window(data: dict, name: str, now: float) -> "tuple":
+    """(pct, resets_at, at) of one window; at is the window's own time (kept by statusline.py when a later reply
+    lacked that window), else the file's."""
     w = data.get(name)
     if not isinstance(w, dict):
-        return None, None
+        return None, None, None
     pct, resets = w.get("used_percentage"), w.get("resets_at")
     if not isinstance(pct, (int, float)) or isinstance(pct, bool) or not 0 <= pct <= 100:
-        return None, None
+        return None, None, None
     resets = resets if isinstance(resets, (int, float)) and not isinstance(resets, bool) else None
     if resets is not None and resets <= now:
-        return None, None    # that window reset since: its % no longer holds
-    return pct, resets
+        return None, None, None    # that window reset since: its % no longer holds
+    at = w.get("at") if _epoch(w.get("at")) is not None else data.get("at")
+    return pct, resets, at
 
 
 def read_auto(gui: Path, now: "float | None" = None) -> "dict | None":
-    """{tmp}/gui/usage.json as {"week_pct", "week_resets_at", "five_hour_pct", "five_hour_resets_at", "at", "old"};
-    None when missing or unreadable. old: over 30 minutes old, or no week % (missing or reset since)."""
+    """{tmp}/gui/usage.json as {"week_pct", "week_resets_at", "week_at", "five_hour_pct", "five_hour_resets_at",
+    "five_hour_at", "five_hour_old", "at", "old"}; None when missing or unreadable. old: the week reading is over 30 minutes old, or
+    there is no week % (missing or reset since)."""
     now = time.time() if now is None else now
     try:
         data = json.loads((Path(gui) / "usage.json").read_text(encoding="utf-8"))
@@ -189,17 +198,20 @@ def read_auto(gui: Path, now: "float | None" = None) -> "dict | None":
     at = _epoch(data.get("at")) if isinstance(data, dict) else None
     if at is None:
         return None
-    week, week_resets = _window(data, "seven_day", now)
-    five, five_resets = _window(data, "five_hour", now)
-    return {"week_pct": week, "week_resets_at": week_resets, "five_hour_pct": five, "five_hour_resets_at": five_resets,
-            "at": data["at"], "old": now - at > FRESH_S or week is None}
+    week, week_resets, week_at = _window(data, "seven_day", now)
+    five, five_resets, five_at = _window(data, "five_hour", now)
+    week_t = _epoch(week_at) if week_at else None
+    return {"week_pct": week, "week_resets_at": week_resets, "week_at": week_at, "five_hour_pct": five,
+            "five_hour_resets_at": five_resets, "five_hour_at": five_at, "at": data["at"],
+            "five_hour_old": five is None or _epoch(five_at) is None or now - _epoch(five_at) > FRESH_S,
+            "old": week is None or week_t is None or now - week_t > FRESH_S}
 
 
 # ---------- % per video and videos left ----------
 
 def per_video_pct(jobs: list) -> "tuple":
     """(average week % per finished video, how many counted): only jobs with a start and a finish % in the same week
-    (resets_at unchanged, finish >= start). The average is None until NEED_VIDEOS count."""
+    (both resets_at known and unchanged, finish >= start). The average is None until NEED_VIDEOS count."""
     used = []
     for job in jobs:
         u = job.get("usage") if isinstance(job, dict) else None
@@ -209,9 +221,20 @@ def per_video_pct(jobs: list) -> "tuple":
         if not all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in (a, b)) or b < a:
             continue
         ra, rb = u.get("start_resets_at"), u.get("finish_resets_at")
-        if isinstance(ra, (int, float)) and isinstance(rb, (int, float)) and abs(ra - rb) > RESET_SLACK_S:
-            continue
+        if not all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in (ra, rb)) or abs(ra - rb) > RESET_SLACK_S:
+            continue   # a reset in between, or no way to tell: left out
         used.append(b - a)
+    if len(used) < NEED_VIDEOS:
+        return None, len(used)
+    return round(sum(used) / len(used), 1), len(used)
+
+
+def per_video_from_tokens(per_job: list, tokens_per_pct) -> "tuple":
+    """The manual fallback's % per finished video: each finished non-practice video's tokens / the learned tokens per
+    1%, averaged once NEED_VIDEOS count; (None, n) before that or without a learned rate."""
+    if not tokens_per_pct or tokens_per_pct <= 0:
+        return None, 0
+    used = [j["tokens"] / tokens_per_pct for j in per_job if j["done"] and not j["practice"] and j["tokens"] > 0]
     if len(used) < NEED_VIDEOS:
         return None, len(used)
     return round(sum(used) / len(used), 1), len(used)
@@ -232,7 +255,7 @@ def manual(readings: list, ents: "list | None", now: float) -> dict:
     is over a day old, or the estimate passed 100 (the week must have reset): ask for a fresh one."""
     rs = sorted(((t, r) for r in readings or [] if (t := _epoch(r.get("at"))) is not None), key=lambda x: x[0])
     if not rs:
-        return {"last": None, "estimate_pct": None, "learned": False, "old": True, "readings": 0}
+        return {"last": None, "estimate_pct": None, "learned": False, "tokens_per_pct": None, "old": True, "readings": 0}
     last_t, last = rs[-1]
     tok = pct = 0
     if ents is not None:
@@ -241,8 +264,10 @@ def manual(readings: list, ents: "list | None", now: float) -> dict:
                 tok += tokens(ents, ta, tb)["total"]
                 pct += b["pct"] - a["pct"]
     learned = tok > 0 and pct > 0
-    est = last["pct"] + tokens(ents, last_t, now)["total"] / (tok / pct) if learned else last["pct"]
+    per_pct = tok / pct if learned else None
+    est = last["pct"] + tokens(ents, last_t, now)["total"] / per_pct if learned else last["pct"]
     return {"last": {"pct": last["pct"], "at": last["at"]}, "estimate_pct": est, "learned": learned,
+            "tokens_per_pct": per_pct,
             "old": now - last_t > MANUAL_OLD_S or est >= 100, "readings": len(rs)}
 
 
@@ -293,6 +318,7 @@ def report(root: Path, gui: Path, now: "float | None" = None) -> dict:
     ents = entries(logs) if logs else None
     jobs = _jobs(Path(root))
     per, counted = per_video_pct([job for e, job in jobs if not e["practice"]])
+    per_source = "marks" if per is not None else None
     man = manual(js.read_prefs(Path(gui) / "prefs.json").get("usage_readings") or [], ents, now) if stale else None
     if not stale:
         week, source = auto["week_pct"], "auto"
@@ -306,5 +332,12 @@ def report(root: Path, gui: Path, now: "float | None" = None) -> dict:
         week_start = auto["week_resets_at"] - WEEK_S if auto and auto["week_resets_at"] else now - WEEK_S
         toks = {"today": tokens(ents, midnight.timestamp(), now + 1), "week": tokens(ents, week_start, now + 1),
                 "per_job": _per_job(jobs, ents, now + 1)}
+        if per is None and man and man["learned"]:   # manual fallback: from the learned tokens per 1%
+            got, n = per_video_from_tokens(toks["per_job"], man["tokens_per_pct"])
+            if got is not None or n > counted:
+                per, counted = got, n
+            if got is not None:
+                per_source = "tokens"
     return {"auto": auto, "stale": stale, "week_pct": week, "source": source, "per_video_pct": per,
-            "videos_counted": counted, "videos_left": videos_left(week, per), "tokens": toks, "manual": man}
+            "per_video_source": per_source, "videos_counted": counted, "videos_left": videos_left(week, per),
+            "tokens": toks, "manual": man}
