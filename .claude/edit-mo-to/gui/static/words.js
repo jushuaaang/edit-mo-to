@@ -60,13 +60,13 @@ export const WORDS = {
   "label": {
     "shot": "Shot {n}", "character": "Character {n}", "clip": "Clip {n}", "prompt": "Prompt {n}",
     "ai": "AI clip {n}", "client": "Client clip {n}",
-    "two": "{a} and {b}", "many": "{rest} and {last}"
+    "two": "{a} and {b}", "many": "{rest} and {last}", "more": "{n} more"
   },
   "now": {
     "you": "You", "claude": "Claude", "none": "Status",
     "capcut": "Your turn: quit CapCut completely, then press “CapCut is closed” on the {step} page.",
-    "pictures": "Your turn: make the pictures for {shots}, then drop them on their cards.",
-    "pictures_question": "Your turn: make the pictures for {shots} and drop them on their cards, or answer Claude's question on the {step} page.",
+    "pictures": "Your turn: make the pictures for {shots}, then drop each one on its card.",
+    "pictures_question": "Your turn: make the pictures for {shots} and drop each one on its card, or answer Claude's question on the {step} page.",
     "voiceover": "Your turn: drop the voiceover file on the Voiceover page.",
     "question": "Your turn: answer Claude's question on the {step} page.",
     "answered": "You answered Claude's question on the {step} page. Claude picks it up next.",
@@ -140,8 +140,14 @@ export function t(key, vars = {}) {
   return s.replace(/\{(\w+)\}/g, (m, k) => (vars[k] === undefined || vars[k] === null ? m : String(vars[k])));
 }
 
-/** "Shot 5", "Shot 5 and Shot 6", "Shot 5, Shot 6 and Shot 8". */
+const LIST_MAX = 4;  // longer lists end "… and 3 more"
+
+/** "Shot 5", "Shot 5 and Shot 6", "Shot 5, Shot 6 and Shot 8", "Shot 1, Shot 2, Shot 3 and 9 more". */
 export function listText(names) {
+  if (names.length > LIST_MAX) {
+    const shown = names.slice(0, LIST_MAX - 1);
+    return t("label.many", { rest: shown.join(", "), last: t("label.more", { n: names.length - shown.length }) });
+  }
   if (names.length <= 1) return names[0] || "";
   if (names.length === 2) return t("label.two", { a: names[0], b: names[1] });
   return t("label.many", { rest: names.slice(0, -1).join(", "), last: names[names.length - 1] });

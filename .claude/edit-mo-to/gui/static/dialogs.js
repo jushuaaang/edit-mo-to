@@ -3,7 +3,8 @@
 // (names, paths, prompts, transcripts) reaches the DOM as text only. The `shot` dialog belongs to the storyboard page.
 import { h, chip, dialog, toast, copyButton, dropZone, pendingChip, helpTip, timeText, STALE_TEXT } from "./ui.js";
 import { t, label } from "./words.js";
-import { boardItems, isClient, promptOf, keyframeUrl, commentsFor, statusOf, shotText, sendEvent } from "./pages/storyboard.js";
+import { boardItems, isClient, promptOf } from "./board.js";
+import { keyframeUrl, commentsFor, statusOf, shotText, sendEvent } from "./pages/storyboard.js";
 
 const CAPCUT_RECHECK_MS = 2000;
 const baseName = (p) => String(p ?? "").split(/[\\/]/).pop();

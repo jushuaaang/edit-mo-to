@@ -240,7 +240,7 @@ def test_storyboard_final_review_fixes():
     text = _page("storyboard.js")
     assert "/approv/i" not in text  # the approval question is found by id only, never by its wording
     assert 'qs.find((q) => q.id === "approve") || null' in text
-    assert "SB-${i + 1}" in text  # a beat without an id keeps its card
+    assert "SB-${i + 1}" in (STATIC / "board.js").read_text(encoding="utf-8")  # a beat without an id keeps its card
     assert "keyframe_mtimes" in text  # the image cache-buster is the file's mtime
     assert "approvedEv" not in text  # "approved" only from beat.status
     assert '"approval sent"' in text
@@ -419,3 +419,20 @@ def test_word_help_buttons():
     sb = _page("storyboard.js")
     used |= set(_re.findall(r'"([a-z_]+)"', sb[sb.index('t("help.row"), ...['):].split("]", 1)[0]))
     assert set(HELP_KEYS) - {"a_roll"} <= used, sorted(set(HELP_KEYS) - used)  # no page shows "A-roll" yet
+
+
+def test_strip_and_board_share_one_rule():
+    """The strip names only pictures that can be made now (a prompt is written; character sheets first), using the
+    same board helpers as the storyboard page and the shot dialog; it asks for a voiceover only when vo/ is empty."""
+    board = (STATIC / "board.js").read_text(encoding="utf-8")
+    for name in ("export function boardItems(", "export const isClient", "export const promptOf", "export const needsImage",
+                 "export function picturesToMake("):
+        assert name in board, name
+    assert "promptOf(it)" in board[board.index("export function picturesToMake("):]
+    for page in (_page("storyboard.js"), (STATIC / "dialogs.js").read_text(encoding="utf-8")):
+        assert 'from "../board.js"' in page or 'from "./board.js"' in page
+        assert "export function boardItems(" not in page and "const needsImage =" not in page
+    nxt = (STATIC / "nextstep.js").read_text(encoding="utf-8")
+    assert "picturesToMake(data)" in nxt and "data?.vo" in nxt and 'e.type === "upload" && e.step === "voiceover"' not in nxt
+    words = (STATIC / "words.js").read_text(encoding="utf-8")
+    assert "LIST_MAX = 4" in words and _has(_words(), "label.more")

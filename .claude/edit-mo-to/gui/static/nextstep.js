@@ -10,6 +10,7 @@
 //   loadPrefs(api) / savePrefs(api, patch) / getPrefs()   this computer's switches (GET/POST /api/prefs)
 import { h, chip, STEPS, stepTitle } from "./ui.js";
 import { t, label, listText } from "./words.js";
+import { picturesToMake } from "./board.js";
 
 // ---------- the rule table: the first rule whose test is true wins (keys are WORDS.now.*) ----------
 
@@ -19,18 +20,11 @@ export const unanswered = (data, gate) => (gate?.questions || []).filter((q) => 
 const stateOf = (data, s) => data?.job?.steps?.[s]?.state || "pending";
 const firstIn = (data, state) => STEPS.find((s) => stateOf(data, s) === state) || null;
 
-/** Shots and character sheets without a picture on disk (client footage needs none), in board order, in words. */
-export function missingPictures(data) {
-  const sb = data?.storyboard;
-  if (!sb || typeof sb !== "object") return [];
-  const kf = data?.keyframes || {};
-  const chars = (Array.isArray(sb.characters) ? sb.characters : []).map((c) => String(c?.id ?? "")).filter(Boolean);
-  const beats = (Array.isArray(sb.beats) ? sb.beats : []).map((b, i) => ({ id: String(b?.id || `SB-${i + 1}`), b }))
-    .filter(({ b }) => b?.shot?.type !== "client").map(({ id }) => id);
-  return [...chars, ...beats].filter((id) => !kf[id]).map((id) => label(id, data));
-}
+/** The pictures that can be made now (board.js picturesToMake: a prompt is written; character sheets first), in words. */
+export const missingPictures = (data) => picturesToMake(data).map((it) => label(it.id, data));
 
-const hasVoiceFile = (data) => (data?.events || []).some((e) => e.type === "upload" && e.step === "voiceover" && !e.stale);
+/** A voice file is in vo/ (the server lists it, whether it came through the app or was copied in from Finder). */
+const hasVoiceFile = (data) => Array.isArray(data?.vo) && data.vo.length > 0;
 
 export const RULES = [
   { key: "now.answered", who: "claude", when: (d, g) => g && !unanswered(d, g).length },

@@ -11,6 +11,7 @@
 // or the character's name (words.js label), never its code; files and event targets keep SB-n / CHAR-n.
 import { h, chip, pendingChip, toast, dropZone, helpTip, timeText, STALE_TEXT } from "../ui.js";
 import { t, label } from "../words.js";
+import { boardItems, isClient, promptOf, needsImage } from "../board.js";
 import { stepPage, stateOf, openGate, gateAnswer, answerGate, pendingFor, copyButton, waitingText } from "../steppage.js";
 
 const STEP = "storyboard";
@@ -29,21 +30,8 @@ const viewOf = (folder) => {
 const str = (v) => (typeof v === "string" ? v : v === null || v === undefined ? "" : String(v));
 const handledSet = (data) => new Set(data?.job?.handled || []);
 
-/** Character sheets then shots: [{id, kind: "char"|"shot", item}] in board order. */
-export function boardItems(data) {
-  const sb = data?.storyboard;
-  const chars = Array.isArray(sb?.characters) ? sb.characters : [];
-  const beats = Array.isArray(sb?.beats) ? sb.beats : [];
-  return [...chars.map((c) => ({ id: str(c?.id), kind: "char", item: c || {} })).filter((x) => x.id),
-    // a beat that lost its id in a refine keeps its card: SB-<n> by its place on the board (1-based)
-    ...beats.map((b, i) => ({ id: str(b?.id) || `SB-${i + 1}`, kind: "shot", item: b || {} }))];
-}
-
-/** A client-clip beat is the client's own footage: it needs no keyframe and no prompt. */
-export const isClient = (it) => it.kind === "shot" && it.item?.shot?.type === "client";
-
-/** The real prompt, or null (null on a shot = written after the character sheets are saved). */
-export const promptOf = (it) => (typeof it.item?.prompt === "string" && it.item.prompt.trim() ? it.item.prompt : null);
+// boardItems, isClient, promptOf and needsImage live in board.js (the "what to do now" strip uses the same rule).
+export { boardItems, isClient, promptOf };
 
 /** /api/file URL of the keyframe, or null. `v` is the file's mtime, so a keyframe replaced under the same name (in the
  *  GUI or from outside it) gets a new URL and the new picture shows. */
@@ -60,8 +48,6 @@ export function commentsFor(data, id) {
   return (data?.events || []).filter((e) => e.type === "comment" && e.target === `${STEP}:${id}`)
     .map((e) => ({ ...e, open: !done.has(e.seq) }));
 }
-
-const needsImage = (data, it) => !isClient(it) && !data?.keyframes?.[it.id];
 
 /** [word, chip status] for a card (every chip has a word). "approved" only from the board itself (Claude applied it);
  *  an approve the editor sent that Claude hasn't handled yet is "approval sent" (a handled one, or one from an earlier

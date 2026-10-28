@@ -516,3 +516,21 @@ def test_prefs_known_keys_only_on_this_computer(api):
     assert json.loads((api.tmp / "gui" / "prefs.json").read_text(encoding="utf-8")) == {"notify": False, "sound": False}
     (api.tmp / "gui" / "prefs.json").write_text("not json", encoding="utf-8")   # a broken file reads as the defaults
     assert api.json("GET", "/api/prefs")[1] == {"notify": True, "sound": True}
+
+
+def test_job_lists_voice_files_in_vo_even_when_copied_by_hand(api):
+    """The "what to do now" strip asks for a voiceover only when vo/ has none, so a file copied in from Finder counts."""
+    folder = _demo(api)
+    data = api.json("GET", "/api/job" + _q(folder=folder))[1]
+    assert data["vo"] == []
+    vo = folder / "vo"
+    vo.mkdir()
+    (vo / "Hook 1 VO.MP3").write_bytes(b"id3")                    # plain file IO, not an upload
+    (vo / "notes.txt").write_text("not audio", encoding="utf-8")
+    (vo / ".upload-abc.part").write_bytes(b"half")                 # an upload still running is not a file yet
+    status, headers, raw = api.call("GET", "/api/job" + _q(folder=folder))
+    data = json.loads(raw)
+    assert [Path(p).name for p in data["vo"]] == ["Hook 1 VO.MP3"]
+    (vo / "body.wav").write_bytes(b"RIFF")
+    assert api.call("GET", "/api/job" + _q(folder=folder), headers={"If-None-Match": headers["ETag"]})[0] == 200
+    assert [Path(p).name for p in api.json("GET", "/api/job" + _q(folder=folder))[1]["vo"]] == ["body.wav", "Hook 1 VO.MP3"]  # by name, case ignored

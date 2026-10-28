@@ -150,6 +150,17 @@ def _keyframes(folder: Path) -> "tuple[dict, dict]":
     return out, mtimes
 
 
+def _voice_files(folder: Path) -> list:
+    """Audio files in vo/ (resolved, by name), however they got there: the "what to do now" strip asks for a
+    voiceover only when there is none. Hidden files (a running upload's .part) are skipped."""
+    try:
+        entries = sorted((folder / "vo").iterdir(), key=lambda p: p.name.lower())
+    except OSError:
+        return []
+    return [p.resolve().as_posix() for p in entries
+            if not p.name.startswith(".") and p.suffix[1:].lower() in MEDIA and p.is_file()]
+
+
 def _output_paths(folder: Path, job: dict, roots: list) -> dict:
     """{step: {kind: resolved path inside roots, or None}}; a path outside roots is never touched."""
     out = {}
@@ -219,10 +230,11 @@ def r_job(h, q):
     job = js.load(folder)
     sd, sb = js.state_dir(folder), folder / "storyboard"
     (keyframes, keyframe_mtimes), listening = _keyframes(folder), js.listening(folder)
+    vo = _voice_files(folder)
     outputs = _output_paths(folder, job, [h.server.root, h.server.tmp])
     parts = [folder.as_posix(), *(_stamp(p) for p in (sd / "job.json", sd / "inbox.jsonl", sd / "gui.json",
                                                       sb, sb / "storyboard.json")),
-             *(_stamp(Path(p)) for p in keyframes.values()),
+             *(_stamp(Path(p)) for p in keyframes.values()), _stamp(folder / "vo"), *(_stamp(Path(p)) for p in vo),
              *(_stamp(p) for kinds in outputs.values() for p in kinds.values() if p is not None),
              _stamp(generators.FILE), _listening_key(listening)]
     etag = '"' + hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()[:20] + '"'
@@ -232,7 +244,7 @@ def r_job(h, q):
     body = {"job": job, "listening": listening,
             "pending": [e for e in js.unhandled(folder) if e.get("type") in PENDING_TYPES],
             "events": js.read_events(folder)[-RECENT_EVENTS:],  # step messages, answers already sent
-            "keyframes": keyframes, "keyframe_mtimes": keyframe_mtimes,
+            "keyframes": keyframes, "keyframe_mtimes": keyframe_mtimes, "vo": vo,
             "storyboard": _read_json(sb / "storyboard.json"),
             "gui": _read_json(sd / "gui.json", {}), "early": js.EARLY, "generators": _generators(),
             "outputs": {s: {k: None if p is None else _read_json(p) for k, p in kinds.items()}
