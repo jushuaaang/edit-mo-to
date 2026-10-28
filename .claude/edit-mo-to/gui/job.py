@@ -8,19 +8,23 @@ Run as `.claude/edit-mo-to/run gui/job.py <command> ...` from the repo root.
     card <folder> key=value ...                       job card fields; timelines=a|b|c is a list;
                                                       temp_en=on|partial:<names>|removed|off
     step <folder> <step> <state> [--note T]           state: pending|working|waiting|done|skipped|error
-    gate <folder> <step> --file gate.json             open a gate (ids g-1, g-2, ...), step -> waiting
+    gate <folder> <step> --file gate.json|-           open a gate (ids g-1, g-2, ...), step -> waiting
+                                                      (--file - reads the JSON from stdin)
         gate.json: {"title", "detail"?, "questions": [{"id", "text", "why"?, "kind", "options"?, "default"?}]}
     close-gate <folder>                               no gate open
-    output <folder> <step> <kind> --file data.json    store a step output (table or checklist/script JSON)
-    output <folder> <step> <kind> --from <adapter> <tool-output.json>
+    output <folder> <step> <kind> --file data.json|-  store a step output (table or checklist/script JSON)
+    output <folder> <step> <kind> --from <adapter> <tool-output.json|->
         adapters: timings, cuts, qa, clips, prompts (see adapters.py)
     log <folder> "<text>"                             activity line (last 200 kept)
     handled <folder> <seq> ...                        mark inbox events handled
     inbox <folder> [--unhandled] [--after N]          print the editor's events
 
 init and open also make the folder the "current" job ({tmp}/gui/current.json).
+Every command that changes job.json runs its load-modify-save under jobstate.lock (a cross-process
+file lock), so parallel job.py calls never lose an update.
 """
 import argparse
+import functools
 import json
 import re
 import sys
@@ -34,7 +38,19 @@ LOG_KEEP = 200
 
 
 def _read_json(path: str):
+    """JSON from a file, or from stdin when path is "-" (no temp file to write outside the project)."""
+    if path == "-":
+        return json.loads(sys.stdin.buffer.read().decode("utf-8-sig"))
     return json.loads(Path(path).read_text(encoding="utf-8-sig"))
+
+
+def _locked(fn):
+    """Run a job.json writer under the folder's cross-process lock (load-modify-save is one step)."""
+    @functools.wraps(fn)
+    def wrapper(a):
+        with js.lock(Path(a.folder)):
+            return fn(a)
+    return wrapper
 
 
 def _log(job: dict, text: str) -> None:
@@ -53,6 +69,7 @@ def _check_temp_en(value: str) -> None:
         raise ValueError(f"temp_en must be on|partial:<names>|removed|off, got {value!r}")
 
 
+@_locked
 def cmd_init(a) -> dict:
     folder = Path(a.folder)
     if js.state_dir(folder).joinpath("job.json").exists() and not a.resume:
@@ -70,6 +87,7 @@ def cmd_open(a) -> dict:
     return {"folder": Path(a.folder).as_posix()}
 
 
+@_locked
 def cmd_card(a) -> dict:
     folder = Path(a.folder)
     job = js.load(folder)
@@ -84,6 +102,7 @@ def cmd_card(a) -> dict:
     return {"card": job["card"]}
 
 
+@_locked
 def cmd_step(a) -> dict:
     folder = Path(a.folder)
     job = js.load(folder)
@@ -105,6 +124,7 @@ def _gate_from(spec: dict, gate_id: str, step: str) -> dict:
     return gate
 
 
+@_locked
 def cmd_gate(a) -> dict:
     folder = Path(a.folder)
     job = js.load(folder)
@@ -119,6 +139,7 @@ def cmd_gate(a) -> dict:
     return {"gate": gate["id"]}
 
 
+@_locked
 def cmd_close_gate(a) -> dict:
     folder = Path(a.folder)
     job = js.load(folder)
@@ -166,6 +187,7 @@ def validate_output(kind: str, data) -> None:
                 raise ValueError(f"{kind}.rows[{i}].cells: need {len(cols)} strings, one per column")
 
 
+@_locked
 def cmd_output(a) -> dict:
     folder = Path(a.folder)
     job = js.load(folder)
@@ -189,6 +211,7 @@ def cmd_output(a) -> dict:
     return {"path": rel}
 
 
+@_locked
 def cmd_log(a) -> dict:
     folder = Path(a.folder)
     job = js.load(folder)
@@ -197,6 +220,7 @@ def cmd_log(a) -> dict:
     return {}
 
 
+@_locked
 def cmd_handled(a) -> dict:
     folder = Path(a.folder)
     job = js.load(folder)

@@ -197,3 +197,67 @@ def test_current_job_roundtrip(tmp_path, monkeypatch):
     assert js.get_current() == folder.as_posix()
     cur = tmp_path / "t" / "gui" / "current.json"
     assert json.loads(cur.read_text(encoding="utf-8")) == {"folder": folder.as_posix()}
+
+
+def test_parallel_outputs_all_land(tmp_path):
+    """Claude runs Bash calls in parallel: every job.py writer must load-modify-save under a cross-process lock."""
+    folder = init(tmp_path)
+    table = _file(tmp_path, {"title": "T", "columns": ["A"], "rows": [{"id": "1", "cells": ["x"]}]})
+    kinds = [f"prompts-{c}" for c in "abcdefghij"]
+    procs = [subprocess.Popen([sys.executable, str(JOB), "output", str(folder), "prompts", k, "--file", str(table)],
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
+             for k in kinds]
+    outs = [p.communicate(timeout=60) for p in procs]
+    assert [p.returncode for p in procs] == [0] * len(kinds), outs
+    assert sorted(js.load(folder)["outputs"]["prompts"]) == kinds
+
+
+def test_parallel_mixed_writers_all_land(tmp_path):
+    folder = init(tmp_path)
+    cmds = [["log", str(folder), f"line {i}"] for i in range(6)] + \
+           [["step", str(folder), s, "done"] for s in ("brief", "script", "voiceover", "timing")]
+    procs = [subprocess.Popen([sys.executable, str(JOB), *c], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              text=True, encoding="utf-8") for c in cmds]
+    outs = [p.communicate(timeout=60) for p in procs]
+    assert [p.returncode for p in procs] == [0] * len(cmds), outs
+    job = js.load(folder)
+    assert sorted(l["text"] for l in job["log"]) == [f"line {i}" for i in range(6)]
+    assert all(job["steps"][s]["state"] == "done" for s in ("brief", "script", "voiceover", "timing"))
+
+
+def test_lock_is_held_across_processes(tmp_path):
+    """While one process holds the folder lock, a writer in another process waits for it."""
+    import time
+    folder = init(tmp_path)
+    with js.lock(folder):
+        p = subprocess.Popen([sys.executable, str(JOB), "log", str(folder), "late"], stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, text=True, encoding="utf-8")
+        time.sleep(1.5)
+        assert p.poll() is None, "job.py wrote while another process held the lock"
+        job = js.load(folder)
+        job["log"].append({"at": "x", "text": "mine"})
+        js.save(folder, job)
+    p.communicate(timeout=30)
+    assert [l["text"] for l in js.load(folder)["log"]] == ["mine", "late"]
+
+
+def run_stdin(stdin, *args, ok=True):
+    p = subprocess.run([sys.executable, str(JOB), *map(str, args)], input=stdin, capture_output=True, text=True,
+                       encoding="utf-8")
+    out = json.loads(p.stdout.strip().splitlines()[-1])
+    assert (p.returncode == 0) == ok, p.stdout + p.stderr
+    return out
+
+
+def test_gate_and_output_read_stdin(tmp_path):
+    folder = init(tmp_path)
+    gate = {"title": "Pick", "questions": [{"id": "q1", "text": "Cuál?", "kind": "confirm"}]}
+    assert run_stdin(json.dumps(gate, ensure_ascii=False), "gate", folder, "script", "--file", "-")["gate"] == "g-1"
+    assert js.load(folder)["gate"]["questions"][0]["text"] == "Cuál?"
+    table = {"title": "T", "columns": ["A"], "rows": [{"id": "1", "cells": ["x"]}]}
+    run_stdin(json.dumps(table), "output", folder, "build", "custom", "--file", "-")
+    assert "custom" in js.load(folder)["outputs"]["build"]
+    qa = {"rows": [], "passed": 1, "verdict": "PASS"}
+    run_stdin(json.dumps(qa), "output", folder, "build", "qa", "--from", "qa", "-")
+    assert "qa" in js.load(folder)["outputs"]["build"]
+    assert run_stdin("not json", "gate", folder, "script", "--file", "-", ok=False)["ok"] is False

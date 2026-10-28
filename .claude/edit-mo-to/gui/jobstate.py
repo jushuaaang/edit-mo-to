@@ -3,6 +3,9 @@
 One video folder keeps its state in `<folder>/.edit-mo-to/`:
   job.json        step states, the open gate, outputs, log (written by job.py / server create; atomic)
   inbox.jsonl     editor events, one JSON line each (written only by the server; seq numbers)
+  job.lock        the folder lock (an OS file lock): every load-modify-save of job.json and every inbox
+                  append runs under lock(folder), across threads and processes (Claude runs job.py calls
+                  in parallel, and a second GUI server must never interleave inbox appends)
   listening.json  {"pid","since","beat","step"} while Claude is blocked in wait.py for an answer.
                   wait.py calls write_listening on every poll as a heartbeat (fresh "beat" epoch
                   seconds); listening() only trusts the file while the pid is alive AND the beat
@@ -10,11 +13,13 @@ One video folder keeps its state in `<folder>/.edit-mo-to/`:
 
 job.py, wait.py and server.py all build on this module. Standard library only; no machine paths.
 """
+import errno
 import json
 import os
 import sys
 import threading
 import time
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -38,6 +43,7 @@ EARLY: dict[str, list[str]] = {
 
 _locks: dict[str, threading.Lock] = {}
 _locks_guard = threading.Lock()
+LOCK_WAIT = 30.0  # seconds a writer waits for the folder lock before failing loudly
 
 
 def _now() -> str:
@@ -50,9 +56,56 @@ def _lock(folder: Path) -> threading.Lock:
         return _locks.setdefault(key, threading.Lock())
 
 
-def lock(folder: Path) -> threading.Lock:
-    """The per-folder lock shared by every writer in this process: `with jobstate.lock(folder): ...`."""
-    return _lock(folder)
+def _try_os_lock(f) -> bool:
+    """Take an exclusive OS lock on the open lock file without blocking; False when another holder has it."""
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except OSError as e:
+        if e.errno in (errno.ENOTSUP, errno.EOPNOTSUPP, errno.ENOLCK):
+            return True  # a file system without locks (rare): the in-process lock still holds
+        return False
+
+
+def _os_unlock(f) -> None:
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        pass  # closing the file releases it anyway
+
+
+@contextmanager
+def lock(folder: Path):
+    """The per-folder writer lock, across threads and processes: `with jobstate.lock(folder): ...`.
+
+    A thread lock first (one waiter per process), then an OS lock (fcntl.flock / msvcrt.locking) on
+    <folder>/.edit-mo-to/job.lock. The OS releases it when the holder exits or crashes, so there is no
+    stale lock to clean up. Not re-entrant: never nest it."""
+    with _lock(folder):
+        path = state_dir(folder) / "job.lock"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a+b") as f:
+            deadline = time.monotonic() + LOCK_WAIT
+            while not _try_os_lock(f):
+                if time.monotonic() > deadline:
+                    raise TimeoutError(f"{path} is held by another process for over {LOCK_WAIT:.0f} s")
+                time.sleep(0.01)
+            try:
+                yield
+            finally:
+                _os_unlock(f)
 
 
 def state_dir(folder: Path) -> Path:
@@ -169,7 +222,7 @@ def append_event(folder: Path, event: dict) -> dict:
             raise ValueError("early must be true or false")
         if event["early"] and event.get("gate"):
             raise ValueError("an early input answers no gate (gate must be null)")
-    with _lock(folder):
+    with lock(folder):
         last = read_events(folder)
         ev = dict(event)
         ev["seq"] = (last[-1]["seq"] if last else 0) + 1
