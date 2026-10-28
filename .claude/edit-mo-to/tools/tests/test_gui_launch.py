@@ -17,6 +17,7 @@ LAUNCH = GUI / "launch.py"
 sys.path.insert(0, str(GUI))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import jobstate as js  # noqa: E402
+import server  # noqa: E402
 
 
 def free_port() -> int:
@@ -79,7 +80,8 @@ def test_starts_then_reuses(env):
     assert a["reused"] is False and a["port"] == port
     token = json.loads((env / "gui" / "server.json").read_text(encoding="utf-8"))["token"]
     assert a["url"] == f"http://127.0.0.1:{port}/?k={token}"
-    assert ping(port) == {"app": "edit-mo-to-gui", "version": 1}
+    pong = ping(port)
+    assert pong["app"] == "edit-mo-to-gui" and pong["version"] == server.API_VERSION
     r2, b = launch("--port", str(port))
     assert b["reused"] is True and b["url"] == a["url"]
 
@@ -139,10 +141,10 @@ def test_old_version_restarts(env):
         assert ping(port)["version"] == 0
         js.write_json_atomic(env / "gui" / "server.json",
                              {"pid": proc.pid, "port": port, "token": "old", "version": 0})
-        r, a = launch("--port", str(port + 5))
+        r, a = launch("--port", str(port))
         assert r.returncode == 0, r.stderr
         assert a["port"] == port and a["reused"] is False
-        assert ping(port)["version"] == 1
+        assert ping(port)["version"] == server.API_VERSION
         proc.wait(timeout=10)  # the stub was terminated
     finally:
         proc.kill()
@@ -281,7 +283,7 @@ def test_start_waits_for_server_json_after_child_exits_zero(env, monkeypatch):
     fake.Popen = fake_popen
     monkeypatch.setattr(launch_mod, "subprocess", fake)
     try:
-        info = launch_mod._start(port, env)
+        info = launch_mod._start(port, env, env)
     finally:
         srv.shutdown()
         srv.server_close()
@@ -333,3 +335,96 @@ def test_unwritable_tmp_is_a_json_error(env, tmp_path, monkeypatch, capsys):
         launch_mod.main(["--port", str(free_port())])
     assert e.value.code == 1
     assert json.loads(capsys.readouterr().out.strip().splitlines()[-1])["ok"] is False
+
+
+def _wait_dead(pid, seconds=10):
+    deadline = time.time() + seconds
+    while time.time() < deadline and js.pid_alive(pid):
+        time.sleep(0.1)
+    return not js.pid_alive(pid)
+
+
+def test_older_code_version_restarts(env):
+    """Our own server reporting another code version (an update was pulled) is replaced, on the same port."""
+    port = free_port()
+    stub_code = (
+        "import json, os\nfrom http.server import BaseHTTPRequestHandler, HTTPServer\n"
+        "class H(BaseHTTPRequestHandler):\n"
+        "    def do_GET(self):\n"
+        "        b = json.dumps({'app': 'edit-mo-to-gui', 'version': 'oldcode', 'pid': os.getpid()}).encode()\n"
+        "        self.send_response(200); self.send_header('Content-Length', str(len(b)))\n"
+        "        self.end_headers(); self.wfile.write(b)\n"
+        "    def log_message(self, *a): pass\n"
+        f"HTTPServer(('127.0.0.1', {port}), H).serve_forever()\n")
+    proc = subprocess.Popen([sys.executable, "-c", stub_code])
+    try:
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            try:
+                if ping(port)["version"] == "oldcode":
+                    break
+            except OSError:
+                time.sleep(0.1)
+        js.write_json_atomic(env / "gui" / "server.json",
+                             {"pid": proc.pid, "port": port, "token": "old", "version": "oldcode"})
+        r, a = launch("--port", str(port))
+        assert r.returncode == 0, r.stderr
+        assert a["port"] == port and a["reused"] is False
+        assert ping(port)["version"] == server.API_VERSION
+        proc.wait(timeout=10)
+    finally:
+        proc.kill()
+
+
+def test_changed_root_restarts(env, tmp_path, monkeypatch):
+    """Settings changed root: the next launch replaces our running server (it would refuse the new folders)."""
+    port = free_port()
+    (tmp_path / "r1").mkdir()
+    (tmp_path / "r2").mkdir()
+    monkeypatch.setenv("EDIT_MO_TO_GUI_ROOT", str(tmp_path / "r1"))
+    r1, a = launch("--port", str(port))
+    assert r1.returncode == 0, r1.stderr
+    old_pid = info_pid(env)
+    assert launch("--port", str(port))[1]["reused"] is True
+    monkeypatch.setenv("EDIT_MO_TO_GUI_ROOT", str(tmp_path / "r2"))
+    r2, b = launch("--port", str(port))
+    assert r2.returncode == 0, r2.stderr
+    assert b["reused"] is False and b["port"] == port and b["url"] != a["url"]
+    assert _wait_dead(old_pid)
+    assert ping(port)["config"] == server.fingerprint(tmp_path / "r2", env)
+
+
+def test_changed_tmp_never_leaves_two_servers(env, tmp_path, monkeypatch):
+    """Settings changed tmp: server.json moves with it, but the old server still holds the port and the same root.
+    The launch stops it instead of starting a second server that writes the same inboxes."""
+    port = free_port()
+    r1, a = launch("--port", str(port))
+    assert r1.returncode == 0, r1.stderr
+    old_pid = info_pid(env)
+    tmp2 = tmp_path / "tmp2"
+    tmp2.mkdir()
+    monkeypatch.setenv("EDIT_MO_TO_GUI_TMP", str(tmp2))
+    try:
+        r2, b = launch("--port", str(port))
+        assert r2.returncode == 0, r2.stderr
+        assert b["reused"] is False and b["port"] == port
+        assert _wait_dead(old_pid)
+        for p in range(port + 1, port + 12):  # no second server anywhere in the range
+            with socket.socket() as s:
+                s.bind(("127.0.0.1", p))
+    finally:
+        pid = info_pid(tmp2)
+        if pid:
+            kill(pid)
+
+
+def test_changed_port_moves_the_server(env):
+    """Settings changed gui_port: our server outside the new port range is stopped, the new one starts there."""
+    port = free_port()
+    r1, a = launch("--port", str(port))
+    old_pid = info_pid(env)
+    other = free_port()
+    r2, b = launch("--port", str(other))
+    assert r2.returncode == 0, r2.stderr
+    assert b["reused"] is False and b["port"] == other
+    assert _wait_dead(old_pid)

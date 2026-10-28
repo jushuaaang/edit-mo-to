@@ -34,7 +34,7 @@ function pathsCard(ctx, msgOut) {
         value: String(s.paths.gui_port || ""), "data-key": "set:gui_port", style: "max-width:140px" })),
       h("td", {})));
     running.textContent = `This server is running with root ${s.running.root} on port ${s.running.port}. ` +
-      "Changed paths apply the next time the GUI starts.";
+      "Changed paths and the port apply the next time Claude opens the GUI (/edit-mo-to restarts this server with them).";
   };
 
   const save = async () => {

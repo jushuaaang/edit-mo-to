@@ -1,5 +1,6 @@
 import http.client
 import json
+import os
 import sys
 import threading
 import time
@@ -72,7 +73,37 @@ def _q(**kw):
 
 def test_ping_needs_no_token(api):
     status, data = api.json("GET", "/api/ping", token=None)
-    assert status == 200 and data == {"app": "edit-mo-to-gui", "version": 1}
+    assert status == 200
+    assert data == {"app": "edit-mo-to-gui", "version": server.API_VERSION, "pid": os.getpid(),
+                    "config": server.fingerprint(api.root, api.tmp)}
+    assert str(api.root) not in json.dumps(data) and str(api.tmp) not in json.dumps(data)  # paths stay private
+
+
+def test_version_is_a_hash_of_the_gui_code(tmp_path):
+    """Any change to gui/*.py or static/** gives a new version, so launch replaces a server running old code."""
+    gui = tmp_path / "gui"
+    (gui / "static" / "pages").mkdir(parents=True)
+    (gui / "server.py").write_text("a", encoding="utf-8")
+    (gui / "static" / "pages" / "x.js").write_text("b", encoding="utf-8")
+    v1 = server.code_version(gui)
+    assert isinstance(v1, str) and len(v1) >= 8
+    (gui / "notes.txt").write_text("not code", encoding="utf-8")
+    (gui / "__pycache__").mkdir()
+    (gui / "__pycache__" / "server.cpython-312.pyc").write_bytes(b"x")
+    assert server.code_version(gui) == v1
+    (gui / "static" / "pages" / "x.js").write_text("c", encoding="utf-8")
+    v2 = server.code_version(gui)
+    assert v2 != v1
+    (gui / "job.py").write_text("d", encoding="utf-8")
+    assert server.code_version(gui) != v2
+    assert server.API_VERSION == server.code_version(GUI)
+
+
+def test_fingerprint_changes_with_root_and_tmp(tmp_path):
+    a = server.fingerprint(tmp_path / "r1", tmp_path / "t")
+    assert a == server.fingerprint(tmp_path / "r1", tmp_path / "t")
+    assert a != server.fingerprint(tmp_path / "r2", tmp_path / "t")
+    assert a != server.fingerprint(tmp_path / "r1", tmp_path / "t2")
 
 
 def test_api_needs_token(api):
@@ -273,6 +304,23 @@ def test_keyframe_saved_outside_shows_up(api):
     kf = json.loads(body)["keyframes"]
     assert sorted(kf) == ["CHAR-1", "SB-2"]
     assert Path(kf["SB-2"]) == (folder / "storyboard" / "SB-2.png").resolve()
+    mt = json.loads(body)["keyframe_mtimes"]
+    assert sorted(mt) == ["CHAR-1", "SB-2"]
+    assert mt["SB-2"] == (folder / "storyboard" / "SB-2.png").stat().st_mtime_ns
+
+
+def test_keyframe_replaced_outside_gets_a_new_mtime(api):
+    """An SB-n.png overwritten from outside the app changes its mtime, the page's image cache-buster."""
+    folder = _demo(api)
+    (folder / "storyboard").mkdir()
+    img = folder / "storyboard" / "SB-1.png"
+    img.write_bytes(b"one")
+    os.utime(img, ns=(1_000_000_000_000_000_000, 1_000_000_000_000_000_000))
+    first = api.json("GET", "/api/job" + _q(folder=folder))[1]["keyframe_mtimes"]["SB-1"]
+    img.write_bytes(b"two")
+    os.utime(img, ns=(1_000_000_005_000_000_000, 1_000_000_005_000_000_000))
+    second = api.json("GET", "/api/job" + _q(folder=folder))[1]["keyframe_mtimes"]["SB-1"]
+    assert first != second and isinstance(second, int)
 
 
 def test_upload_rules(api):

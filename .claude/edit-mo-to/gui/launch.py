@@ -4,9 +4,12 @@
 
 Prints one JSON line {"url": "http://127.0.0.1:<port>/?k=<token>", "port": N, "reused": bool}, or exits 1 with
 {"ok": false, "error": ...}. Port: --port, else gui_port from machine.json, else 4810 (then +1 ... +10).
-Reuse needs {tmp}/gui/server.json with a live pid whose port answers /api/ping as our app, same version.
-Our own older or unresponsive server is stopped and replaced on its port; a foreign program on a port is never
-touched (the next port is tried). The new server is detached: it outlives this command. --folder makes that
+Reuse needs {tmp}/gui/server.json with a live pid whose port (in the port range) answers /api/ping as our app, with
+the same code version (a hash of gui/*.py and static/**) and the same root and tmp (`config`). Anything else of
+ours is stopped and replaced: an older server after an update, one started before Settings changed root, tmp or
+gui_port, or one of ours on a port of the range without a matching server.json (tmp moved). So a Settings change
+applies on the next launch, and two of our servers never write the same inboxes. A foreign program on a port is
+never touched (the next port is tried). The new server is detached: it outlives this command. --folder makes that
 folder the current job; --open also opens the URL in the browser.
 """
 import argparse
@@ -38,6 +41,10 @@ def _tmp() -> Path:
     return Path(os.environ.get("EDIT_MO_TO_GUI_TMP") or machine.PATHS["tmp"])
 
 
+def _root() -> Path:
+    return Path(os.environ.get("EDIT_MO_TO_GUI_ROOT") or machine.PATHS["root"])
+
+
 def _read_info(tmp: Path) -> "dict | None":
     try:
         data = json.loads((tmp / "gui" / "server.json").read_text(encoding="utf-8"))
@@ -55,9 +62,15 @@ def _ping(port: int) -> "dict | None":
         return None
 
 
-def _current(port: int) -> bool:
+def _ours(ans: "dict | None") -> bool:
+    return bool(ans) and ans.get("app") == server.APP
+
+
+def _current(port: int, root: Path, tmp: Path) -> bool:
+    """Our server on `port`, running today's code with today's root and tmp."""
     ans = _ping(port)
-    return bool(ans) and ans.get("app") == server.APP and ans.get("version") == server.API_VERSION
+    return (_ours(ans) and ans.get("version") == server.API_VERSION
+            and ans.get("config") == server.fingerprint(root, tmp))
 
 
 def _port_free(port: int) -> bool:
@@ -100,11 +113,19 @@ def _wait_free(port: int, seconds: float = 5) -> bool:
     return _port_free(port)
 
 
-def _usable(info: "dict | None") -> bool:
-    return bool(info) and isinstance(info.get("port"), int) and isinstance(info.get("token"), str)         and _current(info["port"])
+def _usable(info: "dict | None", ports: range, root: Path, tmp: Path) -> bool:
+    return (bool(info) and isinstance(info.get("port"), int) and info["port"] in ports
+            and isinstance(info.get("token"), str) and _current(info["port"], root, tmp))
 
 
-def _start(port: int, tmp: Path) -> "dict | None":
+def _stop(pid: int, port: int) -> None:
+    """Stop our own server `pid` on `port` and wait until the port is free; RuntimeError if it does not let go."""
+    note = _terminate(pid)
+    if not _wait_free(port):
+        raise RuntimeError(f"the old GUI server (pid {pid}) did not release port {port}" + (f" ({note})" if note else ""))
+
+
+def _start(port: int, tmp: Path, root: "Path | None" = None) -> "dict | None":
     """Spawn server.py detached on `port`; return its server.json once it answers /api/ping, else None."""
     info = _read_info(tmp)
     if not (info and js.pid_alive(info["pid"])):  # never remove a server.json that names a live process
@@ -116,12 +137,13 @@ def _start(port: int, tmp: Path) -> "dict | None":
                                    | subprocess.CREATE_NO_WINDOW)
     else:
         kwargs["start_new_session"] = True
-    proc = subprocess.Popen([sys.executable, str(GUI / "server.py"), "--port", str(port), "--tmp", str(tmp)],
-                            **kwargs)
+    root = root or _root()
+    proc = subprocess.Popen([sys.executable, str(GUI / "server.py"), "--port", str(port), "--root", str(root),
+                             "--tmp", str(tmp)], **kwargs)
     deadline, grace = time.time() + 10, None
     while time.time() < deadline:
         info = _read_info(tmp)
-        if _usable(info):
+        if _usable(info, range(port, port + 1), root, tmp):
             return info
         code = proc.poll()
         if code not in (None, 0):  # crashed: nothing will appear
@@ -192,34 +214,31 @@ def _url(info: dict) -> str:
     return f"http://127.0.0.1:{info['port']}/?k={info['token']}"
 
 
-def launch(first: int, tmp: Path) -> "tuple[dict, bool]":
+def launch(first: int, tmp: Path, root: "Path | None" = None) -> "tuple[dict, bool]":
     """(server.json info, reused). Raises RuntimeError with a plain message when nothing could start."""
     with _Lock(tmp):
-        return _launch(first, tmp)
+        return _launch(first, tmp, root or _root())
 
 
-def _launch(first: int, tmp: Path) -> "tuple[dict, bool]":
+def _launch(first: int, tmp: Path, root: Path) -> "tuple[dict, bool]":
+    ports = range(first, first + PORT_TRIES)
     info = _read_info(tmp)
-    stale_port, note = None, ""
     if info and js.pid_alive(info["pid"]) and isinstance(info.get("port"), int):
-        ans = _ping(info["port"])
-        if _usable(info):
+        if _usable(info, ports, root, tmp):
             return info, True
-        if ans and ans.get("app") == server.APP and ans.get("version") != server.API_VERSION:
-            note = _terminate(info["pid"])  # our own older server: the only thing this ever stops
-            if _wait_free(info["port"]):
-                stale_port = info["port"]
-            else:
-                raise RuntimeError(f"the old GUI server (pid {info['pid']}) did not release port "
-                                   f"{info['port']}" + (f" ({note})" if note else ""))
+        if _ours(_ping(info["port"])):  # our own server, but older code, other paths or another port range
+            _stop(info["pid"], info["port"])
     if info:  # stale record (dead pid, silent port, foreign app, replaced server): drop it, kill nothing else
         (tmp / "gui" / "server.json").unlink(missing_ok=True)
-    candidates = ([stale_port] if stale_port else []) + [p for p in range(first, first + PORT_TRIES)
-                                                         if p != stale_port]
-    for port in candidates:
-        if not _port_free(port):  # a foreign program (or something else): leave it alone
-            continue
-        started = _start(port, tmp)
+    for port in ports:
+        if not _port_free(port):
+            ans = _ping(port)
+            if not (_ours(ans) and isinstance(ans.get("pid"), int) and not isinstance(ans["pid"], bool)):
+                continue  # a foreign program (or something else): leave it alone
+            # ours, yet not the server.json we could reuse (tmp moved, or the record was lost): stop it, so two
+            # servers never write the same inboxes
+            _stop(ans["pid"], port)
+        started = _start(port, tmp, root)
         if started:
             return started, False
     raise RuntimeError(f"could not start the GUI server on ports {first} to {first + PORT_TRIES - 1}")

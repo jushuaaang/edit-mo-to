@@ -4,8 +4,13 @@ Binds to 127.0.0.1. Reads job state, appends the editor's answers to the inbox, 
 uploads into the video folder and runs only read-only checks. It never writes a CapCut project and never
 runs a workflow tool that changes files: those buttons become inbox events that Claude acts on.
 
-    python server.py [--port N] [--tmp D]   default: gui_port from machine.json, else 4810 (next free one if taken)
-                                     prints {"ok": true, "url": ...}; writes {tmp}/gui/server.json
+    python server.py [--port N] [--root R] [--tmp D]   default: gui_port from machine.json, else 4810 (next free one
+                                     if taken); root and tmp from machine.json. Prints {"ok": true, "url": ...};
+                                     writes {tmp}/gui/server.json
+
+GET /api/ping (no token) answers {"app", "version", "pid", "config"}: `version` is a hash of the GUI code (gui/*.py and
+static/**, read at import), `config` a hash of the root and tmp this server runs with. launch.py replaces our server
+when either differs from what it would start now (an update was pulled, or Settings changed a path).
 
 Security: every route except GET /api/ping and static files needs the per-launch token (cookie `emt`, set
 by GET /?k=<token>, or header X-EMT-Token). A Host other than 127.0.0.1:<port> / localhost:<port>, or a
@@ -41,8 +46,26 @@ import folders  # noqa: E402
 import jobstate as js  # noqa: E402
 import machine  # noqa: E402
 
-APP, API_VERSION, DEFAULT_PORT = "edit-mo-to-gui", 1, 4810
+APP, DEFAULT_PORT = "edit-mo-to-gui", 4810
 STATIC = GUI / "static"
+
+
+def code_version(gui: Path = GUI) -> str:
+    """A short hash of the GUI code: every gui/*.py and every file under gui/static/, by relative path and bytes."""
+    digest = hashlib.sha1()
+    files = sorted(gui.glob("*.py")) + sorted(p for p in (gui / "static").rglob("*") if p.is_file())
+    for p in files:
+        digest.update(p.relative_to(gui).as_posix().encode("utf-8") + b"\0")
+        digest.update(p.read_bytes() + b"\0")
+    return digest.hexdigest()[:12]
+
+
+def fingerprint(root: Path, tmp: Path) -> str:
+    """A short hash of the paths a server runs with; ping shows it instead of the paths themselves."""
+    return hashlib.sha1(f"{Path(root).as_posix()}\n{Path(tmp).as_posix()}".encode("utf-8")).hexdigest()[:12]
+
+
+API_VERSION = code_version()
 MIB = 1 << 20
 CHUNK, MAX_JSON, BIG = MIB, MIB, 4 << 30
 MEDIA = {"mp3", "wav", "m4a", "aac"}
@@ -104,16 +127,23 @@ def _need_str(body: dict, key: str) -> str:
 
 # ---------- job helpers ----------
 
-def _keyframes(folder: Path) -> dict:
+def _keyframes(folder: Path) -> "tuple[dict, dict]":
+    """({id: resolved path}, {id: mtime_ns}) of storyboard/SB-n and CHAR-n images. The mtime is the page's image
+    cache-buster, so a keyframe replaced from outside the app (same name) shows the new picture."""
     try:
         entries = sorted((folder / "storyboard").iterdir())
     except OSError:
-        return {}
-    out = {}
+        return {}, {}
+    out, mtimes = {}, {}
     for p in entries:
-        if KEYFRAME_ID.fullmatch(p.stem) and p.suffix[1:].lower() in KEYFRAME_EXTS and p.is_file():
-            out.setdefault(p.stem, p.resolve().as_posix())
-    return out
+        if KEYFRAME_ID.fullmatch(p.stem) and p.suffix[1:].lower() in KEYFRAME_EXTS and p.stem not in out:
+            try:
+                st = p.stat()
+            except OSError:
+                continue
+            if p.is_file():
+                out[p.stem], mtimes[p.stem] = p.resolve().as_posix(), st.st_mtime_ns
+    return out, mtimes
 
 
 def _output_paths(folder: Path, job: dict, roots: list) -> dict:
@@ -161,7 +191,7 @@ def _summary(entry: dict) -> dict:
 # ---------- routes: each takes (handler, query) and returns a JSON-able object, or None if it replied ----------
 
 def r_ping(h, q):
-    return {"app": APP, "version": API_VERSION}
+    return {"app": APP, "version": API_VERSION, "pid": os.getpid(), "config": fingerprint(h.server.root, h.server.tmp)}
 
 
 def r_jobs(h, q):
@@ -176,7 +206,7 @@ def r_job(h, q):
     folder = h.job_folder(q.get("folder"))
     job = js.load(folder)
     sd, sb = js.state_dir(folder), folder / "storyboard"
-    keyframes, listening = _keyframes(folder), js.listening(folder)
+    (keyframes, keyframe_mtimes), listening = _keyframes(folder), js.listening(folder)
     outputs = _output_paths(folder, job, [h.server.root, h.server.tmp])
     parts = [folder.as_posix(), *(_stamp(p) for p in (sd / "job.json", sd / "inbox.jsonl", sd / "gui.json",
                                                       sb, sb / "storyboard.json")),
@@ -190,7 +220,8 @@ def r_job(h, q):
     body = {"job": job, "listening": listening,
             "pending": [e for e in js.unhandled(folder) if e.get("type") in PENDING_TYPES],
             "events": js.read_events(folder)[-RECENT_EVENTS:],  # step messages, answers already sent
-            "keyframes": keyframes, "storyboard": _read_json(sb / "storyboard.json"),
+            "keyframes": keyframes, "keyframe_mtimes": keyframe_mtimes,
+            "storyboard": _read_json(sb / "storyboard.json"),
             "gui": _read_json(sd / "gui.json", {}), "early": js.EARLY,
             "outputs": {s: {k: None if p is None else _read_json(p) for k, p in kinds.items()}
                         for s, kinds in outputs.items()}}
@@ -582,10 +613,11 @@ def main(argv: "list[str] | None" = None) -> None:
         sys.stdout.reconfigure(encoding="utf-8")
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("--port", type=int)
+    p.add_argument("--root", help="video root instead of {root} from machine.json (launch.py and tests)")
     p.add_argument("--tmp", help="state folder instead of {tmp} from machine.json (launch.py and tests)")
     a = p.parse_args(argv)
     paths = machine.PATHS
-    root, tmp = Path(paths["root"]), Path(a.tmp or paths["tmp"])
+    root, tmp = Path(a.root or paths["root"]), Path(a.tmp or paths["tmp"])
     first = a.port or int(paths.get("gui_port") or DEFAULT_PORT)
     token, srv = secrets.token_urlsafe(24), None
     for port in range(first, first + 20):
