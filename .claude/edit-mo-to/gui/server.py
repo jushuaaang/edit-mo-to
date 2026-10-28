@@ -463,20 +463,20 @@ def practice_argv(root: Path, platform: str) -> "list[str] | None":
     return None
 
 
-def _launch(argv: "list[str]", root: Path, platform: str) -> bool:
-    """Start the window. macOS: osascript returns once Terminal has it (a non-zero exit = refused, e.g. Automation
-    not allowed). Windows: Popen with no pipes and no wait; the console stays open on its own, and a cmd /k holding
-    our pipes would otherwise keep the request open until the editor closed Claude."""
+def _launch(argv: "list[str]", root: Path, platform: str) -> str:
+    """Start the window: "ok", "refused" (osascript ran and exited non-zero, e.g. Automation not allowed) or "failed"
+    (it could not start or timed out). Windows: Popen with only cwd and CREATE_NEW_CONSOLE, no wait; no stdio arguments,
+    so cmd and claude get the new console itself (DEVNULL would hand them NUL and the window would close), and no pipes
+    that would keep the request open until the editor closed Claude."""
     try:
         if platform == "win32":
-            subprocess.Popen(argv, cwd=str(root), creationflags=CREATE_NEW_CONSOLE, stdin=subprocess.DEVNULL,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return True
+            subprocess.Popen(argv, cwd=str(root), creationflags=CREATE_NEW_CONSOLE)
+            return "ok"
         done = subprocess.run(argv, cwd=str(root), timeout=PRACTICE_TIMEOUT, capture_output=True,
                               stdin=subprocess.DEVNULL)
-        return done.returncode == 0
+        return "ok" if done.returncode == 0 else "refused"
     except (OSError, subprocess.SubprocessError):
-        return False
+        return "failed"
 
 
 def r_practice(h, q):
@@ -495,17 +495,18 @@ def r_practice(h, q):
         if not shutil.which("claude"):
             return {"ok": False, "reason": "no-claude"}
         h.server.practice_at, h.server.practice_running = now, True
-    ok = False
+    outcome = "failed"
     try:
-        ok = _launch(argv, root, platform)
+        outcome = _launch(argv, root, platform)
     finally:
         with _practice_lock:
             h.server.practice_running = False
-            if not ok:
+            if outcome != "ok":
                 h.server.practice_at = None  # a failed launch never makes the retry say "busy"
-    if ok:
+    if outcome == "ok":
         return {"ok": True}
-    return {"ok": False, "reason": "failed", **({"hint": "automation"} if platform == "darwin" else {})}
+    # the Automation hint only when osascript really ran and said no (not when it is missing or timed out)
+    return {"ok": False, "reason": "failed", **({"hint": "automation"} if outcome == "refused" and platform == "darwin" else {})}
 
 
 def r_checks(h, q):

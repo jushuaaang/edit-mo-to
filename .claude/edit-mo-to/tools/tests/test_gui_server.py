@@ -630,8 +630,9 @@ def test_practice_quotes_an_odd_root_for_the_shell_inside_applescript(tmp_path):
 
 
 def test_practice_on_windows_opens_a_command_window_in_the_root(api, launcher, monkeypatch):
-    """A new console runs `claude /practice-muna` in the root; the request never waits for that window (a `cmd /k`
-    that inherited captured pipes would hold the request open until the editor closed Claude)."""
+    """A new console runs `claude /practice-muna` in the root; the request never waits for that window. The window keeps
+    its own console for input and output: no stdio arguments (DEVNULL would set STARTF_USESTDHANDLES, so cmd /k would
+    read EOF and close, and claude would have no terminal)."""
     monkeypatch.setattr(server, "_platform", lambda: "win32")
     assert _practice(api) == (200, {"ok": True})
     (argv, kw), = launcher
@@ -641,9 +642,7 @@ def test_practice_on_windows_opens_a_command_window_in_the_root(api, launcher, m
     assert kw["cwd"] == str(api.root)            # the folder is the working directory, never text on the command line
     assert str(api.root) not in " ".join(argv)
     assert kw["creationflags"] == server.CREATE_NEW_CONSOLE == 0x10
-    for stream in ("stdin", "stdout", "stderr"):
-        assert kw[stream] is server.subprocess.DEVNULL, stream   # no pipes for the window to inherit
-    assert "capture_output" not in kw and "timeout" not in kw
+    assert set(kw) == {"cwd", "creationflags"}   # no stdin / stdout / stderr, no capture_output, no timeout
 
 
 def test_practice_on_windows_reports_a_failed_start(api, launcher, monkeypatch):
@@ -673,14 +672,20 @@ def test_practice_reports_a_failed_launch(api, launcher, monkeypatch):
         returncode = 1
 
     monkeypatch.setattr(server.subprocess, "run", lambda argv, **kw: Bad())
-    assert _practice(api) == (200, {"ok": False, "reason": "failed", "hint": "automation"})
+    assert _practice(api) == (200, {"ok": False, "reason": "failed", "hint": "automation"})  # osascript ran, refused
     assert _practice(api) == (200, {"ok": False, "reason": "failed", "hint": "automation"})  # same second: not busy
 
     def boom(argv, **kw):
         raise OSError("osascript missing")
 
     monkeypatch.setattr(server.subprocess, "run", boom)
-    assert _practice(api) == (200, {"ok": False, "reason": "failed", "hint": "automation"})
+    assert _practice(api) == (200, {"ok": False, "reason": "failed"})   # never ran: no Automation hint
+
+    def slow(argv, **kw):
+        raise server.subprocess.TimeoutExpired(argv, kw.get("timeout"))
+
+    monkeypatch.setattr(server.subprocess, "run", slow)
+    assert _practice(api) == (200, {"ok": False, "reason": "failed"})   # timed out: no Automation hint
 
 
 def test_practice_is_busy_while_a_launch_still_runs(api, launcher, monkeypatch):
