@@ -7,6 +7,8 @@ every poll as a heartbeat. Prints exactly one JSON line on stdout and exits:
     0    {"events": [...]}      new inbox events with seq > N
     3    {"events": []}         --timeout elapsed (0, the default, waits forever)
     4    {"superseded": true}   another live wait.py took over the listening file
+    5    {"orphaned": true}     the process that started it is gone (POSIX: Claude Code quit), so no
+                                 orphan keeps a false "Claude is listening"
     130  (no output)            Ctrl+C / SIGTERM / SIGBREAK
 The listening file is cleared on exit only if it still names this process.
 """
@@ -64,6 +66,12 @@ def _heartbeat(folder: Path, step: str | None) -> bool:
         tmp.unlink(missing_ok=True)
 
 
+def _orphaned(parent: int) -> bool:
+    """POSIX: our parent changed since start (we were reparented to init/launchd or a subreaper), so whoever started
+    us is gone. A waiter started detached (parent already 1) is left alone. Windows never reparents: always False."""
+    return sys.platform != "win32" and os.getppid() != parent
+
+
 def _emit(obj: dict) -> None:
     sys.stdout.write(json.dumps(obj, ensure_ascii=False) + "\n")
     sys.stdout.flush()
@@ -71,6 +79,7 @@ def _emit(obj: dict) -> None:
 
 def wait(folder: Path, after: int, step: str | None, timeout: float, poll: float) -> int:
     deadline = time.monotonic() + timeout if timeout > 0 else None
+    parent = os.getppid()
     try:
         js.write_listening(folder, step)  # a new waiter always takes over
         while True:
@@ -81,6 +90,9 @@ def wait(folder: Path, after: int, step: str | None, timeout: float, poll: float
             if deadline is not None and time.monotonic() >= deadline:
                 _emit({"events": []})
                 return 3
+            if _orphaned(parent):
+                _emit({"orphaned": True})
+                return 5
             if not _heartbeat(folder, step):
                 _emit({"superseded": True})
                 return 4

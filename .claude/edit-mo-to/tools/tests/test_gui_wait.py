@@ -173,3 +173,27 @@ def test_ctrl_break_clears_listening_and_exits_130(tmp_path):
     assert _until(lambda: not js.pid_alive(real))
     assert not (js.state_dir(tmp_path) / "listening.json").exists()
     assert p.returncode == 130
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX reparenting")
+def test_orphaned_waiter_exits(tmp_path):
+    """Claude Code gone (the shell that started wait.py died): the waiter stops, so the GUI never shows a false
+    "Claude is listening"."""
+    folder = tmp_path / "vid"
+    js.save(folder, js.new_job(folder, "A", "B"))
+    out = tmp_path / "w.out"
+    sh = subprocess.run(["sh", "-c", f'"{sys.executable}" "{WAIT}" "{folder}" --poll 0.1 > "{out}" 2>&1 & echo $!; sleep 1.5'],
+                        capture_output=True, text=True, timeout=10)
+    pid = int(sh.stdout.strip())
+    try:
+        deadline = time.time() + 5
+        while time.time() < deadline and js.listening(folder) is None:
+            time.sleep(0.1)
+        deadline = time.time() + 5
+        while time.time() < deadline and js.pid_alive(pid):
+            time.sleep(0.1)
+        assert not js.pid_alive(pid), "the orphaned wait.py kept running"
+        assert js.listening(folder) is None
+    finally:
+        if js.pid_alive(pid):
+            os.kill(pid, signal.SIGKILL)
