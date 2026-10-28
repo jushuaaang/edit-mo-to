@@ -261,3 +261,43 @@ def test_gate_and_output_read_stdin(tmp_path):
     run_stdin(json.dumps(qa), "output", folder, "build", "qa", "--from", "qa", "-")
     assert "qa" in js.load(folder)["outputs"]["build"]
     assert run_stdin("not json", "gate", folder, "script", "--file", "-", ok=False)["ok"] is False
+
+
+def test_input_is_read_before_the_lock(tmp_path, monkeypatch):
+    """gate / output read their JSON (stdin or file) before taking the folder lock, so a slow stdin never holds it."""
+    import contextlib
+    import io
+    import job
+    folder = init(tmp_path)
+    state = {"locked": False, "read_while_locked": None}
+
+    @contextlib.contextmanager
+    def fake_lock(f):
+        state["locked"] = True
+        try:
+            yield
+        finally:
+            state["locked"] = False
+
+    class Stdin:
+        def __init__(self, data):
+            self.buffer = self
+            self.data = data
+
+        def read(self):
+            state["read_while_locked"] = state["locked"]
+            return self.data
+
+    monkeypatch.setattr(js, "lock", fake_lock)
+    gate = {"title": "T", "questions": [{"id": "q", "text": "?", "kind": "confirm"}]}
+    monkeypatch.setattr(sys, "stdin", Stdin(json.dumps(gate).encode()))
+    a = job.build_parser().parse_args(["gate", str(folder), "script", "--file", "-"])
+    a.folder = folder.resolve()
+    assert a.fn(a)["gate"] == "g-1" and state["read_while_locked"] is False
+    table = {"title": "T", "columns": ["A"], "rows": []}
+    state["read_while_locked"] = None
+    monkeypatch.setattr(sys, "stdin", Stdin(json.dumps(table).encode()))
+    a = job.build_parser().parse_args(["output", str(folder), "build", "custom", "--file", "-"])
+    a.folder = folder.resolve()
+    a.fn(a)
+    assert state["read_while_locked"] is False

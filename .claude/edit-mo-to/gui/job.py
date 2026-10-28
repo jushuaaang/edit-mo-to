@@ -45,9 +45,13 @@ def _read_json(path: str):
 
 
 def _locked(fn):
-    """Run a job.json writer under the folder's cross-process lock (load-modify-save is one step)."""
+    """Run a job.json writer under the folder's cross-process lock (load-modify-save is one step). The command's
+    JSON input (--file, or --from's path; "-" is stdin) is read first, outside the lock, so a slow or never-closed
+    stdin can't hold the folder lock: the command then reads a.payload."""
     @functools.wraps(fn)
     def wrapper(a):
+        src = getattr(a, "file", None) or (a.source[1] if getattr(a, "source", None) else None)
+        a.payload = _read_json(src) if src else None
         with js.lock(Path(a.folder)):
             return fn(a)
     return wrapper
@@ -130,7 +134,7 @@ def cmd_gate(a) -> dict:
     job = js.load(folder)
     _step(a.step)
     seq = int(job.get("gate_seq", 0)) + 1
-    gate = _gate_from(_read_json(a.file), f"g-{seq}", a.step)
+    gate = _gate_from(a.payload, f"g-{seq}", a.step)  # read before the lock (_locked)
     if job.get("gate"):
         _log(job, f"gate {job['gate']['id']} replaced by {gate['id']}")
     job["gate_seq"], job["gate"] = seq, gate
@@ -200,9 +204,9 @@ def cmd_output(a) -> dict:
         name, path = a.source
         if name not in adapters.ADAPTERS:
             raise ValueError(f"unknown adapter {name!r} (one of {', '.join(adapters.ADAPTERS)})")
-        data = adapters.ADAPTERS[name](_read_json(path))
+        data = adapters.ADAPTERS[name](a.payload)  # read before the lock (_locked)
     else:
-        data = _read_json(a.file)
+        data = a.payload
         validate_output(a.kind, data)
     rel = f".edit-mo-to/outputs/{a.step}-{a.kind}.json"
     js._write_atomic(folder / rel, json.dumps(data, ensure_ascii=False, indent=2))

@@ -62,10 +62,12 @@ export function commentsFor(data, id) {
 const needsImage = (data, it) => !isClient(it) && !data?.keyframes?.[it.id];
 
 /** [word, chip status] for a card (every chip has a word). "approved" only from the board itself (Claude applied it);
- *  an approve the editor sent that the board doesn't show yet is "approval sent". */
+ *  an approve the editor sent that Claude hasn't handled yet is "approval sent" (a handled one, or one from an earlier
+ *  round, never outranks "changed" or "comment open"). */
 export function statusOf(data, it) {
   if (it.item?.status === "approved") return ["approved", "ok"];
-  const approveSent = (data?.events || []).some((e) => e.type === "approve" && !e.stale
+  const done = handledSet(data);
+  const approveSent = (data?.events || []).some((e) => e.type === "approve" && !e.stale && !done.has(e.seq)
     && (e.target === `${STEP}:${it.id}` || e.target === STEP));
   if (approveSent) return ["approval sent", "wait"];
   if (it.item?.status === "changed") return ["changed", "opt"];

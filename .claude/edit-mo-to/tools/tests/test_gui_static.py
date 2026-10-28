@@ -259,3 +259,10 @@ def test_export_always_checks_temp_en():
     text = _page("export.js")
     assert 'if (t === "removed" || t === "off"' not in text  # no skipped check
     assert "Could not check: delete TEMP_EN_delete_me before export if present" in text
+
+
+def test_approval_sent_counts_only_unhandled_approves():
+    """A handled approve (or one from an earlier round) never outranks "changed" or "comment open"."""
+    text = _page("storyboard.js")
+    body = text[text.index("export function statusOf"):text.index("export function shotText")]
+    assert "!done.has(e.seq)" in body and 'e.type === "approve"' in body
