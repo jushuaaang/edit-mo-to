@@ -1,10 +1,13 @@
-// Every word the app shows lives here, in English (en) and Taglish (tl), with the same keys. Joshua checks the Taglish.
+// Every word the app shows lives here. Joshua checks the Taglish.
+// Labels stay English in both languages (spec "Beginner friendly", Language): buttons, tabs and filters, step names,
+// status chips, field and column names, section titles, menu items. WORDS.labels lists them ("*" = a whole group);
+// they have only an English line. Sentences (instructions and messages) have an English (en) and a Taglish (tl) line.
 // Not here: Claude's own text (log lines, gate questions and options, outputs), the editor's text, file names, paths,
 // prompts. Branding and the verse are fixed in index.html and never change.
 //
-//   t(key, vars)    the line for a dotted key ("why.timing") in the current language, {name} filled from vars; a key
-//                   missing in Taglish falls back to English (the static test fails on any missing tl key, so none
-//                   ship); an unknown key shows itself
+//   t(key, vars)    the line for a dotted key ("why.timing") in the current language, {name} filled from vars; a label
+//                   (no tl line) is English in both; the static test fails when a sentence has no tl line or a label
+//                   has one; an unknown key shows itself
 //   tEn(key, vars)  always English (to match what Claude wrote on the job card)
 //   parts(key, vars) the line as pieces, a DOM node in place of each {name} given as a node
 //   setLang(l) / getLang()  "en" | "tl" (Tagalog counts as Taglish); nextstep.js sets it from this computer's prefs
@@ -15,6 +18,67 @@
 // WORDS between the two marker comments is plain JSON (tests read it): double quotes, no trailing commas.
 /* WORDS-START */
 export const WORDS = {
+  "labels": {
+    "step": "*",
+    "word": "*",
+    "state": "*",
+    "tag": "*",
+    "status": "*",
+    "card": "*",
+    "checks": "*",
+    "table": "*",
+    "set": ["path_root", "path_python", "path_tmp", "path_mcp", "path_drafts", "found", "missing", "port", "paths_h",
+      "th_path", "th_value", "th_found"],
+    "help": ["row"],
+    "label": ["shot", "character", "clip", "prompt", "ai", "client"],
+    "now": ["you", "claude", "none"],
+    "alert": ["title_count"],
+    "settings": ["alerts_h", "notify", "sound", "lang_h", "lang_auto", "lang_en", "lang_tl"],
+    "practice": ["title", "copy", "start"],
+    "page": ["why_label", "crumb"],
+    "common": ["send", "save", "copy", "copied", "copy_failed", "close", "cancel", "done", "yes", "no", "none", "now",
+      "sent_waiting", "claude_has_it"],
+    "ui": ["pending"],
+    "shell": ["skip", "nav_app", "dashboard", "settings", "title_settings", "steps_nav", "rail_toggle", "rail",
+      "rail_close", "job_card", "activity", "tell"],
+    "app": ["coming_title", "waits_for", "sr_done", "coming_h", "cant_open", "page_error"],
+    "upload": ["add_files", "drop_files"],
+    "gate": ["waiting", "waiting_title", "send_again", "drop_file"],
+    "ask": ["history", "claude_says", "you_at", "title", "label"],
+    "sp": ["saved_for_later", "already_answered", "capcut_closed", "change_cancelled", "early_h", "not_started"],
+    "dash": ["in_progress", "temp_on", "timelines_one", "timelines", "step_now", "all_done", "progress",
+      "older_check", "new_video", "recent", "none_h", "practice_h", "older", "practice_tag"],
+    "fb": ["type", "bug", "suggest", "what", "no_step", "saved_h", "bug_chip", "suggestion_chip", "open_issue", "h",
+      "title", "step", "send"],
+    "storyboard": ["open_close", "picture_of", "drop", "comment_on", "char_title", "prev", "next", "prev_plain",
+      "next_plain", "f_all", "f_need", "f_changed", "f_comments", "st_approved", "st_sent", "st_changed",
+      "st_comment", "st_image", "st_client", "st_ready", "st_char", "char_sheet", "client_clip", "graphic", "ai",
+      "client_footage", "comment", "copy_prompt", "replace", "character", "english_temp", "details",
+      "comments_open_one", "comments_open", "not_approved_sent", "approved_waiting", "approve_all_sent",
+      "approve_all", "approve_anyway", "wait_images", "view", "grid", "detail", "show", "share", "send_notes",
+      "notes_h", "its_saved", "no_image", "save_prompt", "save_visual", "c_open", "send_comment", "comments",
+      "visual", "kf_prompt", "request", "approve_shot", "shot", "choose_file"],
+    "prompts": ["src_client", "src_ai", "src_both", "broll_source", "answered_storyboard", "generator", "site_model",
+      "model", "other", "broll_h", "prompts_h"],
+    "brief": ["link", "paste", "instructions", "refs", "style_h", "style", "script_lang", "not_set", "checklist_h",
+      "th_rule", "th_source", "send_answers", "questions_h", "the_brief"],
+    "build": ["sent", "choose", "st_working", "st_done", "st_error", "st_waiting", "st_skipped", "h", "project",
+      "fix", "qa_h"],
+    "captions": ["me", "claude", "auto_done", "timelines", "add", "tl_sent", "who"],
+    "clips": ["folder", "pass", "flag", "contact", "check", "check_h"],
+    "export": ["settings_h", "done_h", "learn", "review_learned"],
+    "music": ["suno", "own", "source", "file", "suno_h"],
+    "review": ["inplace", "new", "which", "all", "add", "send", "h", "item", "tl_unknown", "mode_new", "mode_inplace",
+      "remove_label", "remove", "new_change", "timeline", "mode_label", "list_h", "done_h", "done"],
+    "script": ["yours", "save", "line_label", "send", "lang", "temp_on", "th_id", "th_line", "th_en", "mine", "write"],
+    "timing": ["keep", "rerecord", "w_cut", "w_review", "cut_label", "cut", "apply", "cuts_sent", "h"],
+    "vo": ["lang_h", "files", "file_h", "reuse"],
+    "dlg": ["link_ph", "will_create", "has_job", "found", "brief_link", "create", "cancel_change", "quit_check",
+      "capcut_title", "project_word", "name_label", "later", "use_name", "name_title", "frames_of", "regen",
+      "use_anyway", "choose_file", "transcribe", "timeline_pick", "use", "use_id", "older_vo", "use_sentences",
+      "backup_where", "make_new", "change_inplace", "inplace_title", "where_keep", "general", "client_note",
+      "saved_waiting", "declined", "decline", "learn_title"]
+  },
   "en": {
     "step": {
       "brief": "Brief", "script": "Script", "storyboard": "Storyboard", "voiceover": "Voiceover",
@@ -109,7 +173,8 @@ export const WORDS = {
       "no_claude": "Claude isn't installed as a terminal command on this computer. Copy this and paste it into Claude instead.",
       "failed": "The window didn't open. Copy this and paste it into Claude instead.",
       "unsupported": "This computer can't open Claude from the app. Copy this and paste it into Claude instead.",
-      "busy": "It's already opening. Wait a few seconds."
+      "busy": "It's already opening. Wait a few seconds.",
+      "mac_automation": "On a Mac, allow it in System Settings › Privacy & Security › Automation (let the app control Terminal), then press Start practice again."
     },
     "page": {
       "why_label": "Why this step", "crumb": "{name} · Step {n}"
@@ -414,11 +479,6 @@ export const WORDS = {
     }
   },
   "tl": {
-    "step": {
-      "brief": "Brief", "script": "Script", "storyboard": "Storyboard", "voiceover": "Voiceover",
-      "timing": "Timing at cleanup", "prompts": "B-roll at prompts", "clips": "Clips", "build": "Build at QA",
-      "review": "Review", "captions": "Captions", "music": "Music", "export": "Export"
-    },
     "why": {
       "brief": "Babasahin muna ni Claude ang brief ng client, para sundin ng bawat video ang rules nila.",
       "script": "Isusulat ni Claude ang sasabihin ng boses, ayon sa brief.",
@@ -441,7 +501,7 @@ export const WORDS = {
       "export": "Mga 5 minuto."
     },
     "help": {
-      "button": "Ano ang ibig sabihin ng {word}?", "row": "Mga salita sa page na ito:",
+      "button": "Ano ang ibig sabihin ng {word}?",
       "temp_en": "Pansamantalang English track para masundan mo ang video na nasa ibang language. Burahin ito bago mag-export.",
       "a_roll": "Ang main footage: ang taong nagsasalita sa camera.",
       "b_roll": "Extra shots na lumalabas habang nagsasalita ang boses, tulad ng product o close-up.",
@@ -456,26 +516,18 @@ export const WORDS = {
       "time_value": "{s} segundo at {f} frames", "time_long": "{m} minuto, {s} segundo at {f} frames",
       "time_range": "{from} hanggang {to}", "fps": "(30 frames = 1 segundo)"
     },
-    "word": {
-      "temp_en": "TEMP_EN", "a_roll": "A-roll", "b_roll": "B-roll", "keyframe": "keyframe", "timeline": "timeline",
-      "vo": "voiceover", "character_sheet": "character sheet", "question": "tanong ni Claude", "time": "ang times",
-      "model": "model", "prompt": "prompt"
-    },
     "label": {
-      "shot": "Shot {n}", "character": "Character {n}", "clip": "Clip {n}", "prompt": "Prompt {n}",
-      "ai": "AI clip {n}", "client": "Client clip {n}", "two": "{a} at {b}", "many": "{rest} at {last}",
-      "more": "{n} pa"
+      "two": "{a} at {b}", "many": "{rest} at {last}", "more": "{n} pa"
     },
     "now": {
-      "you": "Ikaw", "claude": "Claude", "none": "Status",
-      "capcut": "Ikaw na: i-quit nang buo ang CapCut, tapos pindutin ang “Sarado na ang CapCut” sa {step} page.",
+      "capcut": "Ikaw na: i-quit nang buo ang CapCut, tapos pindutin ang “CapCut is closed” sa {step} page.",
       "pictures": "Ikaw na: gawin ang pictures ng {shots}, tapos i-drop ang bawat isa sa card nito.",
       "pictures_question": "Ikaw na: gawin ang pictures ng {shots} at i-drop ang bawat isa sa card nito, o sagutin ang tanong ni Claude sa {step} page.",
       "voiceover": "Ikaw na: i-drop ang voiceover file sa Voiceover page.",
       "question": "Ikaw na: sagutin ang tanong ni Claude sa {step} page.",
       "answered": "Nasagot mo na ang tanong ni Claude sa {step} page. Si Claude na ang susunod.",
       "waiting": "Ikaw na: kailangan ka sa {step} page.",
-      "working": "Si Claude ang gumagawa ng {step}. Wala pang gagawin.",
+      "working": "Si Claude ang gumagawa ng {step}. Wala ka pang gagawin.",
       "error": "May nagka-problema sa {step}. Sabihin kay Claude sa box sa ibaba.",
       "error_card": "May nagka-problema sa {step}. Buksan ito at sabihin kay Claude.",
       "done": "Tapos na ang video na ito.", "next": "Susunod: {step}. Sisimulan ito ni Claude pagdating doon.",
@@ -483,65 +535,41 @@ export const WORDS = {
       "not_listening_ask": "Hindi nakikinig si Claude ngayon. Pwede ka pa ring sumagot: naka-save ito hanggang mag-check si Claude."
     },
     "alert": {
-      "notify_title": "Kailangan ka ni Claude: {step}", "title_count": "({n}) {title}"
+      "notify_title": "Kailangan ka ni Claude: {step}"
     },
     "settings": {
-      "alerts_h": "Sabihan ako kapag kailangan ako ni Claude",
       "alerts_p": "Kapag may bagong tanong si Claude, sasabihan ka ng computer na ito. Naka-save sa computer na ito lang.",
-      "notify": "Pop-up kapag kailangan ako ni Claude",
       "notify_hint": "Isang beses magtatanong ang browser mo kung pwedeng mag-pop-up, sa unang click mo pagkatapos magtanong ni Claude.",
       "notify_blocked": "Naka-block ang pop-ups sa page na ito. I-allow sila sa site settings ng browser mo.",
-      "sound": "Sound", "sound_hint": "Maikli at mahinang tunog.", "loading": "Naglo-load…", "saved": "Na-save.",
-      "not_saved": "Hindi na-save: {why}", "lang_h": "Language",
+      "sound_hint": "Maikli at mahinang tunog.", "loading": "Naglo-load…", "saved": "Na-save.",
+      "not_saved": "Hindi na-save: {why}",
       "lang_p": "Ang mga salitang pinapakita ng app. Hindi binabago ang messages ni Claude, ang script, at ang sarili mong text.",
-      "lang_auto": "Auto", "lang_en": "English", "lang_tl": "Taglish",
       "lang_auto_hint": "Sinusundan ng Auto ang language na gamit mo kay Claude. Ngayon: {lang}.",
       "lang_manual_hint": "Hindi sinusunod ang hula ni Claude habang may pinili ka rito. Piliin ang Auto para gamitin ulit."
     },
     "practice": {
-      "title": "Bago ka pa lang? Subukan muna ang practice video.",
       "what": "Isang 10-second practice video mula sa clip mo habang nagsasalita. Parehong 12 steps ng totoong job, mga 15 hanggang 25 minuto, at walang client na makakakita.",
-      "type": "Sa Claude, i-type:", "copy": "Copy", "start": "Simulan ang practice", "starting": "Binubuksan…",
+      "type": "Sa Claude, i-type:", "starting": "Binubuksan…",
       "opened": "Bubukas si Claude sa bagong window. Doon mo i-send ang clip mo.",
       "no_claude": "Hindi naka-install si Claude bilang terminal command sa computer na ito. I-copy na lang ito at i-paste kay Claude.",
       "failed": "Hindi bumukas ang window. I-copy na lang ito at i-paste kay Claude.",
       "unsupported": "Hindi kayang buksan si Claude mula sa app sa computer na ito. I-copy na lang ito at i-paste kay Claude.",
-      "busy": "Binubuksan na. Maghintay ng ilang segundo."
-    },
-    "page": {
-      "why_label": "Bakit ito ginagawa", "crumb": "{name} · Step {n}"
+      "busy": "Binubuksan na. Maghintay ng ilang segundo.",
+      "mac_automation": "Sa Mac, i-allow ito sa System Settings › Privacy & Security › Automation (payagan ang app na i-control ang Terminal), tapos pindutin ulit ang Start practice."
     },
     "common": {
-      "loading": "Naglo-load…", "send": "I-send", "save": "I-save", "copy": "Copy", "copied": "Na-copy ✓",
-      "copy_failed": "Hindi na-copy", "close": "Isara", "cancel": "Cancel", "done": "Tapos", "yes": "Oo",
-      "no": "Hindi", "none": "wala", "now": "ngayon", "checking": "Chine-check…", "nothing_yet": "Wala pa.",
+      "loading": "Naglo-load…", "checking": "Chine-check…", "nothing_yet": "Wala pa.",
       "nothing_changed": "Walang binago.", "not_sent": "Hindi na-send. Subukan ulit.",
       "not_sent_moment": "Hindi na-send. Subukan ulit maya-maya.", "not_saved": "Hindi na-save.",
       "not_saved_try": "Hindi na-save. Subukan ulit.", "sent_listening": "Na-send. Nakikinig si Claude.",
       "saved_later": "Na-save. Babasahin ito ni Claude sa susunod niyang check.",
-      "on_it": "Na-send. Ginagawa na ni Claude.", "saved_waiting": "Na-save, hinihintay si Claude",
-      "sent_waiting": "Na-send · hinihintay si Claude", "claude_has_it": "Nasa kay Claude na"
-    },
-    "state": {
-      "pending": "Hindi pa nagsisimula", "working": "Gumagawa si Claude", "waiting": "Hinihintay ka",
-      "done": "Tapos na", "skipped": "Skipped", "error": "Error"
-    },
-    "tag": {
-      "you": "Ikaw", "working": "Ginagawa", "error": "Error", "skipped": "Skipped", "optional": "Optional",
-      "open": "Pwede na"
+      "on_it": "Na-send. Ginagawa na ni Claude.", "saved_waiting": "Na-save, hinihintay si Claude"
     },
     "ui": {
-      "pending": "naghihintay", "pending_title": "Na-save. Hindi pa ito nagagawa ni Claude."
-    },
-    "status": {
-      "ok": "OK", "wait": "Ginagawa", "you": "Ikaw", "err": "I-check", "opt": "Optional", "mute": "Info"
+      "pending_title": "Na-save. Hindi pa ito nagagawa ni Claude."
     },
     "shell": {
-      "skip": "Diretso sa page", "nav_app": "App", "dashboard": "Dashboard", "settings": "Settings at setup",
-      "title_settings": "Settings", "no_video": "Walang nakabukas na video", "steps_nav": "Mga step ng video na ito",
-      "connecting": "Kumokonekta…", "rail_toggle": "Job at Claude", "rail": "Job at Claude",
-      "rail_close": "Isara ang job panel", "job_card": "Job card", "activity": "Ginagawa ni Claude",
-      "tell": "Sabihin kay Claude kahit ano",
+      "no_video": "Walang nakabukas na video", "connecting": "Kumokonekta…",
       "tell_ph": "Sabihin kay Claude kahit ano, tungkol sa kahit anong step o sa buong job…",
       "checking_listening": "Chine-check kung nakikinig si Claude…", "whole_job": "Buong job · Ctrl+Enter"
     },
@@ -551,11 +579,9 @@ export const WORDS = {
       "upload_stopped": "Huminto ang upload. I-check ang file type at size, tapos subukan ulit.",
       "open_first": "Magbukas muna ng video.",
       "dialog_new_coming": "Darating ang New video form sa susunod na build. Sa ngayon, magsimula ng bagong video gamit ang /edit-mo-to sa Claude Code.",
-      "dialog_coming": "Darating ang dialog na ito sa susunod na build.", "coming_title": "Parating",
-      "connected": "Connected · {host}", "not_connected": "Hindi connected · sinusubukan ulit",
-      "key_h": "Kailangan ng page na ito ang key nito.",
+      "dialog_coming": "Darating ang dialog na ito sa susunod na build.", "connected": "Connected · {host}",
+      "not_connected": "Hindi connected · sinusubukan ulit", "key_h": "Kailangan ng page na ito ang key nito.",
       "key_p": "Buksan ang link na ni-print ng server (nagtatapos sa ?k=…), o simulan ulit ang app mula sa Claude Code.",
-      "waits_for": "Hinihintay ang: {step}", "sr_done": ", tapos na",
       "open_to_see": "Magbukas ng video para makita ang ginagawa ni Claude.",
       "no_video_talk": "Walang nakabukas na video. Magbukas sa Dashboard para makausap si Claude tungkol dito.",
       "listening": "Nakikinig si Claude · {step}", "this_job": "ang job na ito",
@@ -563,175 +589,103 @@ export const WORDS = {
       "open_on_dash": "Magbukas ng video sa Dashboard.",
       "err_404": "Wala pang job ang folder na ito. Lalabas ito kapag sinimulan na ng /edit-mo-to.",
       "err_403": "Hindi video folder iyan (dapat direktang subfolder ng root).",
-      "err_load": "Hindi ma-load ang video na ito.", "coming_h": "Parating pa ang page na ito",
+      "err_load": "Hindi ma-load ang video na ito.",
       "coming_p": "Darating ang buong {step} page sa susunod na build. Lalabas sa itaas ang mga tanong ni Claude para sa step na ito, at pwede kang sumulat kay Claude sa ibaba.",
-      "coming_later": "Darating ito sa susunod na build.", "cant_open": "Hindi mabuksan ang video na ito",
-      "page_error": "Hindi maipakita ang page na ito"
-    },
-    "card": {
-      "job": "Job", "client": "Client", "product": "Product", "style": "Style", "language": "Language",
-      "temp_en": "TEMP_EN", "folder": "Folder", "vo": "VO", "generator": "Generator", "timelines": "Timelines",
-      "project": "Project", "temp_on": "On · burahin bago mag-export",
-      "temp_partial": "On pa sa {names} · burahin bago mag-export", "temp_removed": "Natanggal na", "temp_off": "Off",
-      "not_set": "Wala pa", "not_yet": "Wala pa"
+      "coming_later": "Darating ito sa susunod na build."
     },
     "upload": {
       "kind": "Hindi pwedeng idagdag dito ang ganitong file.",
       "type": "{name}: hindi pwede rito ang file type na iyan. Gamitin ang {types}.",
       "big": "Masyadong malaki ang {name}. Ang limit dito ay {limit}.", "empty": "Walang laman ang {name}.",
-      "zone_label": "{label}: i-drop dito o pindutin ang Enter para pumili", "add_files": "Magdagdag ng files",
-      "drop_files": "I-drop dito ang files", "or_click": " o i-click para pumili",
+      "zone_label": "{label}: i-drop dito o pindutin ang Enter para pumili", "or_click": " o i-click para pumili",
       "copied_to": "{types} · kokopyahin sa", "copying": "Kinokopya ang {name}…", "saved": "Na-save ang {name}.",
       "not_finished": "Hindi natapos ang upload."
     },
     "gate": {
-      "waiting": "Hinihintay ka", "waiting_title": "Hinihintay ka: {title}",
       "stale": "Sarado na ang tanong na iyan; may bagong tanong si Claude", "not_counted": "Hindi binilang: {answer}",
-      "your_answer": "Sagot mo: {answer}", "send_again": "I-send ulit", "drop_file": "I-drop dito ang file"
+      "your_answer": "Sagot mo: {answer}"
     },
     "ask": {
-      "history": "Mga naunang message tungkol sa step na ito", "claude_says": "Claude · {text}",
-      "you_at": "Ikaw · {when}", "placeholder": "Kahit ano tungkol sa {step}…",
-      "title": "Sabihin kay Claude tungkol sa step na ito", "sub": "{step} · kasama ng mga sagot mo sa page na ito",
-      "label": "Message tungkol sa {step}", "ctrl_enter": "Ctrl+Enter para i-send"
-    },
-    "checks": {
-      "ok": "OK", "missing": "Kulang", "title": "Setup check", "again": "I-check ulit"
-    },
-    "table": {
-      "status": "Status", "actions": "Actions", "empty": "Wala pang laman dito."
+      "placeholder": "Kahit ano tungkol sa {step}…", "sub": "{step} · kasama ng mga sagot mo sa page na ito",
+      "ctrl_enter": "Ctrl+Enter para i-send"
     },
     "sp": {
       "not_listening": "Hindi nakikinig si Claude. Naka-save ang sagot mo; babasahin ito sa susunod na check ni Claude, o i-type ang 'go' sa chat.",
       "saved_early": "Naka-save para mamaya. Ipapa-confirm ito sa iyo ni Claude pagdating sa step na ito.",
-      "saved_for_later": "Naka-save para mamaya", "answer_above": "Sagutin ito sa tanong ni Claude sa itaas.",
-      "already_answered": "nasagot na", "capcut_closed": "Sarado na ang CapCut",
-      "capcut_running": "Bukas pa ang CapCut.", "capcut_check_failed": "Hindi ma-check ang CapCut. Subukan ulit.",
+      "answer_above": "Sagutin ito sa tanong ni Claude sa itaas.", "capcut_running": "Bukas pa ang CapCut.",
+      "capcut_check_failed": "Hindi ma-check ang CapCut. Subukan ulit.",
       "capcut_quit": "I-quit nang buo ang CapCut bago magsulat si Claude",
-      "change_cancelled": "Kinansela ang pagbabago", "output_unreadable": "Hindi mabasa ang {kind} output ni Claude.",
-      "early_h": "Pwede mo na itong gawin",
+      "output_unreadable": "Hindi mabasa ang {kind} output ni Claude.",
       "early_p": "Hindi pa umaabot si Claude sa step na ito. Maghihintay dito ang ise-save mo; pagdating ni Claude, ipapa-confirm na lang niya ito sa iyo imbes na magtanong ulit.",
-      "not_started": "Hindi pa nagsisimula",
       "not_started_p": "Bubuksan ni Claude ang {step} pagdating dito. Pwede ka pa ring sumulat kay Claude tungkol dito sa ibaba."
     },
     "dash": {
       "morning": "Magandang umaga", "afternoon": "Magandang hapon", "evening": "Magandang gabi",
-      "in_progress": "Ginagawa pa", "temp_on": " (naka-on ang TEMP_EN)", "timelines_one": "1 timeline",
-      "timelines": "{n} timelines", "meta_none": "Sa brief manggagaling ang style at language",
-      "step_now": "Step {n} · {what}", "all_done": "Tapos na lahat ng steps", "progress": "Progress",
-      "older_check": "Lumang folders (walang history sa app)", "looking": "Hinahanap ang videos mo…",
-      "new_video": "Bagong video", "recent": "Mga huling nangyari",
+      "meta_none": "Sa brief manggagaling ang style at language", "looking": "Hinahanap ang videos mo…",
       "sub_one": "1 video ang ginagawa · {waiting} ang naghihintay sa iyo",
-      "sub": "{active} videos ang ginagawa · {waiting} ang naghihintay sa iyo", "none_h": "Wala pang video sa app",
-      "none_p": "Magsimula gamit ang /edit-mo-to sa Claude Code. Lalabas ito rito pagkagawa ni Claude ng job.",
-      "practice_h": "Practice", "older": "Sinimulan bago ang app ({n})", "practice_tag": " · practice"
+      "sub": "{active} videos ang ginagawa · {waiting} ang naghihintay sa iyo",
+      "none_p": "Magsimula gamit ang /edit-mo-to sa Claude Code. Lalabas ito rito pagkagawa ni Claude ng job."
     },
     "set": {
-      "path_root": "Video folders (root)", "path_python": "Python (tools venv)", "path_tmp": "Work folder (tmp)",
-      "path_mcp": "MCP servers folder", "path_drafts": "CapCut drafts folder",
-      "saved_to": "Naka-save sa {file} sa computer na ito lang.", "found": "nakita", "missing": "wala",
-      "port": "Port ng app",
+      "saved_to": "Naka-save sa {file} sa computer na ito lang.",
       "running": "Tumatakbo ang server na ito sa root {root}, port {port}. Ang binagong paths at port ay gagana sa susunod na buksan ni Claude ang app (ire-restart ng /edit-mo-to ang server gamit ang mga ito).",
-      "paths_h": "Paths", "th_path": "Path", "th_value": "Value", "th_found": "Nakita",
       "sub": "Ang paths na gamit ng computer na ito, ang setup check, at lugar para mag-report ng bugs."
     },
     "fb": {
-      "type": "Uri ng report", "bug": "Mag-report ng bug", "suggest": "Mag-suggest ng improvement",
-      "what": "Ano ang nangyari, o ano ang magpapaganda sa workflow?", "no_step": "Hindi tungkol sa isang step",
-      "saved_h": "Mga naka-save na report", "bug_chip": "Bug", "suggestion_chip": "Suggestion",
       "none": "Wala pang naka-save.", "need": "Maglagay muna ng title at ilang salita.",
       "saved_local": "Naka-save sa computer na ito.",
       "issue_opened": "Bumukas ang issue page sa browser mo: i-check ito at i-submit doon.",
-      "blocked": "Na-block ng browser mo ang bagong tab.", "open_issue": "Buksan ang issue page",
+      "blocked": "Na-block ng browser mo ang bagong tab.",
       "saved_file": "Naka-save sa computer na ito (feedback.jsonl). Mababasa ito ni Claude kapag sinabi mong “look at my feedback”.",
-      "h": "Mag-report ng bug / Mag-suggest ng improvement",
-      "p": "Ang Save ay nagtatabi nito sa computer na ito. Ang Send to Joshua ay magbubukas din ng naka-fill na issue sa GitHub na iche-check at isa-submit mo mismo (kailangan ng GitHub account). Kasama lang ang tina-type mo, ang edit-mo-to version, Windows o macOS, at ang step na pipiliin mo. Walang naipapadala nang kusa.",
-      "title": "Title", "step": "Aling step (optional)", "send": "Send to Joshua"
+      "p": "Ang Save ay nagtatabi nito sa computer na ito. Ang Send to Joshua ay magbubukas din ng naka-fill na issue sa GitHub na iche-check at isa-submit mo mismo (kailangan ng GitHub account). Kasama lang ang tina-type mo, ang edit-mo-to version, Windows o macOS, at ang step na pipiliin mo. Walang naipapadala nang kusa."
     },
     "storyboard": {
-      "open_close": "Buksan nang malapitan ang {name}", "picture_of": "Picture ng {name}",
-      "drop": "I-drop ang picture ng {name}", "comment_on": "Comment sa {name}",
       "comment_what": "Ano ang babaguhin sa {name}?", "comment_dialog": "Comment sa {name}…",
       "missing": "{n} shots ang wala pang keyframe ({names}). I-approve pa rin?",
       "missing_one": "1 shot ang wala pang keyframe ({names}). I-approve pa rin?",
-      "char_title": "{name} · Character sheet", "save_as": "ise-save bilang storyboard/{id}.png, o pumili ng file",
-      "prev": "← {name}", "next": "{name} →", "prev_plain": "← Nauna", "next_plain": "Susunod →",
-      "acted": "{word} {name}. {after}", "f_all": "Lahat", "f_need": "Kulang ng image", "f_changed": "Binago",
-      "f_comments": "Comments", "no_prompt_yet": "susunod ang prompt pagkatapos ng character sheet",
-      "st_approved": "approved", "st_sent": "na-send ang approval", "st_changed": "binago",
-      "st_comment": "may bukas na comment", "st_image": "may image na", "st_client": "client clip",
-      "st_ready": "ready ang prompt", "st_char": "hinihintay ang character sheet", "char_sheet": "Character sheet",
-      "client_clip": "Client clip", "graphic": "Graphic", "ai": "AI", "client_footage": "Footage ng client",
-      "no_keyframe_needed": "hindi kailangan ng keyframe", "comment": "Comment", "copy_prompt": "Copy prompt",
+      "save_as": "ise-save bilang storyboard/{id}.png, o pumili ng file", "acted": "{word} {name}. {after}",
+      "no_prompt_yet": "susunod ang prompt pagkatapos ng character sheet",
+      "no_keyframe_needed": "hindi kailangan ng keyframe",
       "client_no_prompt": "Sariling footage ng client: walang prompt na ico-copy.",
-      "no_prompt_char": "Hindi pa naisusulat ni Claude ang prompt na ito.", "replace": "Palitan ang image",
-      "character": "Character", "english_temp": "English (pansamantala): {text}", "details": "Details",
-      "comments_open_one": "1 bukas na comment", "comments_open": "{n} bukas na comments",
-      "not_approved_sent": "Hindi approved · na-send", "approved_waiting": "Approved · hinihintay si Claude",
-      "approve_all_sent": "Na-send ang Approve all", "approve_all": "Approve all",
-      "approve_anyway": "I-approve pa rin", "wait_images": "Hintayin ang images", "view": "View", "grid": "Grid",
-      "detail": "Detail", "show": "Ipakita", "share": "Buksan ang share page",
+      "no_prompt_char": "Hindi pa naisusulat ni Claude ang prompt na ito.",
       "notes_ph": "Kahit ano tungkol sa buong board: pacing, itsura, pagkakasunod ng shots…",
-      "send_notes": "I-send ang notes", "notes_h": "Notes para sa buong board", "its_saved": "Na-save ko na",
       "empty_p": "Dito muna isusulat ni Claude ang shots (line, time, shot type at keyframe prompt); susunod ang images.",
-      "no_match": "Walang card na tugma sa filter na ito.", "no_image": "Wala pang image",
-      "save_prompt": "I-save ang prompt", "save_visual": "I-save ang visual direction", "c_open": "bukas",
-      "send_comment": "I-send ang comment", "comments": "Comments", "gone": "Wala na sa board ang shot na ito.",
-      "visual": "Visual direction", "kf_prompt": "Keyframe prompt",
+      "no_match": "Walang card na tugma sa filter na ito.", "gone": "Wala na sa board ang shot na ito.",
       "prompt_after": "Susunod ang prompt pagkatapos ng character sheet.", "after_on": "Ginagawa na ni Claude.",
-      "after_saved": "Na-save, hinihintay si Claude.", "request": "Humingi ng pagbabago",
-      "requested_for": "Humingi ng pagbabago sa", "approve_shot": "I-approve ang shot",
-      "approved_word": "Na-approve ang", "shot": "Shot", "choose_file": "Pumili ng file"
+      "after_saved": "Na-save, hinihintay si Claude.", "requested_for": "Humingi ng pagbabago sa",
+      "approved_word": "Na-approve ang"
     },
     "prompts": {
       "unknown_model": "Hindi pa namin alam ang limits ng model na ito, kaya safe settings ang gamit ni Claude: clips na {min} hanggang {max} segundo, hanggang {attach} pictures.",
       "unknown_model_plain": "Hindi pa namin alam ang limits ng model na ito, kaya safe settings ang gamit ni Claude.",
       "unverified": "Wala pang nag-check ng limits ng {model}. Iche-check ni Claude ang prompts at sasabihan ka kung may hindi kakasya.",
       "no_table": "Hindi ma-load ang listahan ng video sites. Tanungin si Claude kung aling site ang gagamitin.",
-      "regen": "{name}, para gawin ulit sa video site mo", "src_client": "B-roll ng client",
-      "src_ai": "Gumawa ng AI video", "src_both": "Pareho", "broll_source": "Saan galing ang B-roll",
-      "answered_storyboard": "nasagot na sa storyboard", "generator": "Generator", "site_model": "{site} model",
-      "model": "Model", "other": "Iba pa",
+      "regen": "{name}, para gawin ulit sa video site mo",
       "no_prompt": "Walang prompt na ico-copy (client clip ito, o hindi pa ito naisusulat ni Claude).",
-      "none_yet": "Wala pang prompts.", "broll_h": "B-roll", "prompts_h": "Prompts",
-      "empty_p": "Dito isusulat ni Claude ang prompts sa bawat timeline."
+      "none_yet": "Wala pang prompts.", "empty_p": "Dito isusulat ni Claude ang prompts sa bawat timeline."
     },
     "brief": {
-      "link": "Link ng brief (Notion o kahit anong URL)", "paste": "O i-paste ang brief",
-      "paste_ph": "I-paste dito ang text ng brief", "instructions": "Additional instructions",
+      "paste_ph": "I-paste dito ang text ng brief",
       "instructions_ph": "Kahit anong wala sa brief: dapat meron, dapat iwasan, gusto ng client…",
-      "refs": "Reference files (brief na PDF o docx, reference videos, images)",
-      "style_h": "Style at language ng script", "style": "Style", "style_none": "Pipiliin ni Claude mula sa brief",
-      "script_lang": "Language ng script", "not_set": "Wala pa", "checklist_h": "Brief checklist", "th_rule": "Rule",
-      "th_source": "Source", "checklist_empty": "Isusulat ni Claude ang checklist pagkabasa ng brief.",
-      "send_answers": "I-send ang mga sagot", "questions_h": "Mga tanong ni Claude tungkol sa brief",
-      "the_brief": "Ang brief"
+      "style_none": "Pipiliin ni Claude mula sa brief",
+      "checklist_empty": "Isusulat ni Claude ang checklist pagkabasa ng brief."
     },
     "build": {
-      "name_taken": "May project na sa CapCut na ganyan ang pangalan.", "sent": "Na-send: {value}",
-      "choose": "Pumili ng ibang pangalan", "st_working": "Nagbu-build si Claude", "st_done": "Na-build at na-check",
-      "st_error": "Huminto ang build dahil sa error", "st_waiting": "Hinihintay ka", "st_skipped": "Skipped",
-      "h": "Build", "project": "project", "fix": "Ipaayos kay Claude", "qa_h": "QA",
+      "name_taken": "May project na sa CapCut na ganyan ang pangalan.",
       "qa_empty": "Lalabas dito ang QA results ng bawat timeline pagkatapos ng build."
     },
     "captions": {
-      "me": "Ako ang magpa-auto-caption sa CapCut", "claude": "Si Claude ang maglalagay",
       "temp_on": "Naka-on pa ang TEMP_EN.",
       "temp_p": "Pang-review lang ang TEMP_EN_delete_me track. Burahin ito bago mag-export; ang captions ay galing sa mismong words ng script.",
       "me_p": "Sa CapCut: Text → Auto captions sa bawat timeline, tapos pumili ng caption preset para may animation.",
-      "auto_done": "Tapos na ang auto-caption",
       "claude_p": "Simpleng text captions na eksaktong words ng script, may pop-in; walang word-by-word animation.",
-      "timelines": "Timelines", "add": "Ilagay ang captions",
-      "tl_sent": "Na-send ang timelines · hinihintay si Claude", "pick_one": "Pumili ng kahit isang timeline.",
-      "who": "Sino ang maglalagay ng captions?"
+      "pick_one": "Pumili ng kahit isang timeline."
     },
     "clips": {
-      "folder": "Clips folder", "folder_hint": "Ang folder kung saan mo sine-save ang ginawang clips.",
-      "pass": "PASS", "flag": "FLAG", "contact": "Contact sheet",
-      "you_gen": "Ikaw ang gagawa ng clips sa {gen} mula sa prompts sa {step}, i-save sa clips folder, tapos pindutin ang I-check ang clips.",
-      "you": "Ikaw ang gagawa ng clips mula sa prompts sa {step}, i-save sa clips folder, tapos pindutin ang I-check ang clips.",
-      "check": "I-check ang clips", "check_h": "Clip check",
-      "check_empty": "Lalabas dito ang resulta pagkatapos ng I-check ang clips."
+      "folder_hint": "Ang folder kung saan mo sine-save ang ginawang clips.",
+      "you_gen": "Ikaw ang gagawa ng clips sa {gen} mula sa prompts sa {step}, i-save sa clips folder, tapos pindutin ang Check clips.",
+      "you": "Ikaw ang gagawa ng clips mula sa prompts sa {step}, i-save sa clips folder, tapos pindutin ang Check clips.",
+      "check_empty": "Lalabas dito ang resulta pagkatapos ng Check clips."
     },
     "export": {
       "delete_h": "Burahin ang TEMP_EN_delete_me track bago mag-export", "still_on": "Naka-on pa sa: {names}",
@@ -742,90 +696,59 @@ export const WORDS = {
       "clean": "Na-check ang project: wala nang TEMP_EN_delete_me track.",
       "checking": "Chine-check ang project kung may TEMP_EN_delete_me track…",
       "no_drafts": "wala pang CapCut drafts folder sa Settings", "no_answer": "walang sagot",
-      "unknown": "hindi alam na error", "settings_h": "Export settings mula sa brief",
-      "default": "Default: 9:16, 1080×1920, 30 fps.",
+      "unknown": "hindi alam na error", "default": "Default: 9:16, 1080×1920, 30 fps.",
       "you": "Ikaw ang mag-e-export ng bawat timeline sa CapCut, gamit ang settings sa ibaba.",
-      "done_h": "Tapos na mag-export?",
-      "done_p": "Susunod, gagawin ni Claude ang learning step: magmumungkahi siya ng preferences mula sa video na ito, at ise-save o ide-decline mo ang bawat isa.",
-      "learn": "Na-export ko na, simulan ang learning step", "review_learned": "Tingnan ang natutunan ni Claude ({n})"
+      "done_p": "Susunod, gagawin ni Claude ang learning step: magmumungkahi siya ng preferences mula sa video na ito, at ise-save o ide-decline mo ang bawat isa."
     },
     "music": {
-      "suno": "Suno prompt mula kay Claude", "own": "Sarili kong no-copyright track",
-      "source": "Saan galing ang music", "file": "Music file", "suno_h": "Suno prompt",
       "suno_p": "Mga part na hanggang 18 s bawat isa; gawin nang sunod-sunod at i-crossfade ayon sa notes.",
       "you_own": "Pumili ng no-copyright track (YouTube Audio Library o katulad) at i-drop dito. Kokopyahin ito sa {where}",
       "you_suno": "Gawin ang track sa Suno gamit ang prompt ni Claude, tapos i-drop dito ang file. Kokopyahin ito sa {where}"
     },
     "review": {
-      "inplace": "Sa mismong timeline (may backup muna)", "new": "Bagong timeline",
       "ph": "Ano ang babaguhin? hal. “Hook 2: palitan ang clip sa 0:04 ng close-up ng jar”",
-      "which": "Aling timeline?", "all": "Lahat ng timelines", "add": "Idagdag sa listahan",
-      "send": "I-send ang changes", "h": "Mga babaguhin mo", "item": " · {timeline} · {mode}",
-      "tl_unknown": "timeline?", "mode_new": "bagong timeline", "mode_inplace": "sa mismong timeline",
-      "remove_label": "Tanggalin ang change {n}", "remove": "Tanggalin", "none": "Wala pang nakalistang changes.",
-      "new_change": "Bagong change", "timeline": "Timeline", "mode_label": "Sa mismong timeline o bagong timeline",
+      "none": "Wala pang nakalistang changes.",
       "you": "I-review mo ang project sa CapCut. I-edit doon, o ilista dito ang changes at si Claude ang gagawa.",
-      "list_h": "Listahan ng changes", "list_p": "Lalabas dito ang changes na ginagawa ni Claude.",
-      "done_h": "Okay na lahat?", "done_p": "Kapag okay ka na sa bawat timeline, lilipat si Claude sa captions.",
-      "done": "Okay na ako, tuloy sa captions"
+      "list_p": "Lalabas dito ang changes na ginagawa ni Claude.",
+      "done_p": "Kapag okay ka na sa bawat timeline, lilipat si Claude sa captions."
     },
     "script": {
-      "yours": "Script mo", "ph": "I-paste dito ang script mo, isang line bawat row (hooks muna, tapos ang body).",
+      "ph": "I-paste dito ang script mo, isang line bawat row (hooks muna, tapos ang body).",
       "hint": "Gagamitin ito ni Claude nang ganyan mismo at iche-check lang laban sa brief.",
-      "save": "I-save ang script ko", "empty": "Lalabas dito ang script ni Claude kapag naisulat na.",
-      "line_label": "Line {id}", "send": "I-send ang edits", "lang": "Language: {lang}",
-      "temp_on": "Naka-on ang TEMP_EN · burahin bago mag-export", "th_id": "Id", "th_line": "Line",
-      "th_en": "English (pansamantala)", "mine": "Gamitin ang script ko", "write": "Sumulat ng bago"
+      "empty": "Lalabas dito ang script ni Claude kapag naisulat na."
     },
     "timing": {
-      "keep": "Keep", "rerecord": "I-record ulit", "w_cut": "Cut", "w_review": "I-review", "cut_label": "Cut {id}",
-      "cut": "cut", "apply": "Gawin ang napiling cuts", "cuts_sent": "Na-send ang cuts · hinihintay si Claude",
-      "h": "Timing ng bawat line", "empty": "Ita-time ni Claude ang voiceover pagdating nito."
+      "empty": "Ita-time ni Claude ang voiceover pagdating nito."
     },
     "vo": {
-      "lang_h": "Language ng script", "times_with": " · Ita-time ni Claude ang VO gamit ang",
-      "set_at_brief": "Nase-set sa brief.",
+      "times_with": " · Ita-time ni Claude ang VO gamit ang", "set_at_brief": "Nase-set sa brief.",
       "you": "Ikaw ang gagawa ng voiceover (ElevenLabs), isang file o isa bawat hook/body, tapos i-drop dito. Kokopyahin ito sa {where}",
-      "files": "Voiceover file(s)", "file_h": "Voiceover file", "reuse": "Gamitin ulit ang lumang VO",
       "reuse_hint": "Tipid sa credits: ita-transcribe ni Claude ang lumang VO at ikaw ang pipili ng sentences."
     },
     "dlg": {
-      "link_ph": "https://… (optional)", "goes_in": "Mapupunta sa {root}/", "will_create": "gagawin pa",
-      "has_job": "may job na", "found": "nakita",
+      "goes_in": "Mapupunta sa {root}/",
       "plain_name": "Gumamit ng simpleng folder name (walang slash, hindi nagsisimula sa . o _). Diretso ito sa video folders root.",
       "creating": "Ginagawa…", "create_failed": "Hindi nagawa ang video.",
       "new_p": "Sisimulan ni Claude ang brief kapag pinatakbo mo ang /edit-mo-to sa folder na ito sa Claude Code.",
-      "brief_link": "Link ng brief", "create": "Gawin ang video", "recheck": "Chine-check ulit kada 2 segundo…",
+      "recheck": "Chine-check ulit kada 2 segundo…",
       "still_running": "Bukas pa (na-check {time}). Chine-check ulit kada 2 segundo…",
       "capcut_failed": "Hindi ma-check ang CapCut.",
       "capcut_p": "Isinusulat ulit ng CapCut ang projects nito pagsara, kaya mawawala ang change na isusulat ngayon. I-quit nang buo ang CapCut (hindi lang ang window), tapos magsusulat si Claude.",
-      "cancel_change": "I-cancel ang change na ito", "quit_check": "Na-quit ko na, i-check ulit",
-      "capcut_title": "Bukas pa ang CapCut", "project_word": "Project",
       "name_exists": "May CapCut project na sa pangalang ito.",
       "name_p": "Pumili ng ibang pangalan. Hindi kailanman papatungan ni Claude ang existing na project.",
-      "name_label": "Bagong pangalan ng project", "later": "Mamaya na", "use_name": "Gamitin ang pangalang ito",
-      "name_title": "May gumagamit na ng pangalang ito", "frames_of": "Frames ng {name}",
       "sheet_gone": "Hindi na mabuksan ang contact sheet na {name}.",
       "no_sheet": "Walang contact sheet sa report na ito. Mabubuksan ito ni Claude mula sa clip check folder.",
       "no_prompt_match": "Walang prompt sa step 6 na tugma sa clip na ito, kaya walang ico-copy dito.",
-      "regen": "Markahan para gawin ulit", "use_anyway": "Gamitin pa rin",
-      "choose_file": "Pumili ng file na idinagdag mo…", "path_ph": "…o ang buong path ng lumang VO",
-      "transcribe": "Ipa-transcribe kay Claude",
+      "path_ph": "…o ang buong path ng lumang VO",
       "transcribe_saved": "Na-save. Lalabas dito ang sentences kapag na-transcribe na ni Claude.",
-      "timeline_pick": "Timeline…", "use": "Gamitin", "use_id": "Gamitin ang {id}",
       "tick_first": "I-tick muna ang sentences na gagamitin.",
       "oldvo_p": "Gamitin ulit ang VO na meron ka na imbes na gumawa ng bago. Ita-transcribe ito ni Claude, ikaw ang magti-tick ng sentences na gagamitin at kung saang timeline mapupunta ang bawat isa.",
-      "older_vo": "Lumang VO", "no_transcript": "Wala pang transcript.",
-      "use_sentences": "Gamitin ang sentences na ito", "backup_where": "edit-mo-to-backups/ sa CapCut project",
+      "no_transcript": "Wala pang transcript.",
       "inplace_p": "Babaguhin ni Claude ang {names} sa mismong timeline. May backup muna ang bawat timeline, sa:",
       "the_timeline": "ang timeline",
       "inplace_or": "O hayaan ang original at gagawa si Claude ng bagong timeline na may change.",
-      "make_new": "Gumawa ng bagong timeline", "change_inplace": "Baguhin sa mismong timeline",
-      "inplace_title": "Baguhin sa mismong timeline?", "where_keep": "Saan itatabi ang {id}",
-      "general": "General rule (preferences ko)", "client_note": "Note para sa client",
-      "saved_waiting": "Na-save · hinihintay si Claude", "declined": "Na-decline", "decline": "I-decline",
       "learn_p": "Mungkahi ito ni Claude mula sa video na ito. I-save ang mga dapat sundin sa susunod na videos; i-decline ang iba.",
-      "nothing_proposed": "Wala pang mungkahi.", "learn_title": "Learning step"
+      "nothing_proposed": "Wala pang mungkahi."
     }
   }
 };

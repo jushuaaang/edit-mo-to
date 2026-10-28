@@ -575,8 +575,12 @@ def launcher(monkeypatch):
         calls.append((argv, kw))
         return Done()
 
+    def fake_popen(argv, **kw):  # Windows: started, never waited for
+        calls.append((argv, {**kw, "popen": True}))
+        return object()
+
     monkeypatch.setattr(server.subprocess, "run", fake_run)
-    monkeypatch.setattr(server.subprocess, "Popen", lambda *a, **k: pytest.fail("Popen must not be used"))
+    monkeypatch.setattr(server.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(server.shutil, "which", lambda name: "/usr/local/bin/claude" if name == "claude" else None)
     monkeypatch.setattr(server, "_clock", lambda: calls.now)
     return calls
@@ -626,13 +630,30 @@ def test_practice_quotes_an_odd_root_for_the_shell_inside_applescript(tmp_path):
 
 
 def test_practice_on_windows_opens_a_command_window_in_the_root(api, launcher, monkeypatch):
+    """A new console runs `claude /practice-muna` in the root; the request never waits for that window (a `cmd /k`
+    that inherited captured pipes would hold the request open until the editor closed Claude)."""
     monkeypatch.setattr(server, "_platform", lambda: "win32")
     assert _practice(api) == (200, {"ok": True})
     (argv, kw), = launcher
-    assert argv == ["cmd", "/c", "start", "", "cmd", "/k", "claude /practice-muna"]
-    assert server.subprocess.list2cmdline(argv) == 'cmd /c start "" cmd /k "claude /practice-muna"'
+    assert kw.pop("popen") is True               # Popen: started, not waited for (no subprocess.run)
+    assert argv == ["cmd", "/k", "claude /practice-muna"]
+    assert server.subprocess.list2cmdline(argv) == 'cmd /k "claude /practice-muna"'
     assert kw["cwd"] == str(api.root)            # the folder is the working directory, never text on the command line
     assert str(api.root) not in " ".join(argv)
+    assert kw["creationflags"] == server.CREATE_NEW_CONSOLE == 0x10
+    for stream in ("stdin", "stdout", "stderr"):
+        assert kw[stream] is server.subprocess.DEVNULL, stream   # no pipes for the window to inherit
+    assert "capture_output" not in kw and "timeout" not in kw
+
+
+def test_practice_on_windows_reports_a_failed_start(api, launcher, monkeypatch):
+    monkeypatch.setattr(server, "_platform", lambda: "win32")
+
+    def boom(argv, **kw):
+        raise OSError("cmd missing")
+
+    monkeypatch.setattr(server.subprocess, "Popen", boom)
+    assert _practice(api) == (200, {"ok": False, "reason": "failed"})
 
 
 def test_practice_refuses_without_claude_or_on_other_systems(api, launcher, monkeypatch):
@@ -645,20 +666,39 @@ def test_practice_refuses_without_claude_or_on_other_systems(api, launcher, monk
 
 
 def test_practice_reports_a_failed_launch(api, launcher, monkeypatch):
+    """A failed macOS launch says where to allow Terminal; it never blocks a retry with "busy"."""
     monkeypatch.setattr(server, "_platform", lambda: "darwin")
 
     class Bad:
         returncode = 1
 
     monkeypatch.setattr(server.subprocess, "run", lambda argv, **kw: Bad())
-    assert _practice(api) == (200, {"ok": False, "reason": "failed"})
-    launcher.now += 11
+    assert _practice(api) == (200, {"ok": False, "reason": "failed", "hint": "automation"})
+    assert _practice(api) == (200, {"ok": False, "reason": "failed", "hint": "automation"})  # same second: not busy
 
     def boom(argv, **kw):
         raise OSError("osascript missing")
 
     monkeypatch.setattr(server.subprocess, "run", boom)
-    assert _practice(api) == (200, {"ok": False, "reason": "failed"})
+    assert _practice(api) == (200, {"ok": False, "reason": "failed", "hint": "automation"})
+
+
+def test_practice_is_busy_while_a_launch_still_runs(api, launcher, monkeypatch):
+    """osascript can wait on macOS's first-time permission prompt; a click meanwhile (even after 10 s) opens nothing."""
+    monkeypatch.setattr(server, "_platform", lambda: "darwin")
+    inner = []
+
+    class Done:
+        returncode = 0
+
+    def slow_run(argv, **kw):
+        launcher.now += 30
+        inner.append(_practice(api))
+        return Done()
+
+    monkeypatch.setattr(server.subprocess, "run", slow_run)
+    assert _practice(api) == (200, {"ok": True})
+    assert inner == [(200, {"ok": False, "reason": "busy"})]
 
 
 def test_practice_launches_once_per_ten_seconds(api, launcher, monkeypatch):

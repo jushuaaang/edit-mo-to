@@ -22,7 +22,7 @@ GUI prefs (jobstate.PREFS: known keys only) in {tmp}/gui/prefs.json.
 POST /api/practice is the one route that starts a program (spec "Try a practice video"): on the editor's click it opens
 a visible Terminal (macOS) or command window (Windows) in {root} running `claude /practice-muna`, so the editor's own
 Claude starts the practice run. The command and the folder are fixed here (practice_argv); nothing in the request is
-read. At most one launch per PRACTICE_GAP seconds.
+read. At most one launch per PRACTICE_GAP seconds, and none while one is still starting.
 """
 import argparse
 import hashlib
@@ -432,6 +432,7 @@ def r_prefs_save(h, q):
 PRACTICE = "/practice-muna"
 PRACTICE_GAP = 10.0      # seconds: a second click within this gets "busy", so a double click opens one window
 PRACTICE_TIMEOUT = 120   # seconds osascript may take (the first time macOS may ask to let it control Terminal)
+CREATE_NEW_CONSOLE = 0x10  # Windows creation flag (subprocess.CREATE_NEW_CONSOLE exists only on Windows)
 _practice_lock = threading.Lock()
 
 
@@ -451,21 +452,37 @@ def _applescript_text(s: str) -> str:
 def practice_argv(root: Path, platform: str) -> "list[str] | None":
     """The fixed launch command for this system, or None where the app can't open a window (Linux, ...).
     macOS: the shell line `cd <root> && claude '/practice-muna'` (root shlex-quoted) in a new Terminal window, inside
-    an AppleScript string (escaped for it), then Terminal comes to the front. Windows: `start` opens a new command
-    window running `claude /practice-muna`; the root is its working directory (cwd), never text on the command line."""
+    an AppleScript string (escaped for it), then Terminal comes to the front. Windows: a new console (CREATE_NEW_CONSOLE)
+    running `claude /practice-muna`; the root is its working directory (cwd), never text on the command line."""
     if platform == "darwin":
         line = f"cd {shlex.quote(str(root))} && claude '{PRACTICE}'"
         return ["osascript", "-e", f'tell application "Terminal" to do script "{_applescript_text(line)}"',
                 "-e", 'tell application "Terminal" to activate']
     if platform == "win32":
-        return ["cmd", "/c", "start", "", "cmd", "/k", f"claude {PRACTICE}"]
+        return ["cmd", "/k", f"claude {PRACTICE}"]
     return None
+
+
+def _launch(argv: "list[str]", root: Path, platform: str) -> bool:
+    """Start the window. macOS: osascript returns once Terminal has it (a non-zero exit = refused, e.g. Automation
+    not allowed). Windows: Popen with no pipes and no wait; the console stays open on its own, and a cmd /k holding
+    our pipes would otherwise keep the request open until the editor closed Claude."""
+    try:
+        if platform == "win32":
+            subprocess.Popen(argv, cwd=str(root), creationflags=CREATE_NEW_CONSOLE, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        done = subprocess.run(argv, cwd=str(root), timeout=PRACTICE_TIMEOUT, capture_output=True,
+                              stdin=subprocess.DEVNULL)
+        return done.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
 
 
 def r_practice(h, q):
     h.discard_body()  # the request carries nothing this route uses
-    root = Path(h.server.root)
-    argv = practice_argv(root, _platform())
+    root, platform = Path(h.server.root), _platform()
+    argv = practice_argv(root, platform)
     if argv is None:
         return {"ok": False, "reason": "unsupported"}
     if any(ord(c) < 32 for c in str(root)):  # a control character can't go on a command line safely
@@ -473,17 +490,22 @@ def r_practice(h, q):
     with _practice_lock:
         now = _clock()
         last = getattr(h.server, "practice_at", None)
-        if last is not None and now - last < PRACTICE_GAP:
+        if getattr(h.server, "practice_running", False) or (last is not None and now - last < PRACTICE_GAP):
             return {"ok": False, "reason": "busy"}
         if not shutil.which("claude"):
             return {"ok": False, "reason": "no-claude"}
-        h.server.practice_at = now
+        h.server.practice_at, h.server.practice_running = now, True
+    ok = False
     try:
-        done = subprocess.run(argv, cwd=str(root), timeout=PRACTICE_TIMEOUT, capture_output=True,
-                              stdin=subprocess.DEVNULL)
-    except (OSError, subprocess.SubprocessError):
-        return {"ok": False, "reason": "failed"}
-    return {"ok": True} if done.returncode == 0 else {"ok": False, "reason": "failed"}
+        ok = _launch(argv, root, platform)
+    finally:
+        with _practice_lock:
+            h.server.practice_running = False
+            if not ok:
+                h.server.practice_at = None  # a failed launch never makes the retry say "busy"
+    if ok:
+        return {"ok": True}
+    return {"ok": False, "reason": "failed", **({"hint": "automation"} if platform == "darwin" else {})}
 
 
 def r_checks(h, q):

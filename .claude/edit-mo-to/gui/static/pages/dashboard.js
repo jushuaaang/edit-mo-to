@@ -76,7 +76,9 @@ function practiceCard(ctx) {
   const btn = h("button", { class: "btn pri", type: "button" }, t("practice.start"));
   const show = (reply) => {
     practiceReply = reply;
-    status.textContent = !reply ? "" : reply.ok ? t("practice.opened") : t(PRACTICE_WHY[reply.reason] || "practice.failed");
+    status.textContent = !reply ? "" : reply.ok ? t("practice.opened")
+      : [t(PRACTICE_WHY[reply.reason] || "practice.failed"),
+        reply.hint === "automation" ? t("practice.mac_automation") : ""].filter(Boolean).join(" ");
     status.className = reply && !reply.ok && reply.reason !== "busy" ? "msg err" : "hint";
     fallback.hidden = !(reply && !reply.ok && FALLBACK.has(reply.reason));
   };

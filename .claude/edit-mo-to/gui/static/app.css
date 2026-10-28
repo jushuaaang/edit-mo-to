@@ -121,7 +121,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offs
   overflow: auto; flex: 1; min-height: 80px; }
 .feed ol { list-style: none; display: flex; flex-direction: column; gap: 7px; }
 .feed li { display: flex; gap: 8px; }
-.feed time { flex: none; width: 34px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.feed time { flex: none; min-width: 34px; white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
 .feed li span { color: var(--text); }
 .claude { padding: 16px 18px; border-top: 1px solid var(--line); background: var(--panel2); }
 .status { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; margin-bottom: 10px; color: var(--muted); }
@@ -229,7 +229,7 @@ td .note { font-size: 12px; color: var(--muted); margin-top: 3px; }
 .act { list-style: none; }
 .act li { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 .act li:last-child { border: 0; }
-.act time { color: var(--muted); width: 40px; flex: none; font-size: 12px; }
+.act time { color: var(--muted); min-width: 40px; white-space: nowrap; flex: none; font-size: 12px; }
 .older { margin-top: 20px; }
 .older summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 4px 0; }
 .older ul { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

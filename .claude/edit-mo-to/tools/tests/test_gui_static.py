@@ -345,9 +345,10 @@ def test_every_word_key_used_in_static_js_exists():
         for g, k in key.findall(p.read_text(encoding="utf-8")):
             used.add(f"{g}.{k}")
     assert len(used) > 250, len(used)
-    for lang in ("en", "tl"):
-        missing = sorted(k for k in used if not _has(_all_words()[lang], k))
-        assert not missing, (lang, missing)
+    missing = sorted(k for k in used if not _has(_words(), k))
+    assert not missing, missing
+    no_tl = sorted(k for k in used if not _is_label(k) and not _has(_all_words()["tl"], k))
+    assert not no_tl, no_tl
 
 
 def test_every_step_has_a_title_a_why_line_and_a_time_guess():
@@ -478,20 +479,46 @@ def _flat(d, pre=""):
     return out
 
 
-def test_taglish_has_every_english_key_with_the_same_blanks():
-    """A missing `tl` key fails here, so the shipped app never falls back to English for a missing word."""
+def _is_label(key):
+    group, name = key.split(".", 1)
+    spec = _all_words()["labels"].get(group)
+    return spec == "*" or (isinstance(spec, list) and name in spec)
+
+
+def test_sentences_have_taglish_and_labels_stay_english():
+    """Spec "Beginner friendly", Language: labels (buttons, tabs, filters, step names, chips, field and column names,
+    section titles, menu items) have one English line for both languages; every sentence has a Taglish line. A missing
+    `tl` sentence fails here, so the shipped app never falls back to English for one."""
     w = _all_words()
-    assert set(w) == {"en", "tl"}
+    assert set(w) == {"labels", "en", "tl"}
     en, tl = _flat(w["en"]), _flat(w["tl"])
-    assert sorted(set(en) - set(tl)) == [], "missing in tl"
+    for group, spec in w["labels"].items():
+        assert group in w["en"], group
+        if spec != "*":
+            assert all(k in w["en"][group] for k in spec), group
+    labels = sorted(k for k in en if _is_label(k))
+    sentences = sorted(k for k in en if not _is_label(k))
+    assert len(labels) > 150 and len(sentences) > 200, (len(labels), len(sentences))
+    assert sorted(k for k in labels if k in tl) == [], "a label has a separate tl value"
+    assert sorted(k for k in sentences if k not in tl) == [], "a sentence has no tl value"
     assert sorted(set(tl) - set(en)) == [], "only in tl"
-    for k in en:
+    for k in sentences:
         assert isinstance(tl[k], str) and tl[k].strip(), k
         assert sorted(_re.findall(r"\{(\w+)\}", en[k])) == sorted(_re.findall(r"\{(\w+)\}", tl[k])), k
-    differs = sum(en[k] != tl[k] for k in en)
-    assert differs / len(en) > 0.6, f"only {differs} of {len(en)} lines differ: is the Taglish really there?"
-    for k in [k for k in en if k.startswith(("step.", "word.temp_en", "label.shot"))]:
-        assert "{" not in tl[k] or tl[k].count("{") == en[k].count("{"), k
+    differs = sum(en[k] != tl[k] for k in sentences)
+    assert differs / len(sentences) > 0.85, f"only {differs} of {len(sentences)} sentences differ"
+    for k in ("common.send", "storyboard.approve_all", "storyboard.copy_prompt", "storyboard.share", "storyboard.f_all",
+              "storyboard.f_need", "storyboard.f_changed", "state.waiting", "tag.open", "storyboard.st_image",
+              "shell.settings", "step.timing", "tag.you", "card.not_yet", "card.temp_on", "app.waits_for"):
+        assert _is_label(k), k     # Joshua's examples: English in Taglish mode too
+    for k in ("now.working", "now.pictures", "why.storyboard", "help.temp_en", "sp.not_listening", "app.listening_off",
+              "common.not_sent", "practice.no_claude", "practice.mac_automation"):
+        assert k in tl, k          # sentences: Taglish
+    assert tl["now.working"].endswith("Wala ka pang gagawin.")
+    for k in sentences:            # a sentence that names a button names it as the button reads: in English
+        for button in ("CapCut is closed", "Check clips", "Start practice"):
+            if button in en[k]:
+                assert button in tl[k], (k, button)
 
 
 def test_t_picks_the_language_and_falls_back_to_english():
@@ -520,7 +547,7 @@ def test_index_html_words_have_keys():
     keys = _re.findall(r'data-w(?:-label|-ph)?="([a-z_]+\.[a-z_]+)"', idx)
     assert len(keys) >= 15, keys
     for k in keys:
-        assert _has(_words(), k) and _has(_all_words()["tl"], k), k
+        assert _has(_words(), k) and (_is_label(k) or _has(_all_words()["tl"], k)), k
     body = idx[idx.index("<body>"):]
     body = _re.sub(r"<(script|style)[^>]*>.*?</\1>", "", body, flags=_re.S)
     for m in _re.finditer(r">([^<>]*[A-Za-z][^<>]*)<", body):
@@ -640,6 +667,7 @@ def test_start_practice_button_and_copy_fallback():
     for reason in ("no-claude", "failed", "unsupported", "busy"):
         assert f'"{reason}"' in dash, reason
     assert "copyButton(PRACTICE" in dash
+    assert 'reply.hint === "automation"' in dash and "practice.mac_automation" in dash  # where to allow Terminal on a Mac
     fallback = dash[dash.index("const FALLBACK"):].split("\n", 1)[0]
     assert '"busy"' not in fallback and all(r in fallback for r in ('"no-claude"', '"failed"', '"unsupported"'))
     w = _words()["practice"]
@@ -657,6 +685,7 @@ out.en = t("now.working", { step: "Storyboard" });
 out.changed = setLang("tl"); out.again = setLang("tl"); out.lang = getLang();
 out.tl = t("now.working", { step: "Storyboard" });
 out.tEn = tEn("practice.start");
+out.label_tl = ["common.send", "storyboard.approve_all", "state.waiting", "step.timing"].map((k) => t(k));
 delete WORDS.tl.practice.start; out.fallback = t("practice.start");
 out.unknown = t("no.such_key");
 out.time = timeTitle("0:00–2:12");
@@ -669,7 +698,8 @@ console.log(JSON.stringify(out));
     out = _json.loads(r.stdout)
     assert out["en"] == "Claude is working on Storyboard. Nothing to do yet."
     assert out["changed"] is True and out["again"] is False and out["lang"] == "tl"
-    assert out["tl"] == "Si Claude ang gumagawa ng Storyboard. Wala pang gagawin."
+    assert out["tl"] == "Si Claude ang gumagawa ng Storyboard. Wala ka pang gagawin."
+    assert out["label_tl"] == ["Send", "Approve all", "Waiting on you", "Timing & cleanup"]  # labels stay English
     assert out["tEn"] == "Start practice" and out["fallback"] == "Start practice" and out["unknown"] == "no.such_key"
     assert out["time"] == "0 segundo at 0 frames hanggang 2 segundo at 12 frames (30 frames = 1 segundo)"
     assert out["list"] == "Shot 1 at Shot 2"
