@@ -96,6 +96,7 @@ def test_answer_to_closed_gate_is_stale(tmp_path):
 
 def test_early_table_matches_the_spec():
     assert js.EARLY["music"] == ["source", "upload"]
+    assert js.EARLY["prompts"] == ["broll_source", "generator", "generator_model"]
     assert set(js.EARLY) == {"brief", "script", "voiceover", "prompts", "clips", "captions", "music"}
     assert all(step in js.STEPS and ids and all(isinstance(i, str) for i in ids) for step, ids in js.EARLY.items())
 

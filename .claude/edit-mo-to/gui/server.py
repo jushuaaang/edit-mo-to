@@ -43,6 +43,7 @@ for _p in (GUI, GUI.parent / "tools"):
 import checks  # noqa: E402
 import feedback  # noqa: E402
 import folders  # noqa: E402
+import generators  # noqa: E402
 import jobstate as js  # noqa: E402
 import machine  # noqa: E402
 
@@ -203,6 +204,14 @@ def r_current(h, q):
     return {"folder": js.get_current()}
 
 
+def _generators() -> "dict | None":
+    """generators.json for the prompts page's site and model choices (the page keeps no list of its own)."""
+    try:
+        return generators.load()
+    except (OSError, ValueError):
+        return None
+
+
 def r_job(h, q):
     folder = h.job_folder(q.get("folder"))
     job = js.load(folder)
@@ -213,7 +222,7 @@ def r_job(h, q):
                                                       sb, sb / "storyboard.json")),
              *(_stamp(Path(p)) for p in keyframes.values()),
              *(_stamp(p) for kinds in outputs.values() for p in kinds.values() if p is not None),
-             _listening_key(listening)]
+             _stamp(generators.FILE), _listening_key(listening)]
     etag = '"' + hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()[:20] + '"'
     if h.headers.get("If-None-Match") == etag:
         h.reply(304, b"", None, {"ETag": etag})
@@ -223,7 +232,7 @@ def r_job(h, q):
             "events": js.read_events(folder)[-RECENT_EVENTS:],  # step messages, answers already sent
             "keyframes": keyframes, "keyframe_mtimes": keyframe_mtimes,
             "storyboard": _read_json(sb / "storyboard.json"),
-            "gui": _read_json(sd / "gui.json", {}), "early": js.EARLY,
+            "gui": _read_json(sd / "gui.json", {}), "early": js.EARLY, "generators": _generators(),
             "outputs": {s: {k: None if p is None else _read_json(p) for k, p in kinds.items()}
                         for s, kinds in outputs.items()}}
     h.send_json(200, body, {"ETag": etag})

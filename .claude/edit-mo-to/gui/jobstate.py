@@ -35,7 +35,7 @@ EARLY: dict[str, list[str]] = {
     "brief": ["link", "paste", "instructions", "refs"],  # everything on the page, any time
     "script": ["own_script"],
     "voiceover": ["upload"],
-    "prompts": ["broll_source", "generator"],
+    "prompts": ["broll_source", "generator", "generator_model"],
     "clips": ["clips_folder"],
     "captions": ["who"],
     "music": ["source", "upload"],

@@ -191,6 +191,14 @@ def test_job_roundtrip_and_etag(api):
     assert api.call("GET", "/api/job" + _q(folder=folder), headers={"If-None-Match": etag})[0] == 200
 
 
+def test_job_carries_the_generators_table(api):
+    import generators
+    folder = _demo(api)
+    data = api.json("GET", "/api/job" + _q(folder=folder))[1]
+    assert data["generators"] == generators.load()
+    assert "seedance-2.5" in data["generators"]["generators"]["higgsfield"]["models"]
+
+
 def test_job_carries_the_early_table(api):
     folder = _demo(api)
     data = api.json("GET", "/api/job" + _q(folder=folder))[1]

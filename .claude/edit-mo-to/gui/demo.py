@@ -112,7 +112,7 @@ def _png(path: Path, colour: str) -> None:
 def make(folder: Path) -> Path:
     folder = Path(folder)
     _job("init", folder, "--client", "Uvola", "--product", "Cereza Ácida gummies")
-    _job("card", folder, "style=UGC selfie review", "language=Spanish (es)", "temp_en=on", "generator=Seedance",
+    _job("card", folder, "style=UGC selfie review", "language=Spanish (es)", "temp_en=on", "generator=Higgsfield · Seedance 2.5",
          "timelines=Hook 1|Hook 2|Hook 3")
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)

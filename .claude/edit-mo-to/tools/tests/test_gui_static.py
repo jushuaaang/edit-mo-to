@@ -218,6 +218,7 @@ def test_demo_job(tmp_path, monkeypatch):
     job = js.load(folder)
     assert job["card"]["language"].lower().startswith("spanish")
     assert job["card"]["temp_en"] == "on"
+    assert job["card"]["generator"].startswith("Higgsfield · ")
     assert job["steps"]["storyboard"]["state"] == "waiting"
     assert job["gate"]["step"] == "storyboard"
     assert any(q["kind"] == "confirm" for q in job["gate"]["questions"])
@@ -266,3 +267,14 @@ def test_approval_sent_counts_only_unhandled_approves():
     text = _page("storyboard.js")
     body = text[text.index("export function statusOf"):text.index("export function shotText")]
     assert "!done.has(e.seq)" in body and 'e.type === "approve"' in body
+
+
+def test_prompts_page_reads_the_generators_table():
+    """The site and model choices come from generators.json via /api/job, never a list in the page (spec anti-goal)."""
+    text = _page("prompts.js")
+    assert "data.generators" in text or "data?.generators" in text
+    for literal in ("Seedance", "seedance", "Kling", "kling", "Veo", "veo-", "Google Flow", "google-flow", "Higgsfield"):
+        assert literal not in text, literal
+    assert '"generator_model"' in text
+    for name in _js_files():
+        assert "Seedance" not in name.read_text(encoding="utf-8"), name.name
