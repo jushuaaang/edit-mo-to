@@ -74,3 +74,39 @@ def test_prompts_adapter():
     t = adapters.ADAPTERS["prompts"](data)
     _check_table(t, 2)
     assert [r["id"] for r in t["rows"]] == ["AI-1", "AI-2"]
+
+
+def test_prompt_rows_carry_the_prompt_the_chat_shows():
+    """Copy prompt must copy the real prompt: the fenced block render_prompts puts in chat for that id."""
+    import plan_tools as pt
+    spec = {"style": "ugc", "mode": "seedance", "generator": "seedance",
+            "attach": {"@Image1": "refs/host.png"},
+            "locks": {"notext": "NO TEXT LOCK: no captions anywhere in frame."},
+            "prompts": [
+                {"id": "AI-1", "line": 1, "vo_in_f": 0, "vo_out_f": 120, "gen_len_s": 4, "setting": "bathroom",
+                 "subject": "woman", "action": "she smiles", "camera": "selfie", "dialogue": "Meet Nativia",
+                 "attach": ["@Image1"], "locks": ["notext"], "negative": "no extra people"},
+                {"id": "C-1", "kind": "client", "line": 2, "file": "host_take3.mp4", "in_f": 0, "out_f": 60,
+                 "vo_in_f": 120, "vo_out_f": 180},
+                {"id": "SB-1", "kind": "keyframe", "line": 1, "subject": "jar on a counter", "look": "warm"}]}
+    t = adapters.ADAPTERS["prompts"](spec)
+    _check_table(t, 3)
+    rows = {r["id"]: r for r in t["rows"]}
+    chat = pt.render_prompts(spec, ["Meet Nativia", "Two a day"], None)
+    for pid in ("AI-1", "SB-1"):
+        assert rows[pid]["prompt"] == pt._block(spec, next(p for p in spec["prompts"] if p["id"] == pid))
+        assert f"**{pid}**\n```\n{rows[pid]['prompt']}\n```" in chat
+    assert rows["AI-1"]["prompt"].startswith("Start on @Image1.") and "NO TEXT LOCK" in rows["AI-1"]["prompt"]
+    assert rows["C-1"]["prompt"] is None  # a picked client clip has no prompt to copy
+
+
+def test_clip_rows_carry_sheet_and_match_name():
+    data = {"batch": "b1", "images": "/tmp/qc/b1", "clips": [
+        {"file": "flow 01.mp4", "match": {"name": "V01_L01", "score": 0.9}, "status": "FLAG", "flags": ["text 'HI'"]},
+        {"file": "x.mov", "match": {"name": None, "why": "no match"}, "status": "FLAG", "flags": ["no match"]}]}
+    t = adapters.ADAPTERS["clips"](data)
+    _check_table(t, 2)
+    a, b = t["rows"]
+    assert a["match"] == "V01_L01" and a["sheet"] == "/tmp/qc/b1/flow 01_sheet.jpg"
+    assert b["match"] is None and b["sheet"] == "/tmp/qc/b1/x_sheet.jpg"
+    assert adapters.ADAPTERS["clips"]({"clips": data["clips"]})["rows"][0]["sheet"] is None  # no images folder

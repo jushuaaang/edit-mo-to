@@ -364,14 +364,14 @@ function placeholder(root, step, data, ctx) {
   const job = data?.job;
   const st = job?.steps?.[step]?.state || "pending";
   const name = ctx.folder.split("/").filter(Boolean).pop();
-  root.append(
+  root.append(...[  // filtered: the DOM's append would write a null as the text "null"
     h("div", { class: "crumbs" }, `${name} · Step ${STEPS.indexOf(step) + 1}`),
     h("div", { class: "head" }, h("div", {}, h("h1", {}, stepTitle(step)),
       job?.steps?.[step]?.note ? h("p", {}, job.steps[step].note) : null), stepChip(st)),
     job?.gate && job.gate.step === step ? gateBar(job.gate, ctx) : null,
     h("section", { class: "card coming" }, h("h2", {}, "This page is coming"),
       h("p", {}, `The full ${stepTitle(step)} page arrives in a later build. Claude's questions for this step show above when it asks, and you can write to Claude below.`)),
-    askBox(step, data, ctx));
+    askBox(step, data, ctx)].filter(Boolean));
 }
 
 function errorCard(root, title, text) {

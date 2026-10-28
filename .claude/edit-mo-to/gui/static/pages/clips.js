@@ -1,33 +1,29 @@
 // Clips (step 7, the editor's): the clips folder, "Check clips" (an action: Claude runs qc_clips.py), a row per
-// clip (PASS / FLAG / missing). FLAG rows open the contact sheet dialog; missing rows have Copy prompt.
-// Gate: regenerate real failures.
+// checked clip (PASS / FLAG). FLAG rows open the contact sheet dialog, with Copy prompt when the clip's match name
+// is a step-6 prompt id. Gate: regenerate real failures.
+// No "missing" rows: a qc_clips report covers only the batch it checked (new files), and its expected names come
+// from expected.json, which the GUI doesn't get, so "no clip matched this prompt" can't be told apart from
+// "that clip was checked in an earlier batch".
 import { h, table, pendingChip } from "../ui.js";
-import { stepPage, textInput, outputsOf, outputTables, isTable, actionButton, card, lastInput, pendingFor, promptText,
-  copyButton } from "../steppage.js";
+import { stepPage, textInput, outputsOf, outputTables, isTable, actionButton, card, lastInput, pendingFor,
+  promptsById } from "../steppage.js";
 
-const missing = (r) => r.status === "you" || (r.cells || []).some((c) => /^missing$/i.test(String(c)));
-
-/** The prompt rows of step 6, by id, for "Copy prompt" on missing clips. */
-function promptRows(data) {
-  const by = new Map();
-  for (const t of Object.values(data?.outputs?.prompts || {})) if (isTable(t)) t.rows.forEach((r) => by.set(String(r.id), r));
-  return by;
+/** The step-6 prompt row for a clip: by its match name (qc_clips' expected name), else that name's "V01" part. */
+function promptFor(byId, r) {
+  const name = typeof r.match === "string" ? r.match : "";
+  return byId.get(name) || byId.get(name.split("_")[0]) || null;
 }
 
 const clipsFolder = (ctx, data) => textInput(ctx, data, "clips", "clips_folder", "Clips folder", { mono: true,
   placeholder: `${ctx.folder}/clips`, hint: "The folder where you save the generated clips." });
 
 function clipsCard(ctx, data, t) {
-  const prompts = promptRows(data);
-  return table(t, ctx, { words: { ok: "PASS", err: "FLAG", you: "Missing" }, actions: (r) => {
+  const prompts = promptsById(data);
+  return table(t, ctx, { words: { ok: "PASS", err: "FLAG" }, actions: (r) => {
     const pend = pendingFor(data, `clips:${r.id}`).length ? pendingChip() : null;
-    if (missing(r)) {
-      const p = typeof r.prompt === "string" ? r : prompts.get(String(r.id));
-      return h("span", { class: "row" }, p ? copyButton(promptText(p), "Copy prompt") : null, pend);
-    }
     if (r.status === "err") {
       return h("span", { class: "row" }, h("button", { class: "btn sm", type: "button",
-        onclick: () => ctx.openDialog("contact", { row: r, prompt: prompts.get(String(r.id)) }) }, "Contact sheet"), pend);
+        onclick: () => ctx.openDialog("contact", { row: r, prompt: promptFor(prompts, r) }) }, "Contact sheet"), pend);
     }
     return pend;
   } });

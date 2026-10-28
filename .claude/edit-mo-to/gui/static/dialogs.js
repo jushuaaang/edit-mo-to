@@ -5,7 +5,7 @@ import { h, chip, dialog, toast, copyButton, STALE_TEXT } from "./ui.js";
 
 const CAPCUT_RECHECK_MS = 2000;
 const baseName = (p) => String(p ?? "").split(/[\\/]/).pop();
-const promptText = (row) => (typeof row?.prompt === "string" && row.prompt ? row.prompt : (row?.cells || []).join(" · "));
+const promptText = (row) => (typeof row?.prompt === "string" && row.prompt.trim() ? row.prompt : null);  // never the cells
 const p = (...kids) => h("p", {}, ...kids);
 
 function fieldRow(label, id, input, extra) {
@@ -154,15 +154,17 @@ function contact(args, ctx) {
     }
   };
   const sheet = typeof row.sheet === "string" && row.sheet
-    ? h("img", { class: "sheet", src: `/api/file?path=${encodeURIComponent(row.sheet)}`, alt: `Frames of ${id}` })
+    ? h("img", { class: "sheet", src: `/api/file?path=${encodeURIComponent(row.sheet)}`, alt: `Frames of ${id}`,
+      onerror: (e) => e.target.replaceWith(h("p", { class: "hint" }, `The contact sheet ${baseName(row.sheet)} can't be opened any more.`)) })
     : h("p", { class: "hint" }, "No contact sheet in this report. Claude can open it from the clip check folder.");
   return dialog("contact", h("div", { class: "stack" },
     h("div", { class: "row" }, h("span", { class: "mono" }, baseName(id)), chip("FLAG", "err")),
     sheet,
     h("ul", { class: "files" }, (row.cells || []).slice(1).map((c) => h("li", {}, String(c)))),
     row.note ? p(String(row.note)) : null,
-    h("div", { class: "row" }, copyButton(promptText(args?.prompt || row), "Copy prompt"),
-      h("span", { class: "hint" }, "to regenerate it in your generator"))),
+    promptText(args?.prompt) ? h("div", { class: "row" }, copyButton(promptText(args.prompt), "Copy prompt"),
+      h("span", { class: "hint" }, `${String(args.prompt.id ?? "")}, to regenerate it in your generator`))
+      : h("p", { class: "hint" }, "No step-6 prompt matches this clip, so there is nothing to copy here.")),
   [{ label: "Mark for regenerate", onClick: decide("regenerate") }, { label: "Use anyway", primary: true, onClick: decide("use") }],
   { title: "Contact sheet", wide: true });
 }

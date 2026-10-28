@@ -10,9 +10,16 @@ status is "ok" | "wait" | "you" | "err" | "opt" | "mute" | None.
   clips    qc_clips.py report.json (clips[])
   prompts  plan_tools.py prompts2.json (prompts[])
 
-Used by `job.py output --from <adapter> <tool-output-path>`. Standard library only.
+Used by `job.py output --from <adapter> <tool-output-path>`. Standard library only, plus plan_tools (tools/) for the
+prompt text, so a prompt row carries the same text the chat shows.
 """
+import sys
+from pathlib import Path
 from typing import Callable
+
+TOOLS = Path(__file__).resolve().parents[1] / "tools"
+if str(TOOLS) not in sys.path:
+    sys.path.insert(0, str(TOOLS))
 
 QA_STATUS = {"PASS": "ok", "FAIL": "err", "FLAG": "err", "OPEN": "you"}
 
@@ -64,23 +71,33 @@ def qa(data: dict) -> dict:
 
 
 def clips(data: dict) -> dict:
-    rows = []
+    """Extra row fields: `match` (the expected clip name it matched, or None) and `sheet` (qc_clips' contact
+    sheet, <images>/<stem>_sheet.jpg, when the report names its images folder)."""
+    rows, images = [], data.get("images")
     for c in data.get("clips") or []:
         m = c.get("match") or {}
         match = m.get("name") or m.get("why") or "-"
         flags = "; ".join(c.get("flags") or []) or "-"
-        rows.append(_row(c.get("file"), [c.get("file"), match, c.get("status"), flags],
-                         "ok" if c.get("status") == "PASS" else "err", c.get("action")))
+        row = _row(c.get("file"), [c.get("file"), match, c.get("status"), flags],
+                   "ok" if c.get("status") == "PASS" else "err", c.get("action"))
+        row["match"] = m.get("name") or None
+        stem = Path(_s(c.get("file"))).stem
+        row["sheet"] = f"{str(images).rstrip('/')}/{stem}_sheet.jpg" if images and stem else None
+        rows.append(row)
     return _table(f"Clip QC {data.get('batch', '')}".strip(), ["File", "Match", "Result", "Flags"], rows)
 
 
 def prompts(data: dict) -> dict:
+    """Extra row field `prompt`: the full prompt exactly as the chat deliverable shows it (plan_tools._block, the
+    fenced block per prompt in render_prompts); None for a picked client clip, which has no prompt."""
+    import plan_tools  # the one renderer of prompt text (kept lazy: only this adapter needs the tools)
     rows = []
     for p in data.get("prompts") or []:
         vo = f"{p['vo_in_f']}-{p['vo_out_f']}f" if "vo_in_f" in p and "vo_out_f" in p else ""
         what = p.get("action") or p.get("subject") or ""
-        rows.append(_row(p.get("id"), [p.get("id"), p.get("line"), vo, p.get("gen_len_s"), what, p.get("dialogue")],
-                         None))
+        row = _row(p.get("id"), [p.get("id"), p.get("line"), vo, p.get("gen_len_s"), what, p.get("dialogue")], None)
+        row["prompt"] = None if plan_tools._kind(p) == plan_tools.CLIENT else plan_tools._block(data, p)
+        rows.append(row)
     return _table("Generation prompts", ["Id", "Line", "VO span", "Length (s)", "Shot", "Dialogue"], rows)
 
 

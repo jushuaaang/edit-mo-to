@@ -25,13 +25,19 @@ function choices(ctx, data) {
   ];
 }
 
+/** A row: id and shot; the full prompt on expand and Copy, only when the row has a real prompt. */
+function promptRow(r) {
+  const text = promptText(r);
+  const head = [h("span", { class: "mono" }, String(r.id ?? "")), " ", h("span", {}, (r.cells || []).slice(1).filter(Boolean).join(" · "))];
+  return h("li", {},
+    text ? h("details", {}, h("summary", {}, ...head), h("pre", { class: "prompt" }, text))
+      : h("div", {}, ...head, h("div", { class: "hint" }, "No prompt to copy (a client clip, or Claude hasn't written it yet).")),
+    text ? copyButton(text, "Copy") : null);
+}
+
 function promptCard(kind, t) {
   return h("section", { class: "card" }, h("h3", {}, t.title || kind),
-    t.rows.length ? h("ul", { class: "prompts" }, t.rows.map((r) => h("li", {},
-      h("details", {}, h("summary", {}, h("span", { class: "mono" }, String(r.id ?? "")), " ",
-        h("span", {}, (r.cells || []).slice(1).filter(Boolean).join(" · "))),
-      h("pre", { class: "prompt" }, promptText(r))),
-      copyButton(promptText(r), "Copy")))) : h("p", { class: "hint" }, "No prompts yet."));
+    t.rows.length ? h("ul", { class: "prompts" }, t.rows.map(promptRow)) : h("p", { class: "hint" }, "No prompts yet."));
 }
 
 export function render(root, data, ctx) {

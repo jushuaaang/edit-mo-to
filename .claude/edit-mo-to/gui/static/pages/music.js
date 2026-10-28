@@ -13,8 +13,8 @@ function sunoCard(t) {
     h("p", { class: "hint" }, "Parts of at most 18 s each; generate them in order and crossfade as the notes say."),
     h("ul", { class: "prompts" }, t.rows.map((r) => h("li", {},
       h("div", {}, h("span", { class: "mono" }, String(r.id ?? "")), " ", h("span", { class: "hint" }, (r.cells || []).slice(1).join(" · ")),
-        h("pre", { class: "prompt" }, promptText(r))),
-      copyButton(promptText(r), "Copy")))));
+        promptText(r) ? h("pre", { class: "prompt" }, promptText(r)) : null),
+      promptText(r) ? copyButton(promptText(r), "Copy") : null))));
 }
 
 export function render(root, data, ctx) {

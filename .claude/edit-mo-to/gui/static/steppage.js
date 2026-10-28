@@ -244,8 +244,16 @@ export function outputTables(ctx, data, step, opts = {}) {
   return out;
 }
 
-/** Copy text for a prompt row: its `prompt` field (full prompt) when Claude stored one, else its cells. */
-export const promptText = (row) => (typeof row?.prompt === "string" && row.prompt ? row.prompt : (row?.cells || []).join(" · "));
+/** The full prompt of a row (adapters.prompts puts plan_tools' rendered prompt in `prompt`), or null. Never the
+ *  row's cells: Copy and the expanded prompt show only a real prompt, so nothing else gets pasted into a generator. */
+export const promptText = (row) => (typeof row?.prompt === "string" && row.prompt.trim() ? row.prompt : null);
+
+/** Step 6's prompt rows by id, across every prompts output (one per timeline). */
+export function promptsById(data) {
+  const by = new Map();
+  for (const t of Object.values(data?.outputs?.prompts || {})) if (isTable(t)) t.rows.forEach((r) => by.set(String(r.id), r));
+  return by;
+}
 
 export { copyButton };
 
@@ -274,7 +282,7 @@ export function stepPage(root, step, data, ctx, parts = {}) {
   } else {
     content = parts.body ? parts.body() : [];
   }
-  root.append(
+  root.append(...[  // the DOM's append stringifies null ("null" text), so the absent parts are filtered out
     h("div", { class: "crumbs" }, `${name} · Step ${STEPS.indexOf(step) + 1}`),
     h("div", { class: "head" }, h("div", {}, h("h1", {}, stepTitle(step)),
       job?.steps?.[step]?.note ? h("p", {}, job.steps[step].note) : null), stepChip(st)),
@@ -283,5 +291,5 @@ export function stepPage(root, step, data, ctx, parts = {}) {
     capcutBanner(ctx, data, step),
     answeredSome && !data?.listening ? h("div", { class: "banner wait", role: "status" }, h("span", {}, NOT_LISTENING)) : null,
     h("div", { class: "stack" }, content),
-    askBox(step, data, ctx));
+    askBox(step, data, ctx)].filter(Boolean));
 }
