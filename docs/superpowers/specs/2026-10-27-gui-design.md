@@ -263,6 +263,17 @@ Editors using this are beginners. Every word the app shows is plain and short.
   - It asks for a fresh reading when the last one is over a day old, or when the estimate passes 100% or drops (the week reset), and then starts the estimate again from the new reading.
   - Token numbers stay in a "Details" fold for whoever wants them. The "/usage" hint is always shown next to the estimate.
 
+## Generate for me (Joshua only, 2026-10-28)
+
+Joshua sometimes has Claude make the media for him. This adds **"Generate for me"** buttons, on his computer only. It is an exception to the non-goal "generating clips, voiceovers, images or music stays the editor's", for an editor who turns it on.
+
+- **Only where turned on.** `machine.json` (untracked, per computer) gets `"generate_for_me": true` on Joshua's Mac. Without it, no button, no setting and no skill text about it shows. Other editors never see it.
+- **Buttons:** "Generate picture" on each storyboard card and the character sheet card; "Generate clip" on each clip row; "Generate voiceover" on the Voiceover page. Each sends an `action` event (`target "generate:<step>:<id>"`). The GUI never generates anything itself: Claude does it in the session, and the page shows "Claude is generating Shot 5…" only from Claude's real step and log state.
+- **Pictures and clips with Joshua's Google Flow credits, through Claude in Chrome** (the browser extension he already uses with Claude Code): Claude opens Google Flow in his own visible Chrome window, picks the model (never one in his `avoid_models`; default Gemini Omni Flash), pastes the prompt, adds the start picture for clips, generates, downloads, and saves the file where the workflow expects it (`storyboard/SB-n.png`, the clips folder, by the existing names), then runs the usual checks (keyframe picked up; `qc_clips` for clips). Rules: only on his click; one item per click, never batches or loops; he can stop it anytime in the browser; a first-time warning he accepts once ("Google's terms may not allow automated use of Flow; this could flag your account"), stored in prefs; if Flow flags the prompt, Claude reports it and offers the "Got flagged" rewrite, never retries by itself.
+- **Voiceover through the official ElevenLabs API** with Joshua's own key: a new tool `tools/elevenlabs_vo.py` (standard library only) takes the script file and a voice, shows the character count and estimated credits before it runs, and writes the result into `vo/`. Then the normal Timing step runs. The voice id and model are per-computer prefs, chosen once in Settings.
+- **Keys stay private.** The ElevenLabs key lives only in `.claude/edit-mo-to/secrets.json` on his Mac (git-ignored, with a test that it is ignored), which he fills in himself. The key is never shown in the app, never sent to the page, never printed in chat or logs; Settings only shows "ElevenLabs key: set" or "not set".
+- **Skill:** a short "Generate for me" section in SKILL.md, read only when `generate_for_me` is on, with the Chrome steps for Flow and the ElevenLabs call, and the rule that gates still apply (a generated file is confirmed at its step's gate like any other).
+
 ## Decisions that differ from the spec
 
 - No `/edit-na-tayo`; only `/edit-mo-to` (and `/practice-muna`) open the GUI.
