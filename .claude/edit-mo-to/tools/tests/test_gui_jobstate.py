@@ -94,6 +94,36 @@ def test_answer_to_closed_gate_is_stale(tmp_path):
     assert js.append_event(tmp_path, {"type": "answer", "gate": "g-1"})["stale"] is True
 
 
+def test_early_table_matches_the_spec():
+    assert js.EARLY["music"] == ["source", "upload"]
+    assert set(js.EARLY) == {"brief", "script", "voiceover", "prompts", "clips", "captions", "music"}
+    assert all(step in js.STEPS and ids and all(isinstance(i, str) for i in ids) for step, ids in js.EARLY.items())
+
+
+def test_early_answer_is_kept_and_not_stale(tmp_path):
+    job = _job(tmp_path)
+    job["gate"] = {"id": "g-3", "title": "ok?", "questions": [{"id": "q", "text": "ok?", "kind": "confirm"}]}
+    js.save(tmp_path, job)
+    ev = js.append_event(tmp_path, {"type": "answer", "step": "music", "gate": None, "target": "music:source",
+                                    "value": "suno", "early": True})
+    assert ev["early"] is True and "stale" not in ev
+    assert js.read_events(tmp_path)[-1]["early"] is True
+    up = js.append_event(tmp_path, {"type": "upload", "step": "voiceover", "gate": None, "target": "voiceover:upload",
+                                    "value": "vo/a.mp3", "early": True})
+    assert up["early"] is True and "stale" not in up
+
+
+@pytest.mark.parametrize("event", [
+    {"type": "answer", "target": "music:source", "value": "suno", "early": "yes"},
+    {"type": "answer", "target": "music:source", "value": "suno", "early": True, "gate": "g-1"},
+])
+def test_bad_early_flag_refused(tmp_path, event):
+    _job(tmp_path)
+    with pytest.raises(ValueError):
+        js.append_event(tmp_path, event)
+    assert js.read_events(tmp_path) == []
+
+
 def test_unhandled_excludes_handled(tmp_path):
     job = _job(tmp_path)
     for i in range(3):

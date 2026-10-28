@@ -1,0 +1,53 @@
+/* Step pages and dialogs (pages/<step>.js, steppage.js, dialogs.js). Theme tokens only, from app.css. */
+
+/* sidebar: "Open now" and "Waits for: …" on steps not started yet */
+.nav .label { display: flex; flex-direction: column; min-width: 0; }
+.nav .label .sub { font-size: 10.5px; color: var(--muted); line-height: 1.3; }
+.tag.open { background: var(--ok-soft); color: var(--ok); }
+
+/* fields */
+.field .row.spread { margin-bottom: 6px; }
+.field .lbl { margin-bottom: 0; }
+.field .qt { display: block; font-weight: 500; margin-bottom: 2px; }
+.field textarea + .row, .field input + .row { margin-top: 8px; }
+.card.early { border-color: var(--opt); border-style: dashed; }
+.card.early h3 { margin: 0; }
+
+/* banners */
+.banner.you { background: var(--accent-soft); border: 1px solid var(--accent-line); }
+.banner.capcut { justify-content: space-between; }
+.banner .hint { margin-top: 2px; }
+
+/* lists of files, prompts, drafts, proposals */
+.files { list-style: none; display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.files li { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; font-size: 13px;
+  padding: 6px 10px; background: var(--panel2); border-radius: 7px; word-break: break-word; }
+.prompts { list-style: none; display: flex; flex-direction: column; }
+.prompts li { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 10px 0;
+  border-top: 1px solid var(--line); }
+.prompts li:first-child { border-top: 0; }
+.prompts li > :first-child { min-width: 0; flex: 1; }
+.prompts summary { cursor: pointer; }
+pre.prompt { font: 12px/1.55 var(--font-mono); white-space: pre-wrap; word-break: break-word; background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-top: 8px; color: var(--text); }
+.drafts, .learn { padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.drafts li .btn { margin-left: 8px; }
+.learn li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.learn select.f { width: auto; }
+
+/* tables */
+tr.flag td { background: var(--err-soft); }
+textarea.f.cell { min-height: 0; resize: vertical; }
+label.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 10px;
+  border: 1px solid var(--line2); border-radius: 8px; background: var(--panel2); }
+
+/* captions: the two choices side by side */
+.card.choice.picked { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.card.choice .action { margin-top: 12px; }
+
+/* review: the new-change row */
+.stack .row select.f { width: auto; flex: 1 1 160px; }
+
+/* dialogs */
+.dlg img.sheet { width: 100%; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); }
+.dlg .field { display: flex; flex-direction: column; gap: 6px; }

@@ -191,7 +191,7 @@ def r_job(h, q):
             "pending": [e for e in js.unhandled(folder) if e.get("type") in PENDING_TYPES],
             "events": js.read_events(folder)[-RECENT_EVENTS:],  # step messages, answers already sent
             "keyframes": keyframes, "storyboard": _read_json(sb / "storyboard.json"),
-            "gui": _read_json(sd / "gui.json", {}),
+            "gui": _read_json(sd / "gui.json", {}), "early": js.EARLY,
             "outputs": {s: {k: None if p is None else _read_json(p) for k, p in kinds.items()}
                         for s, kinds in outputs.items()}}
     h.send_json(200, body, {"ETag": etag})

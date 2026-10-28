@@ -3,12 +3,12 @@ import { h, icon, chip, checksTable, relTime, stepTitle, STEPS } from "../ui.js"
 
 const REFRESH_MS = 5000;
 const MAX_JOBS = 12;  // videos whose job is read for cards and activity
-const THUMB = {
-  you: "linear-gradient(135deg,#2B2113,#7A5E2C 60%,#D4AF6A)",
-  wait: "linear-gradient(135deg,#131D2B,#2F5480 60%,#93B5E3)",
-  ok: "linear-gradient(135deg,#11251A,#2F6E4C 60%,#7DCB9C)",
-  err: "linear-gradient(135deg,#2E1412,#8A3A30 60%,#EE7B6E)",
-  mute: "linear-gradient(135deg,#1D1A17,#3A342D 60%,#6F675D)",
+const THUMB = {  // theme tokens only
+  you: "linear-gradient(135deg, var(--panel2), var(--accent))",
+  wait: "linear-gradient(135deg, var(--panel2), var(--wait))",
+  ok: "linear-gradient(135deg, var(--panel2), var(--ok))",
+  err: "linear-gradient(135deg, var(--panel2), var(--err))",
+  mute: "linear-gradient(135deg, var(--panel2), var(--dim))",
 };
 
 const BAR = { you: "accent", wait: "wait", ok: "ok", err: "err", mute: "accent" };
@@ -39,7 +39,8 @@ function card(summary, job) {
   const lang = c.language || summary.language;
   const temp = c.temp_en === "on" || String(c.temp_en || "").startsWith("partial:") ? " (TEMP_EN on)" : "";
   const timelines = Array.isArray(c.timelines) && c.timelines.length ? `${c.timelines.length} timeline${c.timelines.length > 1 ? "s" : ""}` : "";
-  const meta = [style, lang ? lang + temp : "", timelines].filter(Boolean).join(" · ") || "Style and language come from the brief";
+  const client = c.client || summary.client;
+  const meta = [client, style, lang ? lang + temp : "", timelines].filter(Boolean).join(" · ") || "Style and language come from the brief";
   const step = job?.gate?.step || summary.step;
   const what = job?.gate?.title || stepTitle(step);
   const now = step ? `Step ${STEPS.indexOf(step) + 1} · ${what.charAt(0).toUpperCase()}${what.slice(1)}` : "All steps done";
@@ -69,7 +70,8 @@ export function render(root, data, ctx) {
       h("section", { class: "card" }, h("h3", {}, "Setup check"), setup)));
 
   const jobs = new Map();  // folder -> job
-  let summaries = [], checks = null, alive = true;
+  const etags = new Map();  // folder -> {value}: If-None-Match per video, so an unchanged job costs a 304
+  let summaries = [], checks = null, alive = true, busy = false;
 
   const draw = () => {
     const withJob = summaries.filter((s) => s.has_job && !s.practice);
@@ -100,7 +102,7 @@ export function render(root, data, ctx) {
     setup.replaceChildren(checks ? setupTable(checks, without.length) : h("p", { class: "hint" }, "Checking…"));
   };
 
-  const loadJobs = async () => {
+  const round = async () => {
     try {
       summaries = await ctx.api("/api/jobs") || [];
     } catch (e) {
@@ -109,12 +111,19 @@ export function render(root, data, ctx) {
     }
     const read = summaries.filter((s) => s.has_job).slice(0, MAX_JOBS);
     await Promise.all(read.map(async (s) => {
+      const folder = posix(s.path);
+      if (!etags.has(folder)) etags.set(folder, { value: null });
       try {
-        const reply = await ctx.api(`/api/job?folder=${encodeURIComponent(posix(s.path))}`);
-        if (reply) jobs.set(posix(s.path), reply.job);
+        const reply = await ctx.api(`/api/job?folder=${encodeURIComponent(folder)}`, { etag: etags.get(folder) });
+        if (reply) jobs.set(folder, reply.job);  // null = 304, the job we have is current
       } catch { /* the summary still shows the card */ }
     }));
     if (alive) draw();
+  };
+  const loadJobs = async () => {  // a tick is skipped while the last round still runs
+    if (busy) return;
+    busy = true;
+    try { await round(); } finally { busy = false; }
   };
   const loadChecks = async () => {
     try { checks = await ctx.api("/api/checks"); } catch (e) { checks = [{ name: "Setup check", ok: false, detail: e.message }]; }

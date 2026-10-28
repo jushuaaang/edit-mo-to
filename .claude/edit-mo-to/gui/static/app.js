@@ -5,7 +5,7 @@
 //          data = the /api/job reply for the open video (or null), ctx = see ui.js header.
 //          A page whose module is not there yet shows "This page is coming".
 
-import { h, icon, stepChip, STEPS, stepTitle, relTime, gateBar, askBox, dialog } from "./ui.js";
+import { h, icon, stepChip, STEPS, stepTitle, relTime, gateBar, askBox, dialog, previousStep } from "./ui.js";
 
 const POLL_MS = 1500;
 const CURRENT_MS = 5000;
@@ -51,10 +51,14 @@ async function request(path, opts = {}) {
   return res;
 }
 
-/** JSON API call. opts: {method, body (object -> JSON), headers}. Resolves to the reply (null on 304). */
+/** JSON API call. opts: {method, body (object -> JSON), headers, etag}. Resolves to the reply (null on 304).
+ *  etag: a {value} box kept by the caller; sent as If-None-Match and updated from the reply's ETag. */
 export async function api(path, opts = {}) {
-  const res = await request(path, opts);
+  const headers = { ...(opts.headers || {}) };
+  if (opts.etag?.value) headers["If-None-Match"] = opts.etag.value;
+  const res = await request(path, { ...opts, headers });
   if (res.status === 304) return null;
+  if (opts.etag && res.ok) opts.etag.value = res.headers.get("ETag");
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = null; }
@@ -235,13 +239,16 @@ function activeStep(job) {
 function stepLink(step, i, job, route) {
   const st = job.steps?.[step]?.state || "pending";
   const optional = step === "storyboard" && st === "pending";
+  const open = st === "pending" && Boolean(state.data?.early?.[step]);  // takes early input (spec "Working ahead")
+  const prev = st === "pending" && !open ? previousStep(step, job) : null;
   const cls = optional ? "optional" : st;
   const n = st === "done" ? icon("check") : st === "error" ? "!" : String(i + 1);
   const tag = st === "waiting" ? ["You", "you"] : st === "working" ? ["Working", "wait"] : st === "error" ? ["Error", "err"]
-    : st === "skipped" ? ["Skipped", "mute"] : optional ? ["Optional", "opt"] : null;
+    : st === "skipped" ? ["Skipped", "mute"] : optional ? ["Optional", "opt"] : open ? ["Open now", "open"] : null;
   const current = route.page === "job" && route.step === step;
   return h("a", { href: jobHash(state.folder, step), class: cls, "aria-current": current ? "page" : null },
-    h("span", { class: "n", "aria-hidden": "true" }, n), h("span", { class: "label" }, stepTitle(step)),
+    h("span", { class: "n", "aria-hidden": "true" }, n),
+    h("span", { class: "label" }, stepTitle(step), prev ? h("small", { class: "sub" }, `Waits for: ${stepTitle(prev)}`) : null),
     st === "done" ? h("span", { class: "sr" }, ", done") : null,
     tag ? h("span", { class: `tag ${tag[1]}` }, tag[0]) : null);
 }

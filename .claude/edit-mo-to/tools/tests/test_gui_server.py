@@ -160,6 +160,15 @@ def test_job_roundtrip_and_etag(api):
     assert api.call("GET", "/api/job" + _q(folder=folder), headers={"If-None-Match": etag})[0] == 200
 
 
+def test_job_carries_the_early_table(api):
+    folder = _demo(api)
+    data = api.json("GET", "/api/job" + _q(folder=folder))[1]
+    assert data["early"] == js.EARLY and data["early"]["music"] == ["source", "upload"]
+    s, ev = api.json("POST", "/api/inbox", {"folder": str(folder), "event": {
+        "type": "answer", "step": "captions", "gate": None, "target": "captions:who", "value": "me", "early": True}})
+    assert s == 200 and ev["early"] is True and "stale" not in ev
+
+
 def test_etag_ignores_listening_heartbeat(api):
     folder = _demo(api)
     js.write_listening(folder, "script")

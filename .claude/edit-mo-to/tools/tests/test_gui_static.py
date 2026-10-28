@@ -140,6 +140,49 @@ def test_job_reply_has_recent_events(tmp_path):
     assert body["events"][-1]["text"] == f"m{server.RECENT_EVENTS + 4}"
 
 
+STEP_PAGES = ["brief", "script", "voiceover", "timing", "prompts", "clips", "build", "review", "captions", "music",
+              "export"]
+
+
+def test_step_pages_and_dialogs_served(base):
+    for rel in [*(f"pages/{p}.js" for p in STEP_PAGES), "dialogs.js", "pages.css"]:
+        assert (STATIC / rel).is_file(), rel
+        status, _, body = _get(f"{base}/static/{rel}")
+        assert status == 200 and body == (STATIC / rel).read_bytes(), rel
+    assert 'href="/static/pages.css"' in (STATIC / "index.html").read_text(encoding="utf-8")
+    for p in STEP_PAGES:
+        assert "export function render(" in (STATIC / "pages" / f"{p}.js").read_text(encoding="utf-8"), p
+
+
+def test_brief_page_has_one_instructions_box():
+    brief = (STATIC / "pages" / "brief.js").read_text(encoding="utf-8")
+    assert "Additional instructions" in brief
+    assert "Specific Instructions".lower() not in brief.lower()
+
+
+def test_dialogs_cover_the_spec_list():
+    text = (STATIC / "dialogs.js").read_text(encoding="utf-8")
+    assert "export function open(" in text and "/api/new" in text
+    for name in ("new", "capcut", "name", "contact", "oldvo", "inplace", "learn"):
+        assert f'{name}:' in text or f'"{name}"' in text, name
+    for needle in ("I quit it, check again", "Cancel this change", "Use anyway", "Mark for regenerate", "Copy prompt"):
+        assert needle in text, needle
+    assert ".innerHTML" not in text and "html:" not in text  # data reaches the DOM as text only
+
+
+def test_carry_overs_in_shell():
+    ui = (STATIC / "ui.js").read_text(encoding="utf-8")
+    assert "That question closed; Claude asked something new" in ui
+    assert "upload_kind" not in ui and "upload_id" not in ui
+    dash = (STATIC / "pages" / "dashboard.js").read_text(encoding="utf-8")
+    assert "etag" in dash and "#" not in "".join(l for l in dash.splitlines() if "gradient" in l)
+    css = (STATIC / "app.css").read_text(encoding="utf-8")
+    copied = next(l for l in css.splitlines() if l.startswith(".btn.copied"))
+    assert "#" not in copied
+    app = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert "Open now" in app and "Waits for: " in app
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node not on PATH")
 def test_js_syntax():
     files = _js_files()

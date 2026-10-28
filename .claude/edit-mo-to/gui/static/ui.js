@@ -18,6 +18,13 @@ export const STEP_TITLES = {
 };
 export const stepTitle = (step) => STEP_TITLES[step] || step || "";
 
+/** The step a not-started step waits for: the one before it (an optional storyboard that never ran is passed over). */
+export function previousStep(step, job) {
+  let i = STEPS.indexOf(step) - 1;
+  if (STEPS[i] === "storyboard" && ["pending", "skipped"].includes(job?.steps?.storyboard?.state || "pending")) i -= 1;
+  return i >= 0 ? STEPS[i] : null;
+}
+
 const GIB = 1024 ** 3, MIB = 1024 ** 2;
 const MEDIA = ["mp3", "wav", "m4a", "aac"];
 export const UPLOAD_RULES = {
@@ -27,7 +34,15 @@ export const UPLOAD_RULES = {
   vo: { exts: MEDIA, limit: 4 * GIB, limitText: "4 GiB", where: "vo/" },
   music: { exts: MEDIA, limit: 4 * GIB, limitText: "4 GiB", where: "music/" },
 };
-const STEP_UPLOAD = { brief: "refs", voiceover: "vo", music: "music", storyboard: "keyframe" };
+const STEP_UPLOAD = { voiceover: "vo", music: "music" };
+const KEYFRAME_ID = /^(SB|CHAR)-\d+$/;
+
+/** [upload kind, keyframe id] for a `file` question: storyboard SB-n / CHAR-n -> keyframe, VO, music, else refs. */
+export function fileTarget(step, q) {
+  if (step === "storyboard" && KEYFRAME_ID.test(q.id || "")) return ["keyframe", q.id];
+  return [STEP_UPLOAD[step] || "refs", undefined];
+}
+export const STALE_TEXT = "That question closed; Claude asked something new";
 
 // ---------- tiny DOM helpers ----------
 
@@ -238,12 +253,12 @@ function answered(ctx, gate, q) {
   return ev ? { value: ev.value } : null;
 }
 
-function answerText(value) {
+function answerText(value, file = false) {
   if (value === true) return "Yes";
   if (value === false) return "No";
   if (Array.isArray(value)) return value.length ? value.join(", ") : "none";
   const s = String(value ?? "");
-  return /[\\/]/.test(s) ? s.split(/[\\/]/).pop() : s;
+  return file ? s.split(/[\\/]/).pop() : s;  // a file answer is a path: show its name
 }
 
 function questionControls(gate, q, ctx, done) {
@@ -251,12 +266,15 @@ function questionControls(gate, q, ctx, done) {
   const answer = async (value, controls) => {
     controls.forEach((c) => { c.disabled = true; });
     try {
-      await ctx.send({ type: "answer", step: gate.step || null, gate: gate.id, target: q.id, value });
+      const ev = await ctx.send({ type: "answer", step: gate.step || null, gate: gate.id, target: q.id, value });
+      if (ev?.stale) { done({ value, stale: true }); return true; }  // the gate changed before the click
       sentLocal.set(`${ctx.folder}|${gate.id}|${q.id}`, { value });
       done({ value });
+      return true;
     } catch (e) {
       controls.forEach((c) => { c.disabled = false; });
       toast(e.message || "Not sent. Try again.");
+      return false;
     }
   };
   const options = (q.options || []).map((o) => (typeof o === "object" && o !== null
@@ -293,10 +311,14 @@ function questionControls(gate, q, ctx, done) {
     box.style.alignItems = "flex-start";
     box.append(ta, sendBtn);
   } else if (q.kind === "file") {
-    const kind = q.upload_kind || STEP_UPLOAD[gate.step] || "refs";
+    const [kind, id] = fileTarget(gate.step, q);
+    let saved = null;  // the uploaded path: a failed answer is sent again without uploading again
+    const retry = h("button", { class: "btn sm pri", type: "button", hidden: true }, "Send again");
+    const sendPath = async () => { retry.hidden = await answer(saved, [retry]); };
+    retry.addEventListener("click", sendPath);
     box.style.display = "block";
-    box.append(dropZone(kind, ctx, { label: "Drop the file here", id: q.upload_id,
-      onDone: (res) => answer(res.path, []) }));
+    box.append(dropZone(kind, ctx, { label: "Drop the file here", id, onDone: (res) => { saved = res.path; sendPath(); } }),
+      retry);
   }
   return box;
 }
@@ -320,8 +342,9 @@ export function gateBar(gate, ctx) {
         wrap.querySelectorAll(".opts input[type=checkbox]").forEach((c) => { c.checked = ans.value.map(String).includes(c.value); });
       }
       if (!wrap.querySelector(".sent")) {
-        wrap.append(h("div", { class: "sent row" }, chip("Sent · waiting for Claude", "wait"),
-          h("span", { class: "hint" }, `Your answer: ${answerText(ans.value)}`)));
+        wrap.append(h("div", { class: "sent row" },
+          ans.stale ? chip(STALE_TEXT, "err") : chip("Sent · waiting for Claude", "wait"),
+          h("span", { class: "hint" }, ans.stale ? `Not counted: ${answerText(ans.value, q.kind === "file")}` : `Your answer: ${answerText(ans.value, q.kind === "file")}`)));
       }
     };
     wrap.append(questionControls(gate, q, ctx, showSent));

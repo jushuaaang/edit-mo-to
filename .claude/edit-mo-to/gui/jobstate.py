@@ -23,6 +23,18 @@ STEPS = ["brief", "script", "storyboard", "voiceover", "timing", "prompts", "cli
 STATES = ("pending", "working", "waiting", "done", "skipped", "error")
 GATE_KINDS = ("choice", "multi", "text", "confirm", "file")
 EVENT_TYPES = ("answer", "approve", "edit", "comment", "message", "action", "upload")
+# Working ahead (spec "Working ahead"): step -> the inputs the editor may give before Claude reaches the step.
+# An early input is an `answer` (target "<step>:<id>") or `upload` event with "early": true and "gate": null.
+# It never changes a step's state; at the step's gate Claude turns it into a confirm question.
+EARLY: dict[str, list[str]] = {
+    "brief": ["link", "paste", "instructions", "refs"],  # everything on the page, any time
+    "script": ["own_script"],
+    "voiceover": ["upload"],
+    "prompts": ["broll_source", "generator"],
+    "clips": ["clips_folder"],
+    "captions": ["who"],
+    "music": ["source", "upload"],
+}
 
 _locks: dict[str, threading.Lock] = {}
 _locks_guard = threading.Lock()
@@ -152,6 +164,11 @@ def read_events(folder: Path, after: int = 0) -> list[dict]:
 def append_event(folder: Path, event: dict) -> dict:
     if event.get("type") not in EVENT_TYPES:
         raise ValueError(f"event type must be one of {EVENT_TYPES}, got {event.get('type')!r}")
+    if "early" in event:
+        if not isinstance(event["early"], bool):
+            raise ValueError("early must be true or false")
+        if event["early"] and event.get("gate"):
+            raise ValueError("an early input answers no gate (gate must be null)")
     with _lock(folder):
         last = read_events(folder)
         ev = dict(event)
