@@ -82,6 +82,7 @@ PENDING_TYPES = {"edit", "approve", "action"}
 RECENT_EVENTS = 200
 SETTINGS_KEYS = ("root", "python", "tmp", "mcp_servers", "capcut_drafts", "gui_port")
 SETTINGS_DIRS = {"root": True, "python": False, "tmp": True, "mcp_servers": True, "capcut_drafts": True}
+PYTHON_NAMES = {"python", "python3", "python.exe", "python3.exe"}
 RESERVED = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(10)), *(f"lpt{i}" for i in range(10))}
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
          ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8",
@@ -306,7 +307,7 @@ def r_upload(h, q):
     length = h.content_length()
     if length > limit:
         raise HttpError(413, f"That file is too big (the limit here is {limit // MIB} MiB).")
-    target = folder / sub
+    target = folders.safe_path(folder / sub, [folder])  # a symlinked refs/ vo/ music/ storyboard/ can't lead out
     target.mkdir(parents=True, exist_ok=True)
     part = target / f".upload-{uuid.uuid4().hex}.part"
     try:
@@ -372,6 +373,8 @@ def r_settings_save(h, q):
             raise HttpError(400, f"{key} must be a path")
         elif not Path(value.strip()).exists():
             raise HttpError(400, f"{key}: {value.strip()} does not exist on this computer")
+        elif key == "python" and Path(value.strip()).name.lower() not in PYTHON_NAMES:  # /api/checks runs it
+            raise HttpError(400, f"python must be a Python executable ({', '.join(sorted(PYTHON_NAMES))})")
         update[key] = value.strip() if isinstance(value, str) else value
     data = _settings_file()  # keeps keys already in the file (_note, asr, ...)
     data.update(update)

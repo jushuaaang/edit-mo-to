@@ -463,3 +463,27 @@ def test_feedback_saved_and_issue_url(api):
     items = api.json("GET", "/api/feedback")[1]
     assert [i["title"] for i in items] == ["Upload fails & stops"] and items[0]["at"]
     assert api.json("POST", "/api/feedback", {"type": "rant", "title": "t", "text": "x"})[0] == 400
+
+
+def test_settings_python_must_be_a_python(api, tmp_path, monkeypatch):
+    cfg = tmp_path / "machine.json"
+    cfg.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(machine, "CONFIG", cfg)
+    other = tmp_path / "evil.sh"
+    other.write_text("x", encoding="utf-8")
+    s, d = api.json("POST", "/api/settings", {"python": str(other)})
+    assert s == 400 and "python" in d["error"]
+    py = tmp_path / "bin" / "python3"
+    py.parent.mkdir()
+    py.write_text("x", encoding="utf-8")
+    assert api.json("POST", "/api/settings", {"python": str(py)})[0] == 200
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need admin on Windows")
+def test_upload_into_a_symlinked_subfolder_refused(api, tmp_path):
+    folder = _demo(api)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (folder / "vo").symlink_to(outside, target_is_directory=True)
+    s, _ = api.json("PUT", "/api/upload" + _q(folder=folder, kind="vo", name="a.mp3"), raw=b"x")
+    assert s == 403 and not list(outside.iterdir())
