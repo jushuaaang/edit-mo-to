@@ -8,6 +8,7 @@ GUI server read the table through here, so no tool or page keeps its own copy of
                                               not verified or the model is unknown)
     for_spec(spec) -> dict                    the same for a prompts2 spec (`generator`, `generator_model`, old `mode`)
     length_error(rule, seconds) -> str|None   why a generated length breaks the row, or None
+    strictest() -> dict                       the fallback limits for an unknown model {min_s, max_s, max_attach}
 """
 import json
 from functools import lru_cache
@@ -57,6 +58,11 @@ def _strictest(t: dict) -> dict:
             "max_attach": min(caps, default=None)}
 
 
+def strictest(path: Path = FILE) -> dict:
+    """{min_s, max_s, max_attach}: the safe limits Claude uses for a model the table does not know (the GUI shows them)."""
+    return _strictest(load(path))
+
+
 def _fmt(x) -> str:
     return f"{x:g}"
 
@@ -86,6 +92,7 @@ def rules(generator: "str | None", model: "str | None" = None, path: Path = FILE
     else:
         key = (model or "").strip()
         hit = next((k for k, m in site["models"].items() if key.lower() in (k.lower(), m["label"].lower())), None)
+        hit = hit or site.get("aliases", {}).get(key.lower())   # "Seedance", "Kling": a name without a version
         if hit:
             r = _row(site["models"][hit]) | {"generator": gen, "model": hit,
                                              "label": f"{site['label']} · {site['models'][hit]['label']}"}

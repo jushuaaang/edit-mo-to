@@ -284,3 +284,31 @@ def test_old_seedance_spec_renders_byte_identical():
     assert pt.check_prompts(old, SCRIPT, None) == []
     long = {**old, "attach": NINE, "prompts": [dict(SPEC2["prompts"][0], attach=list(NINE), gen_len_s=12, use="0:00-4:00")]}
     assert pt.check_prompts(long, SCRIPT, None) == []   # Seedance: no attachment cap, no maximum length (as before)
+
+
+# --- Task B1: model names without a version, and the generic start line only with an attachment ---
+
+def test_model_names_without_a_version_map_to_a_row():
+    import generators as g
+    aliases = GENERATORS["generators"]["higgsfield"]["aliases"]
+    assert aliases == {"seedance": "seedance-2.0", "kling": "kling-3.0", "veo": "veo-3.1"}
+    models = GENERATORS["generators"]["higgsfield"]["models"]
+    assert all(target in models for target in aliases.values())
+    for name, row in (("Seedance", "seedance-2.0"), ("seedance", "seedance-2.0"), ("Kling", "kling-3.0"),
+                      ("Veo", "veo-3.1"), (" veo ", "veo-3.1")):
+        r = g.rules("higgsfield", name)
+        assert r["model"] == row, name
+        assert "strictest" not in (r["warning"] or ""), name   # a real row, not the fallback
+    assert g.rules("higgsfield", "Kling")["label"] == "Higgsfield · Kling 3.0"
+    assert pt.prompt_warnings(_hf("Kling")) == ["limits for Higgsfield · Kling 3.0 are not verified; check them in generators.json"]
+
+
+def test_generic_start_line_only_when_the_prompt_has_an_attachment():
+    with_att = _hf("kling-3.0")
+    assert pt._block(with_att, with_att["prompts"][0]).startswith("Start from the attached image.\n")
+    bare = _hf("kling-3.0", attach=[])
+    assert not pt._block(bare, bare["prompts"][0]).startswith("Start")
+    unknown = _hf("hailuo-02", attach=[])
+    assert not pt._block(unknown, unknown["prompts"][0]).startswith("Start")
+    seedance = _hf("seedance-2.0", attach=[])          # Seedance's own line is unchanged
+    assert pt._block(seedance, seedance["prompts"][0]).startswith("Start on @Image1.\n")

@@ -639,8 +639,13 @@ def _quoted_in(dialogue: str, action: str) -> bool:
     return bool(_words(dialogue)) and all(w in it for w in _words(dialogue))
 
 
+GENERIC_START = "Start from the attached image."   # the start line of Kling, Veo and unknown Higgsfield models
+
+
 def _block(spec: dict, p: dict) -> str:
     start = gens.for_spec(spec)["start_line"]   # e.g. Seedance's "Start on @Image1."; none for Google Flow
+    if start == GENERIC_START and not p.get("attach"):  # "the attached image" only when something is attached
+        start = None
     parts = [start] if start and _kind(p) == "video" else []
     for label, key in (("Subject", "subject"), ("Setting", "setting"), ("Action", "action"),
                        ("Camera", "camera"), ("Look", "look")):

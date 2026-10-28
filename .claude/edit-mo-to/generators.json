@@ -1,5 +1,5 @@
 {
- "about": "AI-clip generators and their limits, read by tools/generators.py (plan_tools, context_pack, qa_check, the GUI). Per row: label; clip length as min_s/max_s (null = no limit) or fixed lengths_s; max_attach (null = no cap); start_frame / end_frame supported; start_line = the line a video prompt starts with (null = none); verified = the date someone confirmed these limits, or null (Claude then says the limits are not verified). An unknown Higgsfield model gets the fallback: the strictest length and attachment limits in this table. Correct a row here when a site changes.",
+ "about": "AI-clip generators and their limits, read by tools/generators.py (plan_tools, context_pack, qa_check, the GUI). Per row: label; clip length as min_s/max_s (null = no limit) or fixed lengths_s; max_attach (null = no cap); start_frame / end_frame supported; start_line = the line a video prompt starts with (null = none); verified = the date someone confirmed these limits, or null (Claude then says the limits are not verified). A model name without a version (a Higgsfield `aliases` key, e.g. Kling) means that row. An unknown Higgsfield model gets the fallback: the strictest length and attachment limits in this table. Correct a row here when a site changes.",
  "generators": {
   "higgsfield": {
    "label": "Higgsfield",
@@ -19,6 +19,7 @@
                 "start_frame": true, "start_line": "Start from the attached image.", "end_frame": true, "verified": null,
                 "notes": "Reported (unverified): 4, 6 or 8 s; start-only or start + end frame; up to 3 reference images, and 8 s when using reference images."}
    },
+   "aliases": {"seedance": "seedance-2.0", "kling": "kling-3.0", "veo": "veo-3.1"},
    "fallback": {"label": "unverified model", "start_frame": true, "start_line": "Start from the attached image.",
                 "end_frame": false}
   },
