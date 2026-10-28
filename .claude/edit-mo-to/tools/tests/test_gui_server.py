@@ -504,7 +504,8 @@ def test_upload_into_a_symlinked_subfolder_refused(api, tmp_path):
 def test_prefs_known_keys_only_on_this_computer(api):
     """Per-computer GUI prefs ({tmp}/gui/prefs.json): alert switches and the language; unknown keys are refused."""
     defaults = {"notify": True, "sound": True, "ui_lang": "auto", "ui_lang_detected": "en", "avoid_models": [],
-                "default_model": None, "generate_warned_at": None, "elevenlabs_voice": None, "elevenlabs_model": None}
+                "default_model": None, "generate_warned_at": None, "elevenlabs_voice": None, "elevenlabs_model": None,
+                "usage_readings": []}
     s, d = api.json("GET", "/api/prefs")
     assert s == 200 and d == defaults                                  # defaults before anything is saved
     assert not (api.tmp / "gui" / "prefs.json").exists()
@@ -535,7 +536,8 @@ def test_prefs_language_choice_and_detected_language(api):
     assert api.json("GET", "/api/prefs")[1]["ui_lang_detected"] == "tl"
     assert api.json("POST", "/api/prefs", {"sound": False})[1] == {
         "notify": True, "sound": False, "ui_lang": "auto", "ui_lang_detected": "tl", "avoid_models": [],
-        "default_model": None, "generate_warned_at": None, "elevenlabs_voice": None, "elevenlabs_model": None}   # a Settings save keeps it
+        "default_model": None, "generate_warned_at": None, "elevenlabs_voice": None, "elevenlabs_model": None,
+        "usage_readings": []}   # a Settings save keeps it
     (api.tmp / "gui" / "prefs.json").write_text(json.dumps({"ui_lang": "klingon", "ui_lang_detected": "tl"}),
                                                 encoding="utf-8")
     assert api.json("GET", "/api/prefs")[1]["ui_lang"] == "auto"         # a bad value on disk reads as the default

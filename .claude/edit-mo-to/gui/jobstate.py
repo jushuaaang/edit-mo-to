@@ -312,7 +312,11 @@ PREFS = {"notify": True, "sound": True, "ui_lang": "auto", "ui_lang_detected": "
          "avoid_models": [], "default_model": None,   # the models Claude never picks / picks first ("<site>:<model>")
          # Generate for me (only shown where account.generate_allowed): when the editor accepted the Flow warning (ISO
          # time; asked once), and the ElevenLabs voice id and model id elevenlabs_vo.py uses
-         "generate_warned_at": None, "elevenlabs_voice": None, "elevenlabs_model": None}
+         "generate_warned_at": None, "elevenlabs_voice": None, "elevenlabs_model": None,
+         # the weekly % the editor typed from Claude's /usage (the dashboard's manual fallback), oldest first:
+         # [{"pct": 0-100, "at": ISO time}], the last USAGE_READINGS_KEEP kept (add_usage_reading)
+         "usage_readings": []}
+USAGE_READINGS_KEEP = 20
 PREF_CHOICES = {"ui_lang": ("auto", "en", "tl"), "ui_lang_detected": ("en", "tl")}   # string prefs: allowed values
 MODEL_PREFS = ("avoid_models", "default_model")   # checked against generators.json's model ids
 ID_PREFS = {"elevenlabs_voice": re.compile(r"[A-Za-z0-9]{1,64}"), "elevenlabs_model": re.compile(r"[a-z0-9_]{1,64}")}
@@ -347,6 +351,19 @@ def check_pref(key: str, value) -> None:
             ok = False
         if value is not None and not ok:
             raise ValueError("generate_warned_at must be a time (ISO) or null")
+    elif key == "usage_readings":
+        if not isinstance(value, list) or len(value) > USAGE_READINGS_KEEP:
+            raise ValueError(f"usage_readings must be a list of at most {USAGE_READINGS_KEEP} readings")
+        for r in value:
+            pct = r.get("pct") if isinstance(r, dict) else None
+            if not isinstance(pct, (int, float)) or isinstance(pct, bool) or not 0 <= pct <= 100:
+                raise ValueError("a usage reading needs pct, a number from 0 to 100")
+            try:
+                ok = isinstance(r.get("at"), str) and len(r["at"]) <= 40 and datetime.fromisoformat(r["at"]) is not None
+            except ValueError:
+                ok = False
+            if not ok or set(r) != {"pct", "at"}:
+                raise ValueError("a usage reading is {\"pct\", \"at\"} with at an ISO time")
     elif key in ID_PREFS:
         if value is not None and (not isinstance(value, str) or not ID_PREFS[key].fullmatch(value)):
             raise ValueError(f"{key} must be an id (letters, digits{', _' if key == 'elevenlabs_model' else ''}) or null")
@@ -413,6 +430,24 @@ def update_prefs(gui: Path, patch: dict) -> dict:
         merged = {**_clean(saved if isinstance(saved, dict) else {}), **patch}
         if merged.get("default_model") and merged["default_model"] in merged.get("avoid_models", []):
             raise ValueError("Claude's default model can't be a model Claude avoids")
+        write_json_atomic(path, merged)
+    return read_prefs(path)
+
+
+def add_usage_reading(gui: Path, pct) -> dict:
+    """Append the weekly % the editor typed (0-100) with the time to prefs usage_readings, under prefs_lock (the last
+    USAGE_READINGS_KEEP stay). Returns read_prefs."""
+    if not isinstance(pct, (int, float)) or isinstance(pct, bool) or not 0 <= pct <= 100:
+        raise ValueError("type the weekly % as a number from 0 to 100")
+    path = Path(gui) / "prefs.json"
+    with prefs_lock(gui):
+        try:
+            saved = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            saved = {}
+        merged = _clean(saved if isinstance(saved, dict) else {})
+        readings = (merged.get("usage_readings") or []) + [{"pct": pct, "at": _now()}]
+        merged["usage_readings"] = readings[-USAGE_READINGS_KEEP:]
         write_json_atomic(path, merged)
     return read_prefs(path)
 

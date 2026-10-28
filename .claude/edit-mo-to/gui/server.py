@@ -20,6 +20,12 @@ read-only: GET /api/temp-en may also read a CapCut project under {capcut_drafts}
 GUI prefs (jobstate.PREFS: known keys only) in {tmp}/gui/prefs.json. GET /api/generators is generators.json plus
 `safe` and `picks` (the model Claude picks per site, from those prefs), as /api/job carries it.
 
+GET /api/usage is the dashboard's usage box (usage.report): the plan's week and 5-hour % from {tmp}/gui/usage.json (saved
+by the project status line, gui/statusline.py), % per video and videos left, and token Details. The second read-only
+exception to "only {root} and {tmp}": Claude Code's logs for the {root} project (~/.claude/projects/<{root} as a folder
+name>/), of which only the numbers and timestamps are kept, never the text. POST /api/usage {"pct": 0-100} saves a weekly %
+the editor typed from /usage (the manual fallback) into prefs usage_readings, then answers like GET.
+
 POST /api/practice is the one route that starts a program (spec "Try a practice video"): on the editor's click it opens
 a visible Terminal (macOS) or command window (Windows) in {root} running `claude /practice-muna`, so the editor's own
 Claude starts the practice run. The command and the folder are fixed here (practice_argv); nothing in the request is
@@ -64,6 +70,7 @@ import folders  # noqa: E402
 import generators  # noqa: E402
 import jobstate as js  # noqa: E402
 import machine  # noqa: E402
+import usage  # noqa: E402
 
 APP, DEFAULT_PORT = "edit-mo-to-gui", 4810
 STATIC = GUI / "static"
@@ -485,6 +492,18 @@ def r_prefs_save(h, q):
         raise HttpError(400, str(e)) from None
 
 
+def r_usage(h, q):
+    return usage.report(h.server.root, _gui_dir(h))
+
+
+def r_usage_save(h, q):
+    try:
+        js.add_usage_reading(_gui_dir(h), h.json_body().get("pct"))
+    except ValueError as e:
+        raise HttpError(400, str(e)) from None
+    return usage.report(h.server.root, _gui_dir(h))
+
+
 PRACTICE = "/practice-muna"
 PRACTICE_GAP = 10.0      # seconds: a second click within this gets "busy", so a double click opens one window
 PRACTICE_TIMEOUT = 120   # seconds osascript may take (the first time macOS may ask to let it control Terminal)
@@ -615,6 +634,8 @@ ROUTES = {  # (method, path): (handler, needs token)
     ("GET", "/api/feedback"): (r_feedback, True),
     ("POST", "/api/feedback"): (r_feedback_save, True),
     ("POST", "/api/practice"): (r_practice, True),
+    ("GET", "/api/usage"): (r_usage, True),
+    ("POST", "/api/usage"): (r_usage_save, True),
 }
 
 

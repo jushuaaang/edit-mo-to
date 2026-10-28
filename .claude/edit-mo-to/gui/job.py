@@ -22,6 +22,12 @@ Run as `.claude/edit-mo-to/run gui/job.py <command> ...` from the repo root.
                                                       Tagalog -> tl, English -> en), for this computer: writes
                                                       ui_lang_detected into {tmp}/gui/prefs.json (no folder; the
                                                       app follows it while its Language setting is "Auto")
+    usage-mark <folder> start|finish                  copy the plan's week % from the status line's latest reading
+                                                      ({tmp}/gui/usage.json, gui/statusline.py) into job.json "usage":
+                                                      {start_pct, start_at, start_resets_at, finish_...}; skipped
+                                                      ("usage": null) when there is no reading under 30 minutes old.
+                                                      init does `start` and `step <folder> export done` does `finish`
+                                                      by themselves (and stamps "finished"), so Claude never needs it
     can-generate                                      {"allowed": true|false}: may Claude act on a "Generate for me"
                                                       click (`generate:<step>:<id>`) on this computer? True only when
                                                       machine.json turns it on for the signed-in Claude account
@@ -70,6 +76,19 @@ def _log(job: dict, text: str) -> None:
     job["log"] = job["log"][-LOG_KEEP:]
 
 
+def _usage_mark(job: dict, which: str) -> "dict | None":
+    """Copy the latest fresh week % (usage.read_auto) into job["usage"] as <which>_pct/_at/_resets_at; None (and
+    nothing written) when there is no fresh reading with the week in it: nothing is guessed."""
+    import usage
+    auto = usage.read_auto(js.gui_dir())
+    if not auto or auto["old"] or auto["week_pct"] is None:
+        return None
+    mark = job.setdefault("usage", {})
+    mark.update({f"{which}_pct": auto["week_pct"], f"{which}_at": auto["at"],
+                 f"{which}_resets_at": auto["week_resets_at"]})
+    return mark
+
+
 def _step(name: str) -> str:
     if name not in js.STEPS:
         raise ValueError(f"unknown step: {name!r} (one of {', '.join(js.STEPS)})")
@@ -88,7 +107,9 @@ def cmd_init(a) -> dict:
         raise ValueError(f"{folder} already has a job; use --resume to keep it")
     folder.mkdir(parents=True, exist_ok=True)
     if not a.resume or not js.state_dir(folder).joinpath("job.json").exists():
-        js.save(folder, js.new_job(folder, a.client, a.product))
+        job = js.new_job(folder, a.client, a.product)
+        _usage_mark(job, "start")   # the week % when the video starts (skipped without a fresh reading)
+        js.save(folder, job)
     js.set_current(folder)
     return {"folder": folder.as_posix()}
 
@@ -122,6 +143,9 @@ def cmd_step(a) -> dict:
     step["state"] = a.state
     if a.note is not None:
         step["note"] = a.note
+    if a.step == "export" and a.state == "done":   # the video is finished: its end time and the week % now
+        job["finished"] = js._now()
+        _usage_mark(job, "finish")
     js.save(folder, job)  # validate() rejects a state outside STATES
     return {"step": a.step, "state": a.state}
 
@@ -246,6 +270,16 @@ def cmd_lang(a) -> dict:
     return {"ui_lang_detected": js.update_prefs(js.gui_dir(), {"ui_lang_detected": a.lang})["ui_lang_detected"]}
 
 
+@_locked
+def cmd_usage_mark(a) -> dict:
+    folder = Path(a.folder)
+    job = js.load(folder)
+    mark = _usage_mark(job, a.which)
+    if mark is not None:
+        js.save(folder, job)
+    return {"usage": mark}
+
+
 def cmd_can_generate(a) -> dict:
     """Checked before acting on any `generate:` event, so a stale page can't trigger it (fails closed)."""
     import account
@@ -295,6 +329,7 @@ def build_parser() -> argparse.ArgumentParser:
     add("inbox", cmd_inbox, (["--unhandled"], {"action": "store_true"}),
         (["--after"], {"type": int, "default": 0}))
     add("lang", cmd_lang, (["lang"], {"choices": ("en", "tl")}), folder=False)
+    add("usage-mark", cmd_usage_mark, (["which"], {"choices": ("start", "finish")}))
     add("can-generate", cmd_can_generate, folder=False)
     return p
 

@@ -1,6 +1,6 @@
 // Dashboard: a card per video folder (each with its "what to do now" line), "Try a practice video" (Start practice:
 // POST /api/practice opens the editor's own Claude in a visible window; the Copy fallback shows only when that can't
-// happen), recent activity across videos, the setup check, "New video".
+// happen), recent activity across videos, the setup check, "New video", and the plan usage box (usageCard).
 import { h, icon, chip, checksTable, relTime, stepTitle, STEPS, copyButton } from "../ui.js";
 import { t } from "../words.js";
 import { nowStrip } from "../nextstep.js";
@@ -12,6 +12,8 @@ const PRACTICE_WHY = { "no-claude": "practice.no_claude", failed: "practice.fail
 let practiceReply = null;  // the last Start practice reply, kept when the page re-renders (a language change)
 
 const REFRESH_MS = 5000;
+const USAGE_MS = 60000;  // the usage box reads /api/usage again this often (and on "Update my usage")
+const USAGE_CMD = "/usage";  // what the editor types in Claude for the exact number (the manual fallback)
 const MAX_JOBS = 12;  // videos whose job is read for cards and activity
 const THUMB = {  // theme tokens only
   you: "linear-gradient(135deg, var(--panel2), var(--accent))",
@@ -101,6 +103,117 @@ function practiceCard(ctx) {
     h("div", { class: "row" }, btn), status, fallback);
 }
 
+const pct = (n) => String(Math.round(n));
+const clock = (iso) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); };
+const resetWhen = (epoch) => new Date(epoch * 1000).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+
+/** 1234567 -> "1.2 million", 45600 -> "46 thousand" (the token counts are always "about"). */
+function tokenWords(n) {
+  if (n >= 1e6) return t("usage.million", { n: (n / 1e6).toFixed(1) });
+  if (n >= 1e3) return t("usage.thousand", { n: Math.round(n / 1e3) });
+  return String(n);
+}
+
+/** Token Details: today, this week, the heaviest videos (from Claude Code's logs: numbers only). */
+function usageDetails(tokens) {
+  if (!tokens) return [h("p", {}, h("b", {}, t("usage.not_available"))), h("p", { class: "hint" }, t("usage.not_available_p"))];
+  const jobs = (tokens.per_job || []).filter((j) => j && j.tokens > 0).slice(0, 5);
+  const about = (n) => t("usage.tokens_about", { n: tokenWords(n) });
+  return [
+    h("dl", { class: "usage-kv" }, h("dt", {}, t("usage.today")), h("dd", {}, about(tokens.today?.total || 0)),
+      h("dt", {}, t("usage.week_l")), h("dd", {}, about(tokens.week?.total || 0))),
+    jobs.length ? h("table", {}, h("thead", {}, h("tr", {}, ["th_video", "th_tokens", "th_claude", "th_helpers", "th_pct"]
+      .map((k) => h("th", {}, t(`usage.${k}`))))),
+    h("tbody", {}, jobs.map((j) => h("tr", {}, h("td", {}, j.name, j.practice ? t("dash.practice_tag") : ""),
+      h("td", {}, tokenWords(j.tokens)), h("td", {}, tokenWords(j.claude)), h("td", {}, tokenWords(j.helpers)),
+      h("td", {}, j.pct === null || j.pct === undefined ? "–" : `${pct(j.pct)}%`))))) : null,
+    jobs.some((j) => j.about) ? h("p", { class: "hint" }, t("usage.overlap_note")) : null,
+  ].filter(Boolean);
+}
+
+/** The plan usage box (spec "Usage read automatically" and "Manual fallback"): the week and 5-hour % the project
+ *  status line saved, % per video, videos left, token Details. "Update my usage" reads again now; it is highlighted
+ *  with "old" while the reading is missing or over 30 minutes old (and no fresh typed reading stands in). Only then the
+ *  box says what to do and offers the two-step manual box (type /usage, type the weekly %, Save). Every guess says
+ *  "about"; nothing is shown that the server did not send. */
+function usageCard(ctx) {
+  const btn = h("button", { class: "btn sm", type: "button" }, t("usage.update"));
+  const lines = h("div", { class: "usage-lines" });
+  const status = h("p", { class: "hint", role: "status" });
+  const field = h("input", { class: "f usage-pct", type: "number", min: "0", max: "100", step: "1", inputmode: "numeric",
+    "data-key": "usage-pct", "aria-label": t("usage.pct_label") });
+  const note = h("p", { class: "msg", role: "status" });
+  const save = h("button", { class: "btn sm pri", type: "button" }, t("common.save"));
+  const manualBox = h("div", { class: "usage-manual", hidden: true },
+    h("p", { class: "usage-what" }, t("usage.open_claude")),
+    h("p", { class: "hint" }, t("usage.manual_h")),
+    h("div", { class: "row" }, h("span", {}, t("usage.step1")), h("code", { class: "mono cmd" }, USAGE_CMD), copyButton(USAGE_CMD)),
+    h("div", { class: "row" }, h("label", {}, t("usage.step2"), field), save), note);
+  const details = h("div", {});
+  const card = h("section", { class: "card usage", "aria-labelledby": "usage-h" },
+    h("div", { class: "row spread" }, h("h3", { id: "usage-h" }, t("usage.title")), btn),
+    lines, manualBox, h("p", { class: "hint" }, t("usage.hint_exact")), status,
+    h("details", { class: "usage-details" }, h("summary", {}, t("usage.details")), details));
+
+  const show = (u) => {
+    const auto = u?.auto, man = u?.manual;
+    const fresh = auto && !u.stale;
+    const out = [];
+    if (fresh && auto.week_pct !== null) {
+      out.push(h("p", { class: "usage-big" }, auto.week_resets_at
+        ? t("usage.week", { pct: pct(auto.week_pct), when: resetWhen(auto.week_resets_at) })
+        : t("usage.week_plain", { pct: pct(auto.week_pct) })));
+    } else if (u?.source === "manual" && man?.last) {
+      out.push(h("p", { class: "usage-big" }, t("usage.week_about",
+        { pct: pct(Math.min(100, u.week_pct)), last: pct(man.last.pct), time: clock(man.last.at) })));
+    }
+    if (fresh && auto.five_hour_pct !== null && auto.five_hour_pct !== undefined) {
+      out.push(h("p", {}, t("usage.now", { pct: pct(auto.five_hour_pct) })));
+    }
+    out.push(h("p", {}, u?.per_video_pct ? t("usage.per_video", { pct: u.per_video_pct >= 1 ? pct(u.per_video_pct) : String(u.per_video_pct) })
+      : t("usage.not_enough", { n: Math.min(3, u?.videos_counted || 0) })));
+    if (u?.videos_left !== null && u?.videos_left !== undefined) {
+      out.push(h("p", { class: "usage-left" }, u.videos_left === 1 ? t("usage.left_one") : t("usage.left", { n: u.videos_left })));
+    }
+    lines.replaceChildren(...out);
+    const old = !u || (u.stale && (!man || man.old));
+    btn.className = old ? "btn sm pri" : "btn sm";
+    btn.textContent = old ? t("usage.update_old") : t("usage.update");
+    manualBox.hidden = !(!u || u.stale);
+    status.textContent = fresh && auto.at ? t("usage.read_at", { time: clock(auto.at) }) : "";
+    details.replaceChildren(...usageDetails(u?.tokens));
+  };
+
+  let alive = true;
+  const load = async () => {
+    try {
+      const u = await ctx.api("/api/usage");
+      if (alive) show(u);
+    } catch {
+      if (alive) { show(null); status.textContent = t("usage.cant_read"); }
+    }
+  };
+  btn.addEventListener("click", async () => { btn.disabled = true; await load(); btn.disabled = false; });
+  save.addEventListener("click", async () => {
+    const n = field.value.trim() === "" ? NaN : Number(field.value);
+    if (!(n >= 0 && n <= 100)) { note.className = "msg err"; note.textContent = t("usage.bad_pct"); return; }
+    save.disabled = true;
+    try {
+      show(await ctx.api("/api/usage", { body: { pct: n } }));
+      field.value = "";
+      note.className = "msg ok";
+      note.textContent = t("usage.saved");
+    } catch (e) {
+      note.className = "msg err";
+      note.textContent = e.message || t("usage.cant_read");
+    }
+    save.disabled = false;
+  });
+  load();
+  const timer = setInterval(load, USAGE_MS);
+  return { card, stop: () => { alive = false; clearInterval(timer); } };
+}
+
 const setupTable = (checks, older) => checksTable(checks, [[t("dash.older_check"), chip(String(older), "mute")]]);
 
 export function render(root, data, ctx) {
@@ -108,13 +221,14 @@ export function render(root, data, ctx) {
   const grid = h("div", { class: "grid3" });
   const practice = h("div", {});
   const tryIt = practiceCard(ctx);
+  const plan = usageCard(ctx);
   const older = h("div", {});
   const activity = h("ul", { class: "act" }, h("li", {}, t("common.loading")));
   const setup = h("div", {}, h("p", { class: "hint" }, t("common.checking")));
   const newBtn = h("button", { class: "btn pri", type: "button", onclick: () => ctx.openDialog("new") }, icon("plus"), t("dash.new_video"));
   root.append(
     h("div", { class: "head" }, h("div", {}, h("h1", {}, greeting()), sub), newBtn),
-    grid, tryIt, practice, older,
+    grid, plan.card, tryIt, practice, older,
     h("div", { class: "grid2", style: "margin-top:20px" },
       h("section", { class: "card" }, h("h3", {}, t("dash.recent")), activity),
       h("section", { class: "card" }, h("h3", {}, t("checks.title")), setup)));
@@ -182,5 +296,5 @@ export function render(root, data, ctx) {
   loadJobs();
   loadChecks();
   const timer = setInterval(loadJobs, REFRESH_MS);
-  return () => { alive = false; clearInterval(timer); };
+  return () => { alive = false; clearInterval(timer); plan.stop(); };
 }

@@ -3,5 +3,9 @@
     "allow": [
       "Bash(.claude/edit-mo-to/run *)"
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": ".claude/edit-mo-to/run gui/statusline.py"
   }
 }

@@ -94,6 +94,8 @@ When dispatching `revise-in-place`, don't ask the editor to back up first: `repl
 ## GUI (the "Edit Mo To" companion app)
 Every command runs from `{root}` as `.claude/edit-mo-to/run gui/job.py <command> "<folder>" …` and prints one JSON line (`{"ok": true, …}`). Run `job.py` calls one at a time, never as parallel Bash calls (each waits for the folder lock, so parallel calls are safe but gain nothing, and their order is then random). Steps: `brief script storyboard voiceover timing prompts clips build review captions music export` (build covers steps 7–8). `job.py --help` lists the commands.
 
+`init` and `step "<folder>" export done` also save the plan's week % (from the project status line) into `job.json` for the dashboard's "A video uses about N% of your week"; nothing to run for it. If export was marked done before any reading existed, `.claude/edit-mo-to/run gui/job.py usage-mark "<folder>" finish` right after your next reply saves the finish (`"usage": null` = still no reading; never guess one). Never mark `start` late: a late start makes the video look cheaper.
+
 ### Gates
 `gate.json` is `{"title", "detail"?, "questions": [{"id", "text", "why"?, "kind", "options"?, "default"?}]}`; `kind` is `choice | multi | text | confirm | file`. `text` is the gate wording above, word for word. `options` are strings or `{"value", "label"}`. Pass it on stdin (no file outside the project to write, so no permission question):
 ```

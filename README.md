@@ -154,6 +154,8 @@ Claude plans have a usage limit that resets every 5 hours. One measured example 
 - answer several stops in one message;
 - skip the storyboard for repeat clients.
 
+The app's dashboard shows how much of your plan's week you have used, about how much one video uses, and about how many more videos fit this week. It reads these numbers through a status line: edit-mo-to's `.claude/settings.json` (shared, so it applies to every editor of this folder) sets Claude Code's status line to `.claude/edit-mo-to/run gui/statusline.py`, which shows `Week 41% · Now 23% · resets Fri 9 AM` under the chat box and saves those numbers for the app. It replaces your own status line only inside your Video Editing folder; everywhere else yours stays. The numbers appear after Claude's first reply in a session (Pro and Max plans). Under **Details** it also counts the tokens each video used, from Claude Code's own logs for this folder (`~/.claude/projects/`): it reads only the numbers and times there, never the chat. For the exact number, type `/usage` in Claude.
+
 ## If something goes wrong
 
 | Problem | Fix |
