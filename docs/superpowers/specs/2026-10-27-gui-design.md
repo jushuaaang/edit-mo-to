@@ -132,6 +132,26 @@ No login screen (the spec's wish), but the server must not be usable by other we
 - **Verse:** the bottom of the sidebar, on every page, shows in a muted italic serif: *"Remember the Lord your God, for it is he who gives you the ability to produce wealth."* with "DEUTERONOMY 8:18" in small gold capitals.
 - Step states in the sidebar: done (✓, green), working (blue), waiting on you (gold, "You" tag), optional (dashed, violet), error (red), not started (grey).
 
+### Working ahead (Joshua's call, 2026-10-28)
+
+The editor may work on steps that don't depend on earlier ones before Claude reaches them. A not-started step shows **"Open now"** in the sidebar when it takes early input, otherwise **"Waits for: <previous step>"**.
+
+| Step | What the editor can do early |
+|---|---|
+| Brief | everything on the page (any time) |
+| Script | paste their own script |
+| Voiceover | upload the VO file(s) |
+| B-roll & prompts | answer B-roll source and generator |
+| Clips | set the clips folder |
+| Captions | choose who adds captions |
+| Music | choose the source, upload their own track |
+
+Everything else waits. The table lives in one place, `gui/jobstate.py` (`EARLY`), and the server sends it with the job so the pages and the skill read the same list.
+
+- An early input is an inbox event with `"early": true` and `gate: null` (an `answer` with `target` `<step>:<question id>`, or an `upload`). It is saved like any other event and shows on its page as **"Saved for later"**.
+- When Claude reaches that step, it reads the step's early events and **confirms them instead of asking again**: the step's ⛔ gate still opens in its usual place and order, with the early answer as the default (a `confirm` question, "You chose X earlier. Still right?"). Nothing skips a gate; the editor only answers faster.
+- An early answer never changes a step's state; only Claude moves a step out of "not started".
+
 ### Layout
 
 Three columns: the sidebar (brand, Dashboard, Settings, the current video's 12 steps, the verse, the connection status), the page, and a right panel with the **job card** (the same fields as the skill's running card, including the TEMP_EN line), Claude's activity, the listening status, and a **"Tell Claude anything" text box for the whole job**. Below about 1100 px wide the right panel folds away behind a button.
@@ -196,7 +216,7 @@ When the next action writes to a CapCut project, the page shows a red banner ("Q
 
 ## Changes to the existing workflow
 
-- **SKILL.md / steps.md:** before step 1, start or reuse the GUI and create the job (`job.py init`); at each step keep `job.json` current (`job.py step`, `card`, `output`, `log`); at each ⛔ gate also open it in the GUI (`job.py gate`) and wait with `wait.py` in the background, accepting the answer from the GUI or the chat; read unread inbox events at each step start. The gate wording stays.
+- **SKILL.md / steps.md:** before step 1, start or reuse the GUI and create the job (`job.py init`); at each step keep `job.json` current (`job.py step`, `card`, `output`, `log`); at each ⛔ gate also open it in the GUI (`job.py gate`) and wait with `wait.py` in the background, accepting the answer from the GUI or the chat; read unread inbox events at each step start, including the step's early inputs (see "Working ahead"), and turn those into a confirmation at the step's gate. The gate wording stays.
 - **Storyboard order** (`SKILL.md` step 3, `style-agent-contract.md` "Output: mode: storyboard", the style agents' storyboard sections): phase `prompts` also writes the skeleton `storyboard.json` (with a `prompt` field per beat and the character sheet beat), so the board exists before the images. Phase `board` then refines it from the saved images as today. The rule "never build the board before the images exist" becomes "never ask for approval of the direction as final while keyframes are missing, unless the editor chooses Approve anyway".
 - **`storyboard.py`:** accept the new per-beat `prompt` (and a `status`) without changing its output for old files; keep rendering a shot card where no keyframe exists.
 - **Deliverables in chat:** in this version Claude still shows the tables and prompts in chat exactly as today (the `CLAUDE.md` rule), and the GUI shows the same data from the files. This keeps the chat a full fallback. Whether to slim the chat output once the GUI is trusted is a later decision for Joshua.
