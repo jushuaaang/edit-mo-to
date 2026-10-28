@@ -64,3 +64,9 @@ git -C "<your Video Editing folder>" worktree add .claude/worktrees/feat-gui fea
 ```
 
 Run tests from `.claude/edit-mo-to/tools/` with `.venv/bin/python -m pytest tests -q -m "not slow"` (the worktree needs the tools `.venv`: symlink it from the main checkout, `ln -s "<main>/.claude/edit-mo-to/tools/.venv" .claude/worktrees/feat-gui/.claude/edit-mo-to/tools/.venv`). On the Mac, also confirm the macOS-only paths no Windows run covered: `pgrep` CapCut check, POSIX launch kill/start, the SIGTERM test in `test_gui_wait.py`.
+
+## Status 2026-10-28 (Mac)
+
+Tasks 8–11 reviewed and fixed; final whole-branch review done and fixed (launcher only stops a verified own server). Added on Joshua's requests, each built and reviewed: Higgsfield replaces Seedance with per-model rules (`generators.json`), Google Flow asks the model, Gemini Omni Flash, models Claude avoids / Claude's default model, safer prompt wording + "Got flagged", beginner features (what to do now, word help, alerts, practice button, why this step, no codes), English/Taglish (labels English, sentences Taglish) with auto-detect, "Generate for me" (owner only: Flow via Claude in Chrome, ElevenLabs voiceover), plan usage % via the status line with videos left. Full suite on the Mac: 870 passed, 5 known environment failures (no cv2; VectCut MCP server errors).
+
+Next: a second whole-branch review of the work since 89c5b18 and its fixes, then Task 12 (practice run with Joshua on a fresh clone). Not run on real Windows yet (practice launch, status line).
