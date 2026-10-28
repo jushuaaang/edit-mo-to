@@ -235,6 +235,19 @@ AI clips are generated on **Higgsfield** or **Google Flow**; Seedance is no long
 - **Gate:** step 6's generator question becomes "Where will you generate: Higgsfield or Google Flow?" (`generator`: `higgsfield` | `google-flow`) followed, for Higgsfield, by "Which Higgsfield model?" (`generator_model`, a choice from the table plus "Other"). The job card shows "Higgsfield · <model>". The storyboard step asks the same pair when it asks the generator early. Old jobs whose card says `seedance` are read as Higgsfield · Seedance.
 - **Preferences:** the shared `preferences.md` "Seedance" section becomes "Higgsfield · Seedance". An editor's own `my-preferences.md` is never edited by the build; a "Seedance" section there applies to the Seedance model on Higgsfield.
 
+## Beginner friendly (Joshua's picks, 2026-10-28)
+
+Editors using this are beginners. Every word the app shows is plain and short.
+
+- **No codes in what the editor reads.** The app says "Shot 5", "the character sheet", "the question", never "SB-5", "CHAR-1" or "g-3". Files on disk keep their short names (`storyboard/SB-5.png`); only the words on screen change.
+- **"What to do now" line** at the top of every page and on each dashboard card: one sentence saying whose turn it is and the next action ("Your turn: make the pictures for Shot 5 and Shot 6 in Higgsfield, then drop them on their cards." / "Claude is writing the prompts. Nothing to do yet."). Built from the job's real state (open question, step states, missing files, listening), never guessed.
+- **Plain explanations of words.** A small ⓘ next to TEMP_EN, A-roll, B-roll, keyframe, timeline, VO, voiceover, question/gate and times like `2:12` ("2 seconds and 12 frames"). One short line each, on hover or tap, from one word list in the app.
+- **Tell me when Claude needs me.** When a new question opens: a browser notification (asked once, can be turned off in Settings), a soft sound (can be turned off), and the tab title shows a count, e.g. "(1) Edit Mo To".
+- **"Try a practice video"** button on the dashboard: explains in one line what `/practice-muna` is and shows the exact words to type in Claude to start it (the app cannot start Claude itself). Practice jobs already show in their own section.
+- **"Why this step" and a time guess** under each step title: one plain line on why the step exists and roughly how long it takes (e.g. Timing: "Claude matches your voiceover to the script so cuts land on the words. About 1 minute."). Text lives in one place in the app, not copied from the skill.
+- **Language: English or Taglish.** A switch in Settings changes every word the app shows to Taglish (plain, everyday Filipino-English, as editors talk). The editor's own text, Claude's messages and the script are never translated. All app words live in one word list per language so nothing is missed; Joshua checks the Taglish wording before it ships.
+- **Auto-detect (Joshua's ask).** Claude, not the app, detects the editor's language from what the editor writes (chat and the app's message boxes): Taglish or Tagalog → Claude sets the app to Taglish (`job.py card ui_lang=tl`, a per-computer setting the server keeps), English → back to English. Claude's own chat replies always follow the editor's language (a skill rule). A language picked by hand in Settings wins and turns auto-detect off until set back to "Auto". Never translated: the script and VO (they follow the brief), generator prompts (stay English), the editor's own text.
+
 ## Decisions that differ from the spec
 
 - No `/edit-na-tayo`; only `/edit-mo-to` (and `/practice-muna`) open the GUI.
