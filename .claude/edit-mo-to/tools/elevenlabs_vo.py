@@ -41,6 +41,18 @@ class Refused(Exception):
     pass
 
 
+def open_new(part: Path):
+    """Open part for writing as a brand-new file: a file or symlink already there (e.g. one planted to lead out of
+    the folder) is removed first (unlink never follows a link), then O_CREAT|O_EXCL (|O_NOFOLLOW where the system has
+    it) refuses anything that appears in between. Without O_NOFOLLOW (Windows), an lstat check runs first."""
+    part.unlink(missing_ok=True)
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow and os.path.lexists(part):
+        raise Refused(f"{part.name} appeared while saving; try again")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow | getattr(os, "O_BINARY", 0)
+    return os.fdopen(os.open(part, flags, 0o644), "wb")
+
+
 def _fail(message: str) -> None:
     print(json.dumps({"ok": False, "error": message}, ensure_ascii=False))
     sys.exit(1)
@@ -137,10 +149,16 @@ def make(script: str, voice: "str | None", model: "str | None", out_raw: str) ->
     out.parent.mkdir(exist_ok=True)
     part = out.with_name(f".{out.name}.part")
     try:
-        part.write_bytes(audio)
+        with open_new(part) as f:
+            f.write(audio)
         os.replace(part, out)
+    except FileExistsError:
+        raise Refused("a file appeared while saving; nothing was saved") from None
     finally:
         part.unlink(missing_ok=True)
+    if out.is_symlink() or out.resolve().parent != out.parent.resolve():
+        out.unlink(missing_ok=True)
+        raise Refused("the saved file led outside vo/; removed it")
     return {"path": out.resolve().as_posix(), "chars": len(text)}
 
 

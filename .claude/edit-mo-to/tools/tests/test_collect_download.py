@@ -118,3 +118,53 @@ def test_a_symlinked_subfolder_cannot_lead_out(env, capsys, tmp_path):
     _dl(downloads, "a.png")
     code, _ = _run([str(folder), "storyboard/SB-1.png", "--downloads", str(downloads)], capsys)
     assert code == 1 and not list(elsewhere.iterdir())
+
+
+# --- Task G fix: a planted .part symlink, targets checked where they really land ---
+
+def test_a_planted_part_symlink_cannot_write_outside(env, capsys, tmp_path):
+    folder, downloads = env
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (folder / "storyboard").mkdir()
+    (folder / "storyboard" / ".SB-1.png.part").symlink_to(outside / "pwn.png")
+    _dl(downloads, "a.png", b"img")
+    code, out = _run([str(folder), "storyboard/SB-1.png", "--downloads", str(downloads)], capsys)
+    dest = folder / "storyboard" / "SB-1.png"
+    assert not (outside / "pwn.png").exists() and not list(outside.iterdir())
+    assert code == 0 and dest.is_file() and not dest.is_symlink() and dest.read_bytes() == b"img"
+    assert not (folder / "storyboard" / ".SB-1.png.part").exists() and not (folder / "storyboard" / ".SB-1.png.part").is_symlink()
+
+
+def test_open_new_refuses_a_file_that_appears(tmp_path):
+    part = tmp_path / ".x.part"
+    with cd.open_new(part) as f:
+        f.write(b"1")
+    with pytest.raises(FileExistsError):   # O_EXCL: a second open while it exists fails (open_new removes only before)
+        os.open(part, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+
+
+def test_a_symlinked_subfolder_into_edit_mo_to_is_refused(env, capsys):
+    folder, downloads = env
+    (folder / "storyboard").symlink_to(folder / ".edit-mo-to", target_is_directory=True)
+    _dl(downloads, "a.png")
+    code, out = _run([str(folder), "storyboard/x.png", "--downloads", str(downloads)], capsys)
+    assert code == 1 and ".edit-mo-to" in out["error"]
+    assert not (folder / ".edit-mo-to" / "x.png").exists()
+
+
+@pytest.mark.parametrize("target", ["x.png", "other/x.png", "storyboard2/x.png"])
+def test_only_the_allowed_subfolders(env, capsys, target):
+    folder, downloads = env
+    _dl(downloads, "a.png")
+    code, out = _run([str(folder), target, "--downloads", str(downloads)], capsys)
+    assert code == 1 and "storyboard/" in out["error"]
+    assert not (folder / target).exists()
+
+
+def test_the_cards_own_clips_folder_is_allowed(env, capsys):
+    folder, downloads = env
+    (folder / ".edit-mo-to" / "job.json").write_text(json.dumps({"card": {"clips_folder": "My Clips"}}), encoding="utf-8")
+    _dl(downloads, "a.mp4", b"v")
+    code, out = _run([str(folder), "My Clips/V01.mp4", "--downloads", str(downloads)], capsys)
+    assert code == 0 and (folder / "My Clips" / "V01.mp4").read_bytes() == b"v"

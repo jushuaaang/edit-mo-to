@@ -10,9 +10,12 @@ The newest file of that kind in the Downloads folder (default ~/Downloads; hidde
 copy keeps the downloaded file's extension (SB-5.png + a .jpg download -> SB-5.jpg). An existing file is never
 overwritten without --replace; with it, the same-name files of that kind are replaced, so a keyframe keeps one file.
 
-Refused: a folder without .edit-mo-to/job.json, a target outside the video folder (.., another path, a symlinked
-subfolder leading out) or inside .edit-mo-to/, an unknown extension. Prints {"ok": true, "path", "from"} or
-{"ok": false, "error"} (exit 1).
+The target is checked where it really lands (its folder resolved, symlinks followed): it must be in storyboard/,
+clips/, vo/, music/, refs/ or the job card's clips_folder, inside the video folder. Refused: a folder without
+.edit-mo-to/job.json, a target outside those (.., another path, a symlinked subfolder leading out or into
+.edit-mo-to/), an unknown extension. The copy goes through a new .part file (an existing one, even a planted symlink,
+is removed first; then O_CREAT|O_EXCL|O_NOFOLLOW). Prints {"ok": true, "path", "from"} or {"ok": false, "error"}
+(exit 1).
 """
 import argparse
 import json
@@ -31,12 +34,41 @@ class Refused(Exception):
     pass
 
 
+def open_new(part: Path):
+    """Open part for writing as a brand-new file: a file or symlink already there (e.g. one planted to lead out of
+    the folder) is removed first (unlink never follows a link), then O_CREAT|O_EXCL (|O_NOFOLLOW where the system has
+    it) refuses anything that appears in between. Without O_NOFOLLOW (Windows), an lstat check runs first."""
+    part.unlink(missing_ok=True)
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow and os.path.lexists(part):
+        raise Refused(f"{part.name} appeared while saving; try again")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow | getattr(os, "O_BINARY", 0)
+    return os.fdopen(os.open(part, flags, 0o644), "wb")
+
+
 def _inside(path: Path, root: Path) -> bool:
     try:
         path.relative_to(root)
         return True
     except ValueError:
         return False
+
+
+ALLOWED = ("storyboard", "clips", "vo", "music", "refs")   # subfolders a generated file may go in
+
+
+def _allowed_dirs(folder: Path) -> list:
+    """storyboard/, clips/, vo/, music/, refs/ and the job card's clips_folder when it is inside the folder."""
+    dirs = [folder / d for d in ALLOWED]
+    try:
+        card = json.loads((folder / ".edit-mo-to" / "job.json").read_text(encoding="utf-8")).get("card") or {}
+        raw = card.get("clips_folder")
+        if isinstance(raw, str) and raw.strip():
+            clips = Path(raw)
+            dirs.append((clips if clips.is_absolute() else folder / clips).resolve())
+    except (OSError, ValueError, AttributeError):
+        pass
+    return dirs
 
 
 def target_path(folder: Path, raw: str) -> "tuple[Path, set]":
@@ -50,11 +82,14 @@ def target_path(folder: Path, raw: str) -> "tuple[Path, set]":
     kind = next((exts for exts in KINDS.values() if target.suffix.lower() in exts), None)
     if kind is None:
         raise Refused(f"unknown file type {target.suffix or '(none)'}: use a picture, video or audio name")
-    if not _inside(target.parent.resolve(), folder) or not _inside(target.absolute(), folder):
+    real = target.parent.resolve() / target.name     # where it really lands (symlinked subfolders followed)
+    if not _inside(real, folder):
         raise Refused("the target must be inside the video folder")
-    if ".edit-mo-to" in target.absolute().relative_to(folder).parts:
+    if ".edit-mo-to" in real.relative_to(folder).parts:
         raise Refused("the target can't be in .edit-mo-to/")
-    return target, kind
+    if not any(_inside(real.parent, d) for d in _allowed_dirs(folder) if _inside(d, folder)):
+        raise Refused(f"the target must be in one of {', '.join(d + '/' for d in ALLOWED)} or the job's clips folder")
+    return real, kind
 
 
 def newest(downloads: Path, kind: set, within_min: float) -> Path:
@@ -91,10 +126,16 @@ def collect(folder: Path, raw: str, downloads: Path, within_min: float, replace:
         raise Refused("the target must be inside the video folder")
     part = dest.with_name(f".{dest.name}.part")
     try:
-        shutil.copyfile(src, part)
+        with src.open("rb") as fin, open_new(part) as fout:
+            shutil.copyfileobj(fin, fout)
         os.replace(part, dest)
+    except FileExistsError:
+        raise Refused("a file appeared while saving; nothing was saved") from None
     finally:
         part.unlink(missing_ok=True)
+    if dest.is_symlink() or not _inside(dest.resolve(), folder.resolve()):
+        dest.unlink(missing_ok=True)
+        raise Refused("the saved file led outside the video folder; removed it")
     for p in same:
         if p != dest and (p.exists() or p.is_symlink()):
             p.unlink()

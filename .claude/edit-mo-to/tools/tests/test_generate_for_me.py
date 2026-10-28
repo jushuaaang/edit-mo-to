@@ -384,3 +384,14 @@ def test_can_generate_fails_closed(tmp_path, monkeypatch, capsys):
         code, out, err = _can(tmp_path, monkeypatch, capsys, home, cfg)
         assert code == 0 and json.loads(out) == {"ok": True, "allowed": False}, cfg
         assert EMAIL not in out + err and OTHER not in out + err
+
+
+# ---------- Task G fix: the shared isolation (conftest.py) is active for GUI tests ----------
+
+def test_gui_tests_never_see_the_real_home_or_machine_json():
+    from conftest import REAL_CONFIG, REAL_HOME
+    assert Path.home().resolve() != REAL_HOME
+    assert Path(machine.CONFIG).resolve() != REAL_CONFIG
+    with pytest.raises(AssertionError):
+        account._home(REAL_HOME)            # reading the real ~/.claude.json would fail the test
+    assert account.generate_allowed() is False

@@ -2,8 +2,11 @@
 test mocks urllib.request.urlopen. The key is never printed, logged or put in an error."""
 import io
 import json
+import os
+import socket
 import sys
 import urllib.error
+import urllib.request
 from pathlib import Path
 
 import pytest
@@ -12,8 +15,33 @@ TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
 import elevenlabs_vo as ev  # noqa: E402
 
-KEY = "sk_test_9f8e7d6c5b4a_SECRET"
+KEY = "test-key-not-real"   # obviously fake: no test ever sends a real key
 MP3 = b"ID3\x04\x00fake-mp3-bytes" * 10
+
+
+@pytest.fixture(autouse=True)
+def _no_network(monkeypatch):
+    """No test reaches the network: a real urlopen or socket connect fails the test (tests that mock urlopen install
+    their fake after this guard)."""
+    def refuse(*a, **k):
+        raise AssertionError("a test tried to reach the network")
+    monkeypatch.setattr(ev.urllib.request, "urlopen", refuse)
+    monkeypatch.setattr(socket.socket, "connect", refuse)
+    monkeypatch.setattr(socket.socket, "connect_ex", refuse)
+    monkeypatch.setattr(socket, "create_connection", refuse)
+
+
+def test_the_network_guard_is_active():
+    with pytest.raises(AssertionError):
+        urllib.request.urlopen("https://api.elevenlabs.io/v1/voices", timeout=1)
+    with pytest.raises(AssertionError):
+        socket.create_connection(("api.elevenlabs.io", 443), timeout=1)
+    s = socket.socket()
+    try:
+        with pytest.raises(AssertionError):
+            s.connect(("127.0.0.1", 9))
+    finally:
+        s.close()
 
 
 @pytest.fixture
@@ -221,3 +249,18 @@ def test_source_never_prints_or_logs_the_key():
     for line in src.splitlines():
         if "print(" in line:
             assert "key" not in line.lower() or "key not set" in line.lower(), line
+
+
+# --- Task G fix: a planted .part symlink can't make the mp3 land outside vo/ ---
+
+def test_a_planted_part_symlink_cannot_write_outside(job, capsys, monkeypatch, tmp_path):
+    folder, script, _ = job
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (folder / "vo").mkdir()
+    (folder / "vo" / ".a.mp3.part").symlink_to(outside / "pwn.mp3")
+    _capture(monkeypatch)
+    code, out, _ = _run(["make", str(script), "--voice", "V", "--out", str(folder / "vo" / "a.mp3")], capsys)
+    dest = folder / "vo" / "a.mp3"
+    assert not list(outside.iterdir())
+    assert code == 0 and dest.is_file() and not dest.is_symlink() and dest.read_bytes() == MP3

@@ -792,3 +792,14 @@ def test_broken_prefs_file_highlights_no_pick(api):
     (api.tmp / "gui" / "prefs.json").write_text("{broken", encoding="utf-8")
     g = api.json("GET", "/api/generators")[1]
     assert g["picks"] is None and "google-flow" in g["generators"]
+
+
+def test_server_tests_run_on_a_fake_home(api):
+    """Task G fix: /api/job's "Generate for me" check never reads this computer's ~/.claude.json or machine.json."""
+    from conftest import REAL_CONFIG, REAL_HOME
+    import account
+    assert Path.home().resolve() != REAL_HOME and Path(machine.CONFIG).resolve() != REAL_CONFIG
+    folder = _demo(api)
+    status, data = api.json("GET", "/api/job" + _q(folder=folder.as_posix()))
+    assert status == 200 and data["generate"] is False and "clip_files" not in data
+    assert all(str(REAL_HOME) not in k for k in account._cache)
