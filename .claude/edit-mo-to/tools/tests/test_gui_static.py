@@ -189,6 +189,9 @@ def test_storyboard_js_has_approve_all_and_copy():
                    "Open share page", "Needs image", 'dropZone("keyframe"', '"shot"'):
         assert needle in text, needle
     assert ".innerHTML" not in text and "html:" not in text  # storyboard.json reaches the DOM as text only
+    # the approval question leaves the gate bar only when Approve all is drawn (board read, step body shown)
+    assert "hide: q && approveAllDrawn(data) ? [q.id] : []" in text
+    assert 'approveAllDrawn = (data) => Boolean(data?.storyboard) && stateOf(data, STEP) !== "pending"' in text
     dialogs = (STATIC / "dialogs.js").read_text(encoding="utf-8")
     for needle in ("function shot(", "learn, shot }", "Request change", "Approve shot", "Choose file"):
         assert needle in dialogs + text, needle

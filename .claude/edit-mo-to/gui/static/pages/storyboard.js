@@ -8,7 +8,7 @@
 // whole board); `approve` "storyboard:<id>" / "storyboard"; Request change `action` "storyboard:<id>".
 // Every string from storyboard.json, events and paths reaches the DOM as text through h().
 import { h, chip, pendingChip, toast, dropZone, STALE_TEXT } from "../ui.js";
-import { stepPage, openGate, gateAnswer, answerGate, pendingFor, copyButton, waitingText } from "../steppage.js";
+import { stepPage, stateOf, openGate, gateAnswer, answerGate, pendingFor, copyButton, waitingText } from "../steppage.js";
 
 const STEP = "storyboard";
 const FILTERS = [["all", "All"], ["need", "Needs image"], ["changed", "Changed"], ["comments", "Comments"]];
@@ -271,6 +271,9 @@ function notesBox(ctx, data) {
 
 // ---------- page ----------
 
+/** Approve all is drawn when the step's body shows (not "pending") and storyboard.json was read. */
+export const approveAllDrawn = (data) => Boolean(data?.storyboard) && stateOf(data, STEP) !== "pending";
+
 export function render(root, data, ctx) {
   const view = viewOf(ctx.folder);
   const items = boardItems(data);
@@ -286,7 +289,9 @@ export function render(root, data, ctx) {
     }
   };
   stepPage(root, STEP, data, ctx, {
-    hide: q ? [q.id] : [],  // Approve all answers it, with the missing-keyframe check
+    // Approve all answers the approval question (with the missing-keyframe check), so the gate bar hides it only
+    // when Approve all is drawn on this render: the board exists and the step's body shows. Otherwise the gate bar asks it.
+    hide: q && approveAllDrawn(data) ? [q.id] : [],
     body: () => {
       if (!data?.storyboard) {
         return [h("section", { class: "card" }, h("h3", {}, "Storyboard"),
