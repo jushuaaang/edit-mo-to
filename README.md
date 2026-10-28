@@ -262,12 +262,12 @@ Same steps as Windows, with these differences:
 Each computer has its own untracked `.claude/edit-mo-to/machine.json` (copy `machine.example.json`): `root`, `python`, `tmp`, `mcp_servers`, `capcut_drafts`, plus the optional speed keys `asr`, `asr_device`, `render_workers`, `render_concurrency` (see "Windows: speed settings"). The Python tools read it through `tools/machine.py`; the skill and agents write these as `{root}`, `{python}`, `{tmp}` and `{capcut_drafts}`. Keys you leave out fall back to the platform default.
 
 ### The app (Edit Mo To)
-The app runs on this computer only (`127.0.0.1`, port 4810, or `gui_port` in `machine.json`). Claude starts it for you; to open the dashboard without a session, run this in your video folder (on Windows, in Git Bash):
+The app runs on this computer only (`127.0.0.1`, port 4810, or `gui_port` in `machine.json`). Claude starts it for you, and restarts it when the app's code was updated or you changed a path or the port in Settings. To open the dashboard without a session, run this in your Video Editing folder (`{root}`) (on Windows, in Git Bash):
 ```
 .claude/edit-mo-to/run gui/launch.py --open
 ```
 
-**What Claude may run without asking.** The workflow ships `.claude/settings.json`, which pre-approves one command pattern: `Bash(.claude/edit-mo-to/run *)`. `run` starts only the workflow's own Python scripts in `.claude/edit-mo-to/gui/` and `.claude/edit-mo-to/tools/`, with the tools' Python, and refuses anything else. Nothing else is pre-approved: no other shell commands, no deletes, no git, no network commands. That is why an answer you give in the app carries on without a permission question in chat. Your own `.claude/settings.local.json` is never changed.
+**What Claude may run without asking.** The workflow ships `.claude/settings.json`, which pre-approves one command pattern: `Bash(.claude/edit-mo-to/run *)`. `run` starts only the workflow's own Python scripts in `.claude/edit-mo-to/gui/` and `.claude/edit-mo-to/tools/`, with the tools' Python, and refuses anything else. Those scripts can do everything the workflow does with any arguments, including writing CapCut projects and `playbook_scan.py`'s reads of a shared Playbook folder over the network; no other shell command is pre-approved (no `rm`, no git, no curl). That is why an answer you give in the app carries on without a permission question in chat. Your own `.claude/settings.local.json` is never changed.
 
 ### Getting updates
 The repo holds the shared workflow only: tools, agents, templates and starter rules. Nothing personal is ever uploaded, and Claude never pulls or pushes on its own. To get the newest version, tell Claude "update edit-mo-to": it runs `git pull --ff-only`, which never touches your `my-preferences.md`, client notes or videos.

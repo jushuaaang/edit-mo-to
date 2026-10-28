@@ -92,10 +92,16 @@ Turn each request into: target timeline, mode (new or in place), new timeline na
 When dispatching `revise-in-place`, don't ask the editor to back up first: `replace` and `patch` already back the timeline up and return the path (an extra request makes two backups). Pass `old_plan` = `<base>/.edit-mo-to/built/<timeline>.plan.json` (what the timeline was last built or patched from; `build_project` writes it, and the editor refreshes it with `mark-built` after each patch) and `new_plan` = the re-expanded `plan.json`. Expand always overwrites `plan.json`, so it can never be the old plan: small timing, swap and scale changes then go in as `patch` ops, keeping the user's edits. A job built before the built plan copy existed has none: the editor seeds it from the plan the timeline was built from (`mark-built`), or falls back to `revise-new-timeline` / `replace` (editor.md).
 
 ## GUI (the "Edit Mo To" companion app)
-Every command runs from `{root}` as `.claude/edit-mo-to/run gui/job.py <command> "<folder>" …` and prints one JSON line (`{"ok": true, …}`). Steps: `brief script storyboard voiceover timing prompts clips build review captions music export` (build covers steps 7–8). `job.py --help` lists the commands.
+Every command runs from `{root}` as `.claude/edit-mo-to/run gui/job.py <command> "<folder>" …` and prints one JSON line (`{"ok": true, …}`). Run `job.py` calls one at a time, never as parallel Bash calls (each waits for the folder lock, so parallel calls are safe but gain nothing, and their order is then random). Steps: `brief script storyboard voiceover timing prompts clips build review captions music export` (build covers steps 7–8). `job.py --help` lists the commands.
 
 ### Gates
-`gate.json` is `{"title", "detail"?, "questions": [{"id", "text", "why"?, "kind", "options"?, "default"?}]}`; `kind` is `choice | multi | text | confirm | file`. `text` is the gate wording above, word for word. `options` are strings or `{"value", "label"}`. Write it to `{tmp}/reports/<job>/gate.json`, then `job.py gate "<folder>" <step> --file …` (the step becomes `waiting`) and `wait.py "<folder>" --after <last seq> --step <step>` in the background. `wait.py` prints `{"events": [...]}` and exits 0 when the editor sends something (exit 3: `--timeout` passed; exit 4: another `wait.py` took over). A gate answer is an `answer` event with `gate` = the gate id and `target` = the question id; a `stale` answer (to a gate that was replaced) doesn't count. `wait.py` exits on any new event (a message, an edit, an upload, or an answer to just one question), so after each wake handle the events that aren't answers (apply them or note them in chat, mark them handled) and run `wait.py --after <the new highest seq>` again until every question the gate needs is answered, in the GUI or in chat. Only then `close-gate`: closing early turns the editor's later answers into stale "Not counted" ones. Conditional questions are needed only when their condition holds: script `changes` only when `approve` is `false`; `capcut_closed` only once per review round; on the checklist gate, the brief `questions` answer only when there are brief questions (a skipped one gets its default as an `assumed` row).
+`gate.json` is `{"title", "detail"?, "questions": [{"id", "text", "why"?, "kind", "options"?, "default"?}]}`; `kind` is `choice | multi | text | confirm | file`. `text` is the gate wording above, word for word. `options` are strings or `{"value", "label"}`. Pass it on stdin (no file outside the project to write, so no permission question):
+```
+.claude/edit-mo-to/run gui/job.py gate "<folder>" <step> --file - <<'JSON'
+{"title": "…", "questions": [{"id": "…", "kind": "confirm", "text": "…"}]}
+JSON
+```
+(`--file <path>` still reads a file; `job.py output … --file -` and `--from <adapter> -` read stdin the same way). The step becomes `waiting`. Then run `.claude/edit-mo-to/run gui/wait.py "<folder>" --after <last seq> --step <step> --timeout 7100` with `run_in_background` and the longest background timeout (`timeout` 7200000 ms, 2 h). `wait.py` prints `{"events": [...]}` and exits 0 when the editor sends something (exit 3 with `{"events": []}`: `--timeout` passed; exit 4: another `wait.py` took over; exit 130 or 143: stopped). When it ends with no events (a timeout, killed, or stopped by Claude Code's background time limit), run it again with the same `--after`, and keep doing so until the gate is answered: an answer can come hours later. A gate answer is an `answer` event with `gate` = the gate id and `target` = the question id; a `stale` answer (to a gate that was replaced) doesn't count. `wait.py` exits on any new event (a message, an edit, an upload, or an answer to just one question), so after each wake handle the events that aren't answers (apply them or note them in chat, mark them handled) and run `wait.py --after <the new highest seq>` again until every question the gate needs is answered, in the GUI or in chat. Only then `close-gate`: closing early turns the editor's later answers into stale "Not counted" ones. Conditional questions are needed only when their condition holds: script `changes` only when `approve` is `false`; `capcut_closed` only once per review round; on the checklist gate, the brief `questions` answer only when there are brief questions (a skipped one gets its default as an `assumed` row).
 
 One example per kind:
 ```json
@@ -121,7 +127,7 @@ Working ahead, e.g. the editor picked the music source early: `{"id": "source_ok
 | Checklist | `brief` | `checklist` (confirm). The brief questions come back as one `answer` with target `questions` (value `{"<question id>": "<answer>"}`), so don't list them as gate questions |
 | Script approval | `script` | `approve` (confirm), `changes` (text) |
 | Storyboard first? | `script` | `storyboard_first` (confirm); when yes, then `broll_source` and `generator` (as step 6) |
-| Character sheet | `storyboard` | `CHAR-1`, `CHAR-2`… (file; saved as `storyboard/CHAR-n.png`) |
+| Character sheet | `storyboard` | `character_sheet` (confirm; `true` = every `CHAR-n` is saved as `storyboard/CHAR-n.png`, dropped on its card or saved from outside the app; the gate bar shows it as "It's saved". Check the files are there before going on) |
 | Keyframes | `storyboard` | `keyframes` (confirm; the editor drops `SB-n` images on the cards) |
 | Storyboard approval | `storyboard` | `approve` (confirm; the page's Approve all answers it with `true`) |
 | VO | `voiceover` | `vo` (file) |
@@ -138,6 +144,8 @@ Working ahead, e.g. the editor picked the music source early: `{"id": "source_ok
 
 Every gate before a CapCut write includes `capcut_closed` (confirm): the page shows the red "Quit CapCut" banner and the "CapCut is still running" dialog for it. On a `capcut_closed` answer of `"cancel"`, drop that change.
 
+**An action or approve event never replaces a gate.** Page buttons that duplicate a gate question answer that question when the step's open gate asks it: Approve all answers `approve`, "Apply selected cuts" answers `cuts`, "Add captions" answers `timelines` (each an `answer` with the gate id, and the gate bar hides the question). Without that question open (no gate, or another gate of the step, e.g. Approve all while the keyframes gate is open) the button sends its `approve` / `action` event: take it only as the default and confirm it at that step's gate, like an early input (`<id>_ok`, e.g. `{"id": "approve_ok", "kind": "confirm", "text": "You approved the whole board earlier. Still approved?"}`); never run the step's work in its place. A CapCut write still needs `capcut_closed`. Answers sent outside a gate while a step runs (`answer` `<step>:<id>` with no gate) count like early inputs too: they are the default, and Claude confirms them at the gate.
+
 ### Events the pages send
 Read them with `job.py inbox "<folder>" --unhandled`, act on them, then `job.py handled "<folder>" <seq> …`. An early input has `"early": true` and `gate: null` (latest per target wins). `message` events are the "Tell Claude" boxes (a step box has `step`; the right panel has none).
 
@@ -151,20 +159,20 @@ Read them with `job.py inbox "<folder>" --unhandled`, act on them, then `job.py 
 | storyboard | `comment` `storyboard:<id>`; `action` `storyboard:<id>` (`"request change"`, `text`) | change that shot: rewrite only it, set its `status` to `changed` |
 | storyboard | `comment` `storyboard` | notes on the whole board |
 | storyboard | `approve` `storyboard:<id>` | that shot approved: `status` `approved` |
-| storyboard | `approve` `storyboard` (Approve all, no gate open) | the whole direction approved, as the approval gate |
+| storyboard | `approve` `storyboard` (Approve all with no `approve` question open) | the editor's go-ahead in advance: the default for the approval gate, confirmed there (`approve_ok`) |
 | storyboard | `upload` `keyframe:<SB-n \| CHAR-n>` | an image saved as `storyboard/<id>.png` |
 | voiceover | `upload` `vo:<file>` (+ early `voiceover:upload`) | the VO file(s) in `vo/` |
 | voiceover | `action` `voiceover:oldvo-transcribe` (value: the file) | transcribe an older VO (`media_timing.py vo` with no script), store it as the `oldvo` output |
 | voiceover | `answer` `voiceover:oldvo` (no gate) or `oldvo` (gate), `[{"id", "timeline"}]` | the picked sentences and their timelines |
 | timing | `edit` `timing:<line id>` (`keep` \| `rerecord`) | an unmatched line: keep it, or the editor re-records |
-| timing | `action` `timing:apply-cuts` (`{"approve": [ids], "reject": [ids]}`) | run `speech_cuts.py apply` with those ids |
+| timing | `action` `timing:apply-cuts` (`{"approve": [ids], "reject": [ids]}`; only while no gate asks `cuts`, which the button answers instead) | the picked cuts: the default for the `cuts` gate, confirmed there; then `speech_cuts.py apply` with those ids |
 | prompts | `answer` `prompts:broll_source`, `prompts:generator` (early) | step 6's two answers |
 | clips | `answer` `clips:clips_folder` (early); `action` `clips:check` (value: the folder) | run `qc_clips.py run` on that folder |
 | clips | `edit` `clips:<file>` (`regenerate` \| `use`) | from the contact sheet: regenerate that clip, or use it anyway |
 | build | `action` `build:fix:<kind>:<row id>` (`{"check": [cells]}`) | fix that FAIL row of that QA output |
 | review | `edit` `review:changes` (`[{"text", "timeline", "mode": "inplace" \| "new"}]`) | the editor's change list for this round |
 | review | `action` `review:done` | the editor is happy: go to captions |
-| captions | `answer` `captions:who` (early); `action` `captions:auto-done`; `action` `captions:add` (value: timelines) | who adds captions; auto-caption is done; add them on those timelines |
+| captions | `answer` `captions:who` (early); `action` `captions:auto-done`; `action` `captions:add` (value: timelines; only while no gate asks `timelines`, which the button answers instead) | who adds captions; auto-caption is done; the timelines to caption (the default for the `timelines` gate, confirmed there with `capcut_closed`) |
 | music | `answer` `music:source` (early); `upload` `music:<file>` (+ early `music:upload`) | Suno or own track; the track in `music/` |
 | export | `action` `export:learn` | the editor exported: run the learning step |
 | export | `answer` `learn:<id>` (`{"decision": "save" \| "decline", "scope": "general" \| "client"}`) | one learning proposal: `learn.py save` (with `--client` for `client`) or `learn.py decline` |

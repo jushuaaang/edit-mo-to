@@ -115,3 +115,52 @@ def test_early_confirm_meaning_documented():
         assert "`true` means use the early value" in doc or "Answer `true`: use the early value" in doc
         assert "`false` means" in doc or "Answer `false`:" in doc
     assert '{"id": "source", "kind": "confirm"' not in _text(STEPS)
+
+
+def test_no_shell_redirects_or_mkdir_in_tool_calls():
+    """`>` and mkdir don't match the run allow rule: the tools take --out and create their own folders."""
+    redirect = re.compile(r'\.py\b[^`\n]*?\s>>?\s*"')
+    bad = [str(p.relative_to(ROOT)) for p in _docs() if redirect.search(_text(p))]
+    assert not bad, bad
+    for p in _docs():
+        assert "create the `inv` folder first" not in _text(p), p
+    s = _text(SKILL)
+    assert 'qa_check.py build "{tmp}/reports/<job>/plan.json"' in s and '--out "{tmp}/reports/<job>/qa_check.json"' in s
+    assert '--out "{tmp}/reports/<job>/inv/inventory.json"' in s
+
+
+def test_job_calls_one_at_a_time_and_stdin_gate():
+    s, st = _text(SKILL), _text(STEPS)
+    assert "one at a time" in st
+    assert "--file - <<'JSON'" in st and "--file -" in s
+
+
+def test_wait_is_rerun_after_a_timeout():
+    for doc in (_text(SKILL), _text(STEPS)):
+        assert "same `--after`" in doc
+        assert "longest background timeout" in doc
+
+
+def test_actions_never_replace_a_gate():
+    s, st = _text(SKILL), _text(STEPS)
+    assert "as the approval gate" not in st
+    for doc in (s, st):
+        assert "never replaces a gate" in doc
+    assert "count like early inputs" in st
+
+
+def test_character_sheet_gate_is_a_confirm():
+    st = _text(STEPS)
+    assert "`character_sheet` (confirm" in st
+    assert "`CHAR-1`, `CHAR-2`… (file" not in st
+
+
+def test_board_keeps_beat_ids():
+    c = _text(CONTRACT)
+    assert "Keep each beat's `id`, `en`, `prompt`, `status` and `visual`" in c
+
+
+def test_readme_gui_section_is_accurate():
+    r = _text(README)
+    assert "run this in your Video Editing folder (`{root}`)" in r
+    assert "no deletes" not in r
