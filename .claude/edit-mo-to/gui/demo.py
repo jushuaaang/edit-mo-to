@@ -51,9 +51,8 @@ BEATS = [
      "Macro, a single gummy rotating slowly on a white surface, sugar-free matte texture, red translucent glow, studio rim "
      "light, shallow depth of field, 9:16, photoreal, no text.", "Clean, clinical-but-warm macro; red glow ties to the cherry"),
     ("SB-6", "Dos al día, y listo.", "Two a day, and that's it.", "12:20–14:28",
-     {"type": "ai", "framing": "Medium", "camera": "handheld"}, "prompt",
-     "Medium shot, Sofía at the kitchen counter tips two gummies into her palm and eats them, smiles at camera, 9:16, "
-     "photoreal.", "Show her taking two, not one"),
+     {"type": "ai", "framing": "Medium", "camera": "handheld"}, None,
+     None, "Show her taking two, not one"),  # prompt null: written after the character sheet, as the GUI says
     ("SB-7", "Pruébalo hoy…", "Try it today…", "14:28–16:15",
      {"type": "ai", "framing": "Selfie", "camera": "point down"}, "image",
      "Selfie, Sofía points down toward the bottom of frame, jar held up beside her face, confident smile, kitchen "

@@ -140,7 +140,7 @@ def test_job_reply_has_recent_events(tmp_path):
     assert body["events"][-1]["text"] == f"m{server.RECENT_EVENTS + 4}"
 
 
-STEP_PAGES = ["brief", "script", "voiceover", "timing", "prompts", "clips", "build", "review", "captions", "music",
+STEP_PAGES = ["brief", "script", "storyboard", "voiceover", "timing", "prompts", "clips", "build", "review", "captions", "music",
               "export"]
 
 
@@ -181,6 +181,20 @@ def test_carry_overs_in_shell():
     assert "#" not in copied
     app = (STATIC / "app.js").read_text(encoding="utf-8")
     assert "Open now" in app and "Waits for: " in app
+
+
+def test_storyboard_js_has_approve_all_and_copy():
+    text = (STATIC / "pages" / "storyboard.js").read_text(encoding="utf-8")
+    for needle in ("Approve all", "Approve anyway", "Wait for images", "Copy prompt", "prompt comes after the character sheet",
+                   "Open share page", "Needs image", 'dropZone("keyframe"', '"shot"'):
+        assert needle in text, needle
+    assert ".innerHTML" not in text and "html:" not in text  # storyboard.json reaches the DOM as text only
+    dialogs = (STATIC / "dialogs.js").read_text(encoding="utf-8")
+    for needle in ("function shot(", "learn, shot }", "Request change", "Approve shot", "Choose file"):
+        assert needle in dialogs + text, needle
+    if shutil.which("node"):
+        r = subprocess.run(["node", "--check", str(STATIC / "pages" / "storyboard.js")], capture_output=True, text=True)
+        assert r.returncode == 0, r.stderr
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node not on PATH")

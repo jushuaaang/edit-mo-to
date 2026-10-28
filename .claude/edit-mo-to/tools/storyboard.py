@@ -10,7 +10,12 @@ The style agent writes storyboard.json (mode: storyboard). One beat per script l
                 "shot": {"type": "client", "file": "D:/…/clip.mp4", "t": 12.4}
                      or {"type": "ai", "framing": "Close-up", "subject": "…", "action": "…", "camera": "slow push-in"},
                 "graphic": {"template": "big-text", "vars": {…}, "duration": 2.5},   (optional, from CATALOGUE)
-                "transition": "whip blur", "note": "mood, music, SFX"}]}
+                "transition": "whip blur", "note": "mood, music, SFX",
+                "visual": "visual direction", "prompt": "keyframe prompt" or null, "status": "prompt"|"image"|"changed"|"approved"|null}],
+     "characters": [{"id": "CHAR-1", "name": "…", "prompt": "character sheet prompt", "status": …}]}
+The GUI's fields (characters; per beat visual, prompt, status) are for the storyboard page; the share page here
+ignores them, so an older storyboard.json renders exactly as before. A null prompt means the keyframe prompt is
+written after every character sheet is saved (CHAR-n.png in the same folder).
 
 Pictures: client shots use the real frame at `t`. AI shots use the editor's keyframe <out>/SB-n.(png|jpg|webp)
 when it exists (generated in Nano Banana from the storyboard prompts), otherwise a shot card. Graphics are

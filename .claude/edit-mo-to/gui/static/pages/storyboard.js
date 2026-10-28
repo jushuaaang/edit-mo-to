@@ -1,0 +1,305 @@
+// Storyboard (step 3, optional; spec "Storyboard"): the board comes first and the images fill in. Character sheet
+// cards on top, then a card per shot with its status, line, time, shot type and keyframe prompt (Copy prompt).
+// Images are dropped on a card (saved as storyboard/SB-n.png or CHAR-n.png; a file saved there from outside shows on
+// the next poll). Clicking an image opens the `shot` dialog (dialogs.js). Gates: character sheet saved; approve the
+// direction. Approve all answers the open storyboard gate (or, with none open, sends an `approve` event).
+//
+// Events: edits `edit` "storyboard:<id>:prompt|visual"; comments `comment` "storyboard:<id>" (or "storyboard" for the
+// whole board); `approve` "storyboard:<id>" / "storyboard"; Request change `action` "storyboard:<id>".
+// Every string from storyboard.json, events and paths reaches the DOM as text through h().
+import { h, chip, pendingChip, toast, dropZone, STALE_TEXT } from "../ui.js";
+import { stepPage, openGate, gateAnswer, answerGate, pendingFor, copyButton, waitingText } from "../steppage.js";
+
+const STEP = "storyboard";
+const FILTERS = [["all", "All"], ["need", "Needs image"], ["changed", "Changed"], ["comments", "Comments"]];
+const NO_PROMPT_YET = "prompt comes after the character sheet";
+
+// GUI-only view state, kept across re-renders after a poll: {filter, selected, confirm, open: Set of comment boxes}.
+const views = new Map();
+const viewOf = (folder) => {
+  if (!views.has(folder)) views.set(folder, { filter: "all", selected: null, confirm: false, open: new Set() });
+  return views.get(folder);
+};
+
+// ---------- reading the board (shared with the shot dialog) ----------
+
+const str = (v) => (typeof v === "string" ? v : v === null || v === undefined ? "" : String(v));
+const handledSet = (data) => new Set(data?.job?.handled || []);
+
+/** Character sheets then shots: [{id, kind: "char"|"shot", item}] in board order. */
+export function boardItems(data) {
+  const sb = data?.storyboard;
+  const chars = Array.isArray(sb?.characters) ? sb.characters : [];
+  const beats = Array.isArray(sb?.beats) ? sb.beats : [];
+  return [...chars.map((c) => ({ id: str(c?.id), kind: "char", item: c || {} })),
+    ...beats.map((b) => ({ id: str(b?.id), kind: "shot", item: b || {} }))].filter((x) => x.id);
+}
+
+/** A client-clip beat is the client's own footage: it needs no keyframe and no prompt. */
+export const isClient = (it) => it.kind === "shot" && it.item?.shot?.type === "client";
+
+/** The real prompt, or null (null on a shot = written after the character sheets are saved). */
+export const promptOf = (it) => (typeof it.item?.prompt === "string" && it.item.prompt.trim() ? it.item.prompt : null);
+
+/** /api/file URL of the keyframe, or null. `v` changes when the GUI replaces it under the same name. */
+export function keyframeUrl(data, id) {
+  const path = data?.keyframes?.[id];
+  if (typeof path !== "string" || !path) return null;
+  const up = [...(data?.events || [])].reverse().find((e) => e.type === "upload" && e.target === `keyframe:${id}`);
+  return `/api/file?path=${encodeURIComponent(path)}&v=${up ? up.seq : 0}`;
+}
+
+/** This item's comment events (newest last); `open` = not handled by Claude yet. */
+export function commentsFor(data, id) {
+  const done = handledSet(data);
+  return (data?.events || []).filter((e) => e.type === "comment" && e.target === `${STEP}:${id}`)
+    .map((e) => ({ ...e, open: !done.has(e.seq) }));
+}
+
+const needsImage = (data, it) => !isClient(it) && !data?.keyframes?.[it.id];
+
+/** [word, chip status] for a card (every chip has a word). */
+export function statusOf(data, it) {
+  const done = handledSet(data);
+  const approvedEv = (data?.events || []).some((e) => e.type === "approve" && done.has(e.seq)
+    && (e.target === `${STEP}:${it.id}` || e.target === STEP));
+  if (approvedEv || it.item?.status === "approved") return ["approved", "ok"];
+  if (it.item?.status === "changed") return ["changed", "opt"];
+  if (commentsFor(data, it.id).some((c) => c.open)) return ["comment open", "you"];
+  if (data?.keyframes?.[it.id]) return ["image added", "wait"];
+  if (isClient(it)) return ["client clip", "mute"];
+  return promptOf(it) ? ["prompt ready", "mute"] : ["waiting for character sheet", "mute"];
+}
+
+/** The shot's type in words: "AI · Close-up · push-in", "Client clip · take.mp4 @ 12.4 s", "Graphic · cta-pill". */
+export function shotText(it) {
+  if (it.kind === "char") return "Character sheet";
+  const s = it.item?.shot || {};
+  if (s.type === "client") {
+    const file = str(s.file).split(/[\\/]/).pop();
+    return ["Client clip", file ? `${file}${s.t !== undefined && s.t !== null ? ` @ ${str(s.t)} s` : ""}` : null].filter(Boolean).join(" · ");
+  }
+  if (s.type === "graphic") return ["Graphic", str(s.template)].filter(Boolean).join(" · ");
+  return ["AI", ...["framing", "subject", "action", "camera"].map((k) => str(s[k])).filter(Boolean)].join(" · ");
+}
+
+/** The open storyboard gate's approval question: id "approve", else a confirm question that mentions approving. */
+export function approvalQuestion(gate) {
+  const qs = gate?.questions || [];
+  return qs.find((q) => q.id === "approve") || qs.find((q) => q.kind === "confirm" && /approv/i.test(str(q.text))) || null;
+}
+
+/** Send one event; resolve true when stored. */
+export async function sendEvent(ctx, event, okText) {
+  try {
+    const ev = await ctx.send({ step: STEP, ...event });
+    toast(okText || waitingText(ctx.data));
+    return ev || true;
+  } catch (e) {
+    toast(e.message || "Not sent. Try again.");
+    return null;
+  }
+}
+
+// ---------- cards ----------
+
+function imageSlot(ctx, data, it, zone) {
+  const url = keyframeUrl(data, it.id);
+  if (url) {
+    return h("button", { class: "sbimg", type: "button", "aria-label": `Open ${it.id} close up`,
+      onclick: () => ctx.openDialog("shot", { id: it.id }) },
+    h("img", { src: url, alt: `${it.id} keyframe`, loading: "lazy" }));
+  }
+  if (isClient(it)) {
+    return h("button", { class: "sbimg empty", type: "button", "aria-label": `Open ${it.id} close up`,
+      onclick: () => ctx.openDialog("shot", { id: it.id }) }, h("span", {}, "Client footage"), h("small", {}, "no keyframe needed"));
+  }
+  return h("div", { class: "sbimg empty drop-slot" }, zone);
+}
+
+function commentBox(ctx, data, it, view) {
+  const id = it.id;
+  const open = view.open.has(id);
+  const ta = h("textarea", { class: "f", rows: 2, "data-key": `sb:comment:${id}`, "aria-label": `Comment on ${id}`,
+    placeholder: `What should change in ${id}?` });
+  const btn = h("button", { class: "btn sm pri", type: "button" }, "Send");
+  btn.addEventListener("click", async () => {
+    const text = ta.value.trim();
+    if (!text) { ta.focus(); return; }
+    btn.disabled = true;
+    if (await sendEvent(ctx, { type: "comment", target: `${STEP}:${id}`, text })) { ta.value = ""; view.open.delete(id); }
+    btn.disabled = false;
+  });
+  const det = h("details", { class: "sbcomment", open }, h("summary", { class: "btn sm" }, "Comment"),
+    h("div", { class: "stack" }, ta, h("div", { class: "row" }, btn)));
+  det.addEventListener("toggle", () => { if (det.open) view.open.add(id); else view.open.delete(id); });
+  return det;
+}
+
+function promptBlock(data, it) {
+  const text = promptOf(it);
+  const pend = pendingFor(data, `${STEP}:${it.id}:prompt`).length ? pendingChip() : null;
+  if (text) {
+    return h("div", { class: "sbprompt" }, h("pre", { class: "prompt" }, text),
+      h("div", { class: "row" }, copyButton(text, "Copy prompt"), pend));
+  }
+  if (isClient(it)) return h("p", { class: "hint" }, "The client's own footage: no prompt to copy.");
+  return h("p", { class: "hint" }, it.kind === "char" ? "Claude hasn't written this prompt yet." : NO_PROMPT_YET, pend);
+}
+
+function card(ctx, data, it, view) {
+  const [word, status] = statusOf(data, it);
+  const b = it.item;
+  const zone = isClient(it) ? null : dropZone("keyframe", ctx, { id: it.id, label: data?.keyframes?.[it.id] ? "Replace image" : `Drop the ${it.id} image` });
+  const open = commentsFor(data, it.id).filter((c) => c.open).length;
+  const el = h("article", { class: `sbcard${it.kind === "char" ? " char" : ""}${view.selected === it.id ? " sel" : ""}`,
+    "data-id": it.id, "aria-label": `${it.id}, ${word}` },
+  imageSlot(ctx, data, it, zone),
+  h("div", { class: "sbbody" },
+    h("div", { class: "row spread" }, h("span", { class: "row" }, h("b", { class: "mono" }, it.id), chip(word, status)),
+      b.est ? h("span", { class: "mono hint" }, str(b.est)) : null),
+    it.kind === "char" ? h("div", { class: "sbline" }, str(b.name) || "Character") : null,
+    it.kind === "shot" && b.line ? h("q", { class: "sbline" }, str(b.line)) : null,
+    it.kind === "shot" && b.en ? h("div", { class: "hint" }, `English (temporary): ${str(b.en)}`) : null,
+    h("div", { class: "hint" }, shotText(it)),
+    promptBlock(data, it),
+    h("div", { class: "row sbfoot" }, commentBox(ctx, data, it, view),
+      h("button", { class: "btn sm", type: "button", onclick: () => { view.selected = it.id; ctx.openDialog("shot", { id: it.id }); } }, "Details"),
+      open ? h("span", { class: "hint" }, `${open} comment${open > 1 ? "s" : ""} open`) : null,
+      pendingFor(data, `${STEP}:${it.id}`).length ? pendingChip() : null),
+    zone && data?.keyframes?.[it.id] ? h("div", { class: "sbreplace" }, zone) : null));
+  if (zone) {  // a file dropped anywhere on the card goes to the card's drop zone
+    el.addEventListener("dragover", (e) => { e.preventDefault(); el.classList.add("over"); });
+    el.addEventListener("dragleave", (e) => { if (!el.contains(e.relatedTarget)) el.classList.remove("over"); });
+    el.addEventListener("drop", (e) => {
+      el.classList.remove("over");
+      if (zone.contains(e.target)) return;
+      e.preventDefault();
+      zone.dispatchEvent(new DragEvent("drop", { dataTransfer: e.dataTransfer, cancelable: true }));
+    });
+  }
+  return el;
+}
+
+// ---------- toolbar and approval ----------
+
+const FILTER_FN = {
+  all: () => true,
+  need: (data, it) => needsImage(data, it),
+  changed: (data, it) => it.item?.status === "changed",
+  comments: (data, it) => commentsFor(data, it.id).some((c) => c.open),
+};
+
+function approveAll(ctx, data, items, view, rerender) {
+  const gate = openGate(data, STEP);
+  const q = approvalQuestion(gate);
+  const sent = q ? gateAnswer(data, gate, q.id) : null;
+  const pend = !gate && pendingFor(data, STEP).some((e) => e.type === "approve");
+  if (sent) {
+    return h("span", { class: "row" }, chip(sent.value === false ? "Not approved · sent" : "Approved · waiting for Claude", "wait"));
+  }
+  if (pend) return h("span", { class: "row" }, chip("Approve all sent", "wait"), pendingChip());
+  const missing = items.filter((it) => it.kind === "shot" && needsImage(data, it)).map((it) => it.id);
+  const status = h("span", { class: "hint", role: "status" });
+  const send = async (btns) => {
+    btns.forEach((b) => { b.disabled = true; });
+    try {
+      const ev = q ? await answerGate(ctx, gate, q.id, true) : await ctx.send({ type: "approve", step: STEP, target: STEP });
+      view.confirm = false;
+      if (ev?.stale) { status.textContent = STALE_TEXT; return; }
+      toast(waitingText(ctx.data));
+    } catch (e) {
+      status.textContent = e.message || "Not sent. Try again.";
+      btns.forEach((b) => { b.disabled = false; });
+    }
+  };
+  const btn = h("button", { class: "btn pri", type: "button" }, "Approve all");
+  btn.addEventListener("click", () => {
+    if (missing.length) { view.confirm = true; rerender(); } else send([btn]);
+  });
+  if (!view.confirm || !missing.length) return h("span", { class: "row" }, btn, status);
+  const n = missing.length;
+  const anyway = h("button", { class: "btn pri sm", type: "button" }, "Approve anyway");
+  const wait = h("button", { class: "btn sm", type: "button",
+    onclick: () => { view.confirm = false; view.filter = "need"; rerender(); } }, "Wait for images");
+  anyway.addEventListener("click", () => send([anyway, wait]));
+  return h("div", { class: "sbconfirm", role: "alert" },
+    h("span", {}, `${n} shot${n > 1 ? "s have" : " has"} no keyframe yet (${missing.join(", ")}). Approve anyway?`),
+    h("span", { class: "row" }, anyway, wait, status));
+}
+
+function toolbar(ctx, data, items, view, rerender) {
+  const seg = (label, opts) => h("div", { class: "seg", role: "group", "aria-label": label }, opts);
+  const views2 = seg("View", [
+    h("button", { type: "button", class: "on", "aria-pressed": "true" }, "Grid"),
+    h("button", { type: "button", "aria-pressed": "false", onclick: () => {
+      const id = view.selected && items.some((it) => it.id === view.selected) ? view.selected
+        : (items.find((it) => it.kind === "shot") || items[0])?.id;
+      if (id) ctx.openDialog("shot", { id });
+    } }, "Detail")]);
+  const filters = seg("Show", FILTERS.map(([key, label]) => {
+    const n = items.filter((it) => FILTER_FN[key](data, it)).length;
+    return h("button", { type: "button", class: view.filter === key ? "on" : null, "aria-pressed": String(view.filter === key),
+      onclick: () => { view.filter = key; rerender(); } }, `${label} ${n}`);
+  }));
+  const share = h("a", { class: "btn", href: `/api/file?path=${encodeURIComponent(`${ctx.folder}/storyboard/storyboard.html`)}`,
+    target: "_blank", rel: "noopener" }, "Open share page");
+  return h("div", { class: "sbbar" }, h("div", { class: "row" }, views2, filters),
+    h("div", { class: "row" }, share, approveAll(ctx, data, items, view, rerender)));
+}
+
+// ---------- whole-board notes ----------
+
+function notesBox(ctx, data) {
+  const done = handledSet(data);
+  const notes = (data?.events || []).filter((e) => e.type === "comment" && e.target === STEP);
+  const ta = h("textarea", { class: "f", id: "sb-notes", rows: 3, "data-key": "sb:notes",
+    placeholder: "Anything about the whole board: pacing, look, the order of shots…" });
+  const btn = h("button", { class: "btn sm pri", type: "button" }, "Send notes");
+  btn.addEventListener("click", async () => {
+    const text = ta.value.trim();
+    if (!text) { ta.focus(); return; }
+    btn.disabled = true;
+    if (await sendEvent(ctx, { type: "comment", target: STEP, text })) ta.value = "";
+    btn.disabled = false;
+  });
+  return h("section", { class: "card" }, h("h3", {}, h("label", { for: "sb-notes" }, "Notes for the whole board")),
+    notes.length ? h("ul", { class: "files" }, notes.slice(-6).map((e) => h("li", {}, h("span", {}, str(e.text)),
+      chip(done.has(e.seq) ? "Claude has it" : "Sent · waiting for Claude", done.has(e.seq) ? "ok" : "wait")))) : null,
+    ta, h("div", { class: "row", style: "margin-top:8px" }, btn));
+}
+
+// ---------- page ----------
+
+export function render(root, data, ctx) {
+  const view = viewOf(ctx.folder);
+  const items = boardItems(data);
+  const gate = openGate(data, STEP);
+  const q = approvalQuestion(gate);
+  const rerender = () => {  // a filter or the Approve-all line changed: draw again, keeping what was typed
+    const typed = [...root.querySelectorAll("[data-key]")].map((el) => [el.dataset.key, el.value]);
+    root.replaceChildren();
+    render(root, ctx.data || data, ctx);
+    for (const [key, value] of typed) {
+      const el = [...root.querySelectorAll("[data-key]")].find((x) => x.dataset.key === key);
+      if (el && value) el.value = value;
+    }
+  };
+  stepPage(root, STEP, data, ctx, {
+    hide: q ? [q.id] : [],  // Approve all answers it, with the missing-keyframe check
+    body: () => {
+      if (!data?.storyboard) {
+        return [h("section", { class: "card" }, h("h3", {}, "Storyboard"),
+          h("p", { class: "hint" }, "Claude writes the shots here first (line, time, shot type and keyframe prompt); the images fill in after."))];
+      }
+      const shown = items.filter((it) => FILTER_FN[view.filter](data, it));
+      return [
+        toolbar(ctx, data, items, view, rerender),
+        data.storyboard.direction ? h("p", { class: "hint" }, str(data.storyboard.direction)) : null,
+        shown.length ? h("div", { class: "sbgrid" }, shown.map((it) => card(ctx, data, it, view)))
+          : h("section", { class: "card" }, h("p", { class: "hint" }, "No cards match this filter.")),
+        notesBox(ctx, data),
+      ].filter(Boolean);
+    },
+  });
+}

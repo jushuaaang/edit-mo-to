@@ -1,7 +1,8 @@
 // Dialogs (spec "Dialogs"): confirmations, blocking warnings and close-ups only; gates stay on the pages.
 // open(name, args, ctx) is called by app.js openDialog. Every body is built from DOM nodes with h(), so data
 // (names, paths, prompts, transcripts) reaches the DOM as text only. The `shot` dialog belongs to the storyboard page.
-import { h, chip, dialog, toast, copyButton, STALE_TEXT } from "./ui.js";
+import { h, chip, dialog, toast, copyButton, dropZone, pendingChip, STALE_TEXT } from "./ui.js";
+import { boardItems, isClient, promptOf, keyframeUrl, commentsFor, statusOf, shotText, sendEvent } from "./pages/storyboard.js";
 
 const CAPCUT_RECHECK_MS = 2000;
 const baseName = (p) => String(p ?? "").split(/[\\/]/).pop();
@@ -281,9 +282,123 @@ function learn(args, ctx) {
   [{ label: "Done", primary: true }], { title: "Learning step", wide: true });
 }
 
-const DIALOGS = { new: newVideo, capcut, name: projectName, contact, oldvo: oldVo, inplace: inPlace, learn };
+// ---------- Shot detail (storyboard) ----------
 
-/** Open a dialog by name: new, capcut, name, contact, oldvo, inplace, learn. */
+const SHOT_REFRESH_MS = 1500;
+
+function shot(args, ctx) {
+  let id = String(args?.id ?? "");
+  let shownUrl = null;
+  const items = () => boardItems(ctx.data);
+  const current = () => items().find((it) => it.id === id) || null;
+  const body = h("div", { class: "shot" });
+  const imgSlot = h("div", { class: "shotimg" });
+
+  const picture = (it) => {
+    shownUrl = keyframeUrl(ctx.data, it.id);
+    imgSlot.replaceChildren(shownUrl ? h("img", { src: shownUrl, alt: `${it.id} keyframe` })
+      : h("div", { class: "sbimg empty" }, h("span", {}, isClient(it) ? "Client footage" : "No image yet"),
+        h("small", {}, isClient(it) ? "no keyframe needed" : `save it as storyboard/${it.id}.png, or choose a file`)));
+  };
+
+  /** A text box saved as an `edit` event (target storyboard:<id>:<field>); shows pending until Claude applies it. */
+  const editField = (it, field, label, value, mono) => {
+    const fid = `shot-${field}`;
+    const target = `storyboard:${it.id}:${field}`;
+    const ta = h("textarea", { class: `f${mono ? " mono" : ""}`, id: fid, rows: field === "prompt" ? 6 : 3 }, value || "");
+    const state = h("span", { class: "row" }, (ctx.data?.pending || []).some((e) => e.target === target) ? pendingChip() : null);
+    const save = h("button", { class: "btn sm pri", type: "button" }, `Save ${field === "prompt" ? "prompt" : "visual direction"}`);
+    save.addEventListener("click", async () => {
+      const v = ta.value.trim();
+      if (!v) { ta.focus(); return; }
+      save.disabled = true;
+      if (await sendEvent(ctx, { type: "edit", target, value: v })) state.replaceChildren(pendingChip());
+      save.disabled = false;
+    });
+    return h("div", { class: "field" }, h("label", { class: "lbl", for: fid }, label), ta,
+      h("div", { class: "row" }, save, field === "prompt" && promptOf(it) ? copyButton(promptOf(it), "Copy prompt") : null, state));
+  };
+
+  const commentsPart = (it) => {
+    const list = commentsFor(ctx.data, it.id);
+    const ta = h("textarea", { class: "f", id: "shot-comment", rows: 2, placeholder: `A comment on ${it.id}…` });
+    const ul = h("ul", { class: "files", hidden: !list.length }, list.map((c) => h("li", {}, h("span", {}, String(c.text ?? "")),
+      chip(c.open ? "open" : "Claude has it", c.open ? "you" : "ok"))));
+    const btn = h("button", { class: "btn sm pri", type: "button" }, "Send comment");
+    btn.addEventListener("click", async () => {
+      const text = ta.value.trim();
+      if (!text) { ta.focus(); return; }
+      btn.disabled = true;
+      if (await sendEvent(ctx, { type: "comment", target: `storyboard:${it.id}`, text })) {
+        ul.append(h("li", {}, h("span", {}, text), chip("open", "you")));
+        ul.hidden = false;
+        ta.value = "";
+      }
+      btn.disabled = false;
+    });
+    return h("div", { class: "field" }, h("label", { class: "lbl", for: "shot-comment" }, "Comments"),
+      ul, ta, h("div", { class: "row" }, btn));
+  };
+
+  const fill = () => {
+    const it = current();
+    const title = d.el.querySelector(".dh h2");
+    if (!it) { body.replaceChildren(p("This shot is no longer on the board.")); return; }
+    const [word, status] = statusOf(ctx.data, it);
+    const b = it.item;
+    title.textContent = `${it.id} · ${it.kind === "char" ? "Character sheet" : "Shot"}`;
+    picture(it);
+    body.replaceChildren(
+      h("div", { class: "shotpic" }, imgSlot,
+        isClient(it) ? null : dropZone("keyframe", ctx, { id: it.id, label: "Choose file", onDone: () => setTimeout(refresh, 300) })),
+      h("div", { class: "stack" },
+        h("div", { class: "row" }, chip(word, status), b.est ? h("span", { class: "mono hint" }, String(b.est)) : null,
+          h("span", { class: "hint" }, shotText(it))),
+        it.kind === "char" ? h("b", {}, String(b.name ?? "")) : null,
+        b.line ? h("q", { class: "sbline" }, String(b.line)) : null,
+        b.en ? h("div", { class: "hint" }, `English (temporary): ${String(b.en)}`) : null,
+        it.kind === "shot" ? editField(it, "visual", "Visual direction", typeof b.visual === "string" ? b.visual : "") : null,
+        isClient(it) ? null : editField(it, "prompt", "Keyframe prompt", promptOf(it), true),
+        !isClient(it) && !promptOf(it) && it.kind === "shot" ? h("p", { class: "hint" }, "The prompt comes after the character sheet.") : null,
+        commentsPart(it)));
+  };
+  const refresh = () => {  // a keyframe saved from outside (or just uploaded) shows without losing what was typed
+    const it = current();
+    if (it && keyframeUrl(ctx.data, it.id) !== shownUrl) picture(it);
+  };
+  const step = (dir) => {
+    const list = items();
+    const i = list.findIndex((it) => it.id === id);
+    if (!list.length) return;
+    id = list[(i + dir + list.length) % list.length].id;
+    fill();
+  };
+  const act = (event, word) => async () => {
+    const it = current();
+    if (!it) return;
+    await sendEvent(ctx, { ...event(it) }, `${word} ${it.id}. ${ctx.data?.listening ? "Claude is on it." : "Saved, waiting for Claude."}`);
+  };
+  const d = dialog("shot", body, [
+    { label: "← Previous", keepOpen: true, onClick: () => step(-1) },
+    { label: "Next →", keepOpen: true, onClick: () => step(1) },
+    { label: "Request change", keepOpen: true, onClick: act((it) => ({ type: "action", target: `storyboard:${it.id}`, value: "request change",
+      text: d.el.querySelector("#shot-comment")?.value.trim() || null }), "Change requested for") },
+    { label: "Approve shot", primary: true, keepOpen: true, onClick: act((it) => ({ type: "approve", target: `storyboard:${it.id}` }), "Approved") },
+  ], { title: "Shot", wide: true });
+  d.el.addEventListener("keydown", (e) => {
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    if (e.key === "ArrowLeft") { e.preventDefault(); step(-1); }
+    if (e.key === "ArrowRight") { e.preventDefault(); step(1); }
+  });
+  const timer = setInterval(refresh, SHOT_REFRESH_MS);
+  d.el.addEventListener("close", () => clearInterval(timer));
+  fill();
+  return d;
+}
+
+const DIALOGS = { new: newVideo, capcut, name: projectName, contact, oldvo: oldVo, inplace: inPlace, learn, shot };
+
+/** Open a dialog by name: new, capcut, name, contact, oldvo, inplace, learn, shot. */
 export function open(name, args, ctx) {
   const fn = DIALOGS[name];
   if (!fn) return dialog(name, h("p", {}, "This dialog arrives in a later build."), [{ label: "Close", primary: true }], { title: "Coming" });
