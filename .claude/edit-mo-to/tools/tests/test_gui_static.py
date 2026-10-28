@@ -436,3 +436,12 @@ def test_strip_and_board_share_one_rule():
     assert "picturesToMake(data)" in nxt and "data?.vo" in nxt and 'e.type === "upload" && e.step === "voiceover"' not in nxt
     words = (STATIC / "words.js").read_text(encoding="utf-8")
     assert "LIST_MAX = 4" in words and _has(_words(), "label.more")
+
+
+def test_prompts_page_asks_the_model_for_any_site_with_models():
+    """Task H2: the model question follows the site's own `models` (Google Flow too), never a named site."""
+    text = _page("prompts.js")
+    assert "row?.models" in text and "data.generators" in text
+    assert "=== \"higgsfield\"" not in text and "=== 'higgsfield'" not in text
+    assert "row.label" in text            # the question group reads "<site> model" from the table
+    assert "ignore: stale" in text        # a model answered for the other site does not carry over when the site changes

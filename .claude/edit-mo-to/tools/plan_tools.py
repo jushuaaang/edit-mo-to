@@ -10,7 +10,7 @@ CLI (prints JSON):
                          expand the compact prompt spec into the table(s) and one full prompt block per prompt
     check-prompts <prompts2.json> [--script script.txt] [--timings vo.json]
                          locks, dialogue, length vs VO span, attachments, generator limits (generators.json, by
-                         `generator` and, for Higgsfield, `generator_model`); exit code 1 when any. A model whose
+                         `generator` and, for a generator with models, `generator_model`); exit code 1 when any. A model whose
                          limits are not verified, or not in the table, prints one `warning:` line (stderr, and
                          "warnings" in the JSON); it is not an error
     ops <old_plan.json> <new_plan.json> "<timeline>" --segments dump.json [--out ops.json]
@@ -695,7 +695,7 @@ def render_prompts(spec: dict, script_lines: list[str], timings: dict | None) ->
             out.append("| " + " | ".join(_cell(c) for c in (
                 f"{p['id']} (generate)", f"{p.get('line', '')}: {line}" if line else p.get("line", ""),
                 to_sf(i / FPS) if i is not None else "", to_sf(o / FPS) if o is not None else "",
-                length, gens.for_spec(spec)["label"] if spec.get("generator") == "higgsfield" else spec.get("generator", ""), cut, ", ".join(p.get("attach", [])))) + " |")
+                length, gens.for_spec(spec)["label"] if spec.get("generator") == "higgsfield" or spec.get("generator_model") else spec.get("generator", ""), cut, ", ".join(p.get("attach", [])))) + " |")
         out.append("")
     if imgs:
         out += ["| # | Script line | Shot | Save as |", "|---|---|---|---|"]

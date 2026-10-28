@@ -312,3 +312,61 @@ def test_generic_start_line_only_when_the_prompt_has_an_attachment():
     assert not pt._block(unknown, unknown["prompts"][0]).startswith("Start")
     seedance = _hf("seedance-2.0", attach=[])          # Seedance's own line is unchanged
     assert pt._block(seedance, seedance["prompts"][0]).startswith("Start on @Image1.\n")
+
+
+# --- Task H2: Google Flow asks the model too ---
+
+def _flow(model, **prompt):
+    return {**SPEC2, "generator_model": model, "prompts": [dict(SPEC2["prompts"][0], **prompt)]}
+
+
+# sha256 of render_prompts for SPEC2 (Google Flow, no model), taken with the Task H generators.json, before Flow got models
+OLD_FLOW_RENDER_SHA = "457dd7d82ddc2669145bf217569a4def3712ce8f2ee7be40dea1947d2085b57f"
+
+
+def test_flow_rows_in_generators_json():
+    flow = GENERATORS["generators"]["google-flow"]
+    assert (flow["min_s"], flow["max_s"], flow["max_attach"], flow["verified"]) == (4, 8, 7, "2026-10-28")   # site level stays
+    m = flow["models"]
+    assert set(m) == {"veo-3.1-fast", "veo-3.1-quality", "veo-3.1-lite"}
+    assert [m[k]["label"] for k in m] == ["Veo 3.1 Fast", "Veo 3.1 Quality", "Veo 3.1 Lite"]
+    assert (m["veo-3.1-fast"]["lengths_s"], m["veo-3.1-quality"]["lengths_s"], m["veo-3.1-lite"]["lengths_s"]) == (
+        [4, 6, 8], [8], [4, 6, 8])
+    assert all(r["max_attach"] == 7 and r["verified"] is None for r in m.values())
+    assert all(target in m for target in flow["aliases"].values())
+
+
+def test_flow_without_a_model_keeps_the_old_output_and_errors():
+    import hashlib
+    import generators as g
+    assert g.for_spec(SPEC2)["label"] == "Google Flow" and pt.prompt_warnings(SPEC2) == []
+    assert hashlib.sha256(pt.render_prompts(SPEC2, SCRIPT, None).encode()).hexdigest() == OLD_FLOW_RENDER_SHA
+    bad = dict(SPEC2["prompts"][0], attach=[f"@Image{i}" for i in range(1, 9)], gen_len_s=9)
+    errs = pt.check_prompts({**SPEC2, "prompts": [bad]}, SCRIPT, None)
+    assert any("Google Flow generation must be 4–8 s, got 9 s" in e for e in errs)
+    assert any("7 attachments" in e for e in errs)
+    assert pt.check_prompts({**SPEC2, "generator_model": ""}, SCRIPT, None) == []
+
+
+def test_flow_quality_needs_8_s():
+    spec = _flow("veo-3.1-quality", gen_len_s=6, vo_out_f=180)
+    errs = pt.check_prompts(spec, SCRIPT, None)
+    assert any("Veo 3.1 Quality" in e and "only 8 s" in e and "got 6 s" in e for e in errs), errs
+    assert not any("only" in e for e in pt.check_prompts(_flow("veo-3.1-fast", gen_len_s=6, vo_out_f=180), SCRIPT, None))
+    assert pt.prompt_warnings(spec) == ["limits for Google Flow · Veo 3.1 Quality are not verified; check them in generators.json"]
+    assert pt.prompt_warnings(_flow("Fast")) == ["limits for Google Flow · Veo 3.1 Fast are not verified; check them in generators.json"]
+
+
+def test_flow_unknown_model_uses_the_flow_rules_with_a_warning():
+    spec = _flow("sora-9", attach=[f"@Image{i}" for i in range(1, 9)], gen_len_s=9)
+    errs = pt.check_prompts(spec, SCRIPT, None)
+    assert any("4–8 s" in e and "got 9 s" in e for e in errs) and any("7 attachments" in e for e in errs)
+    warns = pt.prompt_warnings(spec)
+    assert len(warns) == 1 and "sora-9" in warns[0] and "not verified" in warns[0] and "Google Flow" in warns[0]
+    assert not pt._block(spec, spec["prompts"][0]).startswith("Start")          # Flow has no start line
+    assert "Google Flow" in pt.render_prompts(spec, SCRIPT, None)
+
+
+def test_higgsfield_fallback_is_unchanged_by_flow_models():
+    import generators as g
+    assert g.strictest() == {"min_s": 5, "max_s": 8, "max_attach": 3}

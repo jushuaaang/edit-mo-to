@@ -176,9 +176,22 @@ def test_generator_gate_is_higgsfield_or_google_flow():
     assert ('{"value": "higgsfield", "label": "Higgsfield"}, {"value": "google-flow", "label": "Google Flow"}' in st)
     assert '{"id": "generator_model", "kind": "choice", "text": "Which Higgsfield model?"' in st
     assert '{"value": "other", "label": "Other"}' in st
-    assert "`generator_model` only when `generator` is `higgsfield`" in st
+    assert "`generator_model` once `generator` is answered (both sites ask it)" in st   # Task H2: either site asks the model
     assert "prompts:generator_model" in st
     bad = [str(p.relative_to(ROOT)) for p in _docs() if "Seedance or Google Flow" in _text(p)
            or "google-flow|seedance" in _text(p) or "google-flow | seedance" in _text(p)]
     assert not bad, bad
     assert "--generator higgsfield|google-flow" in _text(SKILL) and "--model" in _text(SKILL)
+
+
+def test_model_question_follows_either_site():
+    """Task H2: Google Flow asks the model too ("Which Google Flow model?"); every other generator line stays."""
+    for doc in (_text(SKILL), _text(STEPS)):
+        assert "Which Google Flow model?" in doc and "Which Higgsfield model?" in doc
+        assert "Where will you generate: Higgsfield or Google Flow?" in doc
+    st = _text(STEPS)
+    assert '{"id": "generator_model", "kind": "choice", "text": "Which Google Flow model?"' in st
+    assert '{"value": "veo-3.1-fast", "label": "Veo 3.1 Fast"}' in st
+    assert "only when `generator` is `higgsfield`" not in st
+    assert "for either site" in _text(SKILL) or "either site" in st
+    assert "generator=Google Flow · <model label>" in _text(SKILL)

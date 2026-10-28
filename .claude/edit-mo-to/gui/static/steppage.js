@@ -116,7 +116,8 @@ export function textInput(ctx, data, step, id, label, opts = {}) {
  *  the gate bar asks it and this shows a pointer instead. */
 export function choiceInput(ctx, data, step, id, label, options, opts = {}) {
   if (gateAsks(data, step, id)) return field(label, null, null, h("p", { class: "hint" }, "Answer it in Claude's question above."));
-  const ev = lastInput(data, `${step}:${id}`);
+  const last = lastInput(data, `${step}:${id}`);
+  const ev = last && opts.ignore?.(last) ? null : last;   // `ignore`: an answer that no longer belongs (e.g. a model chosen for the other site)
   const cur = ev ? ev.value : opts.current;
   const btns = options.map(([value, text]) => h("button", {
     class: `btn${cur === value ? " on" : ""}`, type: "button", "aria-pressed": String(cur === value),

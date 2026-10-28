@@ -1,5 +1,5 @@
 {
- "about": "AI-clip generators and their limits, read by tools/generators.py (plan_tools, context_pack, qa_check, the GUI). Per row: label; clip length as min_s/max_s (null = no limit) or fixed lengths_s; max_attach (null = no cap); start_frame / end_frame supported; start_line = the line a video prompt starts with (null = none); verified = the date someone confirmed these limits, or null (Claude then says the limits are not verified). A model name without a version (a Higgsfield `aliases` key, e.g. Kling) means that row. An unknown Higgsfield model gets the fallback: the strictest length and attachment limits in this table. Correct a row here when a site changes.",
+ "about": "AI-clip generators and their limits, read by tools/generators.py (plan_tools, context_pack, qa_check, the GUI). Per row: label; clip length as min_s/max_s (null = no limit) or fixed lengths_s; max_attach (null = no cap); start_frame / end_frame supported; start_line = the line a video prompt starts with (null = none); verified = the date someone confirmed these limits, or null (Claude then says the limits are not verified). A model name without a version (a Higgsfield `aliases` key, e.g. Kling) means that row. An unknown Higgsfield model gets the fallback: the strictest length and attachment limits in this table. Google Flow keeps its own site-level limits for no model or an unknown model (with a warning); its `models` rows apply when a model is named. Correct a row here when a site changes.",
  "generators": {
   "higgsfield": {
    "label": "Higgsfield",
@@ -25,7 +25,20 @@
   },
   "google-flow": {"label": "Google Flow", "min_s": 4, "max_s": 8, "max_attach": 7,
                   "start_frame": true, "start_line": null, "end_frame": true, "verified": "2026-10-28",
-                  "notes": "Ingredients to Video, or Frames to Video (start + end frame); limits as in preferences.md."}
+                  "notes": "Ingredients to Video, or Frames to Video (start + end frame); limits as in preferences.md. These site-level limits are used when no model is given, or for a model that is not listed below (with a warning).",
+                  "models": {
+                   "veo-3.1-fast": {"label": "Veo 3.1 Fast", "lengths_s": [4, 6, 8], "max_attach": 7,
+                                    "start_frame": true, "start_line": null, "end_frame": true, "verified": null,
+                                    "notes": "Reported (unverified): 4, 6 or 8 s clips."},
+                   "veo-3.1-quality": {"label": "Veo 3.1 Quality", "lengths_s": [8], "max_attach": 7,
+                                       "start_frame": true, "start_line": null, "end_frame": true, "verified": null,
+                                       "notes": "Reported (unverified): 8 s clips only."},
+                   "veo-3.1-lite": {"label": "Veo 3.1 Lite", "lengths_s": [4, 6, 8], "max_attach": 7,
+                                    "start_frame": true, "start_line": null, "end_frame": true, "verified": null,
+                                    "notes": "Reported (unverified): 4, 6 or 8 s clips."}
+                  },
+                  "aliases": {"veo": "veo-3.1-fast", "veo 3.1": "veo-3.1-fast", "fast": "veo-3.1-fast",
+                              "quality": "veo-3.1-quality", "lite": "veo-3.1-lite"}}
  },
  "aliases": {
   "seedance": {"generator": "higgsfield", "model": "seedance-2.0"},

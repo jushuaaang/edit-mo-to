@@ -97,7 +97,7 @@ def main(argv: list[str]) -> None:
     ap.add_argument("style", choices=sorted(STYLES))
     ap.add_argument("--client")
     ap.add_argument("--generator", choices=gens.names())
-    ap.add_argument("--model", help="the Higgsfield model id from generators.json (e.g. kling-3.0)")
+    ap.add_argument("--model", help="the model id from generators.json (e.g. kling-3.0, veo-3.1-fast)")
     ap.add_argument("--out", required=True)
     a = ap.parse_args(argv)
     pack, names = _build(a.style, a.client, a.generator, ROOT, a.model)

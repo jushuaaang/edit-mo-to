@@ -47,7 +47,9 @@ function fromCard(tbl, raw) {
 
 function modelNote(tbl, row, model) {
   if (model === OTHER) {
-    const safe = tbl.safe || {};
+    // a site with limits of its own keeps them for an unknown model; the others use the table's safe limits
+    const own = [row?.min_s, row?.max_s, row?.max_attach].every((x) => typeof x === "number");
+    const safe = own ? row : tbl.safe || {};
     return [safe.min_s, safe.max_s, safe.max_attach].every((x) => typeof x === "number")
       ? t("prompts.unknown_model", { min: safe.min_s, max: safe.max_s, attach: safe.max_attach }) : t("prompts.unknown_model_plain");
   }
@@ -66,11 +68,17 @@ function choices(ctx, data) {
     { current: was.site, answeredNote: "already answered" }));
   const site = lastInput(data, "prompts:generator")?.value ?? was.site;
   const row = tbl.generators[site];
+  // a model answer belongs to the site that was chosen when it was given; after the site changes it no longer counts
+  const siteAt = (seq) => [...(data?.events || [])].filter((e) => e.type === "answer" && e.target === "prompts:generator" && !e.stale && e.seq < seq)
+    .pop()?.value ?? was.site;
+  const stale = (e) => siteAt(e.seq) !== site;
+  const asked = lastInput(data, "prompts:generator_model");
+  const kept = asked && !stale(asked) ? asked.value : undefined;
   if (row?.models || gateAsks(data, "prompts", "generator_model")) {
-    const model = lastInput(data, "prompts:generator_model")?.value ?? was.model;
+    const model = kept ?? (site === was.site ? was.model : undefined);
     const note = modelNote(tbl, row, model);
     items.push(choiceInput(ctx, data, "prompts", "generator_model", row?.label ? `${row.label} model` : "Model",
-      [...labelled(row?.models), [OTHER, "Other"]], { current: was.model, answeredNote: "already answered" }));
+      [...labelled(row?.models), [OTHER, "Other"]], { current: model, ignore: stale, answeredNote: "already answered" }));
     items.push(h("p", { class: "hint words" }, t("help.row"), h("span", { class: "word" }, t("word.model"), helpTip("model"))));
     if (note) items.push(h("p", { class: "hint" }, note));
   }
