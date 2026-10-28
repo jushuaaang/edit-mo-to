@@ -98,3 +98,20 @@ def test_readme_documents_the_app():
 
 def test_practice_opens_the_gui():
     assert "gui/launch.py" in _text(PRACTICE)
+
+
+def test_gate_waits_for_every_required_answer():
+    both = _text(SKILL) + _text(STEPS)
+    assert "wait.py --after <the new highest seq>" in both
+    assert "until every required question has an answer" in _text(SKILL)
+    assert "until every question the gate needs is answered" in _text(STEPS)
+    assert "only when `approve` is `false`" in both  # conditional questions are marked
+    assert "message, edit or upload" in _text(SKILL)  # non-answers are handled, then wait again
+
+
+def test_early_confirm_meaning_documented():
+    for doc in (_text(SKILL), _text(STEPS)):
+        assert "`source_ok`" in doc or '"source_ok"' in doc
+        assert "`true` means use the early value" in doc or "Answer `true`: use the early value" in doc
+        assert "`false` means" in doc or "Answer `false`:" in doc
+    assert '{"id": "source", "kind": "confirm"' not in _text(STEPS)
