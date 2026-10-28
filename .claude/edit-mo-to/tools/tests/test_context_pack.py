@@ -114,19 +114,3 @@ def test_pack_cli_takes_model_for_flow(tmp_path, monkeypatch):
     out = tmp_path / "pack.md"
     cp.main(["broll", "--generator", "flow", "--model", "quality", "--out", str(out)])
     assert "Google Flow · Veo 3.1 Quality" in out.read_text(encoding="utf-8")
-
-
-def test_pack_names_the_flow_model_and_its_limits(tmp_path):
-    pack = cp.build_pack("broll", generator="google-flow", model="veo-3.1-fast", root=_root(tmp_path))
-    assert "Google Flow · Veo 3.1 Fast" in pack and "## Google Flow" in pack
-    assert "4, 6, 8" in pack and "not verified" in pack
-    assert "Higgsfield" not in pack
-    plain = cp.build_pack("broll", generator="google-flow", root=_root(tmp_path / "b"))
-    assert "## Generator: Google Flow (from generators.json)" in plain and "4–8 s" in plain
-
-
-def test_pack_cli_takes_model_for_flow(tmp_path, monkeypatch):
-    monkeypatch.setattr(cp, "ROOT", _root(tmp_path))
-    out = tmp_path / "pack.md"
-    cp.main(["broll", "--generator", "flow", "--model", "quality", "--out", str(out)])
-    assert "Google Flow · Veo 3.1 Quality" in out.read_text(encoding="utf-8")
