@@ -19,6 +19,10 @@ gui.json, uploads, new job) only inside a video folder of {root} (folders.is_vid
 read-only: GET /api/temp-en may also read a CapCut project under {capcut_drafts}. GET/POST /api/prefs keep this computer's
 GUI prefs (jobstate.PREFS: known keys only) in {tmp}/gui/prefs.json.
 
+POST /api/practice is the one route that starts a program (spec "Try a practice video"): on the editor's click it opens
+a visible Terminal (macOS) or command window (Windows) in {root} running `claude /practice-muna`, so the editor's own
+Claude starts the practice run. The command and the folder are fixed here (practice_argv); nothing in the request is
+read. At most one launch per PRACTICE_GAP seconds.
 """
 import argparse
 import hashlib
@@ -28,8 +32,12 @@ import mimetypes
 import os
 import re
 import secrets
+import shlex
+import shutil
+import subprocess
 import sys
 import threading
+import time
 import urllib.request
 import uuid
 from http import cookies
@@ -421,6 +429,63 @@ def r_prefs_save(h, q):
         raise HttpError(400, str(e)) from None
 
 
+PRACTICE = "/practice-muna"
+PRACTICE_GAP = 10.0      # seconds: a second click within this gets "busy", so a double click opens one window
+PRACTICE_TIMEOUT = 120   # seconds osascript may take (the first time macOS may ask to let it control Terminal)
+_practice_lock = threading.Lock()
+
+
+def _platform() -> str:
+    return sys.platform
+
+
+def _clock() -> float:
+    return time.monotonic()
+
+
+def _applescript_text(s: str) -> str:
+    """s inside an AppleScript string literal: backslash and double quote escaped."""
+    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def practice_argv(root: Path, platform: str) -> "list[str] | None":
+    """The fixed launch command for this system, or None where the app can't open a window (Linux, ...).
+    macOS: the shell line `cd <root> && claude '/practice-muna'` (root shlex-quoted) in a new Terminal window, inside
+    an AppleScript string (escaped for it), then Terminal comes to the front. Windows: `start` opens a new command
+    window running `claude /practice-muna`; the root is its working directory (cwd), never text on the command line."""
+    if platform == "darwin":
+        line = f"cd {shlex.quote(str(root))} && claude '{PRACTICE}'"
+        return ["osascript", "-e", f'tell application "Terminal" to do script "{_applescript_text(line)}"',
+                "-e", 'tell application "Terminal" to activate']
+    if platform == "win32":
+        return ["cmd", "/c", "start", "", "cmd", "/k", f"claude {PRACTICE}"]
+    return None
+
+
+def r_practice(h, q):
+    h.discard_body()  # the request carries nothing this route uses
+    root = Path(h.server.root)
+    argv = practice_argv(root, _platform())
+    if argv is None:
+        return {"ok": False, "reason": "unsupported"}
+    if any(ord(c) < 32 for c in str(root)):  # a control character can't go on a command line safely
+        return {"ok": False, "reason": "failed"}
+    with _practice_lock:
+        now = _clock()
+        last = getattr(h.server, "practice_at", None)
+        if last is not None and now - last < PRACTICE_GAP:
+            return {"ok": False, "reason": "busy"}
+        if not shutil.which("claude"):
+            return {"ok": False, "reason": "no-claude"}
+        h.server.practice_at = now
+    try:
+        done = subprocess.run(argv, cwd=str(root), timeout=PRACTICE_TIMEOUT, capture_output=True,
+                              stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        return {"ok": False, "reason": "failed"}
+    return {"ok": True} if done.returncode == 0 else {"ok": False, "reason": "failed"}
+
+
 def r_checks(h, q):
     return checks.setup()
 
@@ -468,6 +533,7 @@ ROUTES = {  # (method, path): (handler, needs token)
     ("GET", "/api/temp-en"): (r_temp_en, True),
     ("GET", "/api/feedback"): (r_feedback, True),
     ("POST", "/api/feedback"): (r_feedback_save, True),
+    ("POST", "/api/practice"): (r_practice, True),
 }
 
 
@@ -590,6 +656,17 @@ class Handler(BaseHTTPRequestHandler):
         if not raw.strip().isdigit():
             raise HttpError(400, "bad Content-Length")
         return int(raw)
+
+    def discard_body(self) -> None:
+        """Read and drop a request body (so the connection stays in step); its content is never looked at."""
+        if self.headers.get("Transfer-Encoding"):
+            self.close_connection = True  # not read: the connection ends after this reply
+        raw = self.headers.get("Content-Length")
+        length = int(raw) if raw and raw.strip().isdigit() else 0
+        if length > MAX_JSON:
+            raise HttpError(413, "request body too big")
+        if length:
+            self.rfile.read(length)
 
     def json_body(self) -> dict:
         length = self.content_length()

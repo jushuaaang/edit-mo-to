@@ -222,3 +222,7 @@ def test_gate_lines_unchanged(doc):
     gone = [l for l in head.stdout.splitlines() if "⛔" in l and l not in now]
     assert not gone, gone
 
+
+def test_readme_says_what_start_practice_opens():
+    r = _text(README)
+    assert "**Start practice**" in r and "Terminal" in r and "command window" in r

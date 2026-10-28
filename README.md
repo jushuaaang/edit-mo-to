@@ -91,6 +91,8 @@ flowchart LR
 
 Type **`/practice-muna`** and send the clip. Every stop shows a suggested answer (just accept it) and a one-line tip on what happens in a real job. It takes about 15–25 minutes, and you finish knowing the whole workflow.
 
+Or press **Start practice** on the app's dashboard: it opens Terminal (Mac) or a command window (Windows) with Claude already running `/practice-muna` in your Video Editing folder.
+
 ## Step 3 · Your first real video
 
 1. Start a Claude Code session in your video folder.

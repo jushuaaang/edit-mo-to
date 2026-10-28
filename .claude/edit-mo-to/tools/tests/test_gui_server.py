@@ -554,3 +554,134 @@ def test_job_lists_voice_files_in_vo_even_when_copied_by_hand(api):
     assert api.call("GET", "/api/job" + _q(folder=folder), headers={"If-None-Match": headers["ETag"]})[0] == 200
     assert [Path(p).name for p in api.json("GET", "/api/job" + _q(folder=folder))[1]["vo"]] == ["body.wav", "Hook 1 VO.MP3"]  # by name, case ignored
 
+
+# --- Task B2: "Start practice" opens the editor's own Claude in a visible window (spec "Try a practice video") ---
+# Never opens a real Terminal: shutil.which and subprocess.run are stubbed in every test.
+
+ODD_ROOT = "Uvola Cereza Ácida's \"best\" $HOME `x` \\ folder"   # spaces, an apostrophe, accents, quotes, $ ` \
+
+
+@pytest.fixture
+def launcher(monkeypatch):
+    class Calls(list):
+        now = 1000.0  # the server's clock (server._clock) in these tests
+
+    calls = Calls()
+
+    class Done:
+        returncode = 0
+
+    def fake_run(argv, **kw):
+        calls.append((argv, kw))
+        return Done()
+
+    monkeypatch.setattr(server.subprocess, "run", fake_run)
+    monkeypatch.setattr(server.subprocess, "Popen", lambda *a, **k: pytest.fail("Popen must not be used"))
+    monkeypatch.setattr(server.shutil, "which", lambda name: "/usr/local/bin/claude" if name == "claude" else None)
+    monkeypatch.setattr(server, "_clock", lambda: calls.now)
+    return calls
+
+
+def _practice(api, body=None, **kw):
+    return api.json("POST", "/api/practice", body if body is not None else {}, **kw)
+
+
+def test_practice_on_macos_runs_terminal_with_a_fixed_command(api, launcher, monkeypatch):
+    monkeypatch.setattr(server, "_platform", lambda: "darwin")
+    assert _practice(api) == (200, {"ok": True})
+    (argv, kw), = launcher
+    assert argv == ["osascript",
+                    "-e", f'tell application "Terminal" to do script "cd {_sh(api.root)} && claude \'/practice-muna\'"',
+                    "-e", 'tell application "Terminal" to activate']
+    assert kw.get("shell") in (None, False) and kw.get("timeout")
+
+
+def _sh(root):
+    """The root as the shell inside the AppleScript string gets it: shlex-quoted, then AppleScript-escaped."""
+    import shlex
+    return shlex.quote(str(root)).replace("\\", "\\\\").replace('"', '\\"')
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="/bin/sh check")
+def test_practice_quotes_an_odd_root_for_the_shell_inside_applescript(tmp_path):
+    """A root with spaces, an apostrophe, accents, double quotes, $ and backticks reaches the shell as one literal path."""
+    import shlex
+    import subprocess
+    root = tmp_path / ODD_ROOT
+    root.mkdir()
+    argv = server.practice_argv(root, "darwin")
+    script = argv[2]
+    assert script.startswith('tell application "Terminal" to do script "') and script.endswith('"')
+    inner = script[len('tell application "Terminal" to do script "'):-1]
+    # undo AppleScript's string escapes (\\ and \"); what is left is the shell line Terminal runs
+    shell_line = re.sub(r'\\(.)', r'\1', inner)
+    assert re.fullmatch(r'(?:[^"\\]|\\.)*', inner), "an unescaped quote would end the AppleScript string early"
+    words = shlex.split(shell_line)
+    assert words == ["cd", str(root), "&&", "claude", "/practice-muna"]
+    # a real shell (no Terminal, no claude) cds into the odd root: nothing in the name runs or expands
+    probe = shell_line.replace(" && claude '/practice-muna'", " && pwd")
+    assert probe != shell_line
+    out = subprocess.run(["/bin/sh", "-c", probe], capture_output=True, text=True, encoding="utf-8", env={"HOME": "/nowhere"})
+    assert out.returncode == 0 and out.stdout.strip() == str(root), out.stderr
+
+
+def test_practice_on_windows_opens_a_command_window_in_the_root(api, launcher, monkeypatch):
+    monkeypatch.setattr(server, "_platform", lambda: "win32")
+    assert _practice(api) == (200, {"ok": True})
+    (argv, kw), = launcher
+    assert argv == ["cmd", "/c", "start", "", "cmd", "/k", "claude /practice-muna"]
+    assert server.subprocess.list2cmdline(argv) == 'cmd /c start "" cmd /k "claude /practice-muna"'
+    assert kw["cwd"] == str(api.root)            # the folder is the working directory, never text on the command line
+    assert str(api.root) not in " ".join(argv)
+
+
+def test_practice_refuses_without_claude_or_on_other_systems(api, launcher, monkeypatch):
+    monkeypatch.setattr(server, "_platform", lambda: "linux")
+    assert _practice(api) == (200, {"ok": False, "reason": "unsupported"})
+    monkeypatch.setattr(server, "_platform", lambda: "darwin")
+    monkeypatch.setattr(server.shutil, "which", lambda name: None)
+    assert _practice(api) == (200, {"ok": False, "reason": "no-claude"})
+    assert launcher == []
+
+
+def test_practice_reports_a_failed_launch(api, launcher, monkeypatch):
+    monkeypatch.setattr(server, "_platform", lambda: "darwin")
+
+    class Bad:
+        returncode = 1
+
+    monkeypatch.setattr(server.subprocess, "run", lambda argv, **kw: Bad())
+    assert _practice(api) == (200, {"ok": False, "reason": "failed"})
+    launcher.now += 11
+
+    def boom(argv, **kw):
+        raise OSError("osascript missing")
+
+    monkeypatch.setattr(server.subprocess, "run", boom)
+    assert _practice(api) == (200, {"ok": False, "reason": "failed"})
+
+
+def test_practice_launches_once_per_ten_seconds(api, launcher, monkeypatch):
+    monkeypatch.setattr(server, "_platform", lambda: "darwin")
+    assert _practice(api)[1] == {"ok": True}
+    launcher.now += 9.5
+    assert _practice(api)[1] == {"ok": False, "reason": "busy"}    # a double click opens one window
+    launcher.now += 1
+    assert _practice(api)[1] == {"ok": True}
+    assert len(launcher) == 2
+
+
+def test_practice_ignores_the_request_body_and_needs_the_token(api, launcher, monkeypatch):
+    monkeypatch.setattr(server, "_platform", lambda: "darwin")
+    assert _practice(api, token=None)[0] == 401
+    assert api.json("GET", "/api/practice")[0] == 404
+    assert api.call("POST", "/api/practice", {}, headers={"Origin": "http://evil.example"})[0] == 403
+    assert launcher == []
+    evil = {"command": "rm -rf ~", "cmd": "open -a Calculator", "root": "/etc", "path": "/tmp", "argv": ["sh", "-c", "x"],
+            "folder": "/", "args": "--dangerously-skip-permissions", "platform": "win32"}
+    assert _practice(api, evil) == (200, {"ok": True})
+    launcher.now += 20
+    assert _practice(api) == (200, {"ok": True})
+    (a1, k1), (a2, k2) = launcher
+    assert a1 == a2 and k1 == k2
+    assert all(v not in " ".join(a1) for v in ("rm -rf", "Calculator", "/etc", "skip-permissions"))

@@ -1,10 +1,15 @@
-// Dashboard: a card per video folder (each with its "what to do now" line), "Try a practice video", recent activity
-// across videos, the setup check, "New video".
+// Dashboard: a card per video folder (each with its "what to do now" line), "Try a practice video" (Start practice:
+// POST /api/practice opens the editor's own Claude in a visible window; the Copy fallback shows only when that can't
+// happen), recent activity across videos, the setup check, "New video".
 import { h, icon, chip, checksTable, relTime, stepTitle, STEPS, copyButton } from "../ui.js";
 import { t } from "../words.js";
 import { nowStrip } from "../nextstep.js";
 
-const PRACTICE = "/practice-muna";  // what the editor types in Claude; the app cannot start Claude itself
+const PRACTICE = "/practice-muna";  // what Start practice runs, and what the editor types in Claude when it can't
+const FALLBACK = new Set(["no-claude", "failed", "unsupported"]);  // these replies show the Copy fallback
+const PRACTICE_WHY = { "no-claude": "practice.no_claude", failed: "practice.failed", unsupported: "practice.unsupported",
+  busy: "practice.busy" };
+let practiceReply = null;  // the last Start practice reply, kept when the page re-renders (a language change)
 
 const REFRESH_MS = 5000;
 const MAX_JOBS = 12;  // videos whose job is read for cards and activity
@@ -61,11 +66,37 @@ function card(summary, reply) {
       "aria-label": t("dash.progress") }, h("i", { style: `width:${pct}%;background:var(--${BAR[status]})` })));
 }
 
-function practiceCard() {
+/** "Try a practice video": Start practice asks the server to open Claude in a window the editor sees (the command is
+ *  fixed in the server). Only when it can't (no `claude` command, the launch failed, or this system can't open a
+ *  window) the card says why in plain words and shows "In Claude, type: /practice-muna [Copy]" instead. */
+function practiceCard(ctx) {
+  const status = h("p", { class: "hint", role: "status" });
+  const fallback = h("div", { class: "row", hidden: true }, h("span", {}, t("practice.type")),
+    h("code", { class: "mono cmd" }, PRACTICE), copyButton(PRACTICE, t("practice.copy")));
+  const btn = h("button", { class: "btn pri", type: "button" }, t("practice.start"));
+  const show = (reply) => {
+    practiceReply = reply;
+    status.textContent = !reply ? "" : reply.ok ? t("practice.opened") : t(PRACTICE_WHY[reply.reason] || "practice.failed");
+    status.className = reply && !reply.ok && reply.reason !== "busy" ? "msg err" : "hint";
+    fallback.hidden = !(reply && !reply.ok && FALLBACK.has(reply.reason));
+  };
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    status.className = "hint";
+    status.textContent = t("practice.starting");
+    let reply;
+    try {
+      reply = await ctx.api("/api/practice", { body: {} });
+    } catch {
+      reply = { ok: false, reason: "failed" };
+    }
+    show(reply?.ok || PRACTICE_WHY[reply?.reason] ? reply : { ok: false, reason: "failed" });
+    btn.disabled = false;
+  });
+  show(practiceReply);
   return h("section", { class: "card practice", "aria-labelledby": "practice-h" },
     h("h3", { id: "practice-h" }, t("practice.title")), h("p", { class: "hint" }, t("practice.what")),
-    h("div", { class: "row" }, h("span", {}, t("practice.type")), h("code", { class: "mono cmd" }, PRACTICE),
-      copyButton(PRACTICE, t("practice.copy"))));
+    h("div", { class: "row" }, btn), status, fallback);
 }
 
 const setupTable = (checks, older) => checksTable(checks, [[t("dash.older_check"), chip(String(older), "mute")]]);
@@ -74,7 +105,7 @@ export function render(root, data, ctx) {
   const sub = h("p", {}, t("dash.looking"));
   const grid = h("div", { class: "grid3" });
   const practice = h("div", {});
-  const tryIt = practiceCard();
+  const tryIt = practiceCard(ctx);
   const older = h("div", {});
   const activity = h("ul", { class: "act" }, h("li", {}, t("common.loading")));
   const setup = h("div", {}, h("p", { class: "hint" }, t("common.checking")));

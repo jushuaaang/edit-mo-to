@@ -634,6 +634,19 @@ def test_language_switch_in_settings_and_auto():
     assert "loadPrefs(api)" in app[app.index("async function refreshCurrent"):app.index("function setFolder")]
 
 
+def test_start_practice_button_and_copy_fallback():
+    dash = _page("dashboard.js")
+    assert '"/api/practice"' in dash and "practice.start" in dash
+    for reason in ("no-claude", "failed", "unsupported", "busy"):
+        assert f'"{reason}"' in dash, reason
+    assert "copyButton(PRACTICE" in dash
+    fallback = dash[dash.index("const FALLBACK"):].split("\n", 1)[0]
+    assert '"busy"' not in fallback and all(r in fallback for r in ('"no-claude"', '"failed"', '"unsupported"'))
+    w = _words()["practice"]
+    assert w["no_claude"] == ("Claude isn't installed as a terminal command on this computer. "
+                              "Copy this and paste it into Claude instead.")
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node not on PATH")
 def test_t_switches_language_in_node():
     """t() answers in the language setLang picked, falls back to English for a key Taglish lacks, never blank."""
