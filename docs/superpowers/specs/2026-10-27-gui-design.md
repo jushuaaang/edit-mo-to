@@ -226,6 +226,15 @@ When the next action writes to a CapCut project, the page shows a red banner ("Q
 - **`.claude/settings.json` and `.gitignore`:** the project allowlist above, and the `.gitignore` line that tracks it.
 - **`capcut_project.py`:** `_capcut_running` learns macOS (see "CapCut safety in the GUI").
 
+## Generator: Higgsfield replaces Seedance (Joshua's call, 2026-10-28)
+
+AI clips are generated on **Higgsfield** or **Google Flow**; Seedance is no longer a generator choice. Higgsfield hosts several video models and Joshua picks the model per job, so the generator question becomes two answers: the site (`higgsfield` | `google-flow`) and, for Higgsfield, the **model**.
+
+- **One rules table, in one file:** `.claude/edit-mo-to/generators.json` (tracked) holds, per generator and per Higgsfield model: label, clip length range (`min_s`, `max_s`, or fixed `lengths_s`), max attachments, whether a start frame is supported and how the prompt points at it (e.g. Seedance's "Start on @Image1."), whether an end frame is supported, and a `verified` date or `null`. Today's Seedance rules become the Higgsfield "Seedance" model rows; Google Flow's rules move there unchanged. `plan_tools.py` (prompt checks and rendering), `context_pack.py`, the style agents and the GUI read this file instead of hard-coding generator rules.
+- **Unknown or unverified model:** Claude uses conservative rules (the strictest length and attachment limits in the table, a plain "Start from the attached image." line) and says so in chat and in the GUI, rather than guessing. The editor can correct a model's row in `generators.json`.
+- **Gate:** step 6's generator question becomes "Where will you generate: Higgsfield or Google Flow?" (`generator`: `higgsfield` | `google-flow`) followed, for Higgsfield, by "Which Higgsfield model?" (`generator_model`, a choice from the table plus "Other"). The job card shows "Higgsfield · <model>". The storyboard step asks the same pair when it asks the generator early. Old jobs whose card says `seedance` are read as Higgsfield · Seedance.
+- **Preferences:** the shared `preferences.md` "Seedance" section becomes "Higgsfield · Seedance". An editor's own `my-preferences.md` is never edited by the build; a "Seedance" section there applies to the Seedance model on Higgsfield.
+
 ## Decisions that differ from the spec
 
 - No `/edit-na-tayo`; only `/edit-mo-to` (and `/practice-muna`) open the GUI.
