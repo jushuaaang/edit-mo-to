@@ -278,3 +278,144 @@ def test_prompts_page_reads_the_generators_table():
     assert '"generator_model"' in text
     for name in _js_files():
         assert "Seedance" not in name.read_text(encoding="utf-8"), name.name
+
+
+# --- Task B1: beginner friendly (words in one place, what to do now, word help, alerts, practice, no codes) ---
+import json as _json  # noqa: E402
+import re as _re  # noqa: E402
+
+WORD_GROUPS = ("step", "why", "time", "help", "word", "label", "now", "alert", "settings", "practice", "page",
+               "storyboard", "prompts")
+HELP_KEYS = ("temp_en", "a_roll", "b_roll", "keyframe", "timeline", "vo", "character_sheet", "question", "time", "model",
+             "prompt")
+
+
+def _words():
+    text = (STATIC / "words.js").read_text(encoding="utf-8")
+    body = text.split("/* WORDS-START */", 1)[1].split("/* WORDS-END */", 1)[0]
+    body = body.strip().removeprefix("export const WORDS =").strip().removesuffix(";")
+    return _json.loads(body)
+
+
+def _has(words, key):
+    node = words
+    for part in key.split("."):
+        if not isinstance(node, dict) or part not in node:
+            return False
+        node = node[part]
+    return isinstance(node, str) and node.strip() != ""
+
+
+def test_words_js_served_and_parses(base):
+    status, ctype, body = _get(base + "/static/words.js")
+    assert status == 200 and "javascript" in ctype and body == (STATIC / "words.js").read_bytes()
+    for rel in ("nextstep.js",):
+        assert _get(f"{base}/static/{rel}")[0] == 200, rel
+    w = _words()
+    assert set(WORD_GROUPS) <= set(w)
+    assert "export function t(" in (STATIC / "words.js").read_text(encoding="utf-8")
+    assert "export function label(" in (STATIC / "words.js").read_text(encoding="utf-8")
+
+
+def test_every_word_key_used_in_static_js_exists():
+    w = _words()
+    key = _re.compile(r'["`](' + "|".join(WORD_GROUPS) + r')\.([a-z_]+)["`]')
+    used = set()
+    for p in _js_files():
+        if p.name == "words.js":
+            continue
+        for g, k in key.findall(p.read_text(encoding="utf-8")):
+            used.add(f"{g}.{k}")
+    assert len(used) > 40, sorted(used)
+    missing = sorted(k for k in used if not _has(w, k))
+    assert not missing, missing
+
+
+def test_every_step_has_a_title_a_why_line_and_a_time_guess():
+    w = _words()
+    for s in STEP_PAGES:
+        assert _has(w, f"step.{s}") and _has(w, f"why.{s}") and _has(w, f"time.{s}"), s
+        assert w["time"][s].startswith("About "), s
+    for k in HELP_KEYS:
+        assert _has(w, f"help.{k}") and _has(w, f"word.{k}"), k
+    assert "2 seconds and 12 frames" in w["help"]["time"] and "30 frames = 1 second" in w["help"]["time_value"]
+    for group in ("why", "help"):  # plain words: no internal names
+        text = " ".join(w[group].values()).lower()
+        for name in ("plan_tools", "job.json", "gate", "generators.json", "sb-", "char-"):
+            assert name not in text, (group, name)
+
+
+def test_next_step_rules_are_data_with_words():
+    text = (STATIC / "nextstep.js").read_text(encoding="utf-8")
+    assert "export const RULES = [" in text and "export function nextStep(" in text
+    keys = _re.findall(r'key: "(now\.[a-z_]+)"', text)
+    for k in ("now.capcut", "now.pictures", "now.pictures_question", "now.voiceover", "now.question", "now.answered",
+              "now.waiting", "now.working", "now.error", "now.done", "now.next"):
+        assert k in keys, k
+    w = _words()
+    for k in keys + ["now.not_listening", "now.not_listening_ask", "now.error_card", "now.you", "now.claude", "now.none"]:
+        assert _has(w, k), k
+    assert "data.listening" in text            # "Claude isn't listening" only from the verified field
+    assert "nowStrip(data" in (STATIC / "steppage.js").read_text(encoding="utf-8")
+    assert "nowStrip(reply" in _page("dashboard.js")
+
+
+def test_alerts_fire_on_a_new_question_only_and_ask_permission_on_a_click():
+    text = (STATIC / "nextstep.js").read_text(encoding="utf-8")
+    assert "export function watchQuestion(" in text and "watchQuestion(folder, data)" in (STATIC / "app.js").read_text(encoding="utf-8")
+    body = text[text.index("export function watchQuestion("):]
+    assert "!first && id && id !== before" in body   # not on first load, not on every poll
+    arm = text[text.index("function arm()"):text.index("function softSound()")]
+    assert 'addEventListener("click"' in arm and "requestPermission" in arm and "once: true" in arm
+    assert text.count("requestPermission") == 1
+    assert "AudioContext" in text and ".mp3" not in text and ".wav" not in text
+    assert "titled(" in (STATIC / "app.js").read_text(encoding="utf-8")
+    settings = _page("settings.js")
+    assert 'role: "switch"' in settings and "savePrefs(" in settings
+    assert '"/api/prefs"' in text
+
+
+def test_practice_card_on_the_dashboard():
+    dash = _page("dashboard.js")
+    assert '"/practice-muna"' in dash and "copyButton(PRACTICE" in dash
+    assert "practice.title" in dash and "practice.what" in dash
+
+
+VISIBLE_CODE_ALLOWED = (  # where "SB-" / "CHAR-" may stay: ids, file names, regexes, comments
+    'KEYFRAME_ID = /^(SB|CHAR)-\\d+$/;',
+    "`SB-${i + 1}`",
+    "[/^SB-(\\d+)$/i,",
+    "/^CHAR-\\d+$/i.test(s)",
+)
+
+
+def test_no_codes_in_visible_text():
+    for p in _js_files():
+        for n, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
+            code = line.split("//", 1)[0] if not line.lstrip().startswith(("//", "*", "/*")) else ""
+            if "SB-" not in code and "CHAR-" not in code:
+                continue
+            assert any(a in code for a in VISIBLE_CODE_ALLOWED), f"{p.name}:{n}: {line.strip()}"
+    sb, dlg = _page("storyboard.js"), (STATIC / "dialogs.js").read_text(encoding="utf-8")
+    assert 'h("b", { class: "mono" }, it.id)' not in sb and "missing.join" in sb and "label(it.id, data)" in sb
+    assert "${it.id} · " not in dlg and "storyboard.prev" in dlg
+    prompts = _page("prompts.js")
+    assert "label(r.id)" in prompts
+    prompts = "\n".join(l for l in prompts.splitlines() if not l.lstrip().startswith(("//", "/*", "*")))
+    for phrase in ("generators.json", "strictest limits in the table"):
+        assert phrase not in prompts, phrase
+    assert "tbl.safe" in prompts  # the safe numbers come from the data, not typed in
+
+
+def test_word_help_buttons():
+    ui = (STATIC / "ui.js").read_text(encoding="utf-8")
+    tip = ui[ui.index("export function helpTip("):ui.index("export function timeText(")]
+    for needle in ('"aria-describedby": id', 'role: "tooltip"', "help.${key}", 'type: "button"'):
+        assert needle in tip, needle
+    assert '"Escape"' in ui and "timeTitle(c)" in ui
+    every = "".join(p.read_text(encoding="utf-8") for p in _js_files())
+    used = set(_re.findall(r'helpTip\("([a-z_]+)"\)', every))
+    used |= set(_re.findall(r'"([a-z_]+)"', every[every.index("const CARD_HELP"):].split("\n", 1)[0]))
+    sb = _page("storyboard.js")
+    used |= set(_re.findall(r'"([a-z_]+)"', sb[sb.index('t("help.row"), ...['):].split("]", 1)[0]))
+    assert set(HELP_KEYS) - {"a_roll"} <= used, sorted(set(HELP_KEYS) - used)  # no page shows "A-roll" yet

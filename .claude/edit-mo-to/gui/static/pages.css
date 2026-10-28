@@ -91,3 +91,36 @@ label.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13
   .sbcard.char .sbimg { width: 100%; height: 190px; }
   .shot { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ---------- beginner help (Task B1): what to do now, why this step, word help, alerts, practice ---------- */
+.nowline { display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin-bottom: 14px; border-radius: 8px;
+  background: var(--panel2); border: 1px solid var(--line2); color: var(--text); font-size: 13.5px; }
+.nowline.you { background: var(--accent-soft); border-color: var(--accent-line); }
+.nowline.claude { background: var(--wait-soft); border-color: var(--wait); }
+.proj .nowline { margin: 10px 0 0; padding: 6px 9px; font-size: 12.5px; align-items: flex-start; }
+.proj .nowline .chip { margin-top: 1px; }
+.head .why { color: var(--muted); font-size: 13px; margin-top: 4px; max-width: 70ch; }
+.head .why .takes { color: var(--text); white-space: nowrap; }
+.info { position: relative; display: inline-flex; vertical-align: middle; margin-left: 4px; }
+.info-btn { background: none; border: 0; padding: 0 2px; color: var(--muted); font: inherit; font-size: 13px; line-height: 1;
+  cursor: help; border-radius: 4px; }
+.info-btn:hover, .info-btn[aria-expanded="true"] { color: var(--accent); }
+.tip { position: absolute; z-index: 30; top: calc(100% + 6px); left: -8px; width: max-content; max-width: 280px;
+  padding: 8px 10px; border-radius: 8px; background: var(--panel2); border: 1px solid var(--line2); color: var(--text);
+  font: 400 12.5px/1.45 var(--font-text); text-transform: none; letter-spacing: 0; white-space: normal;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .45); }
+.tip[hidden] { display: none; }
+.words { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.words .word { display: inline-flex; align-items: center; color: var(--text); }
+.switchrow { display: flex; gap: 12px; align-items: flex-start; }
+.switch { appearance: none; flex: none; width: 36px; height: 20px; margin-top: 2px; border-radius: 10px; position: relative;
+  background: var(--line2); border: 1px solid var(--line2); cursor: pointer; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--muted); transition: left .15s; }
+.switch:checked { background: var(--accent-soft); border-color: var(--accent); }
+.switch:checked::after { left: 18px; background: var(--accent); }
+.switch:disabled { opacity: .5; cursor: default; }
+.practice { margin-top: 16px; }
+.practice .row { margin-top: 10px; flex-wrap: wrap; }
+.practice .cmd { padding: 3px 8px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line2); color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .switch::after { transition: none; } }

@@ -1,6 +1,7 @@
 // The frame every step page shares (pages/<step>.js), and the inputs pages put in it.
 //
-// stepPage(root, step, data, ctx, parts) draws: crumbs and title, the "You" line for steps the editor does
+// stepPage(root, step, data, ctx, parts) draws: the "what to do now" strip, crumbs and title with "why this step" and
+// a time guess, the "You" line for steps the editor does
 // outside the app, the gate bar, the CapCut banner, then
 //   - the step's content (parts.body) once Claude has started the step;
 //   - only its early inputs (parts.early) while it is not started and takes early input (data.early);
@@ -12,6 +13,8 @@
 // job data, the inbox, outputs or file names reaches the DOM as text through h().
 import { h, chip, stepChip, gateBar, askBox, table, pendingChip, toast, dropZone, copyButton, stepTitle, previousStep,
   STEPS, STALE_TEXT } from "./ui.js";
+import { t } from "./words.js";
+import { nowStrip } from "./nextstep.js";
 
 export const CAPCUT_Q = "capcut_closed";
 const NOT_LISTENING = "Claude isn't listening. Your answer is saved; it's picked up when Claude next checks, or type 'go' in chat.";
@@ -284,8 +287,10 @@ export function stepPage(root, step, data, ctx, parts = {}) {
     content = parts.body ? parts.body() : [];
   }
   root.append(...[  // the DOM's append stringifies null ("null" text), so the absent parts are filtered out
+    nowStrip(data, "page"),
     h("div", { class: "crumbs" }, `${name} · Step ${STEPS.indexOf(step) + 1}`),
     h("div", { class: "head" }, h("div", {}, h("h1", {}, stepTitle(step)),
+      h("p", { class: "why" }, h("span", { class: "sr" }, `${t("page.why_label")}: `), t(`why.${step}`), " ", h("span", { class: "takes" }, t(`time.${step}`))),
       job?.steps?.[step]?.note ? h("p", {}, job.steps[step].note) : null), stepChip(st)),
     parts.you ? youLine(parts.you) : null,
     shown ? gateBar(shown, ctx, parts.labels || {}) : null,

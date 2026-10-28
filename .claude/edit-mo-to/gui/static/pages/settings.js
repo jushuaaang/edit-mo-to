@@ -1,6 +1,8 @@
 // Settings & setup: machine.json paths (found / missing, Save), setup checks,
 // Report a bug / Suggest an improvement (saved on this computer; Send to Joshua opens a pre-filled issue).
 import { h, chip, checksTable, STEPS, stepTitle } from "../ui.js";
+import { t } from "../words.js";
+import { savePrefs } from "../nextstep.js";
 
 const PATHS = [
   ["root", "Video folders (root)"], ["python", "Python (tools venv)"], ["tmp", "Work folder (tmp)"],
@@ -69,6 +71,47 @@ function checksCard(ctx) {
   run();
   return h("section", { class: "card" }, h("div", { class: "row spread", style: "margin-bottom:10px" },
     h("h3", { style: "margin:0" }, "Setup check"), h("button", { class: "btn sm", type: "button", onclick: run }, "Check again")), box);
+}
+
+/** "Tell me when Claude needs me": two switches saved on this computer (POST /api/prefs). A switch shows only what the
+ *  server holds: it is disabled until the prefs load, and goes back if a save fails. */
+function alertsCard(ctx) {
+  const msg = h("div", { class: "msg", role: "status" }, t("settings.loading"));
+  const blocked = h("p", { class: "hint", hidden: !("Notification" in window && Notification.permission === "denied") },
+    t("settings.notify_blocked"));
+  const row = (key, hint) => {
+    const id = `pref-${key}`;
+    const box = h("input", { type: "checkbox", role: "switch", id, class: "switch", disabled: true, "data-pref": key });
+    box.addEventListener("change", async () => {
+      const want = box.checked;
+      box.disabled = true;
+      try {
+        const now = await savePrefs(ctx.api, { [key]: want });
+        box.checked = now[key];
+        msg.className = "msg ok";
+        msg.textContent = t("settings.saved");
+      } catch (e) {
+        box.checked = !want;
+        msg.className = "msg err";
+        msg.textContent = t("settings.not_saved", { why: e.message || "" });
+      } finally {
+        box.disabled = false;
+      }
+    });
+    return [box, h("div", { class: "field switchrow" }, box, h("div", {}, h("label", { class: "lbl", for: id }, t(`settings.${key}`)),
+      h("div", { class: "hint" }, t(hint))))];
+  };
+  const [notify, notifyRow] = row("notify", "settings.notify_hint");
+  const [sound, soundRow] = row("sound", "settings.sound_hint");
+  ctx.api("/api/prefs").then((p) => {
+    notify.checked = p.notify;
+    sound.checked = p.sound;
+    notify.disabled = sound.disabled = false;
+    msg.textContent = "";
+  }).catch((e) => { msg.className = "msg err"; msg.textContent = e.message; });
+  return h("section", { class: "card", "aria-labelledby": "alerts-h" },
+    h("h3", { id: "alerts-h" }, t("settings.alerts_h")), h("p", { class: "hint" }, t("settings.alerts_p")),
+    h("div", { class: "stack" }, notifyRow, blocked, soundRow), msg);
 }
 
 function feedbackCard(ctx) {
@@ -160,5 +203,5 @@ export function render(root, data, ctx) {
     h("div", { class: "head" }, h("div", {}, h("h1", {}, "Settings & setup"),
       h("p", {}, "The paths this computer uses, the setup check, and a place to report bugs.")),
     h("div", { style: "text-align:right" }, h("button", { class: "btn pri", type: "button", onclick: paths.save }, "Save"), msg)),
-    h("div", { class: "stack" }, paths.node, checksCard(ctx), feedbackCard(ctx)));
+    h("div", { class: "stack" }, paths.node, alertsCard(ctx), checksCard(ctx), feedbackCard(ctx)));
 }

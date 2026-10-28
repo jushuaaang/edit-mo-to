@@ -7,8 +7,10 @@
 //
 // Events: edits `edit` "storyboard:<id>:prompt|visual"; comments `comment` "storyboard:<id>" (or "storyboard" for the
 // whole board); `approve` "storyboard:<id>" / "storyboard"; Request change `action` "storyboard:<id>".
-// Every string from storyboard.json, events and paths reaches the DOM as text through h().
-import { h, chip, pendingChip, toast, dropZone, STALE_TEXT } from "../ui.js";
+// Every string from storyboard.json, events and paths reaches the DOM as text through h(). On screen a card is "Shot 5"
+// or the character's name (words.js label), never its code; files and event targets keep SB-n / CHAR-n.
+import { h, chip, pendingChip, toast, dropZone, helpTip, timeText, STALE_TEXT } from "../ui.js";
+import { t, label } from "../words.js";
 import { stepPage, stateOf, openGate, gateAnswer, answerGate, pendingFor, copyButton, waitingText } from "../steppage.js";
 
 const STEP = "storyboard";
@@ -115,12 +117,12 @@ export async function sendEvent(ctx, event, okText) {
 function imageSlot(ctx, data, it, zone) {
   const url = keyframeUrl(data, it.id);
   if (url) {
-    return h("button", { class: "sbimg", type: "button", "aria-label": `Open ${it.id} close up`,
+    return h("button", { class: "sbimg", type: "button", "aria-label": t("storyboard.open_close", { name: label(it.id, data) }),
       onclick: () => ctx.openDialog("shot", { id: it.id }) },
-    h("img", { src: url, alt: `${it.id} keyframe`, loading: "lazy" }));
+    h("img", { src: url, alt: t("storyboard.picture_of", { name: label(it.id, data) }), loading: "lazy" }));
   }
   if (isClient(it)) {
-    return h("button", { class: "sbimg empty", type: "button", "aria-label": `Open ${it.id} close up`,
+    return h("button", { class: "sbimg empty", type: "button", "aria-label": t("storyboard.open_close", { name: label(it.id, data) }),
       onclick: () => ctx.openDialog("shot", { id: it.id }) }, h("span", {}, "Client footage"), h("small", {}, "no keyframe needed"));
   }
   return h("div", { class: "sbimg empty drop-slot" }, zone);
@@ -129,8 +131,9 @@ function imageSlot(ctx, data, it, zone) {
 function commentBox(ctx, data, it, view) {
   const id = it.id;
   const open = view.open.has(id);
-  const ta = h("textarea", { class: "f", rows: 2, "data-key": `sb:comment:${id}`, "aria-label": `Comment on ${id}`,
-    placeholder: `What should change in ${id}?` });
+  const name = label(id, data);
+  const ta = h("textarea", { class: "f", rows: 2, "data-key": `sb:comment:${id}`, "aria-label": t("storyboard.comment_on", { name }),
+    placeholder: t("storyboard.comment_what", { name }) });
   const btn = h("button", { class: "btn sm pri", type: "button" }, "Send");
   btn.addEventListener("click", async () => {
     const text = ta.value.trim();
@@ -159,14 +162,15 @@ function promptBlock(data, it) {
 function card(ctx, data, it, view) {
   const [word, status] = statusOf(data, it);
   const b = it.item;
-  const zone = isClient(it) ? null : dropZone("keyframe", ctx, { id: it.id, label: data?.keyframes?.[it.id] ? "Replace image" : `Drop the ${it.id} image` });
+  const name = label(it.id, data);
+  const zone = isClient(it) ? null : dropZone("keyframe", ctx, { id: it.id, label: data?.keyframes?.[it.id] ? "Replace image" : t("storyboard.drop", { name }) });
   const open = commentsFor(data, it.id).filter((c) => c.open).length;
   const el = h("article", { class: `sbcard${it.kind === "char" ? " char" : ""}${view.selected === it.id ? " sel" : ""}`,
-    "data-id": it.id, "aria-label": `${it.id}, ${word}` },
+    "data-id": it.id, "aria-label": `${name}, ${word}` },
   imageSlot(ctx, data, it, zone),
   h("div", { class: "sbbody" },
-    h("div", { class: "row spread" }, h("span", { class: "row" }, h("b", { class: "mono" }, it.id), chip(word, status)),
-      b.est ? h("span", { class: "mono hint" }, str(b.est)) : null),
+    h("div", { class: "row spread" }, h("span", { class: "row" }, h("b", {}, name), chip(word, status)),
+      b.est ? timeText(str(b.est), { class: "mono hint" }) : null),
     it.kind === "char" ? h("div", { class: "sbline" }, str(b.name) || "Character") : null,
     it.kind === "shot" && b.line ? h("q", { class: "sbline" }, str(b.line)) : null,
     it.kind === "shot" && b.en ? h("div", { class: "hint" }, `English (temporary): ${str(b.en)}`) : null,
@@ -210,7 +214,7 @@ function approveAll(ctx, data, items, view, rerender) {
     return h("span", { class: "row" }, chip(sent.value === false ? "Not approved · sent" : "Approved · waiting for Claude", "wait"));
   }
   if (pend) return h("span", { class: "row" }, chip("Approve all sent", "wait"), pendingChip());
-  const missing = items.filter((it) => it.kind === "shot" && needsImage(data, it)).map((it) => it.id);
+  const missing = items.filter((it) => it.kind === "shot" && needsImage(data, it)).map((it) => label(it.id, data));
   const status = h("span", { class: "hint", role: "status" });
   const send = async (btns) => {
     btns.forEach((b) => { b.disabled = true; });
@@ -235,7 +239,7 @@ function approveAll(ctx, data, items, view, rerender) {
     onclick: () => { view.confirm = false; view.filter = "need"; rerender(); } }, "Wait for images");
   anyway.addEventListener("click", () => send([anyway, wait]));
   return h("div", { class: "sbconfirm", role: "alert" },
-    h("span", {}, `${n} shot${n > 1 ? "s have" : " has"} no keyframe yet (${missing.join(", ")}). Approve anyway?`),
+    h("span", {}, t(n > 1 ? "storyboard.missing" : "storyboard.missing_one", { n, names: missing.join(", ") }), helpTip("keyframe")),
     h("span", { class: "row" }, anyway, wait, status));
 }
 
@@ -312,6 +316,8 @@ export function render(root, data, ctx) {
       const shown = items.filter((it) => FILTER_FN[view.filter](data, it));
       return [
         toolbar(ctx, data, items, view, rerender),
+        h("p", { class: "hint words" }, t("help.row"), ...["keyframe", "prompt", "character_sheet", "time"].map((k) =>
+          h("span", { class: "word" }, t(`word.${k}`), helpTip(k)))),
         data.storyboard.direction ? h("p", { class: "hint" }, str(data.storyboard.direction)) : null,
         shown.length ? h("div", { class: "sbgrid" }, shown.map((it) => card(ctx, data, it, view)))
           : h("section", { class: "card" }, h("p", { class: "hint" }, "No cards match this filter.")),

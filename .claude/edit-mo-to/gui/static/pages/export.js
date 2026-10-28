@@ -1,7 +1,7 @@
 // Export (step 12, the editor's): the red "Delete the TEMP_EN_delete_me track before export" banner while any timeline
 // still has it (a fresh read-only /api/temp-en check, naming the timelines), the brief's export settings,
 // "I've exported, run the learning step" (an action), and the learning step's proposals (the `learn` dialog).
-import { h } from "../ui.js";
+import { h, helpTip } from "../ui.js";
 import { stepPage, outputsOf, isTable, actionButton, card } from "../steppage.js";
 
 const RECHECK_MS = 10000;
@@ -28,7 +28,7 @@ function tempEnBanner(ctx, data) {
   const project = String(card(data).project || "");
   const key = `${ctx.folder}|${project}`;
   const cardBanner = (why) => h("div", { class: "banner err", role: "alert" },
-    h("b", {}, "Delete the TEMP_EN_delete_me track before export"),
+    h("b", {}, "Delete the TEMP_EN_delete_me track before export", helpTip("temp_en")),
     h("span", {}, `${t.startsWith("partial:") ? `Still on: ${t.slice(8)}` : "The job card says it is still on."} ${why}`));
   const cantCheck = (why) => h("div", { class: "banner wait", role: "alert" },
     h("b", {}, "Could not check: delete TEMP_EN_delete_me before export if present"), h("span", {}, why));
@@ -36,7 +36,7 @@ function tempEnBanner(ctx, data) {
     const why = tempEn.error ? `Couldn't check the project (${tempEn.error}).` : "Couldn't check: no CapCut project on the job card yet.";
     let node = null;
     if (tempEn.timelines?.length) {
-      node = h("div", { class: "banner err", role: "alert" }, h("b", {}, "Delete the TEMP_EN_delete_me track before export"),
+      node = h("div", { class: "banner err", role: "alert" }, h("b", {}, "Delete the TEMP_EN_delete_me track before export", helpTip("temp_en")),
         h("span", {}, `Still on: ${tempEn.timelines.join(", ")}`));
     } else if (tempEn.timelines) {
       node = everOn ? h("div", { class: "banner ok", role: "status" }, h("span", {}, "Checked the project: no TEMP_EN_delete_me track left.")) : null;

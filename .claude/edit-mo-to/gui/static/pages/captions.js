@@ -2,7 +2,7 @@
 // "Claude adds them" (timelines, then Add captions, an action), and the TEMP_EN reminder.
 // Gates: who adds captions; timelines; quit CapCut (the red banner). While the open gate asks `timelines`, "Add captions"
 // answers it (the gate bar hides it); otherwise the button sends the `captions:add` action, which Claude confirms at the gate.
-import { h, chip, STALE_TEXT } from "../ui.js";
+import { h, chip, helpTip, STALE_TEXT } from "../ui.js";
 import { stepPage, choiceInput, lastInput, actionButton, timelines, card, gateAsks, openGate, gateAnswer, answerGate,
   waitingText } from "../steppage.js";
 
@@ -11,7 +11,7 @@ const WHO = [["me", "I'll run CapCut auto-caption"], ["claude", "Claude adds the
 function tempEnLine(data) {
   const t = String(card(data).temp_en || "");
   if (t !== "on" && !t.startsWith("partial:")) return null;
-  return h("div", { class: "banner err", role: "note" }, h("b", {}, "TEMP_EN is still on."),
+  return h("div", { class: "banner err", role: "note" }, h("b", {}, "TEMP_EN is still on.", helpTip("temp_en")),
     h("span", {}, "The TEMP_EN_delete_me track is only for review. Delete it before export; captions use the script's own words."));
 }
 

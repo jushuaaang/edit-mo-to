@@ -9,14 +9,11 @@
 //           ctx.go(hash)
 // Inputs that carry a `data-key` keep what the editor typed when the page re-renders after a poll.
 
+import { t, timeTitle } from "./words.js";
+
 export const STEPS = ["brief", "script", "storyboard", "voiceover", "timing", "prompts", "clips",
   "build", "review", "captions", "music", "export"];
-export const STEP_TITLES = {
-  brief: "Brief", script: "Script", storyboard: "Storyboard", voiceover: "Voiceover", timing: "Timing & cleanup",
-  prompts: "B-roll & prompts", clips: "Clips", build: "Build & QA", review: "Review", captions: "Captions",
-  music: "Music", export: "Export",
-};
-export const stepTitle = (step) => STEP_TITLES[step] || step || "";
+export const stepTitle = (step) => (STEPS.includes(step) ? t(`step.${step}`) : step || "");  // titles: words.js
 
 /** The step a not-started step waits for: the one before it (an optional storyboard that never ran is passed over). */
 export function previousStep(step, job) {
@@ -125,6 +122,41 @@ export function stepChip(state) {
 
 export function pendingChip() {
   return h("span", { class: "chip wait", title: "Saved. Claude hasn't applied it yet." }, "pending");
+}
+
+// ---------- word help (ⓘ) ----------
+
+let tipSeq = 0;
+const openTips = new Set();
+const closeTips = (except) => openTips.forEach((close) => { if (close !== except) close(); });
+document.addEventListener("click", (e) => { if (!e.target.closest?.(".info")) closeTips(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && openTips.size) closeTips(); });
+
+/** A small ⓘ after a word: one plain line from WORDS.help.<key> on hover, focus or tap; Escape or a tap outside
+ *  closes it. The line is the button's description (aria-describedby), so a screen reader reads it too. */
+export function helpTip(key) {
+  const id = `tip-${++tipSeq}`;
+  const tip = h("span", { class: "tip", role: "tooltip", id, hidden: true }, t(`help.${key}`));
+  const btn = h("button", { class: "info-btn", type: "button", "aria-label": t("help.button", { word: t(`word.${key}`) }),
+    "aria-describedby": id, "aria-expanded": "false", "data-help": key }, "ⓘ");
+  let pinned = false;
+  const show = (on) => {
+    tip.hidden = !on;
+    btn.setAttribute("aria-expanded", String(on));
+    if (on) { closeTips(close); openTips.add(close); } else { pinned = false; openTips.delete(close); }
+  };
+  const close = () => show(false);
+  btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); pinned = !pinned || tip.hidden; show(pinned); });
+  btn.addEventListener("mouseenter", () => show(true));
+  btn.addEventListener("mouseleave", () => { if (!pinned) show(false); });
+  btn.addEventListener("focus", () => show(true));
+  btn.addEventListener("blur", () => { if (!pinned) show(false); });
+  return h("span", { class: "info" }, btn, tip);
+}
+
+/** A time like "2:12" (or "0:00–2:12") as text with its meaning on hover; anything else as plain text. */
+export function timeText(text, attrs = {}) {
+  return h("span", { ...attrs, title: timeTitle(text) }, text);
 }
 
 // ---------- copy ----------
@@ -329,7 +361,7 @@ function questionControls(gate, q, ctx, done, label) {
 export function gateBar(gate, ctx, labels = {}) {
   const bar = h("section", { class: "gatebar", "aria-label": "Waiting on you" });
   bar.append(h("div", { class: "gh" }, h("div", { class: "ic", "aria-hidden": "true" }, "!"),
-    h("div", {}, h("b", {}, `Waiting on you: ${gate.title}`), gate.detail ? h("span", {}, gate.detail) : null)));
+    h("div", {}, h("b", {}, `Waiting on you: ${gate.title}`, helpTip("question")), gate.detail ? h("span", {}, gate.detail) : null)));
   for (const q of gate.questions || []) {
     const wrap = h("div", { class: "gq" }, h("div", { class: "qt" }, q.text), q.why ? h("div", { class: "why" }, q.why) : null);
     const showSent = (ans) => {
@@ -440,7 +472,7 @@ export function table(t, ctx, opts = {}) {
   const thead = h("tr", {}, (t?.columns || []).map((c) => h("th", { scope: "col" }, c)),
     hasStatus ? h("th", { scope: "col" }, "Status") : null, opts.actions ? h("th", {}, h("span", { class: "sr" }, "Actions")) : null);
   const body = rows.map((r) => h("tr", { "data-id": r.id },
-    (r.cells || []).map((c, i) => h("td", { class: TIME.test(c) ? "mono" : null }, c,
+    (r.cells || []).map((c, i) => h("td", { class: TIME.test(c) ? "mono" : null, title: TIME.test(c) ? timeTitle(c) : null }, c,
       i === 0 && r.note ? h("div", { class: "note" }, r.note) : null)),
     hasStatus ? h("td", {}, r.status ? chip(words[r.status] || r.status, r.status) : null) : null,
     opts.actions ? h("td", {}, opts.actions(r) || null) : null));

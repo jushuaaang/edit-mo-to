@@ -1,6 +1,6 @@
 // Voiceover (step 4, the editor's): VO file drop (one file, or one per hook/body), "Reuse an older VO" (dialog),
 // the script language and the --lang it means. Gates: the VO file; the older-VO spans.
-import { h } from "../ui.js";
+import { h, helpTip } from "../ui.js";
 import { stepPage, uploadInput, outputsOf, outputTables, card, openGate } from "../steppage.js";
 
 /** "Spanish (es)" -> "es"; else the script output's lang. */
@@ -24,7 +24,7 @@ export function render(root, data, ctx) {
     you: `Make the voiceover yourself (ElevenLabs), as one file or one per hook/body, then drop it here. It's copied to ${where}`,
     early: () => [uploadInput(ctx, data, "voiceover", "vo", "Voiceover file(s)")],
     body: () => [
-      h("section", { class: "card" }, h("h3", {}, "Voiceover file"),
+      h("section", { class: "card" }, h("h3", {}, "Voiceover file", helpTip("vo")),
         uploadInput(ctx, data, "voiceover", "vo", "Voiceover file(s)"),
         h("div", { class: "row", style: "margin-top:12px" },
           h("button", { class: "btn", type: "button",

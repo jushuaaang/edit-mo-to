@@ -16,7 +16,8 @@ Security: every route except GET /api/ping and static files needs the per-launch
 by GET /?k=<token>, or header X-EMT-Token). A Host other than 127.0.0.1:<port> / localhost:<port>, or a
 foreign Origin, is refused (403). Files are read or written only inside {root} and {tmp}; writes (inbox,
 gui.json, uploads, new job) only inside a video folder of {root} (folders.is_video_folder). One exception,
-read-only: GET /api/temp-en may also read a CapCut project under {capcut_drafts}.
+read-only: GET /api/temp-en may also read a CapCut project under {capcut_drafts}. GET/POST /api/prefs keep this computer's
+GUI prefs (PREFS: known keys only) in {tmp}/gui/prefs.json.
 """
 import argparse
 import hashlib
@@ -93,6 +94,7 @@ TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=u
          ".mp4": "video/mp4", ".mov": "video/quicktime", ".m4v": "video/x-m4v", ".mp3": "audio/mpeg",
          ".wav": "audio/wav", ".m4a": "audio/mp4", ".aac": "audio/aac"}
 _upload_lock = threading.Lock()
+_prefs_lock = threading.Lock()
 
 
 class HttpError(Exception):
@@ -207,7 +209,7 @@ def r_current(h, q):
 def _generators() -> "dict | None":
     """generators.json for the prompts page's site and model choices (the page keeps no list of its own)."""
     try:
-        return generators.load()
+        return {**generators.load(), "safe": generators.strictest()}  # safe: the limits used for an unknown model
     except (OSError, ValueError):
         return None
 
@@ -391,6 +393,36 @@ def r_settings_save(h, q):
     return r_settings(h, q)
 
 
+PREFS = {"notify": True, "sound": True}  # per-computer GUI prefs and their defaults; each value is a bool for now
+
+
+def _prefs_path(h) -> Path:
+    return Path(h.server.tmp) / "gui" / "prefs.json"
+
+
+def r_prefs(h, q):
+    saved = _read_json(_prefs_path(h), {})
+    saved = saved if isinstance(saved, dict) else {}
+    return {k: saved[k] if isinstance(saved.get(k), type(v)) else v for k, v in PREFS.items()}
+
+
+def r_prefs_save(h, q):
+    body = h.json_body()
+    if not body:
+        raise HttpError(400, "nothing to save")
+    for key, value in body.items():
+        if key not in PREFS:
+            raise HttpError(400, f"unknown setting: {key}")
+        if not isinstance(value, type(PREFS[key])):
+            raise HttpError(400, f"{key} must be true or false")
+    path = _prefs_path(h)
+    with _prefs_lock:
+        saved = _read_json(path, {})
+        saved = {k: v for k, v in (saved if isinstance(saved, dict) else {}).items() if k in PREFS}
+        js.write_json_atomic(path, {**saved, **body})
+    return r_prefs(h, q)
+
+
 def r_checks(h, q):
     return checks.setup()
 
@@ -431,6 +463,8 @@ ROUTES = {  # (method, path): (handler, needs token)
     ("GET", "/api/file"): (r_file, True),
     ("GET", "/api/settings"): (r_settings, True),
     ("POST", "/api/settings"): (r_settings_save, True),
+    ("GET", "/api/prefs"): (r_prefs, True),
+    ("POST", "/api/prefs"): (r_prefs_save, True),
     ("GET", "/api/checks"): (r_checks, True),
     ("GET", "/api/capcut"): (r_capcut, True),
     ("GET", "/api/temp-en"): (r_temp_en, True),

@@ -1,7 +1,8 @@
 // Dialogs (spec "Dialogs"): confirmations, blocking warnings and close-ups only; gates stay on the pages.
 // open(name, args, ctx) is called by app.js openDialog. Every body is built from DOM nodes with h(), so data
 // (names, paths, prompts, transcripts) reaches the DOM as text only. The `shot` dialog belongs to the storyboard page.
-import { h, chip, dialog, toast, copyButton, dropZone, pendingChip, STALE_TEXT } from "./ui.js";
+import { h, chip, dialog, toast, copyButton, dropZone, pendingChip, helpTip, timeText, STALE_TEXT } from "./ui.js";
+import { t, label } from "./words.js";
 import { boardItems, isClient, promptOf, keyframeUrl, commentsFor, statusOf, shotText, sendEvent } from "./pages/storyboard.js";
 
 const CAPCUT_RECHECK_MS = 2000;
@@ -164,7 +165,7 @@ function contact(args, ctx) {
     h("ul", { class: "files" }, (row.cells || []).slice(1).map((c) => h("li", {}, String(c)))),
     row.note ? p(String(row.note)) : null,
     promptText(args?.prompt) ? h("div", { class: "row" }, copyButton(promptText(args.prompt), "Copy prompt"),
-      h("span", { class: "hint" }, `${String(args.prompt.id ?? "")}, to regenerate it in your generator`))
+      h("span", { class: "hint" }, t("prompts.regen", { name: label(args.prompt.id) })))
       : h("p", { class: "hint" }, "No step-6 prompt matches this clip, so there is nothing to copy here.")),
   [{ label: "Mark for regenerate", onClick: decide("regenerate") }, { label: "Use anyway", primary: true, onClick: decide("use") }],
   { title: "Contact sheet", wide: true });
@@ -296,13 +297,13 @@ function shot(args, ctx) {
 
   const picture = (it) => {
     shownUrl = keyframeUrl(ctx.data, it.id);
-    imgSlot.replaceChildren(shownUrl ? h("img", { src: shownUrl, alt: `${it.id} keyframe` })
+    imgSlot.replaceChildren(shownUrl ? h("img", { src: shownUrl, alt: t("storyboard.picture_of", { name: label(it.id, ctx.data) }) })
       : h("div", { class: "sbimg empty" }, h("span", {}, isClient(it) ? "Client footage" : "No image yet"),
-        h("small", {}, isClient(it) ? "no keyframe needed" : `save it as storyboard/${it.id}.png, or choose a file`)));
+        h("small", {}, isClient(it) ? "no keyframe needed" : t("storyboard.save_as", { id: it.id }))));
   };
 
   /** A text box saved as an `edit` event (target storyboard:<id>:<field>); shows pending until Claude applies it. */
-  const editField = (it, field, label, value, mono) => {
+  const editField = (it, field, text, value, mono) => {
     const fid = `shot-${field}`;
     const target = `storyboard:${it.id}:${field}`;
     const ta = h("textarea", { class: `f${mono ? " mono" : ""}`, id: fid, rows: field === "prompt" ? 6 : 3 }, value || "");
@@ -315,13 +316,13 @@ function shot(args, ctx) {
       if (await sendEvent(ctx, { type: "edit", target, value: v })) state.replaceChildren(pendingChip());
       save.disabled = false;
     });
-    return h("div", { class: "field" }, h("label", { class: "lbl", for: fid }, label), ta,
+    return h("div", { class: "field" }, h("label", { class: "lbl", for: fid }, text), field === "prompt" ? helpTip("prompt") : null, ta,
       h("div", { class: "row" }, save, field === "prompt" && promptOf(it) ? copyButton(promptOf(it), "Copy prompt") : null, state));
   };
 
   const commentsPart = (it) => {
     const list = commentsFor(ctx.data, it.id);
-    const ta = h("textarea", { class: "f", id: "shot-comment", rows: 2, placeholder: `A comment on ${it.id}…` });
+    const ta = h("textarea", { class: "f", id: "shot-comment", rows: 2, placeholder: t("storyboard.comment_dialog", { name: label(it.id, ctx.data) }) });
     const ul = h("ul", { class: "files", hidden: !list.length }, list.map((c) => h("li", {}, h("span", {}, String(c.text ?? "")),
       chip(c.open ? "open" : "Claude has it", c.open ? "you" : "ok"))));
     const btn = h("button", { class: "btn sm pri", type: "button" }, "Send comment");
@@ -346,13 +347,18 @@ function shot(args, ctx) {
     if (!it) { body.replaceChildren(p("This shot is no longer on the board.")); return; }
     const [word, status] = statusOf(ctx.data, it);
     const b = it.item;
-    title.textContent = `${it.id} · ${it.kind === "char" ? "Character sheet" : "Shot"}`;
+    const name = label(it.id, ctx.data);
+    title.textContent = it.kind === "char" ? t("storyboard.char_title", { name }) : name;
+    const list = items(), i = list.findIndex((x) => x.id === it.id);
+    const [prev, next] = d.el.querySelectorAll(".df .btn");  // ← → name the shot they go to
+    if (prev && list.length > 1) prev.textContent = t("storyboard.prev", { name: label(list[(i - 1 + list.length) % list.length].id, ctx.data) });
+    if (next && list.length > 1) next.textContent = t("storyboard.next", { name: label(list[(i + 1) % list.length].id, ctx.data) });
     picture(it);
     body.replaceChildren(
       h("div", { class: "shotpic" }, imgSlot,
         isClient(it) ? null : dropZone("keyframe", ctx, { id: it.id, label: "Choose file", onDone: () => setTimeout(refresh, 300) })),
       h("div", { class: "stack" },
-        h("div", { class: "row" }, chip(word, status), b.est ? h("span", { class: "mono hint" }, String(b.est)) : null,
+        h("div", { class: "row" }, chip(word, status), b.est ? timeText(String(b.est), { class: "mono hint" }) : null,
           h("span", { class: "hint" }, shotText(it))),
         it.kind === "char" ? h("b", {}, String(b.name ?? "")) : null,
         b.line ? h("q", { class: "sbline" }, String(b.line)) : null,
@@ -376,11 +382,12 @@ function shot(args, ctx) {
   const act = (event, word) => async () => {
     const it = current();
     if (!it) return;
-    await sendEvent(ctx, { ...event(it) }, `${word} ${it.id}. ${ctx.data?.listening ? "Claude is on it." : "Saved, waiting for Claude."}`);
+    await sendEvent(ctx, { ...event(it) }, t("storyboard.acted", { word, name: label(it.id, ctx.data),
+      after: ctx.data?.listening ? "Claude is on it." : "Saved, waiting for Claude." }));
   };
   const d = dialog("shot", body, [
-    { label: "← Previous", keepOpen: true, onClick: () => step(-1) },
-    { label: "Next →", keepOpen: true, onClick: () => step(1) },
+    { label: t("storyboard.prev_plain"), keepOpen: true, onClick: () => step(-1) },
+    { label: t("storyboard.next_plain"), keepOpen: true, onClick: () => step(1) },
     { label: "Request change", keepOpen: true, onClick: act((it) => ({ type: "action", target: `storyboard:${it.id}`, value: "request change",
       text: d.el.querySelector("#shot-comment")?.value.trim() || null }), "Change requested for") },
     { label: "Approve shot", primary: true, keepOpen: true, onClick: act((it) => ({ type: "approve", target: `storyboard:${it.id}` }), "Approved") },

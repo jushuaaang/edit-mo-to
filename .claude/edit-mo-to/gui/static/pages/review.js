@@ -3,7 +3,8 @@
 // edit_diff. Gates: which timeline; in place or new; quit CapCut.
 // Changes not yet sent are drafts in gui.json (`review_drafts`); "Send changes" is one `edit` event (target
 // "review:changes"); a change in place first shows the `inplace` dialog (where the backup goes).
-import { h, pendingChip, toast } from "../ui.js";
+import { h, pendingChip, toast, helpTip } from "../ui.js";
+import { t } from "../words.js";
 import { stepPage, outputsOf, outputTables, isTable, actionButton, pendingFor, sendEdit, timelines, card, waitingText } from "../steppage.js";
 
 const MODES = [["inplace", "In place (backup first)"], ["new", "New timeline"]];
@@ -47,6 +48,7 @@ function draftsCard(ctx, data) {
         onclick: () => save(drafts.filter((_, j) => j !== i)) }, "Remove")))) : h("p", { class: "hint" }, "No changes listed yet."),
     h("div", { class: "stack", style: "margin-top:10px" },
       h("label", { class: "lbl", for: "rv-text" }, "New change"), text,
+      h("p", { class: "hint words" }, t("help.row"), h("span", { class: "word" }, t("word.timeline"), helpTip("timeline"))),
       h("div", { class: "row" }, h("label", { class: "sr", for: "rv-tl" }, "Timeline"), tl,
         h("label", { class: "sr", for: "rv-mode" }, "In place or new timeline"), mode, add)),
     h("div", { class: "row", style: "margin-top:12px" }, sendBtn,

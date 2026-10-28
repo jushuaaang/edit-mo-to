@@ -1,7 +1,7 @@
 // Script (step 3): "Use my script" or "Write one", the editable script table (with the "English (temporary)"
 // column when TEMP_EN is on), Claude's script QA. "Storyboard first?" and script approval come from the gate.
 // Cell edits are `edit` events (target "script:<line id>") and show "pending" until Claude applies them.
-import { h, chip, pendingChip, toast } from "../ui.js";
+import { h, chip, pendingChip, toast, helpTip } from "../ui.js";
 import { stepPage, textInput, choiceInput, outputsOf, outputTables, pendingFor, sendEdit, lastInput, waitingText } from "../steppage.js";
 
 const ownScript = (ctx, data) => textInput(ctx, data, "script", "own_script", "Your script", { rows: 8,
@@ -38,7 +38,7 @@ function scriptTable(ctx, data, script) {
     }
   });
   return h("section", { class: "card" }, h("div", { class: "row spread" }, h("h3", {}, "Script"),
-    h("div", { class: "row" }, chip(`Language: ${script.lang || "?"}`, "mute"), temp ? chip("TEMP_EN on · delete before export", "err") : null)),
+    h("div", { class: "row" }, chip(`Language: ${script.lang || "?"}`, "mute"), temp ? chip("TEMP_EN on · delete before export", "err") : null, temp ? helpTip("temp_en") : null)),
   h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", { scope: "col" }, "Id"),
     h("th", { scope: "col" }, "Line"), temp ? h("th", { scope: "col" }, "English (temporary)") : null)), h("tbody", {}, rows))),
   h("div", { class: "row", style: "margin-top:10px" }, btn, note));

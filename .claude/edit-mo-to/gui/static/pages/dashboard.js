@@ -1,5 +1,10 @@
-// Dashboard: a card per video folder, recent activity across videos, the setup check, "New video".
-import { h, icon, chip, checksTable, relTime, stepTitle, STEPS } from "../ui.js";
+// Dashboard: a card per video folder (each with its "what to do now" line), "Try a practice video", recent activity
+// across videos, the setup check, "New video".
+import { h, icon, chip, checksTable, relTime, stepTitle, STEPS, copyButton } from "../ui.js";
+import { t } from "../words.js";
+import { nowStrip } from "../nextstep.js";
+
+const PRACTICE = "/practice-muna";  // what the editor types in Claude; the app cannot start Claude itself
 
 const REFRESH_MS = 5000;
 const MAX_JOBS = 12;  // videos whose job is read for cards and activity
@@ -31,7 +36,8 @@ function videoStatus(summary, job) {
   return ["In progress", "mute"];
 }
 
-function card(summary, job) {
+function card(summary, reply) {
+  const job = reply?.job;
   const folder = posix(summary.path);
   const [text, status] = videoStatus(summary, job);
   const c = job?.card || {};
@@ -48,8 +54,16 @@ function card(summary, job) {
   return h("a", { class: "proj", href: jobLink(folder, step), "aria-label": `${summary.name}: ${text}, ${now}` },
     h("div", { class: "thumb", style: `background:${THUMB[status]}` }, chip(text, status)),
     h("h3", {}, summary.name), h("div", { class: "meta" }, meta), h("div", { class: "now" }, now),
+    reply ? nowStrip(reply, "card") : null,
     h("div", { class: "bar", role: "progressbar", "aria-valuenow": String(pct), "aria-valuemin": "0", "aria-valuemax": "100",
       "aria-label": "Progress" }, h("i", { style: `width:${pct}%;background:var(--${BAR[status]})` })));
+}
+
+function practiceCard() {
+  return h("section", { class: "card practice", "aria-labelledby": "practice-h" },
+    h("h3", { id: "practice-h" }, t("practice.title")), h("p", { class: "hint" }, t("practice.what")),
+    h("div", { class: "row" }, h("span", {}, t("practice.type")), h("code", { class: "mono cmd" }, PRACTICE),
+      copyButton(PRACTICE, t("practice.copy"))));
 }
 
 const setupTable = (checks, older) => checksTable(checks, [["Older folders (no GUI history)", chip(String(older), "mute")]]);
@@ -58,18 +72,19 @@ export function render(root, data, ctx) {
   const sub = h("p", {}, "Looking for your videos…");
   const grid = h("div", { class: "grid3" });
   const practice = h("div", {});
+  const tryIt = practiceCard();
   const older = h("div", {});
   const activity = h("ul", { class: "act" }, h("li", {}, "Loading…"));
   const setup = h("div", {}, h("p", { class: "hint" }, "Checking…"));
   const newBtn = h("button", { class: "btn pri", type: "button", onclick: () => ctx.openDialog("new") }, icon("plus"), "New video");
   root.append(
     h("div", { class: "head" }, h("div", {}, h("h1", {}, greeting()), sub), newBtn),
-    grid, practice, older,
+    grid, tryIt, practice, older,
     h("div", { class: "grid2", style: "margin-top:20px" },
       h("section", { class: "card" }, h("h3", {}, "Recent activity"), activity),
       h("section", { class: "card" }, h("h3", {}, "Setup check"), setup)));
 
-  const jobs = new Map();  // folder -> job
+  const jobs = new Map();  // folder -> the /api/job reply (job, keyframes, storyboard, events, listening)
   const etags = new Map();  // folder -> {value}: If-None-Match per video, so an unchanged job costs a 304
   let summaries = [], checks = null, alive = true, busy = false;
 
@@ -91,7 +106,7 @@ export function render(root, data, ctx) {
 
     const lines = [];
     for (const s of summaries) {
-      const job = jobs.get(posix(s.path));
+      const job = jobs.get(posix(s.path))?.job;
       for (const e of job?.log || []) lines.push({ ...e, video: s.name, folder: posix(s.path) });
     }
     lines.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
@@ -115,7 +130,7 @@ export function render(root, data, ctx) {
       if (!etags.has(folder)) etags.set(folder, { value: null });
       try {
         const reply = await ctx.api(`/api/job?folder=${encodeURIComponent(folder)}`, { etag: etags.get(folder) });
-        if (reply) jobs.set(folder, reply.job);  // null = 304, the job we have is current
+        if (reply) jobs.set(folder, reply);  // null = 304, the job we have is current
       } catch { /* the summary still shows the card */ }
     }));
     if (alive) draw();

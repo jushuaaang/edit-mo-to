@@ -195,7 +195,8 @@ def test_job_carries_the_generators_table(api):
     import generators
     folder = _demo(api)
     data = api.json("GET", "/api/job" + _q(folder=folder))[1]
-    assert data["generators"] == generators.load()
+    assert data["generators"] == {**generators.load(), "safe": generators.strictest()}
+    assert data["generators"]["safe"] == {"min_s": 5, "max_s": 8, "max_attach": 3}  # the prompts page's "safe settings"
     assert "seedance-2.5" in data["generators"]["generators"]["higgsfield"]["models"]
 
 
@@ -495,3 +496,23 @@ def test_upload_into_a_symlinked_subfolder_refused(api, tmp_path):
     (folder / "vo").symlink_to(outside, target_is_directory=True)
     s, _ = api.json("PUT", "/api/upload" + _q(folder=folder, kind="vo", name="a.mp3"), raw=b"x")
     assert s == 403 and not list(outside.iterdir())
+
+
+def test_prefs_known_keys_only_on_this_computer(api):
+    """Per-computer GUI prefs ({tmp}/gui/prefs.json): alert switches; unknown keys are refused, nothing else written."""
+    s, d = api.json("GET", "/api/prefs")
+    assert s == 200 and d == {"notify": True, "sound": True}          # defaults before anything is saved
+    assert not (api.tmp / "gui" / "prefs.json").exists()
+    s, d = api.json("POST", "/api/prefs", {"sound": False})
+    assert s == 200 and d == {"notify": True, "sound": False}
+    assert json.loads((api.tmp / "gui" / "prefs.json").read_text(encoding="utf-8")) == {"sound": False}
+    s, d = api.json("POST", "/api/prefs", {"notify": False})
+    assert d == {"notify": False, "sound": False}                      # earlier keys stay
+    assert api.json("GET", "/api/prefs")[1] == {"notify": False, "sound": False}
+    assert api.json("POST", "/api/prefs", {"evil": 1})[0] == 400
+    assert api.json("POST", "/api/prefs", {"sound": "yes"})[0] == 400
+    assert api.json("POST", "/api/prefs", {})[0] == 400
+    assert api.json("GET", "/api/prefs", token=None)[0] == 401
+    assert json.loads((api.tmp / "gui" / "prefs.json").read_text(encoding="utf-8")) == {"notify": False, "sound": False}
+    (api.tmp / "gui" / "prefs.json").write_text("not json", encoding="utf-8")   # a broken file reads as the defaults
+    assert api.json("GET", "/api/prefs")[1] == {"notify": True, "sound": True}

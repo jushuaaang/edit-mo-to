@@ -5,7 +5,8 @@
 //          data = the /api/job reply for the open video (or null), ctx = see ui.js header.
 //          A page whose module is not there yet shows "This page is coming".
 
-import { h, icon, stepChip, STEPS, stepTitle, relTime, gateBar, askBox, dialog, previousStep } from "./ui.js";
+import { h, icon, stepChip, STEPS, stepTitle, relTime, gateBar, askBox, dialog, previousStep, helpTip } from "./ui.js";
+import { watchQuestion, titled, loadPrefs } from "./nextstep.js";
 
 const POLL_MS = 1500;
 const CURRENT_MS = 5000;
@@ -154,6 +155,7 @@ async function pollOnce(folder, my) {
     state.etag = res.headers.get("ETag");
     state.data = data;
     state.jobError = null;
+    watchQuestion(folder, data);  // pop-up, sound and "(1)" in the tab title when a new question opens
   } else {
     state.etag = null;
     state.data = null;
@@ -253,6 +255,7 @@ function stepLink(step, i, job, route) {
     tag ? h("span", { class: `tag ${tag[1]}` }, tag[0]) : null);
 }
 
+const CARD_HELP = { temp_en: "temp_en", vo: "vo", timelines: "timeline", generator: "model" };  // ⓘ after these
 const CARD_ORDER = [["client", "Client"], ["product", "Product"], ["style", "Style"], ["language", "Language"],
   ["temp_en", "TEMP_EN"], ["folder", "Folder"], ["vo", "VO"], ["generator", "Generator"], ["timelines", "Timelines"],
   ["project", "Project"]];
@@ -279,9 +282,9 @@ function renderRail() {
       if (Array.isArray(v)) v = v.join(", ");
       if (k === "temp_en") {
         const t = tempEn(v);
-        return [h("dt", {}, label), t ? h("dd", { class: t[1] || null }, t[0]) : h("dd", { class: "none" }, "Not set")];
+        return [h("dt", {}, label, helpTip("temp_en")), t ? h("dd", { class: t[1] || null }, t[0]) : h("dd", { class: "none" }, "Not set")];
       }
-      return [h("dt", {}, label), v ? h("dd", { class: k === "folder" ? "mono" : null }, String(v)) : h("dd", { class: "none" }, "Not yet")];
+      return [h("dt", {}, label, CARD_HELP[k] ? helpTip(CARD_HELP[k]) : null), v ? h("dd", { class: k === "folder" ? "mono" : null }, String(v)) : h("dd", { class: "none" }, "Not yet")];
     }));
   }
   const log = (job?.log || []).slice(-20).reverse();
@@ -391,7 +394,7 @@ async function renderPage() {
   }
   const mod = await loadModule(name);
   if (my !== renderSeq) return;
-  document.title = `${route.page === "job" ? stepTitle(name) : route.page === "settings" ? "Settings" : "Dashboard"} · Edit Mo To`;
+  document.title = titled(`${route.page === "job" ? stepTitle(name) : route.page === "settings" ? "Settings" : "Dashboard"} · Edit Mo To`);
   draw(() => {
     const ctx = makeCtx(state.folder);
     if (route.page === "job" && !state.data) {
@@ -488,6 +491,7 @@ function setupNavIcons() {
 async function start() {
   setupNavIcons();
   setupRail();
+  loadPrefs(api);
   window.addEventListener("hashchange", onRoute);
   await refreshCurrent();
   onRoute();
