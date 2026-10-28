@@ -196,7 +196,9 @@ def test_job_carries_the_generators_table(api):
     import generators
     folder = _demo(api)
     data = api.json("GET", "/api/job" + _q(folder=folder))[1]
-    assert data["generators"] == {**generators.load(), "safe": generators.strictest()}
+    assert data["generators"] == {**generators.load(), "safe": generators.strictest(),
+                                  "picks": {"default": generators.model_ids()[0], "higgsfield": "seedance-2.0",
+                                            "google-flow": "veo-3.1-fast"}}   # no prefs yet: each site's first model
     assert data["generators"]["safe"] == {"min_s": 5, "max_s": 8, "max_attach": 3}  # the prompts page's "safe settings"
     assert "seedance-2.5" in data["generators"]["generators"]["higgsfield"]["models"]
 
@@ -501,7 +503,8 @@ def test_upload_into_a_symlinked_subfolder_refused(api, tmp_path):
 
 def test_prefs_known_keys_only_on_this_computer(api):
     """Per-computer GUI prefs ({tmp}/gui/prefs.json): alert switches and the language; unknown keys are refused."""
-    defaults = {"notify": True, "sound": True, "ui_lang": "auto", "ui_lang_detected": "en"}
+    defaults = {"notify": True, "sound": True, "ui_lang": "auto", "ui_lang_detected": "en", "avoid_models": [],
+                "default_model": None}
     s, d = api.json("GET", "/api/prefs")
     assert s == 200 and d == defaults                                  # defaults before anything is saved
     assert not (api.tmp / "gui" / "prefs.json").exists()
@@ -531,7 +534,8 @@ def test_prefs_language_choice_and_detected_language(api):
     js.update_prefs(api.tmp / "gui", {"ui_lang_detected": "tl"})       # what `job.py lang tl` does
     assert api.json("GET", "/api/prefs")[1]["ui_lang_detected"] == "tl"
     assert api.json("POST", "/api/prefs", {"sound": False})[1] == {
-        "notify": True, "sound": False, "ui_lang": "auto", "ui_lang_detected": "tl"}   # a Settings save keeps it
+        "notify": True, "sound": False, "ui_lang": "auto", "ui_lang_detected": "tl", "avoid_models": [],
+        "default_model": None}   # a Settings save keeps it
     (api.tmp / "gui" / "prefs.json").write_text(json.dumps({"ui_lang": "klingon", "ui_lang_detected": "tl"}),
                                                 encoding="utf-8")
     assert api.json("GET", "/api/prefs")[1]["ui_lang"] == "auto"         # a bad value on disk reads as the default
@@ -730,3 +734,53 @@ def test_practice_ignores_the_request_body_and_needs_the_token(api, launcher, mo
     (a1, k1), (a2, k2) = launcher
     assert a1 == a2 and k1 == k2
     assert all(v not in " ".join(a1) for v in ("rm -rf", "Calculator", "/etc", "skip-permissions"))
+
+
+# --- Task H3: models Claude avoids, Claude's default model (per computer), Got flagged ---
+
+OMNI = "google-flow:gemini-omni-flash"
+VEOS = ["higgsfield:veo-3.1", "google-flow:veo-3.1-fast", "google-flow:veo-3.1-quality", "google-flow:veo-3.1-lite"]
+
+
+def test_prefs_avoid_and_default_model_known_ids_only(api):
+    s, d = api.json("POST", "/api/prefs", {"avoid_models": VEOS, "default_model": OMNI})
+    assert s == 200 and d["avoid_models"] == VEOS and d["default_model"] == OMNI
+    assert json.loads((api.tmp / "gui" / "prefs.json").read_text(encoding="utf-8")) == {
+        "avoid_models": VEOS, "default_model": OMNI}
+    for bad in ({"avoid_models": ["midjourney:v7"]}, {"avoid_models": "google-flow:veo-3.1-fast"},
+                {"avoid_models": [OMNI, OMNI]}, {"avoid_models": [3]}, {"default_model": "veo-3.1-fast"},
+                {"default_model": "nope:x"}, {"default_model": 1}):
+        assert api.json("POST", "/api/prefs", bad)[0] == 400, bad
+    # an avoided model can't be the default: not by itself, and not by avoiding the current default
+    assert api.json("POST", "/api/prefs", {"default_model": VEOS[0]})[0] == 400
+    assert api.json("POST", "/api/prefs", {"avoid_models": [OMNI]})[0] == 400
+    s, d = api.json("POST", "/api/prefs", {"avoid_models": [OMNI], "default_model": None})   # both at once is fine
+    assert s == 200 and d == {**d, "avoid_models": [OMNI], "default_model": None}
+    (api.tmp / "gui" / "prefs.json").write_text(json.dumps({"avoid_models": ["x:y", OMNI], "default_model": OMNI}),
+                                                encoding="utf-8")
+    d = api.json("GET", "/api/prefs")[1]
+    assert d["avoid_models"] == [OMNI] and d["default_model"] is None      # unknown ids and an avoided default drop
+
+
+def test_generators_route_and_picks_follow_the_prefs(api):
+    s, g = api.json("GET", "/api/generators")
+    assert s == 200 and "gemini-omni-flash" in g["generators"]["google-flow"]["models"] and g["safe"]
+    assert api.json("GET", "/api/generators", token=None)[0] == 401
+    folder = _demo(api)
+    st, headers, _ = api.call("GET", "/api/job" + _q(folder=folder))
+    api.json("POST", "/api/prefs", {"avoid_models": VEOS, "default_model": OMNI})
+    st2, headers2, body = api.call("GET", "/api/job" + _q(folder=folder), headers={"If-None-Match": headers["ETag"]})
+    assert st2 == 200 and headers2["ETag"] != headers["ETag"]            # a prefs change reaches an open page
+    picks = json.loads(body)["generators"]["picks"]
+    assert picks == {"default": OMNI, "google-flow": "gemini-omni-flash", "higgsfield": "seedance-2.0"}
+    assert api.json("GET", "/api/generators")[1]["picks"] == picks
+
+
+def test_got_flagged_is_a_pending_action(api):
+    folder = _demo(api)
+    s, ev = api.json("POST", "/api/inbox", {"folder": str(folder), "event": {
+        "type": "action", "step": "prompts", "target": "prompts:AI-1:flagged", "text": "Your prompt may violate our policies"}})
+    assert s == 200
+    data = api.json("GET", "/api/job" + _q(folder=folder))[1]
+    hit = [e for e in data["pending"] if e["target"] == "prompts:AI-1:flagged"]
+    assert hit and hit[0]["text"] == "Your prompt may violate our policies"

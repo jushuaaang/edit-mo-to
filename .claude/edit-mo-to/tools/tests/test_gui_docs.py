@@ -226,3 +226,34 @@ def test_gate_lines_unchanged(doc):
 def test_readme_says_what_start_practice_opens():
     r = _text(README)
     assert "**Start practice**" in r and "Terminal" in r and "command window" in r
+
+
+# --- Task H3: Claude's model pick, safer wording, Got flagged ---
+
+PICK_RULE = ("When you choose the model yourself (proposing a default, or generating for the editor), use "
+             "`generators.py pick` / the editor's default and never a model in their avoid list.")
+
+
+def test_pick_rule_in_skill_and_steps():
+    for doc in (SKILL, STEPS):
+        s = _text(doc)
+        assert PICK_RULE in s, doc.name
+        assert ".claude/edit-mo-to/run tools/generators.py pick" in s, doc.name
+    st = _text(STEPS)
+    assert "`default`" in st and "generators.py pick --site" in st
+
+
+def test_got_flagged_rule_documented():
+    st, sk = _text(STEPS), _text(SKILL)
+    assert "`action` `prompts:<prompt id>:flagged`" in st and "`action` `storyboard:<id>:flagged`" in st
+    for doc in (st, sk):
+        assert ":flagged" in doc and "same shot, same timing" in doc and "rewritten after a flag" in doc
+        assert "Rewrote Shot N after a flag" in doc and "Never regenerate" in doc
+    assert "flagged" in _text(CLAUDE / "skills" / "edit-mo-to" / "reference" / "learning.md")
+
+
+def test_safe_wording_section_in_the_contract():
+    c = _text(CONTRACT)
+    assert "## Safe wording" in c and "safe-words.json" in c
+    for w in ("famous", "children", "skin", "cure", "blood", "start frame"):
+        assert w in c.split("## Safe wording", 1)[1].split("\n## ", 1)[0], w

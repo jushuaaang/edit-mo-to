@@ -704,3 +704,54 @@ console.log(JSON.stringify(out));
     assert out["time"] == "0 segundo at 0 frames hanggang 2 segundo at 12 frames (30 frames = 1 segundo)"
     assert out["list"] == "Shot 1 at Shot 2"
     assert out["other"] == "en"   # only "tl" turns Taglish on; Claude maps Tagalog to tl before it gets here
+
+
+# --- Task H3: models Claude avoids, Claude's default model, Got flagged ---
+
+MODEL_NAMES = ("Seedance", "seedance", "Kling", "kling", "Veo", "veo-", "Omni", "omni", "Google Flow", "google-flow",
+               "Higgsfield")
+
+
+def test_no_hard_coded_model_names_in_pages():
+    """Model and site names come from generators.json (spec anti-goal: no second copy of the rules)."""
+    for f in ("pages/prompts.js", "pages/settings.js", "pages/storyboard.js", "dialogs.js", "steppage.js", "nextstep.js"):
+        text = (STATIC / f).read_text(encoding="utf-8")
+        for literal in MODEL_NAMES:
+            assert literal not in text, (f, literal)
+
+
+def test_settings_has_the_avoid_list_and_claudes_default():
+    text = _page("settings.js")
+    assert '"/api/generators"' in text and "avoid_models" in text and "default_model" in text
+    assert 'type: "checkbox"' in text and '"select"' in text
+    en = _words()
+    assert en["settings"]["avoid"] == "When Claude picks, never use"
+    assert en["settings"]["default_model"] == "Claude's default model"
+    for k in ("settings.models_h", "settings.avoid", "settings.default_model", "settings.no_default"):
+        assert _is_label(k), k
+    tl = _all_words()["tl"]
+    for k in ("models_p", "default_hint"):
+        assert k in tl["settings"], k
+    n = (STATIC / "nextstep.js").read_text(encoding="utf-8")
+    assert "avoid_models: []" in n and "default_model: null" in n
+
+
+def test_model_question_highlights_claudes_default():
+    text = _page("prompts.js")
+    assert "picks" in text and "suggested" in text
+    sp = (STATIC / "steppage.js").read_text(encoding="utf-8")
+    assert "opts.suggested" in sp
+    assert "prompts.default_hint" in text and "prompts" in _all_words()["tl"] and "default_hint" in _all_words()["tl"]["prompts"]
+
+
+def test_got_flagged_on_prompt_rows_cards_and_the_shot_dialog():
+    sp = (STATIC / "steppage.js").read_text(encoding="utf-8")
+    assert "export function flaggedBox(" in sp and ":flagged`" in sp and 'type: "action"' in sp
+    assert "pendingFor(data, target)" in sp and "pendingChip()" in sp
+    assert "flaggedBox(" in _page("prompts.js") and "flaggedBox(" in _page("storyboard.js")
+    assert "flaggedBox(" in (STATIC / "dialogs.js").read_text(encoding="utf-8")
+    en, tl = _words(), _all_words()["tl"]
+    assert en["flag"]["button"] == "Got flagged"
+    assert en["flag"]["note_label"] == "What did the site say? (optional)"
+    assert _is_label("flag.button") and _is_label("flag.note_label")
+    assert "blocked this prompt" in en["flag"]["p"] and tl["flag"]["p"] != en["flag"]["p"]

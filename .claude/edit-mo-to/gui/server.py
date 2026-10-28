@@ -17,7 +17,8 @@ by GET /?k=<token>, or header X-EMT-Token). A Host other than 127.0.0.1:<port> /
 foreign Origin, is refused (403). Files are read or written only inside {root} and {tmp}; writes (inbox,
 gui.json, uploads, new job) only inside a video folder of {root} (folders.is_video_folder). One exception,
 read-only: GET /api/temp-en may also read a CapCut project under {capcut_drafts}. GET/POST /api/prefs keep this computer's
-GUI prefs (jobstate.PREFS: known keys only) in {tmp}/gui/prefs.json.
+GUI prefs (jobstate.PREFS: known keys only) in {tmp}/gui/prefs.json. GET /api/generators is generators.json plus
+`safe` and `picks` (the model Claude picks per site, from those prefs), as /api/job carries it.
 
 POST /api/practice is the one route that starts a program (spec "Try a practice video"): on the editor's click it opens
 a visible Terminal (macOS) or command window (Windows) in {root} running `claude /practice-muna`, so the editor's own
@@ -226,12 +227,24 @@ def r_current(h, q):
     return {"folder": js.get_current()}
 
 
-def _generators() -> "dict | None":
-    """generators.json for the prompts page's site and model choices (the page keeps no list of its own)."""
+def _generators(tmp: Path) -> "dict | None":
+    """generators.json for the prompts page's site and model choices and Settings' model list (the pages keep no list
+    of their own), plus `picks`: the model Claude picks per site and overall from this computer's prefs
+    (generators.pick_model: the default unless avoided, never an avoided model; the page highlights it)."""
     try:
-        return {**generators.load(), "safe": generators.strictest()}  # safe: the limits used for an unknown model
+        prefs = js.read_prefs(Path(tmp) / "gui" / "prefs.json")
+        t = generators.load()
+        picks = {"default": generators.pick_model(prefs)}
+        for site in t["generators"]:
+            got = generators.pick_model(prefs, site)
+            picks[site] = got.split(":", 1)[1] if got else None
+        return {**t, "safe": generators.strictest(), "picks": picks}  # safe: the limits used for an unknown model
     except (OSError, ValueError):
         return None
+
+
+def r_generators(h, q):
+    return _generators(h.server.tmp)
 
 
 def r_job(h, q):
@@ -245,7 +258,7 @@ def r_job(h, q):
                                                       sb, sb / "storyboard.json")),
              *(_stamp(Path(p)) for p in keyframes.values()), _stamp(folder / "vo"), *(_stamp(Path(p)) for p in vo),
              *(_stamp(p) for kinds in outputs.values() for p in kinds.values() if p is not None),
-             _stamp(generators.FILE), _listening_key(listening)]
+             _stamp(generators.FILE), _stamp(_gui_dir(h) / "prefs.json"), _listening_key(listening)]
     etag = '"' + hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()[:20] + '"'
     if h.headers.get("If-None-Match") == etag:
         h.reply(304, b"", None, {"ETag": etag})
@@ -255,7 +268,7 @@ def r_job(h, q):
             "events": js.read_events(folder)[-RECENT_EVENTS:],  # step messages, answers already sent
             "keyframes": keyframes, "keyframe_mtimes": keyframe_mtimes, "vo": vo,
             "storyboard": _read_json(sb / "storyboard.json"),
-            "gui": _read_json(sd / "gui.json", {}), "early": js.EARLY, "generators": _generators(),
+            "gui": _read_json(sd / "gui.json", {}), "early": js.EARLY, "generators": _generators(h.server.tmp),
             "outputs": {s: {k: None if p is None else _read_json(p) for k, p in kinds.items()}
                         for s, kinds in outputs.items()}}
     h.send_json(200, body, {"ETag": etag})
@@ -550,6 +563,7 @@ ROUTES = {  # (method, path): (handler, needs token)
     ("GET", "/api/settings"): (r_settings, True),
     ("POST", "/api/settings"): (r_settings_save, True),
     ("GET", "/api/prefs"): (r_prefs, True),
+    ("GET", "/api/generators"): (r_generators, True),
     ("POST", "/api/prefs"): (r_prefs_save, True),
     ("GET", "/api/checks"): (r_checks, True),
     ("GET", "/api/capcut"): (r_capcut, True),

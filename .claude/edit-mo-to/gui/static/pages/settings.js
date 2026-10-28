@@ -1,5 +1,5 @@
 // Settings & setup: machine.json paths (found / missing, Save), the app's language (Auto / English / Taglish), the
-// alert switches, setup checks, Report a bug / Suggest an improvement (saved on this computer; Send to Joshua opens a
+// alert switches, the models Claude picks (avoid list and Claude's default, from generators.json), setup checks, Report a bug / Suggest an improvement (saved on this computer; Send to Joshua opens a
 // pre-filled issue).
 import { h, chip, checksTable, STEPS, stepTitle } from "../ui.js";
 import { t, parts } from "../words.js";
@@ -159,6 +159,65 @@ function alertsCard(ctx) {
     h("div", { class: "stack" }, notifyRow, blocked, soundRow), msg);
 }
 
+/** "Models Claude picks" (this computer only; spec "Models Claude avoids, per editor"): every model in generators.json
+ *  (GET /api/generators; no list in this page) with a "When Claude picks, never use" box (avoid_models), and "Claude's
+ *  default model" (default_model), which never offers an avoided model. Ticking the current default also clears it,
+ *  in the same save. The editor can still choose any model on the B-roll & prompts page. */
+function modelsCard(ctx) {
+  const msg = h("div", { class: "msg", role: "status" }, t("settings.loading"));
+  const body = h("tbody");
+  const sel = h("select", { class: "f", id: "pref-default_model", disabled: true, style: "max-width:340px" });
+  let rows = [];     // [["<site>:<model>", "<site label> · <model label>"]], in table order
+  let prefs = null;
+  const say = (text, kind) => { msg.className = `msg ${kind}`; msg.textContent = text; };
+  const show = (p) => {
+    prefs = p;
+    const avoid = new Set(Array.isArray(p.avoid_models) ? p.avoid_models : []);
+    body.replaceChildren(...rows.map(([id, name], i) => {
+      const box = h("input", { type: "checkbox", id: `avoid-${i}`, "data-model": id, checked: avoid.has(id) });
+      box.addEventListener("change", () => toggle(id, box.checked));
+      return h("tr", {}, h("td", {}, h("label", { for: box.id }, name)), h("td", {}, box));
+    }));
+    sel.replaceChildren(h("option", { value: "" }, t("settings.no_default")),
+      ...rows.filter(([id]) => !avoid.has(id)).map(([id, name]) => h("option", { value: id }, name)));
+    sel.value = p.default_model && !avoid.has(p.default_model) ? p.default_model : "";
+    sel.disabled = false;
+  };
+  const save = async (patch) => {
+    sel.disabled = true;
+    body.querySelectorAll("input").forEach((b) => { b.disabled = true; });
+    try {
+      show(await savePrefs(ctx.api, patch));
+      say(t("settings.saved"), "ok");
+    } catch (e) {
+      show(prefs);   // back to what the server holds
+      say(t("settings.not_saved", { why: e.message || "" }), "err");
+    }
+  };
+  const toggle = (id, on) => {
+    const now = new Set(prefs.avoid_models || []);
+    if (on) now.add(id); else now.delete(id);
+    const list = rows.map(([i]) => i).filter((i) => now.has(i));
+    save(on && prefs.default_model === id ? { avoid_models: list, default_model: null } : { avoid_models: list });
+  };
+  sel.addEventListener("change", () => save({ default_model: sel.value || null }));
+  Promise.all([ctx.api("/api/generators"), ctx.api("/api/prefs")]).then(([g, p]) => {
+    rows = Object.entries(g?.generators || {}).flatMap(([site, s]) => Object.entries(s?.models || {})
+      .map(([m, row]) => [`${site}:${m}`, `${String(s?.label ?? site)} · ${String(row?.label ?? m)}`]));
+    if (!rows.length) { say(t("prompts.no_table"), "err"); return; }
+    show(p);
+    msg.textContent = "";
+  }).catch((e) => say(e.message, "err"));
+  return h("section", { class: "card", "aria-labelledby": "models-h" },
+    h("h3", { id: "models-h" }, t("settings.models_h")), h("p", { class: "hint" }, t("settings.models_p")),
+    h("div", { class: "tablewrap", style: "margin-top:10px" }, h("table", {},
+      h("thead", {}, h("tr", {}, h("th", { scope: "col" }, t("settings.th_model")), h("th", { scope: "col" }, t("settings.avoid")))),
+      body)),
+    h("div", { class: "field", style: "margin-top:14px" }, h("label", { class: "lbl", for: "pref-default_model" }, t("settings.default_model")),
+      sel, h("div", { class: "hint" }, t("settings.default_hint"))),
+    msg);
+}
+
 function feedbackCard(ctx) {
   let type = "bug";
   const seg = h("div", { class: "seg", role: "radiogroup", "aria-label": t("fb.type") });
@@ -245,5 +304,5 @@ export function render(root, data, ctx) {
   root.append(
     h("div", { class: "head" }, h("div", {}, h("h1", {}, t("shell.settings")), h("p", {}, t("set.sub"))),
     h("div", { style: "text-align:right" }, h("button", { class: "btn pri", type: "button", onclick: paths.save }, t("common.save")), msg)),
-    h("div", { class: "stack" }, langCard(ctx), paths.node, alertsCard(ctx), checksCard(ctx), feedbackCard(ctx)));
+    h("div", { class: "stack" }, langCard(ctx), paths.node, alertsCard(ctx), modelsCard(ctx), checksCard(ctx), feedbackCard(ctx)));
 }

@@ -5,6 +5,7 @@ The goal: next time, the agents work more like the editor without being told aga
 1. Collect evidence from this video:
    - every correction or change request the editor made (review loop, prompt fixes, script edits), quoted;
    - generation failures they reported and what fixed them;
+   - prompts a site flagged (the GUI's "Got flagged", `…:flagged` events, or said in chat): the words that triggered it, what the site said and the safer rewrite, as a candidate rule (and, when a word keeps coming back, a word to add to `safe-words.json`);
    - brief rules that were new to us;
    - **their hand edits in CapCut.** For each timeline we built, run
      `.claude/edit-mo-to/run tools/edit_diff.py diff --last "<project>" "<timeline>" --log "{root}/.claude/edit-mo-to/edit-patterns.jsonl" --video "<client> <video>" --out "{tmp}/reports/<job>/diff_<timeline>_final.json"`.

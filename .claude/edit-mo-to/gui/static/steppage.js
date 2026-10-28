@@ -110,15 +110,19 @@ export function textInput(ctx, data, step, id, label, opts = {}) {
 }
 
 /** Buttons for one choice, saved as an `answer` (target "<step>:<id>"). options: [[value, label]].
- *  opts: {current (a value already on the job card), answeredNote}. When the open gate asks the same question,
- *  the gate bar asks it and this shows a pointer instead. */
+ *  opts: {current (a value already on the job card), answeredNote, ignore(event), suggested (a value to highlight
+ *  while nothing is chosen, e.g. Claude's default model; nothing is sent until the editor clicks), suggestedNote}.
+ *  When the open gate asks the same question, the gate bar asks it and this shows a pointer instead. */
 export function choiceInput(ctx, data, step, id, label, options, opts = {}) {
   if (gateAsks(data, step, id)) return field(label, null, null, h("p", { class: "hint" }, t("sp.answer_above")));
   const last = lastInput(data, `${step}:${id}`);
   const ev = last && opts.ignore?.(last) ? null : last;   // `ignore`: an answer that no longer belongs (e.g. a model chosen for the other site)
   const cur = ev ? ev.value : opts.current;
+  const unset = cur === undefined || cur === null || cur === "";
+  const hint = unset && opts.suggested != null && options.some(([v]) => v === opts.suggested);
   const btns = options.map(([value, text]) => h("button", {
-    class: `btn${cur === value ? " on" : ""}`, type: "button", "aria-pressed": String(cur === value),
+    class: `btn${cur === value ? " on" : hint && value === opts.suggested ? " pri" : ""}`, type: "button",
+    "aria-pressed": String(cur === value),
     onclick: async () => {
       btns.forEach((b) => { b.disabled = true; });
       try {
@@ -133,7 +137,46 @@ export function choiceInput(ctx, data, step, id, label, options, opts = {}) {
   }, text));
   const saved = ev ? savedChip(data, ev) : opts.current !== undefined && opts.current !== null && opts.current !== ""
     ? chip(opts.answeredNote || t("sp.already_answered"), "ok") : null;
-  return field(label, null, saved, h("div", { class: "row", role: "group", "aria-label": label }, btns));
+  return field(label, null, saved, h("div", { class: "row", role: "group", "aria-label": label }, btns),
+    hint && opts.suggestedNote ? h("p", { class: "hint" }, opts.suggestedNote) : null);
+}
+
+const flagOpen = new Set();   // "Got flagged" boxes left open, kept across re-renders after a poll
+
+/** "Got flagged" on a prompt (a prompt row, a storyboard card, the shot dialog): a small box "What did the site
+ *  say? (optional)" and Send, an `action` event with target "<step>:<id>:flagged" and the note as `text`. Claude
+ *  rewrites only that prompt in safer words; the row shows pending until Claude marks it handled. `where` keeps the
+ *  ids apart when one prompt shows twice (a card and the dialog). */
+export function flaggedBox(ctx, data, step, id, where = "row") {
+  const target = `${step}:${id}:flagged`;
+  const key = `${where}:${target}`;
+  const fid = `flag-${where}-${step}-${id}`.replace(/[^\w-]/g, "_");
+  const pend = pendingFor(data, target).length > 0;
+  const state = h("span", { class: "row" }, pend ? pendingChip() : null);
+  const note = h("span", { class: "hint", role: "status" }, pend ? waitingText(data) : "");
+  const ta = h("textarea", { class: "f", id: fid, rows: 2, maxlength: "2000", "data-key": `flag:${key}`,
+    placeholder: t("flag.note_ph") });
+  const btn = h("button", { class: "btn sm pri", type: "button" }, t("common.send"));
+  const det = h("details", { class: "flagbox", open: flagOpen.has(key) }, h("summary", { class: "btn sm" }, t("flag.button")),
+    h("div", { class: "stack" }, h("p", { class: "hint" }, t("flag.p")),
+      h("label", { class: "lbl", for: fid }, t("flag.note_label")), ta, h("div", { class: "row" }, btn)));
+  det.addEventListener("toggle", () => { if (det.open) flagOpen.add(key); else flagOpen.delete(key); });
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      await ctx.send({ type: "action", step, target, text: ta.value.trim() || null });
+      ta.value = "";
+      flagOpen.delete(key);
+      det.open = false;
+      state.replaceChildren(pendingChip());
+      note.textContent = waitingText(data);
+    } catch (e) {
+      note.textContent = e.message || t("common.not_sent");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  return h("div", { class: "row flagrow" }, det, state, note);
 }
 
 /** Files the server copied in for this step (its own `upload` events), newest last. */

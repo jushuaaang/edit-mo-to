@@ -39,6 +39,16 @@
 - **AI prompts follow `broll_source`:** `client` = none; `both` = only for lines no client clip fits. "Optional upgrade" prompts are marked OPTIONAL, 2 at most.
 - **Tools** run as `.claude/edit-mo-to/run tools/plan_tools.py …`, from `{root}` (no `cd`, no env-var prefix, so the project allow rule matches). Output files go in `{tmp}/reports/<job>/` (`<job>` = product name, no spaces).
 
+## Safe wording
+Video and image sites block some prompts with a vague reason and may still charge the credits. Write every prompt so it is not blocked:
+- No real or famous people's names, no famous characters, and no other brands or their logos (only the client's product).
+- No children unless the brief needs them; then keep it everyday and fully clothed.
+- Neutral body words: never "skin", "bikini", "undress" or "body" as the subject. Describe the action instead ("hand applies cream to the arm").
+- No medical or "cure" claims in the picture ("she smiles after her morning routine", not "it cures acne").
+- No blood, weapons or violence.
+- Never a real person's photo as a start frame unless it is the client's own talent.
+The list, with a plain hint per group, is `.claude/edit-mo-to/safe-words.json` (editors can add words). `plan_tools.py prompts` and `check-prompts` print a `warning:` for each listed word in a prompt (never an error): reword it unless the brief needs it, and say so in Notes. When the editor reports a prompt "Got flagged", the main session rewrites only that prompt.
+
 ## Output: `mode: storyboard` (script gate, before any video is generated)
 Two phases, in this order. The orchestrator passes `phase`. No VO exists yet, so `est` times come from the script (about 2.5 words/s). **Every prompt is pasted in chat in its own code block (never only in a file).**
 **Phase `prompts` (board first, images fill in):**

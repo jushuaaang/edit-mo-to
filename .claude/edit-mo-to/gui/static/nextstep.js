@@ -75,7 +75,7 @@ export function nowStrip(data, where = "page") {
 
 // ---------- this computer's switches ----------
 
-let prefs = { notify: true, sound: true, ui_lang: "auto", ui_lang_detected: "en" };
+let prefs = { notify: true, sound: true, ui_lang: "auto", ui_lang_detected: "en", avoid_models: [], default_model: null };
 const langListeners = new Set();
 
 export const getPrefs = () => ({ ...prefs });

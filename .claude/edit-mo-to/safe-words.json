@@ -1,0 +1,41 @@
+{
+ "about": "Words video sites often block (they may still charge the credits). plan_tools.py prompts / check-prompts prints a warning (never an error) for each one found in a video or image prompt, with the group's hint; the style agents avoid them (style-agent-contract.md, Safe wording). Whole words, any case. Add a word or phrase to a group, or a new group with label, hint and words.",
+ "groups": {
+  "people": {
+   "label": "famous people and characters",
+   "hint": "Describe a made-up person instead of a real or famous one: 'a woman in her 30s with short black hair', not a name.",
+   "words": ["celebrity", "famous", "lookalike", "look-alike", "influencer named", "Mickey Mouse", "Spider-Man",
+             "Superman", "Batman", "Elsa", "Mario", "Pikachu", "Marvel", "Disney"]
+  },
+  "children": {
+   "label": "children",
+   "hint": "Use adults unless the brief needs a child; if it does, keep it everyday and fully clothed: 'a family at the breakfast table'.",
+   "words": ["child", "children", "kid", "kids", "toddler", "baby", "infant", "teen", "teenager", "schoolgirl",
+             "schoolboy", "little girl", "little boy", "minor"]
+  },
+  "body": {
+   "label": "body words",
+   "hint": "Describe the action instead of the body: 'hand applies cream to the arm'.",
+   "words": ["skin", "body", "bikini", "lingerie", "underwear", "undress", "undressing", "naked", "nude",
+             "topless", "shirtless", "cleavage", "breast", "breasts", "sexy", "seductive", "sensual"]
+  },
+  "medical": {
+   "label": "medical or cure claims",
+   "hint": "Show the product being used, without health promises: 'she smiles after her morning routine', not 'it cures acne'.",
+   "words": ["cure", "cures", "cured", "heal", "heals", "treats", "treatment", "disease", "diagnose", "prescription",
+             "miracle", "clinically proven", "injection", "syringe"]
+  },
+  "violence": {
+   "label": "violence, blood or weapons",
+   "hint": "Leave out blood, weapons and fights; describe a calm, safe action instead: 'she slices the mango on a board'.",
+   "words": ["blood", "bloody", "gun", "guns", "pistol", "rifle", "knife", "knives", "weapon", "weapons", "sword",
+             "kill", "killing", "fight", "fighting", "punch", "explosion", "bomb", "wound", "corpse"]
+  },
+  "brands": {
+   "label": "other brands",
+   "hint": "Show only the client's product; give everything else no brand: 'a plain white phone', 'unbranded sneakers'.",
+   "words": ["Nike", "Adidas", "iPhone", "Coca-Cola", "Pepsi", "Starbucks", "McDonald's", "Gucci", "Louis Vuitton",
+             "Chanel", "Samsung", "Tesla"]
+  }
+ }
+}

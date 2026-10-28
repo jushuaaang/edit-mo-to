@@ -80,6 +80,14 @@ label.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13
 .sbcomment summary::-webkit-details-marker { display: none; }
 .sbcomment[open] summary { border-color: var(--accent); }
 .sbcomment .stack { margin-top: 8px; }
+.flagrow { flex-wrap: wrap; }
+.flagbox[open] { width: 100%; }
+.flagbox summary { list-style: none; display: inline-flex; }
+.flagbox summary::-webkit-details-marker { display: none; }
+.flagbox[open] summary { border-color: var(--accent); }
+.flagbox .stack { margin-top: 8px; }
+.prompt-acts { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; max-width: 50%; }
+.prompt-acts .flagrow { justify-content: flex-end; }
 .sbreplace .drop { padding: 8px; font-size: 12px; }
 .sbreplace .drop br, .sbreplace .drop .hint { display: none; }
 .shot { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 20px; }

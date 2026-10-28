@@ -321,7 +321,8 @@ def test_lang_sets_the_detected_language_for_this_computer(tmp_path):
     for bad in ("fr", "TL", "auto", ""):
         run("lang", bad, ok=False)
     assert _prefs(tmp_path)["ui_lang_detected"] == "en"
-    assert js.read_prefs(gui / "prefs.json") == {"notify": True, "sound": False, "ui_lang": "en", "ui_lang_detected": "en"}
+    assert js.read_prefs(gui / "prefs.json") == {"notify": True, "sound": False, "ui_lang": "en", "ui_lang_detected": "en",
+                                                 "avoid_models": [], "default_model": None}
 
 
 def test_lang_waits_for_the_prefs_lock(tmp_path):

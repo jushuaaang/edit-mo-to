@@ -12,7 +12,8 @@ CLI (prints JSON):
                          locks, dialogue, length vs VO span, attachments, generator limits (generators.json, by
                          `generator` and, for a generator with models, `generator_model`); exit code 1 when any. A model whose
                          limits are not verified, or not in the table, prints one `warning:` line (stderr, and
-                         "warnings" in the JSON); it is not an error
+                         "warnings" in the JSON); it is not an error. So does each risky word from safe-words.json
+                         found in a video or image prompt (the shot, the word, a plain hint): a site may block it
     ops <old_plan.json> <new_plan.json> "<timeline>" --segments dump.json [--out ops.json]
                          clip differences between two contract plans as `capcut_project.py patch` ops (µs);
                          dump.json is `capcut_project.py segments` of the built timeline
@@ -493,9 +494,64 @@ def _kind(p: dict) -> str:
 
 
 def prompt_warnings(spec: dict) -> list[str]:
-    """Warnings, not errors: the generator's limits are not verified, or the model is not in generators.json."""
+    """Warnings, not errors: the generator's limits are not verified, or the model is not in generators.json; then
+    risky words a video site may block (wording_warnings)."""
     w = gens.for_spec(spec)["warning"]
-    return [w] if w else []
+    return ([w] if w else []) + wording_warnings(spec)
+
+
+SAFE_WORDS = TOOLS.parent / "safe-words.json"
+WORDING_FIELDS = ("subject", "setting", "action", "camera", "look", "dialogue")   # never `negative`: it names what to avoid
+PLAIN_IDS = ((r"SB-0*(\d+)", "Shot {}"), (r"CHAR-0*(\d+)", "Character {}"), (r"AI-0*(\d+)", "AI clip {}"),
+             (r"P0*(\d+)", "Prompt {}"), (r"S0*(\d+)", "Shot {}"))
+
+
+def _plain(pid) -> str:
+    """A prompt id in plain words, the code kept in brackets: "AI clip 3 (AI-3)", "Shot 5 (SB-5)"."""
+    s = str(pid)
+    for pat, word in PLAIN_IDS:
+        m = re.fullmatch(pat, s, re.I)
+        if m:
+            return f"{word.format(int(m.group(1)))} ({s})"
+    return f"Prompt {s}"
+
+
+def _safe_groups() -> list[tuple[dict, list]]:
+    """(group, [(phrase, compiled whole-word pattern)]) from safe-words.json; none when the file is missing."""
+    try:
+        groups = json.loads(SAFE_WORDS.read_text(encoding="utf-8"))["groups"]
+    except (OSError, ValueError, KeyError):
+        return []
+    return [(g, [(w, re.compile(r"(?<![\w-])" + re.escape(w) + r"(?![\w-])", re.I)) for w in g.get("words", [])])
+            for g in groups.values()]
+
+
+def _risky(text: str, groups) -> list[tuple[str, dict]]:
+    """(phrase, group) for each listed phrase in text, once each, in list order."""
+    return [(w, g) for g, pats in groups for w, pat in pats if pat.search(text or "")]
+
+
+def wording_warnings(spec: dict) -> list[str]:
+    """One warning per risky phrase (safe-words.json) in a video or image prompt, naming the shot, with the group's
+    hint; a lock's text is checked once (it is in every prompt that lists it). Never an error, never a rewrite."""
+    groups = _safe_groups()
+    out: list[str] = []
+    used: dict = {}
+    for p in spec.get("prompts", []):
+        if _kind(p) == CLIENT:
+            continue
+        text = "\n".join(str(p[k]) for k in WORDING_FIELDS if p.get(k))
+        text += "\n" + "\n".join(str(v) for v in (p.get("lock_overrides") or {}).values())
+        for w, g in _risky(text, groups):
+            out.append(f'{_plain(p.get("id", "?"))}: "{w}" may get the prompt blocked ({g["label"]}). {g["hint"]}')
+        for k in p.get("locks", []):
+            if k not in (p.get("lock_overrides") or {}):
+                used[k] = used.get(k, 0) + 1
+    for k, n in used.items():
+        for w, g in _risky(spec.get("locks", {}).get(k, ""), groups):
+            out.append(f'the {k} lock (in {n} prompt{"s" if n > 1 else ""}): "{w}" may get the prompts blocked '
+                       f'({g["label"]}). {g["hint"]}')
+    return out
 
 
 def _lock_text(spec: dict, p: dict, name: str) -> str:

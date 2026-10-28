@@ -328,12 +328,13 @@ def test_flow_rows_in_generators_json():
     flow = GENERATORS["generators"]["google-flow"]
     assert (flow["min_s"], flow["max_s"], flow["max_attach"], flow["verified"]) == (4, 8, 7, "2026-10-28")   # site level stays
     m = flow["models"]
-    assert set(m) == {"veo-3.1-fast", "veo-3.1-quality", "veo-3.1-lite"}
-    assert [m[k]["label"] for k in m] == ["Veo 3.1 Fast", "Veo 3.1 Quality", "Veo 3.1 Lite"]
+    assert set(m) == {"veo-3.1-fast", "veo-3.1-quality", "veo-3.1-lite", "gemini-omni-flash"}   # Task H3 adds Omni Flash
+    assert [m[k]["label"] for k in m] == ["Veo 3.1 Fast", "Veo 3.1 Quality", "Veo 3.1 Lite", "Gemini Omni Flash"]
     assert (m["veo-3.1-fast"]["lengths_s"], m["veo-3.1-quality"]["lengths_s"], m["veo-3.1-lite"]["lengths_s"]) == (
         [4, 6, 8], [8], [4, 6, 8])
     assert all(r["max_attach"] == 7 and r["verified"] is None for r in m.values())
     assert all(target in m for target in flow["aliases"].values())
+    assert (m["gemini-omni-flash"]["min_s"], m["gemini-omni-flash"]["max_s"]) == (4, 8)
 
 
 def test_flow_without_a_model_keeps_the_old_output_and_errors():

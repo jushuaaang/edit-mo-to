@@ -112,7 +112,7 @@ One example per kind:
   {"id": "generator", "kind": "choice", "text": "Where will you generate: Higgsfield or Google Flow?", "options": [{"value": "higgsfield", "label": "Higgsfield"}, {"value": "google-flow", "label": "Google Flow"}]},
   {"id": "generator_model", "kind": "choice", "text": "Which Higgsfield model?", "options": [{"value": "seedance-2.0", "label": "Seedance 2.0"}, {"value": "seedance-2.5", "label": "Seedance 2.5"}, {"value": "kling-3.0", "label": "Kling 3.0"}, {"value": "veo-3.1", "label": "Veo 3.1"}, {"value": "other", "label": "Other"}]}]}
 {"title": "B-roll and generator (Google Flow chosen)", "questions": [
-  {"id": "generator_model", "kind": "choice", "text": "Which Google Flow model?", "options": [{"value": "veo-3.1-fast", "label": "Veo 3.1 Fast"}, {"value": "veo-3.1-quality", "label": "Veo 3.1 Quality"}, {"value": "veo-3.1-lite", "label": "Veo 3.1 Lite"}, {"value": "other", "label": "Other"}]}]}
+  {"id": "generator_model", "kind": "choice", "text": "Which Google Flow model?", "options": [{"value": "veo-3.1-fast", "label": "Veo 3.1 Fast"}, {"value": "veo-3.1-quality", "label": "Veo 3.1 Quality"}, {"value": "veo-3.1-lite", "label": "Veo 3.1 Lite"}, {"value": "gemini-omni-flash", "label": "Gemini Omni Flash"}, {"value": "other", "label": "Other"}], "default": "gemini-omni-flash"}]}
 {"title": "music: timelines", "questions": [
   {"id": "timelines", "kind": "multi", "text": "Which timeline(s)?", "options": ["Timeline 01 – H1 + Body + CTA", "Timeline 02 – Hook 2"], "default": ["Timeline 01 – H1 + Body + CTA"]},
   {"id": "capcut_closed", "kind": "confirm", "text": "Please quit CapCut completely before I write to the project, and tell me when it's closed."}]}
@@ -122,6 +122,8 @@ One example per kind:
 {"title": "voiceover", "questions": [
   {"id": "vo", "kind": "file", "text": "Generate the voiceover in ElevenLabs and send me the file."}]}
 ```
+**The model Claude picks.** When you choose the model yourself (proposing a default, or generating for the editor), use `generators.py pick` / the editor's default and never a model in their avoid list. `.claude/edit-mo-to/run tools/generators.py pick --site <site>` prints `<site>:<model>` from this computer's Settings ("When Claude picks, never use" = prefs `avoid_models`, "Claude's default model" = `default_model`; none set: the site's first model; exit 1: every model of the site is avoided, so ask). The `generator_model` question still lists every model of the site (the editor may pick any, avoided or not) and gets `"default": "<the part after :>"`, as in the Google Flow example above (the GUI highlights it, and the B-roll & prompts page highlights the same pick before any gate opens).
+
 Working ahead, e.g. the editor picked the music source early: `{"id": "source_ok", "kind": "confirm", "text": "You chose Suno earlier. Still right?", "default": "suno"}` in the music gate, where `source` is asked today. The confirm gets its own id `<id>_ok`, never the choice's id (a gate question with the choice's id hides the page's own buttons for it), and the early value always goes in the text, because the GUI shows a confirm as Yes / No and ignores `default`. Answer `true`: use the early value. Answer `false`: re-open the gate with the original choice question (`{"id": "source", "kind": "choice", "options": [...], "default": "suno"}`; the GUI highlights `default` on a choice), or take the new pick the editor makes on the step page (`answer` `music:source`, still visible while `source_ok` is asked) or in chat.
 
 | Gate (wording above) | Step | Question ids (kind; values) |
@@ -162,6 +164,7 @@ Read them with `job.py inbox "<folder>" --unhandled`, act on them, then `job.py 
 | storyboard | `comment` `storyboard:<id>`; `action` `storyboard:<id>` (`"request change"`, `text`) | change that shot: rewrite only it, set its `status` to `changed` |
 | storyboard | `comment` `storyboard` | notes on the whole board |
 | storyboard | `approve` `storyboard:<id>` | that shot approved: `status` `approved` |
+| storyboard | `action` `storyboard:<id>:flagged` (`text`: what the site said, optional) | Got flagged: the image site blocked that shot's keyframe prompt (below, "Got flagged") |
 | storyboard | `approve` `storyboard` (Approve all with no `approve` question open) | the editor's go-ahead in advance: the default for the approval gate, confirmed there (`approve_ok`) |
 | storyboard | `upload` `keyframe:<SB-n \| CHAR-n>` | an image saved as `storyboard/<id>.png` |
 | voiceover | `upload` `vo:<file>` (+ early `voiceover:upload`) | the VO file(s) in `vo/` |
@@ -170,6 +173,7 @@ Read them with `job.py inbox "<folder>" --unhandled`, act on them, then `job.py 
 | timing | `edit` `timing:<line id>` (`keep` \| `rerecord`) | an unmatched line: keep it, or the editor re-records |
 | timing | `action` `timing:apply-cuts` (`{"approve": [ids], "reject": [ids]}`; only while no gate asks `cuts`, which the button answers instead) | the picked cuts: the default for the `cuts` gate, confirmed there; then `speech_cuts.py apply` with those ids |
 | prompts | `answer` `prompts:broll_source`, `prompts:generator`, `prompts:generator_model` (early) | step 6's answers |
+| prompts | `action` `prompts:<prompt id>:flagged` (`text`: what the site said, optional) | Got flagged: the video site blocked that prompt (below, "Got flagged") |
 | clips | `answer` `clips:clips_folder` (early); `action` `clips:check` (value: the folder) | run `qc_clips.py run` on that folder |
 | clips | `edit` `clips:<file>` (`regenerate` \| `use`) | from the contact sheet: regenerate that clip, or use it anyway |
 | build | `action` `build:fix:<kind>:<row id>` (`{"check": [cells]}`) | fix that FAIL row of that QA output |
@@ -179,6 +183,8 @@ Read them with `job.py inbox "<folder>" --unhandled`, act on them, then `job.py 
 | music | `answer` `music:source` (early); `upload` `music:<file>` (+ early `music:upload`) | Suno or own track; the track in `music/` |
 | export | `action` `export:learn` | the editor exported: run the learning step |
 | export | `answer` `learn:<id>` (`{"decision": "save" \| "decline", "scope": "general" \| "client"}`) | one learning proposal: `learn.py save` (with `--client` for `client`) or `learn.py decline` |
+
+**Got flagged** (a `…:flagged` action; the site blocked the prompt, often with a vague reason, and may still have used the credits): rewrite only that prompt in safer words (same shot, same timing; follow the `.claude/edit-mo-to/safe-words.json` hints and the contract's "Safe wording"; the editor's note says what the site objected to). Show the old and the new prompt in chat. Store it the same way as the original: a prompt row: edit that prompt in `prompts2.json`, add `"note": "rewritten after a flag"` to it, re-run `plan_tools.py prompts` and `check-prompts`, then `job.py output … prompts <kind> --from prompts` (the row shows the note); a storyboard card: the beat's `prompt` in `storyboard.json`, `status` `"changed"`. Log `.claude/edit-mo-to/run gui/job.py log "<folder>" "[<step>] Rewrote Shot N after a flag"` (the shot in words), mark the event handled, and write the trigger (the flagged words, the site's message and the rewrite) in `{tmp}/reports/<job>/notes.txt` so the learning step proposes it as a rule. Never regenerate by itself: the editor generates the new prompt.
 
 ### Outputs the pages read
 `job.py output "<folder>" <step> <kind> --file data.json` (checklist, script, or a table `{"title", "columns", "rows": [{"id", "cells": [strings, one per column], "status"?, "note"?}]}`; `status` is `ok | wait | you | err | opt | mute`), or `--from <adapter> <tool output>` (`timings`, `cuts`, `qa`, `clips`, `prompts`). Store each deliverable when you show it in chat:

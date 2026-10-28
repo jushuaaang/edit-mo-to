@@ -35,10 +35,15 @@
                                        "notes": "Reported (unverified): 8 s clips only."},
                    "veo-3.1-lite": {"label": "Veo 3.1 Lite", "lengths_s": [4, 6, 8], "max_attach": 7,
                                     "start_frame": true, "start_line": null, "end_frame": true, "verified": null,
-                                    "notes": "Reported (unverified): 4, 6 or 8 s clips."}
+                                    "notes": "Reported (unverified): 4, 6 or 8 s clips."},
+                   "gemini-omni-flash": {"label": "Gemini Omni Flash", "min_s": 4, "max_s": 8, "max_attach": 7,
+                                         "start_frame": true, "start_line": null, "end_frame": false, "verified": null,
+                                         "notes": "Limits not confirmed (third-party sources disagree), so Google Flow's own site limits are used: 4-8 s, at most 7 attachments, start frame supported. Reported: it sometimes blocks a prompt with a vague reason and still uses credits (see safe-words.json)."}
                   },
                   "aliases": {"veo": "veo-3.1-fast", "veo 3.1": "veo-3.1-fast", "fast": "veo-3.1-fast",
-                              "quality": "veo-3.1-quality", "lite": "veo-3.1-lite"}}
+                              "quality": "veo-3.1-quality", "lite": "veo-3.1-lite",
+                              "omni flash": "gemini-omni-flash", "omniflash": "gemini-omni-flash",
+                              "omni-flash": "gemini-omni-flash", "gemini omni flash": "gemini-omni-flash"}}
  },
  "aliases": {
   "seedance": {"generator": "higgsfield", "model": "seedance-2.0"},

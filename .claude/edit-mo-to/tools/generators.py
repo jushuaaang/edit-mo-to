@@ -9,8 +9,21 @@ GUI server read the table through here, so no tool or page keeps its own copy of
     for_spec(spec) -> dict                    the same for a prompts2 spec (`generator`, `generator_model`, old `mode`)
     length_error(rule, seconds) -> str|None   why a generated length breaks the row, or None
     strictest() -> dict                       the fallback limits for an unknown model {min_s, max_s, max_attach}
+    model_ids() -> list[str]                  every model as "<site>:<model>", in table order
+    pick_model(prefs=None, site=None) -> str|None
+                                              the model Claude uses when it chooses one itself: the editor's
+                                              `default_model` unless avoided, else the first model of the site (the
+                                              default's site when no site is given) not in `avoid_models`; never an
+                                              avoided one (None when every candidate is). prefs: {avoid_models,
+                                              default_model}; None reads this computer's GUI prefs ({tmp}/gui/prefs.json;
+                                              a missing file = no avoid list, no default)
+
+CLI:  generators.py pick [--site S]           prints the model Claude picks as "<site>:<model>" (exit 1: every model
+                                              is avoided; exit 2: unknown site)
 """
 import json
+import os
+import sys
 from functools import lru_cache
 from pathlib import Path
 
@@ -172,3 +185,80 @@ def describe(r: dict) -> str:
     if r.get("warning"):
         lines.append(f"- Warning: {r['warning']}. Say so in chat.")
     return "\n".join(lines)
+
+
+# ---------- the model Claude picks (spec "Models Claude avoids, per editor") ----------
+
+def model_ids(path: Path = FILE) -> list[str]:
+    """Every model row as "<site>:<model>", in table order (the ids `avoid_models` and `default_model` use)."""
+    return [f"{g}:{m}" for g, site in load(path)["generators"].items() for m in site.get("models", {})]
+
+
+def prefs_file() -> Path:
+    """This computer's GUI prefs, {tmp}/gui/prefs.json (EDIT_MO_TO_GUI_TMP overrides tmp, as in gui/jobstate.py)."""
+    tmp = os.environ.get("EDIT_MO_TO_GUI_TMP")
+    if not tmp:
+        import machine
+        tmp = machine.PATHS["tmp"]
+    return Path(tmp) / "gui" / "prefs.json"
+
+
+def read_prefs(file: "Path | None" = None, path: Path = FILE) -> dict:
+    """{avoid_models, default_model} from the GUI prefs, known ids only; a missing or broken file gives no avoid list
+    and no default."""
+    try:
+        saved = json.loads(Path(file or prefs_file()).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        saved = {}
+    saved = saved if isinstance(saved, dict) else {}
+    ids = set(model_ids(path))
+    avoid = saved.get("avoid_models")
+    avoid = [x for x in avoid if isinstance(x, str) and x in ids] if isinstance(avoid, list) else []
+    default = saved.get("default_model")
+    return {"avoid_models": avoid, "default_model": default if isinstance(default, str) and default in ids else None}
+
+
+def site_key(site: str, path: Path = FILE) -> str:
+    """A site name or an old alias ("flow") -> the table's key; ValueError when unknown."""
+    t = load(path)
+    s = (site or "").strip().lower()
+    s = t.get("aliases", {}).get(s, {}).get("generator", s)
+    if s not in t["generators"]:
+        raise ValueError(f"unknown site {site!r} (one of {', '.join(t['generators'])})")
+    return s
+
+
+def pick_model(prefs: "dict | None" = None, site: "str | None" = None, path: Path = FILE) -> "str | None":
+    p = read_prefs(path=path) if prefs is None else prefs
+    ids = model_ids(path)
+    avoid = {x for x in (p.get("avoid_models") or []) if isinstance(x, str)}
+    default = p.get("default_model") if p.get("default_model") in ids else None
+    site = site_key(site, path) if site is not None else None
+    if default and default not in avoid and (site is None or default.startswith(site + ":")):
+        return default
+    first = site or (default.split(":", 1)[0] if default else None)
+    order = [i for i in ids if first is None or i.startswith(first + ":")]
+    if site is None and first is not None:   # no site asked: the default's site first, then any other
+        order += [i for i in ids if i not in order]
+    return next((i for i in order if i not in avoid), None)
+
+
+def main(argv: list[str]) -> int:
+    if not argv or argv[0] != "pick" or len(argv) not in (1, 3) or (len(argv) == 3 and argv[1] != "--site"):
+        print(__doc__, file=sys.stderr)
+        return 2
+    try:
+        got = pick_model(site=argv[2] if len(argv) == 3 else None)
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    if got is None:
+        print("every model of that site is in this editor's avoid list (Settings: When Claude picks, never use); "
+              "ask the editor which model to use", file=sys.stderr)
+        return 1
+    print(got)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

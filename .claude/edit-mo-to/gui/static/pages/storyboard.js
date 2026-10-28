@@ -6,13 +6,14 @@
 // the open gate asks it; otherwise it sends an `approve` event that Claude confirms at the approval gate.
 //
 // Events: edits `edit` "storyboard:<id>:prompt|visual"; comments `comment` "storyboard:<id>" (or "storyboard" for the
-// whole board); `approve` "storyboard:<id>" / "storyboard"; Request change `action` "storyboard:<id>".
+// whole board); `approve` "storyboard:<id>" / "storyboard"; Request change `action` "storyboard:<id>"; Got flagged
+// `action` "storyboard:<id>:flagged" (steppage.flaggedBox, on a card with a prompt).
 // Every string from storyboard.json, events and paths reaches the DOM as text through h(). On screen a card is "Shot 5"
 // or the character's name (words.js label), never its code; files and event targets keep SB-n / CHAR-n.
 import { h, chip, pendingChip, toast, dropZone, helpTip, timeText, staleText } from "../ui.js";
 import { t, label } from "../words.js";
 import { boardItems, isClient, promptOf, needsImage } from "../board.js";
-import { stepPage, stateOf, openGate, gateAnswer, answerGate, pendingFor, copyButton, waitingText } from "../steppage.js";
+import { stepPage, stateOf, openGate, gateAnswer, answerGate, pendingFor, copyButton, waitingText, flaggedBox } from "../steppage.js";
 
 const STEP = "storyboard";
 const FILTERS = ["all", "need", "changed", "comments"];  // words: WORDS.storyboard.f_<filter>
@@ -133,12 +134,12 @@ function commentBox(ctx, data, it, view) {
   return det;
 }
 
-function promptBlock(data, it) {
+function promptBlock(ctx, data, it) {
   const text = promptOf(it);
   const pend = pendingFor(data, `${STEP}:${it.id}:prompt`).length ? pendingChip() : null;
   if (text) {
     return h("div", { class: "sbprompt" }, h("pre", { class: "prompt" }, text),
-      h("div", { class: "row" }, copyButton(text, t("storyboard.copy_prompt")), pend));
+      h("div", { class: "row" }, copyButton(text, t("storyboard.copy_prompt")), pend), flaggedBox(ctx, data, STEP, it.id, "card"));
   }
   if (isClient(it)) return h("p", { class: "hint" }, t("storyboard.client_no_prompt"));
   return h("p", { class: "hint" }, t(it.kind === "char" ? "storyboard.no_prompt_char" : "storyboard.no_prompt_yet"), pend);
@@ -160,7 +161,7 @@ function card(ctx, data, it, view) {
     it.kind === "shot" && b.line ? h("q", { class: "sbline" }, str(b.line)) : null,
     it.kind === "shot" && b.en ? h("div", { class: "hint" }, t("storyboard.english_temp", { text: str(b.en) })) : null,
     h("div", { class: "hint" }, shotText(it)),
-    promptBlock(data, it),
+    promptBlock(ctx, data, it),
     h("div", { class: "row sbfoot" }, commentBox(ctx, data, it, view),
       h("button", { class: "btn sm", type: "button", onclick: () => { view.selected = it.id; ctx.openDialog("shot", { id: it.id }); } }, t("storyboard.details")),
       open ? h("span", { class: "hint" }, t(open > 1 ? "storyboard.comments_open" : "storyboard.comments_open_one", { n: open })) : null,

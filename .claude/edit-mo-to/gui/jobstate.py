@@ -307,15 +307,35 @@ def _current_path() -> Path:
 
 # ---------- this computer's GUI prefs: <tmp>/gui/prefs.json (the server's Settings and `job.py lang`) ----------
 
-PREFS = {"notify": True, "sound": True, "ui_lang": "auto", "ui_lang_detected": "en"}  # known keys and defaults
+PREFS = {"notify": True, "sound": True, "ui_lang": "auto", "ui_lang_detected": "en",   # known keys and defaults
+         "avoid_models": [], "default_model": None}   # the models Claude never picks / picks first ("<site>:<model>")
 PREF_CHOICES = {"ui_lang": ("auto", "en", "tl"), "ui_lang_detected": ("en", "tl")}   # string prefs: allowed values
+MODEL_PREFS = ("avoid_models", "default_model")   # checked against generators.json's model ids
+
+
+def _model_ids() -> set:
+    tools = str(Path(__file__).resolve().parents[1] / "tools")
+    if tools not in sys.path:
+        sys.path.insert(0, tools)
+    import generators
+    return set(generators.model_ids())
 
 
 def check_pref(key: str, value) -> None:
-    """ValueError unless key is known and value has its type (and, for a string pref, is one of its choices)."""
+    """ValueError unless key is known and value has its type (and, for a string pref, is one of its choices; for a
+    model pref, generators.json's "<site>:<model>" ids)."""
     if key not in PREFS:
         raise ValueError(f"unknown setting: {key}")
-    if key in PREF_CHOICES:
+    if key == "avoid_models":
+        if not isinstance(value, list) or not all(isinstance(x, str) for x in value) or len(set(value)) != len(value):
+            raise ValueError("avoid_models must be a list of different model ids")
+        unknown = [x for x in value if x not in _model_ids()]
+        if unknown:
+            raise ValueError(f"unknown model: {', '.join(unknown)}")
+    elif key == "default_model":
+        if value is not None and (not isinstance(value, str) or value not in _model_ids()):
+            raise ValueError(f"unknown model: {value}")
+    elif key in PREF_CHOICES:
         if not isinstance(value, str) or value not in PREF_CHOICES[key]:
             raise ValueError(f"{key} must be one of {', '.join(PREF_CHOICES[key])}")
     elif not isinstance(value, bool):  # every other pref is a switch
@@ -330,14 +350,28 @@ def _valid(key: str, value) -> bool:
         return False
 
 
+def _clean(saved: dict) -> dict:
+    """Saved prefs with only known, valid keys; an avoid list keeps its known ids; an avoided default is dropped."""
+    out = {}
+    for k, v in saved.items():
+        if k == "avoid_models" and isinstance(v, list):
+            ids = _model_ids()
+            v = list(dict.fromkeys(x for x in v if isinstance(x, str) and x in ids))
+        if k in PREFS and _valid(k, v):
+            out[k] = v
+    if out.get("default_model") in out.get("avoid_models", []):
+        del out["default_model"]
+    return out
+
+
 def read_prefs(path: Path) -> dict:
     """Every known pref: the saved value when it is valid, else the default (a missing or broken file = defaults)."""
     try:
         saved = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         saved = {}
-    saved = saved if isinstance(saved, dict) else {}
-    return {k: saved[k] if k in saved and _valid(k, saved[k]) else v for k, v in PREFS.items()}
+    saved = _clean(saved if isinstance(saved, dict) else {})
+    return {k: saved[k] if k in saved else (list(v) if isinstance(v, list) else v) for k, v in PREFS.items()}
 
 
 @contextmanager
@@ -349,7 +383,8 @@ def prefs_lock(gui: Path):
 
 def update_prefs(gui: Path, patch: dict) -> dict:
     """Check every key of patch, then merge it into <gui>/prefs.json under prefs_lock; the file keeps only known,
-    valid keys that were saved (defaults are not written). Returns read_prefs."""
+    valid keys that were saved (defaults are not written). Claude's default model can't be one it avoids (ValueError;
+    send both keys to change both). Returns read_prefs."""
     if not isinstance(patch, dict) or not patch:
         raise ValueError("nothing to save")
     for key, value in patch.items():
@@ -360,8 +395,10 @@ def update_prefs(gui: Path, patch: dict) -> dict:
             saved = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             saved = {}
-        saved = {k: v for k, v in (saved if isinstance(saved, dict) else {}).items() if k in PREFS and _valid(k, v)}
-        write_json_atomic(path, {**saved, **patch})
+        merged = {**_clean(saved if isinstance(saved, dict) else {}), **patch}
+        if merged.get("default_model") and merged["default_model"] in merged.get("avoid_models", []):
+            raise ValueError("Claude's default model can't be a model Claude avoids")
+        write_json_atomic(path, merged)
     return read_prefs(path)
 
 

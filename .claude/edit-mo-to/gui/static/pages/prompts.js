@@ -1,11 +1,13 @@
 // B-roll & prompts (step 6): B-roll source, generator and (for a generator with models) the model as
 // buttons (marked "already answered" when the storyboard step asked them: card.broll_source / card.generator), the
 // prompts per timeline as rows with Copy and the full prompt on expand, and QA results. Gates: source; generator;
-// generator_model. The generators and models come from generators.json (`data.generators`), never a list in this page.
+// generator_model. The generators and models come from generators.json (`data.generators`), never a list in this page;
+// `data.generators.picks` (the server's generators.pick_model over this computer's prefs) is the model Claude would
+// pick, highlighted while nothing is chosen. Every model stays choosable. Each prompt row has "Got flagged".
 import { h, helpTip } from "../ui.js";
 import { t, tEn, label } from "../words.js";
-import { stepPage, choiceInput, outputsOf, outputTables, isTable, card, promptText, copyButton, lastInput, gateAsks }
-  from "../steppage.js";
+import { stepPage, choiceInput, outputsOf, outputTables, isTable, card, promptText, copyButton, lastInput, gateAsks,
+  flaggedBox } from "../steppage.js";
 
 const SOURCES = [["client", "prompts.src_client"], ["ai", "prompts.src_ai"], ["both", "prompts.src_both"]];  // value, word
 const OTHER = "other";   // the gate's "Other" model: Claude asks its name and uses the safe limits (data.generators.safe)
@@ -64,8 +66,10 @@ function choices(ctx, data) {
   const tbl = table(data);
   if (!tbl) return [...items, h("p", { class: "hint" }, t("prompts.no_table"))];
   const was = fromCard(tbl, c.generator);
+  const picks = tbl.picks && typeof tbl.picks === "object" ? tbl.picks : {};
+  const pickSite = typeof picks.default === "string" ? picks.default.split(":")[0] : undefined;
   items.push(choiceInput(ctx, data, "prompts", "generator", t("prompts.generator"), labelled(tbl.generators),
-    { current: was.site, answeredNote: t("sp.already_answered") }));
+    { current: was.site, answeredNote: t("sp.already_answered"), suggested: pickSite }));
   const site = lastInput(data, "prompts:generator")?.value ?? was.site;
   const row = tbl.generators[site];
   // a model answer belongs to the site that was chosen when it was given; after the site changes it no longer counts
@@ -77,27 +81,32 @@ function choices(ctx, data) {
   if (row?.models || gateAsks(data, "prompts", "generator_model")) {
     const model = kept ?? (site === was.site ? was.model : undefined);
     const note = modelNote(tbl, row, model);
+    const suggested = picks[site] ?? undefined;   // Claude's default for this site (never a model this editor avoids)
+    const sugName = suggested ? String(row?.models?.[suggested]?.label ?? suggested) : "";
     items.push(choiceInput(ctx, data, "prompts", "generator_model", row?.label ? t("prompts.site_model", { site: row.label }) : t("prompts.model"),
-      [...labelled(row?.models), [OTHER, t("prompts.other")]], { current: model, ignore: stale, answeredNote: t("sp.already_answered") }));
+      [...labelled(row?.models), [OTHER, t("prompts.other")]], { current: model, ignore: stale, answeredNote: t("sp.already_answered"),
+        suggested, suggestedNote: suggested ? t("prompts.default_hint", { model: sugName }) : null }));
     items.push(h("p", { class: "hint words" }, t("help.row"), h("span", { class: "word" }, t("word.model"), helpTip("model"))));
     if (note) items.push(h("p", { class: "hint" }, note));
   }
   return items;
 }
 
-/** A row: id and shot; the full prompt on expand and Copy, only when the row has a real prompt. */
-function promptRow(r) {
+/** A row: id and shot; the full prompt on expand, Copy and "Got flagged", only when the row has a real prompt. The
+ *  row's note (Claude's, e.g. "rewritten after a flag") shows under it. */
+function promptRow(ctx, data, r) {
   const text = promptText(r);
   const head = [h("b", {}, label(r.id)), " ", h("span", {}, (r.cells || []).slice(1).filter(Boolean).join(" · "))];
   return h("li", {},
-    text ? h("details", {}, h("summary", {}, ...head), h("pre", { class: "prompt" }, text))
+    h("div", {}, text ? h("details", {}, h("summary", {}, ...head), h("pre", { class: "prompt" }, text))
       : h("div", {}, ...head, h("div", { class: "hint" }, t("prompts.no_prompt"))),
-    text ? copyButton(text, t("common.copy")) : null);
+    typeof r.note === "string" && r.note ? h("div", { class: "hint" }, r.note) : null),
+    text ? h("div", { class: "prompt-acts" }, copyButton(text, t("common.copy")), flaggedBox(ctx, data, "prompts", String(r.id))) : null);
 }
 
-function promptCard(kind, tb) {
+function promptCard(ctx, data, kind, tb) {
   return h("section", { class: "card" }, h("h3", {}, tb.title || kind, helpTip("prompt")),
-    tb.rows.length ? h("ul", { class: "prompts" }, tb.rows.map(promptRow)) : h("p", { class: "hint" }, t("prompts.none_yet")));
+    tb.rows.length ? h("ul", { class: "prompts" }, tb.rows.map((r) => promptRow(ctx, data, r))) : h("p", { class: "hint" }, t("prompts.none_yet")));
 }
 
 export function render(root, data, ctx) {
@@ -107,7 +116,7 @@ export function render(root, data, ctx) {
     early: () => choices(ctx, data),
     body: () => [
       h("section", { class: "card" }, h("h3", {}, t("prompts.broll_h"), helpTip("b_roll")), h("div", { class: "stack" }, choices(ctx, data))),
-      ...(promptKinds.length ? promptKinds.map((k) => promptCard(k, out[k]))
+      ...(promptKinds.length ? promptKinds.map((k) => promptCard(ctx, data, k, out[k]))
         : [h("section", { class: "card" }, h("h3", {}, t("prompts.prompts_h"), helpTip("prompt")), h("p", { class: "hint" }, t("prompts.empty_p")))]),
       ...outputTables(ctx, data, "prompts", { skip: promptKinds }),
     ],

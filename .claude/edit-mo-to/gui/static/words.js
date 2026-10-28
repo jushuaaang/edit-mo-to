@@ -33,7 +33,9 @@ export const WORDS = {
     "label": ["shot", "character", "clip", "prompt", "ai", "client"],
     "now": ["you", "claude", "none"],
     "alert": ["title_count"],
-    "settings": ["alerts_h", "notify", "sound", "lang_h", "lang_auto", "lang_en", "lang_tl"],
+    "settings": ["alerts_h", "notify", "sound", "lang_h", "lang_auto", "lang_en", "lang_tl", "models_h", "avoid",
+      "default_model", "no_default", "th_model"],
+    "flag": ["button", "note_label"],
     "practice": ["title", "copy", "start"],
     "page": ["why_label", "crumb"],
     "common": ["send", "save", "copy", "copied", "copy_failed", "close", "cancel", "done", "yes", "no", "none", "now",
@@ -59,7 +61,7 @@ export const WORDS = {
       "notes_h", "its_saved", "no_image", "save_prompt", "save_visual", "c_open", "send_comment", "comments",
       "visual", "kf_prompt", "request", "approve_shot", "shot", "choose_file"],
     "prompts": ["src_client", "src_ai", "src_both", "broll_source", "answered_storyboard", "generator", "site_model",
-      "model", "other", "broll_h", "prompts_h"],
+      "model", "other", "broll_h", "prompts_h", "default_chip"],
     "brief": ["link", "paste", "instructions", "refs", "style_h", "style", "script_lang", "not_set", "checklist_h",
       "th_rule", "th_source", "send_answers", "questions_h", "the_brief"],
     "build": ["sent", "choose", "st_working", "st_done", "st_error", "st_waiting", "st_skipped", "h", "project",
@@ -163,7 +165,16 @@ export const WORDS = {
       "lang_p": "The words this app shows. Claude's messages, your script and your own text stay as they are.",
       "lang_auto": "Auto", "lang_en": "English", "lang_tl": "Taglish",
       "lang_auto_hint": "Auto follows the language you use with Claude. Now showing: {lang}.",
-      "lang_manual_hint": "Claude's guess is not used while you pick a language here. Pick Auto to use it again."
+      "lang_manual_hint": "Claude's guess is not used while you pick a language here. Pick Auto to use it again.",
+      "models_h": "Models Claude picks", "avoid": "When Claude picks, never use", "default_model": "Claude's default model",
+      "no_default": "No default", "th_model": "Model",
+      "models_p": "When Claude picks a model for you, it starts with its default and never uses a ticked model. You can still choose any model yourself. Saved on this computer only.",
+      "default_hint": "Claude suggests this model first. A model Claude never uses can't be the default."
+    },
+    "flag": {
+      "button": "Got flagged", "note_label": "What did the site say? (optional)",
+      "p": "The site blocked this prompt? Tell Claude, and Claude rewrites only this prompt in safer words.",
+      "note_ph": "For example: \"This prompt may violate our policies\""
     },
     "practice": {
       "title": "New here? Try a practice video first.",
@@ -354,7 +365,8 @@ export const WORDS = {
       "site_model": "{site} model", "model": "Model", "other": "Other",
       "no_prompt": "No prompt to copy (a client clip, or Claude hasn't written it yet).",
       "none_yet": "No prompts yet.", "broll_h": "B-roll", "prompts_h": "Prompts",
-      "empty_p": "Claude writes the prompts per timeline here."
+      "empty_p": "Claude writes the prompts per timeline here.", "default_chip": "Claude's default",
+      "default_hint": "Claude's default here is {model}. You can still pick any model."
     },
     "brief": {
       "link": "Brief link (Notion or any URL)", "paste": "Or paste the brief",
@@ -545,7 +557,13 @@ export const WORDS = {
       "not_saved": "Hindi na-save: {why}",
       "lang_p": "Ang mga salitang pinapakita ng app. Hindi binabago ang messages ni Claude, ang script, at ang sarili mong text.",
       "lang_auto_hint": "Sinusundan ng Auto ang language na gamit mo kay Claude. Ngayon: {lang}.",
-      "lang_manual_hint": "Hindi sinusunod ang hula ni Claude habang may pinili ka rito. Piliin ang Auto para gamitin ulit."
+      "lang_manual_hint": "Hindi sinusunod ang hula ni Claude habang may pinili ka rito. Piliin ang Auto para gamitin ulit.",
+      "models_p": "Kapag si Claude ang pipili ng model para sa iyo, uunahin niya ang default niya at hindi niya gagamitin ang naka-tick na model. Pwede mo pa ring piliin ang kahit anong model. Naka-save sa computer na ito lang.",
+      "default_hint": "Ito ang unang imumungkahi ni Claude. Hindi pwedeng default ang model na hindi ginagamit ni Claude."
+    },
+    "flag": {
+      "p": "Na-block ng site ang prompt na ito? Sabihin kay Claude, at isusulat niya ulit ang prompt na ito lang sa mas safe na words.",
+      "note_ph": "Halimbawa: \"This prompt may violate our policies\""
     },
     "practice": {
       "what": "Isang 10-second practice video mula sa clip mo habang nagsasalita. Parehong 12 steps ng totoong job, mga 15 hanggang 25 minuto, at walang client na makakakita.",
@@ -662,7 +680,8 @@ export const WORDS = {
       "no_table": "Hindi ma-load ang listahan ng video sites. Tanungin si Claude kung aling site ang gagamitin.",
       "regen": "{name}, para gawin ulit sa video site mo",
       "no_prompt": "Walang prompt na ico-copy (client clip ito, o hindi pa ito naisusulat ni Claude).",
-      "none_yet": "Wala pang prompts.", "empty_p": "Dito isusulat ni Claude ang prompts sa bawat timeline."
+      "none_yet": "Wala pang prompts.", "empty_p": "Dito isusulat ni Claude ang prompts sa bawat timeline.",
+      "default_hint": "{model} ang default ni Claude dito. Pwede ka pa ring pumili ng kahit anong model."
     },
     "brief": {
       "paste_ph": "I-paste dito ang text ng brief",
