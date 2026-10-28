@@ -36,7 +36,7 @@ Proven defaults that every editor starts with. Agents read **General** plus thei
 - **Max 7 attachments. Clip length 4–8 s**; if only fixed lengths are offered, take the next one up and trim in the edit.
 - **Image first, then video from that image**, to save credits.
 
-## Seedance
+## Higgsfield · Seedance
 - Prompts start "Start on @Image1" (the keyframe). Minimum clip about 4–5 s: generate long, trim in the edit. Continue a clip by attaching the previous one as @Video1.
 
 ## UGC

@@ -31,7 +31,7 @@ script: <numbered lines with Hook/Body/CTA labels>   script_file: <the same line
 timings_compact: {tmp}/reports/<job>/timings.txt   (media_timing vo --compact; or beats for product ads)
 timings: {tmp}/reports/<job>/timings.json          (the JSON, for the tools' --timings)
 limits: {tmp}/reports/<job>/limits.json
-broll_source: client | ai | both     generator: google-flow | seedance
+broll_source: client | ai | both     generator: higgsfield | google-flow     generator_model: <model id from generators.json, or the name the editor gave> (Higgsfield)
 vo: <path(s): one file, or one per hook/body>   music: <path or none>   (product ads: music is required; others: none until step 11)
 client_broll_folder: <path or none>   (check that it exists before dispatching)
 inventory: {tmp}/reports/<job>/inv/inventory.json, or one inv_<subfolder>/inventory.json per shortlisted subfolder of a big library   (when client B-roll exists)
@@ -79,7 +79,7 @@ scope: full | delta   changed: <clip #s per timeline, ovN / prompt ids / ops sin
 - Storyboard approval: "Here's the full storyboard built from your images. Approve this direction, or tell me what to change."
 - VO: "Generate the voiceover in ElevenLabs and send me the file."
 - B-roll source: "Use the client's B-roll, generate AI videos, or both?"
-- Generator: "Where will you generate: Seedance or Google Flow?"
+- Generator: "Where will you generate: Higgsfield or Google Flow?" For Higgsfield: "Which Higgsfield model?"
 - Clips ready: "Tell me when all the clips are generated and in <folder>."
 - Review: "Which timeline is this change for? And should I make a new timeline for it, or work directly in that timeline (I'll back it up first)?"
 - Quit CapCut: "Please quit CapCut completely before I write to the project, and tell me when it's closed."
@@ -101,7 +101,7 @@ Every command runs from `{root}` as `.claude/edit-mo-to/run gui/job.py <command>
 {"title": "…", "questions": [{"id": "…", "kind": "confirm", "text": "…"}]}
 JSON
 ```
-(`--file <path>` still reads a file; `job.py output … --file -` and `--from <adapter> -` read stdin the same way). The step becomes `waiting`. Then run `.claude/edit-mo-to/run gui/wait.py "<folder>" --after <last seq> --step <step> --timeout 7100` with `run_in_background` and the longest background timeout (`timeout` 7200000 ms, 2 h). `wait.py` prints `{"events": [...]}` and exits 0 when the editor sends something (exit 3 with `{"events": []}`: `--timeout` passed; exit 4: another `wait.py` took over; exit 130 or 143: stopped). When it ends with no events (a timeout, killed, or stopped by Claude Code's background time limit), run it again with the same `--after`, and keep doing so until the gate is answered: an answer can come hours later. A gate answer is an `answer` event with `gate` = the gate id and `target` = the question id; a `stale` answer (to a gate that was replaced) doesn't count. `wait.py` exits on any new event (a message, an edit, an upload, or an answer to just one question), so after each wake handle the events that aren't answers (apply them or note them in chat, mark them handled) and run `wait.py --after <the new highest seq>` again until every question the gate needs is answered, in the GUI or in chat. Only then `close-gate`: closing early turns the editor's later answers into stale "Not counted" ones. Conditional questions are needed only when their condition holds: script `changes` only when `approve` is `false`; `capcut_closed` only once per review round; on the checklist gate, the brief `questions` answer only when there are brief questions (a skipped one gets its default as an `assumed` row).
+(`--file <path>` still reads a file; `job.py output … --file -` and `--from <adapter> -` read stdin the same way). The step becomes `waiting`. Then run `.claude/edit-mo-to/run gui/wait.py "<folder>" --after <last seq> --step <step> --timeout 7100` with `run_in_background` and the longest background timeout (`timeout` 7200000 ms, 2 h). `wait.py` prints `{"events": [...]}` and exits 0 when the editor sends something (exit 3 with `{"events": []}`: `--timeout` passed; exit 4: another `wait.py` took over; exit 130 or 143: stopped). When it ends with no events (a timeout, killed, or stopped by Claude Code's background time limit), run it again with the same `--after`, and keep doing so until the gate is answered: an answer can come hours later. A gate answer is an `answer` event with `gate` = the gate id and `target` = the question id; a `stale` answer (to a gate that was replaced) doesn't count. `wait.py` exits on any new event (a message, an edit, an upload, or an answer to just one question), so after each wake handle the events that aren't answers (apply them or note them in chat, mark them handled) and run `wait.py --after <the new highest seq>` again until every question the gate needs is answered, in the GUI or in chat. Only then `close-gate`: closing early turns the editor's later answers into stale "Not counted" ones. Conditional questions are needed only when their condition holds: script `changes` only when `approve` is `false`; `generator_model` only when `generator` is `higgsfield`; `capcut_closed` only once per review round; on the checklist gate, the brief `questions` answer only when there are brief questions (a skipped one gets its default as an `assumed` row).
 
 One example per kind:
 ```json
@@ -109,7 +109,8 @@ One example per kind:
   {"id": "approve", "kind": "confirm", "text": "Here's the full storyboard built from your images. Approve this direction, or tell me what to change."}]}
 {"title": "B-roll and generator", "questions": [
   {"id": "broll_source", "kind": "choice", "text": "Use the client's B-roll, generate AI videos, or both?", "options": [{"value": "client", "label": "Client's B-roll"}, {"value": "ai", "label": "Generate AI video"}, {"value": "both", "label": "Both"}]},
-  {"id": "generator", "kind": "choice", "text": "Where will you generate: Seedance or Google Flow?", "options": [{"value": "seedance", "label": "Seedance"}, {"value": "flow", "label": "Google Flow"}]}]}
+  {"id": "generator", "kind": "choice", "text": "Where will you generate: Higgsfield or Google Flow?", "options": [{"value": "higgsfield", "label": "Higgsfield"}, {"value": "google-flow", "label": "Google Flow"}]},
+  {"id": "generator_model", "kind": "choice", "text": "Which Higgsfield model?", "options": [{"value": "seedance-2.0", "label": "Seedance 2.0"}, {"value": "seedance-2.5", "label": "Seedance 2.5"}, {"value": "kling-3.0", "label": "Kling 3.0"}, {"value": "veo-3.1", "label": "Veo 3.1"}, {"value": "other", "label": "Other"}]}]}
 {"title": "music: timelines", "questions": [
   {"id": "timelines", "kind": "multi", "text": "Which timeline(s)?", "options": ["Timeline 01 – H1 + Body + CTA", "Timeline 02 – Hook 2"], "default": ["Timeline 01 – H1 + Body + CTA"]},
   {"id": "capcut_closed", "kind": "confirm", "text": "Please quit CapCut completely before I write to the project, and tell me when it's closed."}]}
@@ -126,7 +127,7 @@ Working ahead, e.g. the editor picked the music source early: `{"id": "source_ok
 | Brief | `brief` | `brief` (text). The page's own inputs answer it too: `brief:link`, `brief:paste`, `brief:instructions`, uploads into `refs/` |
 | Checklist | `brief` | `checklist` (confirm). The brief questions come back as one `answer` with target `questions` (value `{"<question id>": "<answer>"}`), so don't list them as gate questions |
 | Script approval | `script` | `approve` (confirm), `changes` (text) |
-| Storyboard first? | `script` | `storyboard_first` (confirm); when yes, then `broll_source` and `generator` (as step 6) |
+| Storyboard first? | `script` | `storyboard_first` (confirm); when yes, then `broll_source`, `generator` and `generator_model` (as step 6) |
 | Character sheet | `storyboard` | `character_sheet` (confirm; `true` = every `CHAR-n` is saved as `storyboard/CHAR-n.png`, dropped on its card or saved from outside the app; the gate bar shows it as "It's saved". Check the files are there before going on) |
 | Keyframes | `storyboard` | `keyframes` (confirm; the editor drops `SB-n` images on the cards) |
 | Storyboard approval | `storyboard` | `approve` (confirm; the page's Approve all answers it with `true`) |
@@ -134,7 +135,7 @@ Working ahead, e.g. the editor picked the music source early: `{"id": "source_ok
 | Older-VO spans | `voiceover` | `oldvo` (text; the "Reuse an older VO" dialog answers it with `[{"id", "timeline"}]`) |
 | Unmatched lines | `timing` | `unmatched` (choice; `keep` \| `rerecord`) |
 | Which cuts | `timing` | `cuts` (multi; the cut ids, recommended ones as `default`) |
-| B-roll source / Generator | `prompts` | `broll_source` (choice; `client` \| `ai` \| `both`), `generator` (choice; `seedance` \| `flow`; `flow` = `google-flow` in dispatches) |
+| B-roll source / Generator | `prompts` | `broll_source` (choice; `client` \| `ai` \| `both`), `generator` (choice; `higgsfield` \| `google-flow`), `generator_model` (choice; the Higgsfield model ids in `.claude/edit-mo-to/generators.json` plus `other`; `generator_model` only when `generator` is `higgsfield`; `other`: ask the model's name in chat and pass that name as `generator_model`, which gets the table's strictest limits) |
 | Clips ready / regenerate | `clips` | `clips_folder` (text), `regenerate` (multi; the FLAG clips) |
 | Project name taken | `build` | `project_name` (text, `default` "<Product> 2"; the page's dialog answers it) |
 | Review | `review` | `timeline` (choice; the timelines), `mode` (choice; `inplace` \| `new`), `capcut_closed` (confirm) once per round |
@@ -166,7 +167,7 @@ Read them with `job.py inbox "<folder>" --unhandled`, act on them, then `job.py 
 | voiceover | `answer` `voiceover:oldvo` (no gate) or `oldvo` (gate), `[{"id", "timeline"}]` | the picked sentences and their timelines |
 | timing | `edit` `timing:<line id>` (`keep` \| `rerecord`) | an unmatched line: keep it, or the editor re-records |
 | timing | `action` `timing:apply-cuts` (`{"approve": [ids], "reject": [ids]}`; only while no gate asks `cuts`, which the button answers instead) | the picked cuts: the default for the `cuts` gate, confirmed there; then `speech_cuts.py apply` with those ids |
-| prompts | `answer` `prompts:broll_source`, `prompts:generator` (early) | step 6's two answers |
+| prompts | `answer` `prompts:broll_source`, `prompts:generator`, `prompts:generator_model` (early) | step 6's answers |
 | clips | `answer` `clips:clips_folder` (early); `action` `clips:check` (value: the folder) | run `qc_clips.py run` on that folder |
 | clips | `edit` `clips:<file>` (`regenerate` \| `use`) | from the contact sheet: regenerate that clip, or use it anyway |
 | build | `action` `build:fix:<kind>:<row id>` (`{"check": [cells]}`) | fix that FAIL row of that QA output |
@@ -193,4 +194,4 @@ Read them with `job.py inbox "<folder>" --unhandled`, act on them, then `job.py 
 - Music: `.claude/edit-mo-to/run gui/job.py output "<folder>" music suno --file suno.json`, one row per part of at most 18 s; every row carries a `prompt` field with the full Suno prompt (the page shows Copy only when `prompt` is set), cells such as length and crossfade note.
 - Learning: `.claude/edit-mo-to/run gui/job.py output "<folder>" export learn --file learn.json`, one row per proposal (`id`, cells rule, section, why).
 
-Card fields the pages read: `client`, `product`, `folder`, `style`, `language`, `temp_en` (`on | partial:<names> | removed | off`), `timelines` (`a|b|c`), `broll_source`, `generator`, `clips_folder`, `project`, e.g. `.claude/edit-mo-to/run gui/job.py card "<folder>" "style=UGC selfie review" "temp_en=on" "timelines=Hook 1|Hook 2"`.
+Card fields the pages read: `client`, `product`, `folder`, `style`, `language`, `temp_en` (`on | partial:<names> | removed | off`), `timelines` (`a|b|c`), `broll_source`, `generator` (`Higgsfield · <model label>` or `Google Flow`; an old `Seedance` reads as Higgsfield · Seedance 2.0), `clips_folder`, `project`, e.g. `.claude/edit-mo-to/run gui/job.py card "<folder>" "style=UGC selfie review" "temp_en=on" "timelines=Hook 1|Hook 2"`.

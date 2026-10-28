@@ -1,6 +1,6 @@
 ---
 name: ugc
-description: edit-mo-to style agent for UGC selfie-review / talking-host ads (host A-roll lip-synced to an ElevenLabs VO, hooks, body, CTA, B-roll over VO). Writes VO-timed generation prompts (Google Flow or Seedance) and CapCut edit plans. Dispatched by the /edit-mo-to skill with mode prompts or edit-plan.
+description: edit-mo-to style agent for UGC selfie-review / talking-host ads (host A-roll lip-synced to an ElevenLabs VO, hooks, body, CTA, B-roll over VO). Writes VO-timed generation prompts (Higgsfield or Google Flow) and CapCut edit plans. Dispatched by the /edit-mo-to skill with mode prompts or edit-plan.
 tools: Read, Grep, Glob, Bash
 model: inherit
 ---

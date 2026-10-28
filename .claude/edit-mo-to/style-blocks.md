@@ -7,7 +7,7 @@ Accepted blocks from past jobs, with client details replaced by `[placeholders]`
 - **B-roll style line:** "Cinematic handmade claymation B-roll, richly detailed miniature set, warm cinematic lighting, shallow depth of field, visible fingerprints and tool marks, vertical 9:16, silent, no text."
 
 ## Pixar-style story (accepted on a 40s apparel ad)
-- **Structure:** hook 0–5s, body 5–33s, CTA 33–40s. Keyframes S1–S9, then Seedance 2.5 clips C1–C9.
+- **Structure:** hook 0–5s, body 5–33s, CTA 33–40s. Keyframes S1–S9, then Higgsfield · Seedance 2.5 clips C1–C9.
 - **Character sheet:** body type, hair, wardrobe down to the buttons (e.g. "white dress shirt with cream buttons, no tie, collar open, grey trousers"), so story details read on screen.
 - **Props never get faces** (e.g. a competing product shown as a plain cobalt-blue object).
 - **Hero set for the product and CTA shots:** dark steel podium, cyan rim light, navy honeycomb backdrop, moving sparks, and a plate with the offer (e.g. "90 DAYS RISK FREE"); suit the set to the audience.

@@ -59,7 +59,8 @@ def test_skill_has_gui_hard_rule_and_working_ahead():
         assert needle in s, needle
 
 
-@pytest.mark.parametrize("qid", ["approve", "capcut_closed", "who", "broll_source", "generator", "source", "mode"])
+@pytest.mark.parametrize("qid", ["approve", "capcut_closed", "who", "broll_source", "generator", "generator_model", "source",
+                                 "mode"])
 def test_gate_question_ids_documented(qid):
     both = _text(SKILL) + _text(STEPS)
     assert f'"{qid}"' in both or f"`{qid}`" in both, qid
@@ -164,3 +165,20 @@ def test_readme_gui_section_is_accurate():
     r = _text(README)
     assert "run this in your Video Editing folder (`{root}`)" in r
     assert "no deletes" not in r
+
+
+def test_generator_gate_is_higgsfield_or_google_flow():
+    """Higgsfield replaces Seedance (spec "Generator: Higgsfield replaces Seedance")."""
+    site = "Where will you generate: Higgsfield or Google Flow?"
+    for doc in (_text(SKILL), _text(STEPS)):
+        assert site in doc and "Which Higgsfield model?" in doc
+    st = _text(STEPS)
+    assert ('{"value": "higgsfield", "label": "Higgsfield"}, {"value": "google-flow", "label": "Google Flow"}' in st)
+    assert '{"id": "generator_model", "kind": "choice", "text": "Which Higgsfield model?"' in st
+    assert '{"value": "other", "label": "Other"}' in st
+    assert "`generator_model` only when `generator` is `higgsfield`" in st
+    assert "prompts:generator_model" in st
+    bad = [str(p.relative_to(ROOT)) for p in _docs() if "Seedance or Google Flow" in _text(p)
+           or "google-flow|seedance" in _text(p) or "google-flow | seedance" in _text(p)]
+    assert not bad, bad
+    assert "--generator higgsfield|google-flow" in _text(SKILL) and "--model" in _text(SKILL)

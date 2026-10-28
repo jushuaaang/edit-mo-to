@@ -56,7 +56,7 @@ The per-video folder is created by the user. edit-mo-to asks for its path at ste
 3. **Script.** If the brief contains a script, use it verbatim. If not, ask questions, write one, and **wait for the user's approval**. TikTok product ads have no script; they are cut to music (see the "TikTok video editing with Notion" session for the pattern).
 4. **Voiceover.** If a VO is needed, wait for the user to generate it in ElevenLabs and attach it.
 5. **VO timing.** Transcribe the VO (faster-whisper, word timestamps) to get the exact start and end of each script line, in CapCut `seconds:frames`.
-6. **B-roll.** Ask: use the client's B-roll, generate AI video, or both? If generating, ask: **Seedance or Google Flow?** Then:
+6. **B-roll.** Ask: use the client's B-roll, generate AI video, or both? If generating, ask: **Higgsfield or Google Flow?** and, for Higgsfield, **which model?** (Higgsfield replaced Seedance as a generator choice on 2026-10-28; Seedance is now a Higgsfield model, and each generator's limits live in `.claude/edit-mo-to/generators.json`.) Then:
    - Client B-roll: catalogue it (ffprobe for duration and fps, frame grabs to see content) and map clips to script lines.
    - AI: write one prompt per script line or beat, sized to that line's VO duration, following that generator's rules (see Style agents).
    Present as a chat table: line, timing, source (client file path or prompt), clip length.
