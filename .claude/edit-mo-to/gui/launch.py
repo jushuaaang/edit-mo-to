@@ -62,6 +62,8 @@ def _current(port: int) -> bool:
 
 def _port_free(port: int) -> bool:
     with socket.socket() as s:
+        if sys.platform != "win32":  # like the real server: TIME_WAIT leftovers don't count (on Windows this flag would steal live ports)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             s.bind(("127.0.0.1", port))
             return True
