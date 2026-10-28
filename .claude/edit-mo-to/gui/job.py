@@ -18,6 +18,10 @@ Run as `.claude/edit-mo-to/run gui/job.py <command> ...` from the repo root.
     log <folder> "<text>"                             activity line (last 200 kept)
     handled <folder> <seq> ...                        mark inbox events handled
     inbox <folder> [--unhandled] [--after N]          print the editor's events
+    lang en|tl                                        the editor's language as Claude detected it (Taglish or
+                                                      Tagalog -> tl, English -> en), for this computer: writes
+                                                      ui_lang_detected into {tmp}/gui/prefs.json (no folder; the
+                                                      app follows it while its Language setting is "Auto")
 
 init and open also make the folder the "current" job ({tmp}/gui/current.json).
 Every command that changes job.json runs its load-modify-save under jobstate.lock (a cross-process
@@ -233,6 +237,11 @@ def cmd_handled(a) -> dict:
     return {"handled": job["handled"]}
 
 
+def cmd_lang(a) -> dict:
+    """Not tied to a job: the per-computer prefs, through jobstate's known-keys rule and prefs lock."""
+    return {"ui_lang_detected": js.update_prefs(js.gui_dir(), {"ui_lang_detected": a.lang})["ui_lang_detected"]}
+
+
 def cmd_inbox(a) -> dict:
     folder = Path(a.folder)
     events = js.unhandled(folder) if a.unhandled else js.read_events(folder)
@@ -253,9 +262,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = _Parser(description=__doc__.split("\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True, parser_class=_Parser)
 
-    def add(name, fn, *args, **opts):
+    def add(name, fn, *args, folder=True):
         sp = sub.add_parser(name)
-        sp.add_argument("folder")
+        if folder:
+            sp.add_argument("folder")
         for flags, kw in args:
             sp.add_argument(*flags, **kw)
         sp.set_defaults(fn=fn)
@@ -274,6 +284,7 @@ def build_parser() -> argparse.ArgumentParser:
     add("handled", cmd_handled, (["seqs"], {"nargs": "+", "type": int}))
     add("inbox", cmd_inbox, (["--unhandled"], {"action": "store_true"}),
         (["--after"], {"type": int, "default": 0}))
+    add("lang", cmd_lang, (["lang"], {"choices": ("en", "tl")}), folder=False)
     return p
 
 
@@ -281,7 +292,8 @@ def main(argv: list[str]) -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     a = build_parser().parse_args(argv)
-    a.folder = Path(a.folder).resolve()
+    if getattr(a, "folder", None) is not None:
+        a.folder = Path(a.folder).resolve()
     try:
         result = a.fn(a)
     except FileNotFoundError as e:

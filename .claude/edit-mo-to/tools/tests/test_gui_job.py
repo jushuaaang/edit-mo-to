@@ -301,3 +301,39 @@ def test_input_is_read_before_the_lock(tmp_path, monkeypatch):
     a.folder = folder.resolve()
     a.fn(a)
     assert state["read_while_locked"] is False
+
+
+# --- Task B2: Claude sets the app's language for this computer (spec "Beginner friendly", Auto-detect) ---
+
+def _prefs(tmp_path):
+    p = tmp_path / "guitmp" / "gui" / "prefs.json"
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
+
+
+def test_lang_sets_the_detected_language_for_this_computer(tmp_path):
+    """`job.py lang tl|en` needs no job folder; it writes only ui_lang_detected into {tmp}/gui/prefs.json."""
+    assert run("lang", "tl") == {"ok": True, "ui_lang_detected": "tl"}
+    assert _prefs(tmp_path) == {"ui_lang_detected": "tl"}
+    gui = tmp_path / "guitmp" / "gui"
+    (gui / "prefs.json").write_text(json.dumps({"sound": False, "ui_lang": "en", "evil": 1}), encoding="utf-8")
+    run("lang", "en")
+    assert _prefs(tmp_path) == {"sound": False, "ui_lang": "en", "ui_lang_detected": "en"}  # known keys only
+    for bad in ("fr", "TL", "auto", ""):
+        run("lang", bad, ok=False)
+    assert _prefs(tmp_path)["ui_lang_detected"] == "en"
+    assert js.read_prefs(gui / "prefs.json") == {"notify": True, "sound": False, "ui_lang": "en", "ui_lang_detected": "en"}
+
+
+def test_lang_waits_for_the_prefs_lock(tmp_path):
+    """The server's Settings save and job.py lang share one cross-process lock, so neither loses the other's key."""
+    import time
+    gui = tmp_path / "guitmp" / "gui"
+    with js.prefs_lock(gui):
+        p = subprocess.Popen([sys.executable, str(JOB), "lang", "tl"], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             text=True, encoding="utf-8")
+        time.sleep(1.5)
+        assert p.poll() is None, "job.py wrote prefs while another process held the lock"
+        js.write_json_atomic(gui / "prefs.json", {"notify": False})
+    out, err = p.communicate(timeout=30)
+    assert p.returncode == 0, out + err
+    assert _prefs(tmp_path) == {"notify": False, "ui_lang_detected": "tl"}

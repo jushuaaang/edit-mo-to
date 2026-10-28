@@ -195,3 +195,30 @@ def test_model_question_follows_either_site():
     assert "only when `generator` is `higgsfield`" not in st
     assert "for either site" in _text(SKILL) or "either site" in st
     assert "generator=Google Flow · <model label>" in _text(SKILL)
+
+
+# --- Task B2: Claude detects the editor's language and sets the app (spec "Beginner friendly", Auto-detect) ---
+
+LANG_RULE = ("reply in the editor's language (English, Taglish or Tagalog). When the editor writes in Taglish or Tagalog, "
+             "run `.claude/edit-mo-to/run gui/job.py lang tl` once; when they switch back to English, `… lang en`. "
+             "Never translate the script, the VO, the generator prompts or the editor's text.")
+
+
+@pytest.mark.parametrize("doc", [SKILL, PRACTICE], ids=["edit-mo-to", "practice-muna"])
+def test_language_rule_in_the_skills(doc):
+    s = _text(doc)
+    assert "**Language:**" in s and LANG_RULE in s
+    assert "job.py card ui_lang" not in s  # the language is per computer (job.py lang), not on a job card
+
+
+@pytest.mark.parametrize("doc", [SKILL, PRACTICE], ids=["edit-mo-to", "practice-muna"])
+def test_gate_lines_unchanged(doc):
+    """Every ⛔ line of the committed skill is still there word for word (B2 adds a rule, it never rewords a gate)."""
+    rel = doc.relative_to(ROOT).as_posix()
+    head = subprocess.run(["git", "show", f"HEAD:{rel}"], cwd=ROOT, capture_output=True, text=True, encoding="utf-8")
+    if head.returncode:
+        pytest.skip("not in git")
+    now = _text(doc).splitlines()
+    gone = [l for l in head.stdout.splitlines() if "⛔" in l and l not in now]
+    assert not gone, gone
+

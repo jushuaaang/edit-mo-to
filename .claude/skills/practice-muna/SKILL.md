@@ -12,6 +12,8 @@ A practice run ("practice muna": practise first) is a **real `/edit-mo-to` job, 
 - Add **one line** starting "In a real job:" that says what would happen with a client (e.g. "In a real job: you'd generate this voiceover in ElevenLabs and send me the file.").
 - Talk in plain, beginner-friendly words.
 
+**Language:** reply in the editor's language (English, Taglish or Tagalog). When the editor writes in Taglish or Tagalog, run `.claude/edit-mo-to/run gui/job.py lang tl` once; when they switch back to English, `… lang en`. Never translate the script, the VO, the generator prompts or the editor's text.
+
 **Speed:** everything is about 10 s, so keep agent jobs small, run independent agents in parallel, and skip nothing. A rehearsal takes about 15–25 minutes.
 
 ## Before step 1
