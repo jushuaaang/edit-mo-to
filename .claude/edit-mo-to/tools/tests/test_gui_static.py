@@ -810,3 +810,28 @@ def test_no_email_or_key_in_the_page_code():
     for p in _js_files():
         t = p.read_text(encoding="utf-8")
         assert "emailAddress" not in t and "xi-api-key" not in t and "elevenlabs_api_key" not in t, p.name
+
+
+# --- Final review 2: M-8 (Generate clip only on the Generate-for-me site), M-11 (done chips compare times) ---
+
+def test_generate_clip_only_for_the_generate_for_me_site():
+    g = _json.loads((STATIC.parents[1] / "generators.json").read_text(encoding="utf-8"))
+    on = [k for k, v in g["generators"].items() if v.get("generate_for_me") is True]
+    assert on == ["google-flow"]                                  # the table says where Generate for me makes clips
+    clips = _page("clips.js")
+    assert "generate_for_me" in clips and "siteOf(" in clips and '"gen.clip_other_site"' in clips
+    for literal in MODEL_NAMES:
+        assert literal not in clips, literal                     # no second copy of the site list
+    assert "export function siteOf(" in _page("prompts.js")
+    en, tl = _words(), _all_words()["tl"]
+    assert "{site}" in en["gen"]["clip_other_site"] and "{gen}" in en["gen"]["clip_other_site"]
+    assert tl["gen"]["clip_other_site"] and "{site}" in tl["gen"]["clip_other_site"]
+
+
+def test_done_chips_need_a_file_newer_than_the_generate_click():
+    sp = (STATIC / "steppage.js").read_text(encoding="utf-8")
+    assert "opts.doneAt" in sp and "asked && opts.done " not in sp and "Date.parse(" in sp
+    sb, clips, vo = _page("storyboard.js"), _page("clips.js"), _page("voiceover.js")
+    assert "doneAt:" in sb and "keyframe_mtimes" in sb
+    assert "doneAt:" in clips and "clip_mtimes" in clips
+    assert "doneAt:" in vo and "vo_mtimes" in vo

@@ -6,11 +6,14 @@
 // "that clip was checked in an earlier batch".
 // Generate for me (only where /api/job says generate: true): a "Generate clip" row per step-6 prompt with a real prompt,
 // an `action` "generate:clips:<prompt id>"; "Clip in folder" only once a video file named <prompt id> or <prompt id>_…
-// is in the clips folder (the server's `clip_files`).
+// is in the clips folder (the server's `clip_files`) and newer than the click (`clip_mtimes`). Only on a job for the
+// site generators.json marks `generate_for_me` (or with no site chosen yet): prompts written for another site have
+// that site's lengths and wording, so the card says so instead of offering the button.
 import { h, table, pendingChip, stepTitle } from "../ui.js";
 import { t, label } from "../words.js";
 import { stepPage, textInput, outputsOf, outputTables, isTable, actionButton, card, lastInput, pendingFor,
   promptsById, promptText, generateButton } from "../steppage.js";
+import { siteOf } from "./prompts.js";
 
 /** The step-6 prompt row for a clip: by its match name (qc_clips' expected name), else that name's "V01" part. */
 function promptFor(byId, r) {
@@ -33,23 +36,38 @@ function clipsCard(ctx, data, tb) {
   } });
 }
 
-/** Is a clip for this prompt id in the clips folder? Its file is named "<id>" or "<id>_<anything>" (qc_clips names). */
-function clipThere(data, id) {
+/** The newest clip for this prompt id in the clips folder (ms, from clip_mtimes), or null. Its file is named "<id>" or
+ *  "<id>_<anything>" (qc_clips names). */
+function clipAt(data, id) {
   const k = String(id).toLowerCase();
   const files = Array.isArray(data?.clip_files) ? data.clip_files : [];
-  return files.some((f) => {
+  const times = files.filter((f) => {
     const stem = String(f).replace(/\.[^.]+$/, "").toLowerCase();
     return stem === k || stem.startsWith(`${k}_`);
-  });
+  }).map((f) => data?.clip_mtimes?.[f]).filter((n) => typeof n === "number" && Number.isFinite(n));
+  return times.length ? Math.max(...times) / 1e6 : null;
+}
+
+/** [the site Generate for me makes clips on (generators.json `generate_for_me`), its row] or [null, null]. */
+function genSite(data) {
+  return Object.entries(data?.generators?.generators || {}).find(([, v]) => v?.generate_for_me === true) || [null, null];
 }
 
 function generateCard(ctx, data) {
   if (data?.generate !== true) return null;
   const rows = [...promptsById(data).values()].filter((r) => promptText(r));
   if (!rows.length) return null;
+  const [site, row] = genSite(data);
+  if (!site) return null;   // no table: fail closed
+  const jobSite = siteOf(data);
+  if (jobSite && jobSite !== site) {
+    const other = data?.generators?.generators?.[jobSite]?.label || card(data).generator || jobSite;
+    return h("section", { class: "card" }, h("h3", {}, t("gen.h")),
+      h("p", { class: "hint" }, t("gen.clip_other_site", { gen: other, site: row?.label || site })));
+  }
   return h("section", { class: "card" }, h("h3", {}, t("gen.h")), h("p", { class: "hint" }, t("gen.p")),
     h("ul", { class: "files genlist" }, rows.map((r) => h("li", {}, h("span", {}, label(String(r.id), data)),
-      generateButton(ctx, data, "clips", String(r.id), { label: t("gen.clip"), done: clipThere(data, r.id),
+      generateButton(ctx, data, "clips", String(r.id), { label: t("gen.clip"), doneAt: clipAt(data, r.id),
         doneLabel: t("gen.clip_saved") })))));
 }
 

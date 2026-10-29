@@ -308,6 +308,23 @@ def test_job_lists_clip_files_for_the_owner(srv, tmp_path, monkeypatch):
     assert data["clip_files"] == ["V01_L02.mp4"]
 
 
+def test_job_sends_the_mtimes_of_clips_and_voice_files(srv, tmp_path, monkeypatch):
+    """Final review 2, M-11: the "Clip in folder" / "Voiceover in vo/" chips compare a file's time with the Generate
+    click, so the page gets each file's mtime (ns, like keyframe_mtimes)."""
+    import os
+    c, folder, _ = srv
+    _machine(tmp_path, monkeypatch, generate_for_me=True, generate_for_me_accounts=[EMAIL])
+    (folder / "clips").mkdir()
+    (folder / "clips" / "V01_L02.mp4").write_bytes(b"x")
+    os.utime(folder / "clips" / "V01_L02.mp4", ns=(1_700_000_000_000_000_000, 1_700_000_000_000_000_000))
+    (folder / "vo").mkdir()
+    (folder / "vo" / "vo_full.mp3").write_bytes(b"id3")
+    os.utime(folder / "vo" / "vo_full.mp3", ns=(1_700_000_100_000_000_000, 1_700_000_100_000_000_000))
+    data, _ = _job(c, folder)
+    assert data["clip_mtimes"] == {"V01_L02.mp4": 1_700_000_000_000_000_000}
+    assert data["vo_mtimes"] == {(folder / "vo" / "vo_full.mp3").resolve().as_posix(): 1_700_000_100_000_000_000}
+
+
 def test_generate_route_shows_key_state_never_the_key(srv, tmp_path, monkeypatch):
     c, folder, secrets = srv
     _machine(tmp_path, monkeypatch, generate_for_me=True, generate_for_me_accounts=[EMAIL])

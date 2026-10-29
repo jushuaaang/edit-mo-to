@@ -136,9 +136,14 @@ function commentBox(ctx, data, it, view) {
   return det;
 }
 
-/** "Generate picture" (Generate for me; only where the server allows it): saved once storyboard/<id> is on disk. */
+/** ns (the server's mtimes) -> ms, or null. */
+const msOf = (ns) => (typeof ns === "number" && Number.isFinite(ns) ? ns / 1e6 : null);
+
+/** "Generate picture" (Generate for me; only where the server allows it): saved once storyboard/<id> is on disk and
+ *  newer than the click (keyframe_mtimes). */
 export const generatePicture = (ctx, data, it) => generateButton(ctx, data, STEP, it.id,
-  { label: t("gen.picture"), done: Boolean(data?.keyframes?.[it.id]), doneLabel: t("gen.picture_saved") });
+  { label: t("gen.picture"), doneAt: data?.keyframes?.[it.id] ? msOf(data?.keyframe_mtimes?.[it.id]) : null,
+    doneLabel: t("gen.picture_saved") });
 
 function promptBlock(ctx, data, it) {
   const text = promptOf(it);

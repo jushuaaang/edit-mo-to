@@ -47,6 +47,15 @@ function fromCard(tbl, raw) {
   return { site, model: tail ? findModel(tbl.generators[site], tail) ?? OTHER : undefined };
 }
 
+/** The job's site (a generators.json key) from the card's generator, or null when none is chosen yet. A name the
+ *  table doesn't know comes back as written; no table: the card text as written. */
+export function siteOf(data) {
+  const raw = card(data).generator;
+  if (!raw) return null;
+  const tbl = table(data);
+  return tbl ? fromCard(tbl, raw).site ?? String(raw) : String(raw);
+}
+
 function modelNote(tbl, row, model) {
   if (model === OTHER) {
     // a site with limits of its own keeps them for an unknown model; the others use the table's safe limits

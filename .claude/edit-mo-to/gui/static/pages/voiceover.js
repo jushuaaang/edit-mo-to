@@ -1,7 +1,8 @@
 // Voiceover (step 4, the editor's): VO file drop (one file, or one per hook/body), "Reuse an older VO" (dialog),
 // the script language and the --lang it means. Gates: the VO file; the older-VO spans.
 // Generate for me (only where /api/job says generate: true): "Generate voiceover", an `action` "generate:voiceover:all"
-// (Claude runs elevenlabs_vo.py, which shows the credits first); "Voiceover in vo/" only once a file is in vo/.
+// (Claude runs elevenlabs_vo.py, which shows the credits first); "Voiceover in vo/" only once a file in vo/ is newer
+// than the click.
 import { h, helpTip } from "../ui.js";
 import { t } from "../words.js";
 import { stepPage, uploadInput, outputsOf, outputTables, card, openGate, generateButton } from "../steppage.js";
@@ -21,8 +22,14 @@ function langCard(data) {
       : h("p", { class: "hint" }, t("vo.set_at_brief")));
 }
 
+/** The newest file in vo/ (ms; the server's vo_mtimes), or null: "Voiceover in vo/" only for a file newer than the click. */
+function newestVo(data) {
+  const times = Object.values(data?.vo_mtimes || {}).filter((n) => typeof n === "number" && Number.isFinite(n));
+  return times.length ? Math.max(...times) / 1e6 : null;
+}
+
 const generateVo = (ctx, data) => generateButton(ctx, data, "voiceover", "all", { label: t("gen.voiceover"), vo: true,
-  done: Array.isArray(data?.vo) && data.vo.length > 0, doneLabel: t("gen.vo_saved") });
+  doneAt: newestVo(data), doneLabel: t("gen.vo_saved") });
 
 export function render(root, data, ctx) {
   const where = `${ctx.folder}/vo/`;

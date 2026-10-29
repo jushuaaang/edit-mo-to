@@ -184,16 +184,19 @@ const genConfirm = new Set();   // generate targets whose first-time warning is 
 /** "Generate for me" (spec "Generate for me (Joshua only)"): a button that sends an `action` event with target
  *  "generate:<step>:<id>"; Claude makes the item in the session. Drawn only when /api/job says `generate: true` (the
  *  server's account check; fails closed). Pending until Claude marks the event handled. The page claims nothing itself:
- *  opts.done (the file is really there: keyframe on disk, clip in the clips folder, a file in vo/) shows opts.doneLabel
- *  once a generate click was sent. The first click ever shows the image-site warning (words.js gen.warn) inline (not a dialog); Continue
+ *  opts.doneAt (the newest matching file's mtime in ms: keyframe on disk, clip in the clips folder, a file in vo/; null
+ *  when there is none) shows opts.doneLabel only when that file is at least as new as the last generate click, so an
+ *  older file (one the editor dropped earlier) never reads as the result of a failed attempt. The first click ever shows the image-site warning (words.js gen.warn) inline (not a dialog); Continue
  *  saves generate_warned_at in this computer's prefs and it is never asked again. opts.vo: the ElevenLabs credits line
- *  instead, and no account warning. opts: {label, done, doneLabel, vo} */
+ *  instead, and no account warning. opts: {label, doneAt, doneLabel, vo} */
 export function generateButton(ctx, data, step, id, opts = {}) {
   if (data?.generate !== true) return null;
   const target = `generate:${step}:${id}`;
   const pend = pendingFor(data, target).length > 0;
-  const asked = (data?.events || []).some((e) => e.type === "action" && e.target === target);
-  const state = h("span", { class: "row" }, pend ? pendingChip() : asked && opts.done ? chip(opts.doneLabel, "ok") : null);
+  const askedAt = Math.max(-Infinity, ...(data?.events || [])
+    .filter((e) => e.type === "action" && e.target === target).map((e) => Date.parse(e.at)).filter(Number.isFinite));
+  const made = Number.isFinite(askedAt) && Number.isFinite(opts.doneAt) && opts.doneAt >= askedAt;
+  const state = h("span", { class: "row" }, pend ? pendingChip() : made ? chip(opts.doneLabel, "ok") : null);
   const note = h("span", { class: "hint", role: "status" }, pend ? waitingText(data) : "");
   const btn = h("button", { class: "btn sm", type: "button", disabled: pend }, opts.label);
   const box = h("div", { class: "row genrow", "data-gen": target });

@@ -184,7 +184,8 @@ export const WORDS = {
       "h": "Generate for me", "picture_saved": "Picture saved", "clip_saved": "Clip in folder", "vo_saved": "Voiceover in vo/",
       "warn": "Claude will use your own Chrome and your Google Flow credits. Google's terms may not allow automated use, so this could flag your account. Continue?",
       "vo_line": "Uses your ElevenLabs credits, about 1 credit per character. Claude shows the count before it makes the file.",
-      "p": "Claude makes one clip per click in your own Chrome, then saves it in the clips folder. You can stop it anytime in the browser."
+      "p": "Claude makes one clip per click in your own Chrome, then saves it in the clips folder. You can stop it anytime in the browser.",
+      "clip_other_site": "This video's prompts were written for {gen}, so Claude can't make the clips for you. Generate clip only works with {site}. Make these clips yourself on {gen}."
     },
     "flag": {
       "button": "Got flagged", "note_label": "What did the site say? (optional)",
@@ -620,7 +621,8 @@ export const WORDS = {
     "gen": {
       "warn": "Gagamitin ni Claude ang sarili mong Chrome at ang Google Flow credits mo. Baka hindi pinapayagan ng terms ng Google ang automated na paggamit, kaya pwedeng ma-flag ang account mo. Continue?",
       "vo_line": "Gagamit ito ng ElevenLabs credits mo, mga 1 credit kada character. Ipapakita muna ni Claude ang bilang bago gawin ang file.",
-      "p": "Isang clip kada click ang gagawin ni Claude sa sarili mong Chrome, tapos ise-save niya sa clips folder. Pwede mo itong itigil anumang oras sa browser."
+      "p": "Isang clip kada click ang gagawin ni Claude sa sarili mong Chrome, tapos ise-save niya sa clips folder. Pwede mo itong itigil anumang oras sa browser.",
+      "clip_other_site": "Para sa {gen} isinulat ang prompts ng video na ito, kaya hindi ito kayang gawin ni Claude para sa iyo. Gumagana lang ang Generate clip sa {site}. Ikaw na ang gumawa ng clips na ito sa {gen}."
     },
     "flag": {
       "p": "Na-block ng site ang prompt na ito? Sabihin kay Claude, at isusulat niya ulit ang prompt na ito lang sa mas safe na words.",

@@ -33,7 +33,8 @@ read. At most one launch per PRACTICE_GAP seconds, and none while one is still s
 
 Generate for me (spec "Generate for me (Joshua only)"): GET /api/job carries "generate": true|false from
 account.generate_allowed() (never the account email), and only when true "clip_files" (video files in the job's clips
-folder, so a clip row can say its clip is there). GET /api/generate answers {"allowed": false}, or {"allowed": true,
+folder, so a clip row can say its clip is there) and "clip_mtimes" ({name: mtime_ns}). "vo_mtimes" ({path: mtime_ns})
+and "keyframe_mtimes" go with every reply: a "done" chip shows only for a file newer than the generate click. GET /api/generate answers {"allowed": false}, or {"allowed": true,
 "elevenlabs_key": true|false} (whether secrets.json holds a key; the key itself is never read out). The buttons only
 send `action` events; the server never generates anything.
 """
@@ -205,6 +206,18 @@ def _clip_files(clips: "Path | None") -> list:
     return [p.name for p in entries if not p.name.startswith(".") and p.suffix[1:].lower() in VIDEO_EXTS and p.is_file()]
 
 
+def _mtimes(paths) -> dict:
+    """{key: mtime_ns} for (key, path) pairs; a file that vanished is left out. The Generate for me chips compare a
+    file's time with the generate click, so an older file never reads as the result of a failed attempt."""
+    out = {}
+    for key, p in paths:
+        try:
+            out[key] = Path(p).stat().st_mtime_ns
+        except OSError:
+            continue
+    return out
+
+
 def _output_paths(folder: Path, job: dict, roots: list) -> dict:
     """{step: {kind: resolved path inside roots, or None}}; a path outside roots is never touched."""
     out = {}
@@ -307,6 +320,7 @@ def r_job(h, q):
             "pending": [e for e in js.unhandled(folder) if e.get("type") in PENDING_TYPES],
             "events": js.read_events(folder)[-RECENT_EVENTS:],  # step messages, answers already sent
             "keyframes": keyframes, "keyframe_mtimes": keyframe_mtimes, "vo": vo,
+            "vo_mtimes": _mtimes((v, v) for v in vo),
             "storyboard": _read_json(sb / "storyboard.json"),
             "gui": _read_json(sd / "gui.json", {}), "early": js.EARLY, "generators": _generators(h.server.tmp),
             "outputs": {s: {k: None if p is None else _read_json(p) for k, p in kinds.items()}
@@ -314,6 +328,7 @@ def r_job(h, q):
             "generate": generate}
     if generate:
         body["clip_files"] = _clip_files(clips)
+        body["clip_mtimes"] = _mtimes((n, clips / n) for n in body["clip_files"])
     h.send_json(200, body, {"ETag": etag})
     return None
 
