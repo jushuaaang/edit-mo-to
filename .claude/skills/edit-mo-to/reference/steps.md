@@ -123,7 +123,10 @@ One example per kind:
   {"id": "changes", "kind": "text", "text": "What should change?"}]}
 {"title": "voiceover", "questions": [
   {"id": "vo", "kind": "file", "text": "Generate the voiceover in ElevenLabs and send me the file."}]}
+{"title": "voiceover: generated", "questions": [
+  {"id": "vo_ok", "kind": "confirm", "text": "I made vo/<name>.mp3 with ElevenLabs (N characters). Use it?"}]}
 ```
+The `vo_ok` gate is for a voiceover Claude made with Generate for me (SKILL.md, "Generate for me"): the file is already in `vo/`, so the editor confirms it (Yes / No) instead of sending a file. `false`: re-open the gate with `vo`.
 **The model Claude picks.** When you choose the model yourself (proposing a default, or generating for the editor), use `generators.py pick` / the editor's default and never a model in their avoid list. `.claude/edit-mo-to/run tools/generators.py pick --site <site>` prints `<site>:<model>` from this computer's Settings ("When Claude picks, never use" = prefs `avoid_models`, "Claude's default model" = `default_model`; none set: the site's first model; exit 1: every model of the site is avoided; exit 3: the settings file can't be read; for both, ask the editor which model and never guess). The `generator_model` question still lists every model of the site (the editor may pick any, avoided or not) and gets `"default"` = the part after `:` of what it prints (the Google Flow example above shows the placeholder; never copy a model id into `default` from a doc or another job: each editor's choice lives only in their own Settings) (the GUI highlights it, and the B-roll & prompts page highlights the same pick before any gate opens).
 
 Working ahead, e.g. the editor picked the music source early: `{"id": "source_ok", "kind": "confirm", "text": "You chose Suno earlier. Still right?", "default": "suno"}` in the music gate, where `source` is asked today. The confirm gets its own id `<id>_ok`, never the choice's id (a gate question with the choice's id hides the page's own buttons for it), and the early value always goes in the text, because the GUI shows a confirm as Yes / No and ignores `default`. Answer `true`: use the early value. Answer `false`: re-open the gate with the original choice question (`{"id": "source", "kind": "choice", "options": [...], "default": "suno"}`; the GUI highlights `default` on a choice), or take the new pick the editor makes on the step page (`answer` `music:source`, still visible while `source_ok` is asked) or in chat.
@@ -137,7 +140,7 @@ Working ahead, e.g. the editor picked the music source early: `{"id": "source_ok
 | Character sheet | `storyboard` | `character_sheet` (confirm; `true` = every `CHAR-n` is saved as `storyboard/CHAR-n.png`, dropped on its card or saved from outside the app; the gate bar shows it as "It's saved". Check the files are there before going on) |
 | Keyframes | `storyboard` | `keyframes` (confirm; the editor drops `SB-n` images on the cards) |
 | Storyboard approval | `storyboard` | `approve` (confirm; the page's Approve all answers it with `true`) |
-| VO | `voiceover` | `vo` (file) |
+| VO | `voiceover` | `vo` (file); after Generate for me `vo_ok` (confirm) |
 | Older-VO spans | `voiceover` | `oldvo` (text; the "Reuse an older VO" dialog answers it with `[{"id", "timeline"}]`) |
 | Unmatched lines | `timing` | `unmatched` (choice; `keep` \| `rerecord`) |
 | Which cuts | `timing` | `cuts` (multi; the cut ids, recommended ones as `default`) |

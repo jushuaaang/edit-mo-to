@@ -298,3 +298,30 @@ def test_generate_events_in_steps():
     for needle in ("`action` `generate:storyboard:<SB-n \\| CHAR-n>`", "`action` `generate:clips:<prompt id>`",
                    "`action` `generate:voiceover:all`", "job.py can-generate"):
         assert needle in st, needle
+
+
+# --- Final review 2: I-1 (--since), I-2 (vo_ok), M-8 (clips only on Google Flow), M-9 (a picture uses an image model) ---
+
+def _gen_section() -> str:
+    return _text(SKILL).split("## Generate for me", 1)[1].split("\n## ", 1)[0]
+
+
+def test_collect_download_is_always_given_since():
+    sec = _gen_section()
+    calls = sec.count(".claude/edit-mo-to/run tools/collect_download.py")
+    assert calls >= 1 and sec.count("--since") >= calls
+    assert "collected.json" in sec
+
+
+def test_a_generated_voiceover_meets_the_vo_gate():
+    sec = _gen_section()
+    assert "vo_ok" in sec and "Then the normal Timing step" not in sec
+    st = _text(STEPS)
+    assert '{"id": "vo_ok", "kind": "confirm", "text": "I made vo/<name>.mp3 with ElevenLabs' in st
+
+
+def test_generate_clip_only_for_google_flow_and_pictures_use_an_image_model():
+    sec = _gen_section()
+    assert "generators.py pick --site google-flow" in sec
+    assert "image model" in sec and "never a video model" in sec
+    assert "prompts were written for another site" in sec
