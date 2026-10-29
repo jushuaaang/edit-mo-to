@@ -13,7 +13,7 @@
 // or the character's name (words.js label), never its code; files and event targets keep SB-n / CHAR-n.
 import { h, chip, pendingChip, toast, dropZone, helpTip, timeText, staleText } from "../ui.js";
 import { t, label } from "../words.js";
-import { boardItems, isClient, promptOf, needsImage } from "../board.js";
+import { boardItems, isClient, promptOf, needsImage, sheetsMissing } from "../board.js";
 import { stepPage, stateOf, openGate, gateAnswer, answerGate, pendingFor, copyButton, waitingText, flaggedBox,
   generateButton } from "../steppage.js";
 
@@ -64,7 +64,8 @@ export function statusOf(data, it) {
   if (commentsFor(data, it.id).some((c) => c.open)) return [t("storyboard.st_comment"), "you"];
   if (data?.keyframes?.[it.id]) return [t("storyboard.st_image"), "wait"];
   if (isClient(it)) return [t("storyboard.st_client"), "mute"];
-  return promptOf(it) ? [t("storyboard.st_ready"), "mute"] : [t("storyboard.st_char"), "mute"];
+  if (promptOf(it)) return [t("storyboard.st_ready"), "mute"];
+  return sheetsMissing(data) ? [t("storyboard.st_char"), "mute"] : [t("storyboard.st_no_prompt"), "mute"];
 }
 
 /** The shot's type in words: "AI · Close-up · push-in", "Client clip · take.mp4 @ 12.4 s", "Graphic · cta-pill". */
@@ -154,7 +155,8 @@ function promptBlock(ctx, data, it) {
       flaggedBox(ctx, data, STEP, it.id, "card"));
   }
   if (isClient(it)) return h("p", { class: "hint" }, t("storyboard.client_no_prompt"));
-  return h("p", { class: "hint" }, t(it.kind === "char" ? "storyboard.no_prompt_char" : "storyboard.no_prompt_yet"), pend);
+  const waits = it.kind === "shot" && sheetsMissing(data);  // a shot's prompt comes after the sheets, if one is missing
+  return h("p", { class: "hint" }, t(waits ? "storyboard.no_prompt_yet" : "storyboard.no_prompt_char"), pend);
 }
 
 function card(ctx, data, it, view) {

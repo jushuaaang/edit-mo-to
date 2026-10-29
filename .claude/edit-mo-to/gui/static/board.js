@@ -22,6 +22,10 @@ export const promptOf = (it) => (typeof it.item?.prompt === "string" && it.item.
 /** No picture on disk yet (client footage never needs one). */
 export const needsImage = (data, it) => !isClient(it) && !data?.keyframes?.[it.id];
 
+/** Is a character sheet still missing on disk? Only then does a shot's null prompt mean "waits for the character
+ *  sheet"; once every sheet is saved (or there is none), a null prompt is one Claude hasn't written yet. */
+export const sheetsMissing = (data) => boardItems(data).some((it) => it.kind === "char" && needsImage(data, it));
+
 /** The pictures the editor can make now: those still missing that have a prompt. While a character sheet is missing,
  *  only the character sheets (the shots' prompts are written after them). */
 export function picturesToMake(data) {

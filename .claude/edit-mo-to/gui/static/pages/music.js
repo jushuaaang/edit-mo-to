@@ -1,8 +1,9 @@
 // Music (step 11): the Suno prompt from Claude (parts of max 18 s, Copy, crossfade notes) or the editor's own track,
 // the music file drop (music/), which timelines. Gates: source; timelines; quit CapCut.
 import { h } from "../ui.js";
-import { t } from "../words.js";
-import { stepPage, choiceInput, uploadInput, outputsOf, outputTables, isTable, promptText, copyButton, lastInput } from "../steppage.js";
+import { t, parts } from "../words.js";
+import { stepPage, choiceInput, uploadInput, outputsOf, outputTables, isTable, promptText, copyButton, lastInput,
+  folderWord } from "../steppage.js";
 
 const SOURCES = [["suno", "music.suno"], ["own", "music.own"]];  // value, word
 
@@ -20,10 +21,9 @@ function sunoCard(tb) {
 
 export function render(root, data, ctx) {
   const out = outputsOf(data, "music");
-  const where = `${ctx.folder}/music/`;
   const own = lastInput(data, "music:source")?.value === "own";
   stepPage(root, "music", data, ctx, {
-    you: t(own ? "music.you_own" : "music.you_suno", { where }),
+    you: parts(own ? "music.you_own" : "music.you_suno", { where: folderWord(ctx, "music") }),
     early: () => [source(ctx, data), drop(ctx, data)],
     body: () => [
       h("section", { class: "card" }, source(ctx, data)),

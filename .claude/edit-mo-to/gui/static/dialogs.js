@@ -3,7 +3,7 @@
 // (names, paths, prompts, transcripts) reaches the DOM as text only. The `shot` dialog belongs to the storyboard page.
 import { h, chip, dialog, toast, copyButton, dropZone, pendingChip, helpTip, timeText, staleText } from "./ui.js";
 import { t, label, parts } from "./words.js";
-import { boardItems, isClient, promptOf } from "./board.js";
+import { boardItems, isClient, promptOf, sheetsMissing } from "./board.js";
 import { keyframeUrl, commentsFor, statusOf, shotText, sendEvent, generatePicture } from "./pages/storyboard.js";
 import { flaggedBox } from "./steppage.js";
 
@@ -367,7 +367,8 @@ function shot(args, ctx) {
         isClient(it) ? null : editField(it, "prompt", t("storyboard.kf_prompt"), promptOf(it), true),
         !isClient(it) && promptOf(it) ? generatePicture(ctx, ctx.data, it) : null,
         !isClient(it) && promptOf(it) ? flaggedBox(ctx, ctx.data, "storyboard", it.id, "dialog") : null,
-        !isClient(it) && !promptOf(it) && it.kind === "shot" ? h("p", { class: "hint" }, t("storyboard.prompt_after")) : null,
+        !isClient(it) && !promptOf(it) && it.kind === "shot"
+          ? h("p", { class: "hint" }, t(sheetsMissing(ctx.data) ? "storyboard.prompt_after" : "storyboard.no_prompt_char")) : null,
         commentsPart(it)));
   };
   const refresh = () => {  // a keyframe saved from outside (or just uploaded) shows without losing what was typed

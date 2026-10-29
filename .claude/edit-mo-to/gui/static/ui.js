@@ -11,7 +11,7 @@
 // Every word the editor reads comes from words.js (t), looked up when the element is built, so a language change
 // shows on the next render.
 
-import { t, timeTitle } from "./words.js";
+import { t, timeTitle, label, wordsIn } from "./words.js";
 
 export const STEPS = ["brief", "script", "storyboard", "voiceover", "timing", "prompts", "clips",
   "build", "review", "captions", "music", "export"];
@@ -234,14 +234,16 @@ export function uploadProblem(kind, file) {
 export function dropZone(kind, ctx, opts = {}) {
   const rule = UPLOAD_RULES[kind] || { exts: [], where: "" };
   const multiple = opts.multiple ?? kind !== "keyframe";
+  const types = rule.exts.map((e) => e.toUpperCase()).join(", ");
   const input = h("input", { type: "file", class: "sr", tabindex: "-1", "aria-hidden": "true",
     accept: rule.exts.map((e) => "." + e).join(","), multiple });
   const status = h("div", { class: "msg", role: "status" });
   const zone = h("div", { class: "drop", role: "button", tabindex: "0",
     "aria-label": t("upload.zone_label", { label: opts.label || t("upload.add_files") }) },
   h("b", {}, opts.label || t("upload.drop_files")), t("upload.or_click"), h("br"),
-  h("span", { class: "hint" }, t("upload.copied_to", { types: rule.exts.map((e) => e.toUpperCase()).join(", ") }), " ",
-    h("span", { class: "mono" }, opts.id ? `${rule.where}${opts.id}.png` : rule.where)),
+  // a picture for one card says whose picture it becomes ("Shot 5", the character's name), never storyboard/SB-5.png
+  opts.id ? h("span", { class: "hint", title: `${rule.where}${opts.id}` }, t("upload.pic_to", { types, name: label(opts.id, ctx.data) }))
+    : h("span", { class: "hint" }, t("upload.copied_to", { types }), " ", h("span", { class: "mono" }, rule.where)),
   input, status);
 
   const send = async (files) => {
@@ -257,7 +259,7 @@ export function dropZone(kind, ctx, opts = {}) {
         if (opts.id) q.id = opts.id;
         const res = await ctx.upload(q, file, (f) => { bar.style.width = `${Math.round(f * 100)}%`; });
         status.className = "msg ok";
-        status.textContent = t("upload.saved", { name: file.name });
+        status.textContent = opts.id ? t("upload.pic_saved", { name: label(opts.id, ctx.data) }) : t("upload.saved", { name: file.name });
         if (opts.onDone) opts.onDone(res);
       } catch (e) {
         status.className = "msg err";
@@ -410,7 +412,7 @@ export function logForStep(log, step) {
 export function askBox(step, data, ctx) {
   const mine = (data?.events || []).filter((e) => e.type === "message" && e.step === step)
     .map((e) => ({ at: e.at, text: e.text, me: true }));
-  const claude = logForStep(data?.job?.log, step).map((e) => ({ at: e.at, text: e.text, me: false }));
+  const claude = logForStep(data?.job?.log, step).map((e) => ({ at: e.at, text: wordsIn(e.text, data), me: false }));
   const items = [...mine, ...claude].sort((a, b) => Date.parse(a.at) - Date.parse(b.at)).slice(-12);
   const hist = h("ol", { class: "hist", "aria-label": t("ask.history") },
     items.map((it) => h("li", { class: it.me ? "me" : "cl" }, it.me ? it.text : t("ask.claude_says", { text: it.text }),

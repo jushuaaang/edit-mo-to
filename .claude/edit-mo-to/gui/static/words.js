@@ -57,7 +57,7 @@ export const WORDS = {
       "title", "step", "send"],
     "storyboard": ["open_close", "picture_of", "drop", "comment_on", "char_title", "prev", "next", "prev_plain",
       "next_plain", "f_all", "f_need", "f_changed", "f_comments", "st_approved", "st_sent", "st_changed",
-      "st_comment", "st_image", "st_client", "st_ready", "st_char", "char_sheet", "client_clip", "graphic", "ai",
+      "st_comment", "st_image", "st_client", "st_ready", "st_char", "st_no_prompt", "char_sheet", "client_clip", "graphic", "ai",
       "client_footage", "comment", "copy_prompt", "replace", "character", "english_temp", "details",
       "comments_open_one", "comments_open", "not_approved_sent", "approved_waiting", "approve_all_sent",
       "approve_all", "approve_anyway", "wait_images", "view", "grid", "detail", "show", "share", "send_notes",
@@ -268,7 +268,8 @@ export const WORDS = {
     "card": {
       "job": "Job", "client": "Client", "product": "Product", "style": "Style", "language": "Language",
       "temp_en": "TEMP_EN", "folder": "Folder", "vo": "VO", "generator": "Generator", "timelines": "Timelines",
-      "project": "Project", "temp_on": "On · delete before export",
+      "project": "Project", "clips_folder": "Clips folder", "broll_source": "B-roll source",
+      "temp_on": "On · delete before export",
       "temp_partial": "On for {names} · delete before export", "temp_removed": "Removed", "temp_off": "Off",
       "not_set": "Not set", "not_yet": "Not yet"
     },
@@ -277,7 +278,8 @@ export const WORDS = {
       "big": "{name} is too big. The limit here is {limit}.", "empty": "{name} is empty.",
       "zone_label": "{label}: drop here or press Enter to choose", "add_files": "Add files",
       "drop_files": "Drop files here", "or_click": " or click to browse", "copied_to": "{types} · copied to",
-      "copying": "Copying {name}…", "saved": "Saved {name}.", "not_finished": "The upload didn't finish."
+      "copying": "Copying {name}…", "saved": "Saved {name}.", "not_finished": "The upload didn't finish.",
+      "pic_to": "{types} · becomes {name}'s picture", "pic_saved": "{name}'s picture saved."
     },
     "gate": {
       "waiting": "Waiting on you", "waiting_title": "Waiting on you: {title}",
@@ -390,7 +392,7 @@ export const WORDS = {
       "acted": "{word} {name}. {after}", "f_all": "All", "f_need": "Needs image", "f_changed": "Changed",
       "f_comments": "Comments", "no_prompt_yet": "prompt comes after the character sheet", "st_approved": "approved",
       "st_sent": "approval sent", "st_changed": "changed", "st_comment": "comment open", "st_image": "image added",
-      "st_client": "client clip", "st_ready": "prompt ready", "st_char": "waiting for character sheet",
+      "st_client": "client clip", "st_ready": "prompt ready", "st_char": "waiting for character sheet", "st_no_prompt": "no prompt yet",
       "char_sheet": "Character sheet", "client_clip": "Client clip", "graphic": "Graphic", "ai": "AI",
       "client_footage": "Client footage", "no_keyframe_needed": "no keyframe needed", "comment": "Comment",
       "copy_prompt": "Copy prompt", "client_no_prompt": "The client's own footage: no prompt to copy.",
@@ -477,8 +479,8 @@ export const WORDS = {
       "suno": "Suno prompt from Claude", "own": "My own no-copyright track", "source": "Music source",
       "file": "Music file", "suno_h": "Suno prompt",
       "suno_p": "Parts of at most 18 s each; generate them in order and crossfade as the notes say.",
-      "you_own": "Pick a no-copyright track (YouTube Audio Library or similar) and drop it here. It's copied to {where}",
-      "you_suno": "Make the track in Suno with Claude's prompt, then drop the file here. It's copied to {where}"
+      "you_own": "Pick a no-copyright track (YouTube Audio Library or similar) and drop it here. It's copied to the {where} folder in this video's folder.",
+      "you_suno": "Make the track in Suno with Claude's prompt, then drop the file here. It's copied to the {where} folder in this video's folder."
     },
     "review": {
       "inplace": "In place (backup first)", "new": "New timeline",
@@ -507,7 +509,9 @@ export const WORDS = {
     },
     "vo": {
       "lang_h": "Script language", "times_with": " · Claude times the VO with", "set_at_brief": "Set at the brief.",
-      "you": "Make the voiceover yourself (ElevenLabs), as one file or one per hook/body, then drop it here. It's copied to {where}",
+      "you": "Make the voiceover yourself (ElevenLabs), as one file or one per hook/body, then drop it here. It's copied to the {where} folder in this video's folder.",
+      "you_ask": "Claude is asking before it makes the voiceover with ElevenLabs, because it uses your credits. Answer Make it or Don't make it below.",
+      "you_gen": "You asked Claude to make the voiceover. Claude counts the characters and asks you before it spends your ElevenLabs credits.",
       "files": "Voiceover file(s)", "file_h": "Voiceover file", "reuse": "Reuse an older VO", "make_it": "Make it", "dont_make": "Don't make it",
       "reuse_hint": "Saves credits: Claude transcribes an older VO and you pick the sentences."
     },
@@ -686,6 +690,7 @@ export const WORDS = {
       "big": "Masyadong malaki ang {name}. Ang limit dito ay {limit}.", "empty": "Walang laman ang {name}.",
       "zone_label": "{label}: i-drop dito o pindutin ang Enter para pumili", "or_click": " o i-click para pumili",
       "copied_to": "{types} · kokopyahin sa", "copying": "Kinokopya ang {name}…", "saved": "Na-save ang {name}.",
+      "pic_to": "{types} · magiging picture ng {name}", "pic_saved": "Na-save ang picture ng {name}.",
       "not_finished": "Hindi natapos ang upload."
     },
     "gate": {
@@ -816,8 +821,8 @@ export const WORDS = {
     },
     "music": {
       "suno_p": "Mga part na hanggang 18 s bawat isa; gawin nang sunod-sunod at i-crossfade ayon sa notes.",
-      "you_own": "Pumili ng no-copyright track (YouTube Audio Library o katulad) at i-drop dito. Kokopyahin ito sa {where}",
-      "you_suno": "Gawin ang track sa Suno gamit ang prompt ni Claude, tapos i-drop dito ang file. Kokopyahin ito sa {where}"
+      "you_own": "Pumili ng no-copyright track (YouTube Audio Library o katulad) at i-drop dito. Kokopyahin ito sa {where} folder ng video na ito.",
+      "you_suno": "Gawin ang track sa Suno gamit ang prompt ni Claude, tapos i-drop dito ang file. Kokopyahin ito sa {where} folder ng video na ito."
     },
     "review": {
       "ph": "Ano ang babaguhin? hal. “Hook 2: palitan ang clip sa 0:04 ng close-up ng jar”",
@@ -836,7 +841,9 @@ export const WORDS = {
     },
     "vo": {
       "times_with": " · Ita-time ni Claude ang VO gamit ang", "set_at_brief": "Nase-set sa brief.",
-      "you": "Ikaw ang gagawa ng voiceover (ElevenLabs), isang file o isa bawat hook/body, tapos i-drop dito. Kokopyahin ito sa {where}",
+      "you": "Ikaw ang gagawa ng voiceover (ElevenLabs), isang file o isa bawat hook/body, tapos i-drop dito. Kokopyahin ito sa {where} folder ng video na ito.",
+      "you_ask": "Nagtatanong muna si Claude bago gawin ang voiceover sa ElevenLabs, kasi gagamit ito ng credits mo. Sagutin ang Make it o Don't make it sa ibaba.",
+      "you_gen": "Pinagawa mo kay Claude ang voiceover. Bibilangin niya ang characters at tatanungin ka muna bago gumastos ng ElevenLabs credits mo.",
       "reuse_hint": "Tipid sa credits: ita-transcribe ni Claude ang lumang VO at ikaw ang pipili ng sentences."
     },
     "dlg": {
@@ -936,6 +943,16 @@ export function label(id, data) {
     if (m) return t(key, { n: Number(m[1]) });
   }
   return s;
+}
+
+// Codes inside a line of Claude's (activity, step notes): SB-n, CHAR-n, AI-n and padded clip codes (V02). Not P3 or C-1
+// (too easy to hit in prose), and never a code that is part of a file name or path ("storyboard/SB-5.png").
+const CODE_IN_TEXT = /(?<![\w./\\-])(SB-\d+|CHAR-\d+|AI-\d+|V\d{2,})(?![\w/\\-]|\.\w)/gi;
+
+/** Claude's line with its codes in words, for display only ("Updated SB-3" -> "Updated Shot 3"); the stored text keeps
+ *  the codes. A non-string reads as "". */
+export function wordsIn(text, data) {
+  return typeof text === "string" ? text.replace(CODE_IN_TEXT, (code) => label(code.toUpperCase(), data)) : "";
 }
 
 const ONE = /^(\d+):(\d{2})(?::(\d{2}))?$/;

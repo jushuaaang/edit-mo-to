@@ -406,6 +406,7 @@ VISIBLE_CODE_ALLOWED = (  # where "SB-" / "CHAR-" may stay: ids, file names, reg
     "`SB-${i + 1}`",
     "[/^SB-(\\d+)$/i,",
     "/^CHAR-\\d+$/i.test(s)",
+    "const CODE_IN_TEXT = /",   # the regex that turns codes in Claude's lines into words
 )
 
 
@@ -880,3 +881,116 @@ def test_an_early_generate_voiceover_click_says_it_waits():
         'opts.early ? t("sp.saved_early") : waitingText(data)', "")
     vo = _page("voiceover.js")
     assert 'early: () => [uploadInput(ctx, data, "voiceover", "vo", t("vo.files")), generateVo(ctx, data, true)]' in vo
+
+
+# --- Screenshot fixes (2026-10-29): what the preview screens showed wrong ---
+
+def _node(script):
+    r = subprocess.run(["node", "--input-type=module", "-e", script], capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    return _json.loads(r.stdout)
+
+
+def _sentence(key, *must):
+    """A new sentence key: an English line (with `must` in it) and a different Taglish line; never a label."""
+    w = _all_words()
+    en, tl = _flat(w["en"]), _flat(w["tl"])
+    assert not _is_label(key), key
+    assert key in en and key in tl and en[key] != tl[key], key
+    for m in must:
+        assert m in en[key], (key, m)
+    return en[key], tl[key]
+
+
+def test_make_it_question_open_hides_generate_and_says_claude_is_asking():
+    """While `vo_make_ok` is open (or a Generate voiceover click is still pending) the gold box says Claude is asking
+    before it makes the voiceover, and no second Generate voiceover button sits under the question."""
+    vo = _page("voiceover.js")
+    assert 'gateAsks(data, "voiceover", "vo_make_ok")' in vo
+    assert 'pendingFor(data, "generate:voiceover:all")' in vo
+    assert 't("vo.you_ask")' in vo and 't("vo.you_gen")' in vo
+    assert "asking ? null : generateVo(ctx, data)" in vo
+    en, tl = _sentence("vo.you_ask", "asking", "Make it", "Don't make it")
+    assert "Make it" in tl and "Don't make it" in tl
+    _sentence("vo.you_gen", "credits")
+
+
+def test_a_shot_without_a_prompt_waits_for_the_sheet_only_while_a_sheet_is_missing():
+    """A null prompt means "written after the character sheets"; once every sheet is on disk it just isn't written
+    yet, so the card must not say it waits for the character sheet."""
+    out = _node("""
+import { sheetsMissing } from "%s";
+const sb = { characters: [{ id: "CHAR-1", name: "Sofía" }], beats: [{ id: "SB-6", prompt: null }] };
+console.log(JSON.stringify({
+  missing: sheetsMissing({ storyboard: sb, keyframes: {} }),
+  done: sheetsMissing({ storyboard: sb, keyframes: { "CHAR-1": "/x/CHAR-1.png" } }),
+  none: sheetsMissing({ storyboard: { beats: sb.beats }, keyframes: {} }),
+}));
+""" % (STATIC / "board.js").as_uri())
+    assert out == {"missing": True, "done": False, "none": False}
+    sb, dlg = _page("storyboard.js"), (STATIC / "dialogs.js").read_text(encoding="utf-8")
+    assert 'sheetsMissing(data) ? [t("storyboard.st_char"), "mute"] : [t("storyboard.st_no_prompt"), "mute"]' in sb
+    assert "sheetsMissing(ctx.data)" in dlg
+    assert _is_label("storyboard.st_no_prompt") and _words()["storyboard"]["st_no_prompt"] == "no prompt yet"
+
+
+def test_codes_in_claudes_lines_read_as_words_on_screen():
+    out = _node("""
+import { wordsIn, setLang } from "%s";
+const data = { storyboard: { characters: [{ id: "CHAR-1", name: "Sofía, 28, host" }] } };
+console.log(JSON.stringify([
+  wordsIn("Updated SB-3 to host_take3.mp4 @ 12.4 s, as you asked", data),
+  wordsIn("Saved storyboard/SB-5.png and SB-12.", data),
+  wordsIn("CHAR-1 sheet saved; V02 flagged, V3 ok", data),
+  wordsIn("Wrote AI-2 and SB-10", null),
+  wordsIn("", null), wordsIn(null, null),
+]));
+""" % (STATIC / "words.js").as_uri())
+    assert out == ["Updated Shot 3 to host_take3.mp4 @ 12.4 s, as you asked",
+                   "Saved storyboard/SB-5.png and Shot 12.",
+                   "Sofía sheet saved; Clip 2 flagged, V3 ok",
+                   "Wrote AI clip 2 and Shot 10", "", ""]
+    app, dash = (STATIC / "app.js").read_text(encoding="utf-8"), _page("dashboard.js")
+    assert "wordsIn(" in app and "wordsIn(" in dash
+    ui = (STATIC / "ui.js").read_text(encoding="utf-8")
+    assert "${rule.where}${opts.id}.png" not in ui            # the drop box no longer shows storyboard/SB-5.png
+    assert '"upload.pic_to"' in ui and '"upload.pic_saved"' in ui and "label(opts.id, ctx.data)" in ui
+    _sentence("upload.pic_to", "{name}'s picture")
+    _sentence("upload.pic_saved", "{name}'s picture saved")
+
+
+def test_job_card_names_every_field_and_keeps_paths_short():
+    app = (STATIC / "app.js").read_text(encoding="utf-8")
+    order = app.split("const CARD_ORDER = [", 1)[1].split("]", 1)[0]
+    assert '"clips_folder"' in order and '"broll_source"' in order
+    w = _words()["card"]
+    assert w["clips_folder"] == "Clips folder" and w["broll_source"] == "B-roll source"
+    assert "PATH_KEYS" in app and "baseName(" in app and "title: full" in app and "copyButton(full" in app
+
+
+def test_damaged_prefs_hides_the_model_table_and_the_default_dropdown():
+    text = _page("settings.js")
+    body = text.split("function modelsCard(", 1)[1].split("\n}\n", 1)[0]
+    assert "hidden: true" in body and "pick.hidden = false" in body
+    broken = body.split("if (isBroken(p))", 1)[1].split("\n", 1)[0]
+    assert "settings.broken_models" in broken and "return" in broken
+
+
+def test_folder_paths_in_sentences_are_short_with_the_full_path_on_hover():
+    for key in ("vo.you", "music.you_own", "music.you_suno"):
+        en, tl = _sentence(key, "{where} folder in this video's folder")
+        assert "{where}" in tl
+    for name in ("voiceover.js", "music.js"):
+        text = _page(name)
+        assert "folderWord(ctx, " in text, name
+        assert "${ctx.folder}/" not in text, name
+    sp = (STATIC / "steppage.js").read_text(encoding="utf-8")
+    assert "export function folderWord(" in sp and "title: full" in sp
+
+
+def test_favicon_is_served(base):
+    status, ctype, body = _get(base + "/static/favicon.svg")
+    assert status == 200 and ctype.startswith("image/svg+xml") and b"<svg" in body
+    status, ctype, _ = _get(base + "/favicon.ico")
+    assert status == 200 and ctype.startswith("image/svg+xml")
+    assert 'rel="icon" href="/static/favicon.svg"' in (STATIC / "index.html").read_text(encoding="utf-8")

@@ -8,9 +8,9 @@
 //          (applyStaticWords). When the language changes (Settings, or Claude's `job.py lang` seen on the prefs refresh
 //          every CURRENT_MS) the shell and the open page re-render at once, keeping what the editor typed.
 
-import { h, icon, stepChip, STEPS, stepTitle, relTime, gateBar, askBox, dialog, previousStep, helpTip } from "./ui.js";
+import { h, icon, stepChip, STEPS, stepTitle, relTime, gateBar, askBox, dialog, previousStep, helpTip, copyButton } from "./ui.js";
 import { watchQuestion, titled, loadPrefs, onLangChange } from "./nextstep.js";
-import { t, getLang } from "./words.js";
+import { t, getLang, wordsIn } from "./words.js";
 
 const POLL_MS = 1500;
 const CURRENT_MS = 5000;  // /api/current and this computer's prefs (the language) are read again this often
@@ -273,7 +273,17 @@ function stepLink(step, i, job, route) {
 
 const CARD_HELP = { temp_en: "temp_en", vo: "vo", timelines: "timeline", generator: "model" };  // ⓘ after these
 const CARD_ORDER = ["client", "product", "style", "language", "temp_en", "folder", "vo", "generator", "timelines",
-  "project"];  // labels: WORDS.card.<key>; other keys Claude adds show under their own name
+  "broll_source", "clips_folder", "project"];  // labels: WORDS.card.<key>; other keys Claude adds show under their own name
+const PATH_KEYS = new Set(["folder", "clips_folder"]);
+const ONLY_WHEN_SET = new Set(["broll_source", "clips_folder"]);  // rows most videos never fill: no "Not yet" row  // shown as the folder's name; the full path on hover and Copy
+const SOURCE_WORDS = { client: "prompts.src_client", ai: "prompts.src_ai", both: "prompts.src_both" };
+const baseName = (p) => String(p ?? "").replace(/[\\/]+$/, "").split(/[\\/]/).pop();
+
+/** A path row of the job card: the last folder name (short, no 6-line wrap), the full path as its title and a Copy. */
+function pathValue(full) {
+  return h("dd", { class: "pathval" }, h("span", { class: "mono", title: full }, baseName(full) || full),
+    copyButton(full, t("common.copy")));
+}
 
 function tempEn(value) {
   if (!value) return null;
@@ -291,7 +301,7 @@ function renderRail() {
   if (!job) {
     dl.replaceChildren(h("dt", {}, t("card.job")), h("dd", { class: "none" }, t(state.folder ? "common.loading" : "shell.no_video")));
   } else {
-    const keys = [...CARD_ORDER.map((k) => [k, t(`card.${k}`)]),
+    const keys = [...CARD_ORDER.filter((k) => !ONLY_WHEN_SET.has(k) || card[k]).map((k) => [k, t(`card.${k}`)]),
       ...Object.keys(card).filter((k) => !CARD_ORDER.includes(k)).map((k) => [k, k])];
     dl.replaceChildren(...keys.flatMap(([k, label]) => {
       let v = card[k];
@@ -300,13 +310,17 @@ function renderRail() {
         const te = tempEn(v);
         return [h("dt", {}, label, helpTip("temp_en")), te ? h("dd", { class: te[1] || null }, te[0]) : h("dd", { class: "none" }, t("card.not_set"))];
       }
-      return [h("dt", {}, label, CARD_HELP[k] ? helpTip(CARD_HELP[k]) : null), v ? h("dd", { class: k === "folder" ? "mono" : null }, String(v)) : h("dd", { class: "none" }, t("card.not_yet"))];
+      const dt = h("dt", {}, label, CARD_HELP[k] ? helpTip(CARD_HELP[k]) : null);
+      if (!v) return [dt, h("dd", { class: "none" }, t("card.not_yet"))];
+      if (PATH_KEYS.has(k)) return [dt, pathValue(String(v))];
+      if (k === "broll_source" && SOURCE_WORDS[String(v).toLowerCase()]) return [dt, h("dd", {}, t(SOURCE_WORDS[String(v).toLowerCase()]))];
+      return [dt, h("dd", {}, String(v))];
     }));
   }
   const log = (job?.log || []).slice(-20).reverse();
   $("#activity").replaceChildren(...(log.length ? log.map((e) => {
     const m = /^\s*\[([a-z]+)\]\s*/.exec(e.text || "");
-    const text = m ? `${stepTitle(m[1])} · ${e.text.slice(m[0].length)}` : e.text;
+    const text = wordsIn(m ? `${stepTitle(m[1])} · ${e.text.slice(m[0].length)}` : e.text, state.data);  // codes in words, display only
     return h("li", {}, h("time", { datetime: e.at, title: e.at }, relTime(e.at)), h("span", {}, text));
   }) : [h("li", {}, t(job ? "common.nothing_yet" : "app.open_to_see"))]));
 

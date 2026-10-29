@@ -2,7 +2,7 @@
 // POST /api/practice opens the editor's own Claude in a visible window; the Copy fallback shows only when that can't
 // happen), recent activity across videos, the setup check, "New video", and the plan usage box (usageCard).
 import { h, icon, chip, checksTable, relTime, stepTitle, STEPS, copyButton } from "../ui.js";
-import { t } from "../words.js";
+import { t, wordsIn } from "../words.js";
 import { nowStrip } from "../nextstep.js";
 
 const PRACTICE = "/practice-muna";  // what Start practice runs, and what the editor types in Claude when it can't
@@ -261,7 +261,7 @@ export function render(root, data, ctx) {
     lines.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
     activity.replaceChildren(...(lines.length ? lines.slice(0, 8).map((e) => h("li", {},
       h("time", { datetime: e.at, title: e.at }, relTime(e.at)),
-      h("span", {}, e.text.replace(/^\s*\[[a-z]+\]\s*/, ""), " · ", h("a", { href: jobLink(e.folder) }, e.video))))
+      h("span", {}, wordsIn(e.text.replace(/^\s*\[[a-z]+\]\s*/, ""), jobs.get(e.folder)), " · ", h("a", { href: jobLink(e.folder) }, e.video))))
       : [h("li", {}, t("common.nothing_yet"))]));
     setup.replaceChildren(checks ? setupTable(checks, without.length) : h("p", { class: "hint" }, t("common.checking")));
   };

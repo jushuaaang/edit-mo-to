@@ -292,7 +292,14 @@ export async function sendEdit(ctx, step, target, value) {
 
 // ---------- pieces ----------
 
-/** "You" steps: what to do outside the app and where the file goes. */
+/** A subfolder of this video's folder for a sentence: its short name ("vo"), the full path on hover. The sentence
+ *  says where it is ("the vo folder in this video's folder"), so no long path wraps across the box. */
+export function folderWord(ctx, sub) {
+  const full = `${String(ctx.folder || "").replace(/[\\/]+$/, "")}/${sub}/`;
+  return h("span", { class: "mono", title: full }, sub);
+}
+
+/** "You" steps: what to do outside the app and where the file goes (a string, or pieces from words.js parts()). */
 export function youLine(text) {
   return h("div", { class: "banner you" }, chip(t("tag.you"), "you"), h("span", {}, text));
 }

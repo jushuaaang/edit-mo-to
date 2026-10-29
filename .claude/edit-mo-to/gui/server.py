@@ -687,7 +687,7 @@ class Handler(BaseHTTPRequestHandler):
             q = {k: v[-1] for k, v in parse_qs(url.query).items()}
             route = ROUTES.get((method, url.path))
             if route is None:
-                if method == "GET" and (url.path == "/" or url.path.startswith("/static/")):
+                if method == "GET" and (url.path in ("/", "/favicon.ico") or url.path.startswith("/static/")):
                     return self._static(url.path, q)
                 raise HttpError(404, "not found")
             fn, needs_token = route
@@ -734,7 +734,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise HttpError(401, "wrong token")
             cookie = f"emt={self.server.token}; HttpOnly; SameSite=Strict; Path=/"
             return self.reply(302, b"", None, {"Location": "/", "Set-Cookie": cookie})
-        rel = "index.html" if path == "/" else unquote(path[len("/static/"):])
+        # /favicon.ico: the same small icon as <link rel="icon">, for a browser that asks the old way (no 404 per load)
+        rel = "index.html" if path == "/" else "favicon.svg" if path == "/favicon.ico" else unquote(path[len("/static/"):])
         target = folders.safe_path(STATIC / rel, [STATIC])
         if not target.is_file():
             raise HttpError(404, "not found")

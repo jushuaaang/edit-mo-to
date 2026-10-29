@@ -4,8 +4,9 @@
 // (Claude shows the credits and asks first: the gate's `vo_make_ok` confirm, shown as Make it / Don't make it; the
 // page only sends the answer); "Voiceover in vo/" only once a file in vo/ is newer than the click.
 import { h, helpTip } from "../ui.js";
-import { t } from "../words.js";
-import { stepPage, uploadInput, outputsOf, outputTables, card, openGate, generateButton } from "../steppage.js";
+import { t, parts } from "../words.js";
+import { stepPage, uploadInput, outputsOf, outputTables, card, openGate, generateButton, gateAsks, pendingFor,
+  folderWord } from "../steppage.js";
 
 /** "Spanish (es)" -> "es"; else the script output's lang. */
 function langCode(data) {
@@ -33,15 +34,18 @@ const generateVo = (ctx, data, early = false) => generateButton(ctx, data, "voic
   vo: true, early, doneAt: newestVo(data), doneLabel: t("gen.vo_saved") });
 
 export function render(root, data, ctx) {
-  const where = `${ctx.folder}/vo/`;
+  // "Make it?" is open (or a Generate voiceover click is still pending): the box says Claude is asking first, and no
+  // second Generate voiceover button sits under the question (a double press would ask twice).
+  const asking = gateAsks(data, "voiceover", "vo_make_ok");
+  const genPending = pendingFor(data, "generate:voiceover:all").length > 0;
   stepPage(root, "voiceover", data, ctx, {
-    you: t("vo.you", { where }),
+    you: asking ? t("vo.you_ask") : genPending ? t("vo.you_gen") : parts("vo.you", { where: folderWord(ctx, "vo") }),
     labels: { vo_make_ok: { yes: t("vo.make_it"), no: t("vo.dont_make") } },
     early: () => [uploadInput(ctx, data, "voiceover", "vo", t("vo.files")), generateVo(ctx, data, true)],
     body: () => [
       h("section", { class: "card" }, h("h3", {}, t("vo.file_h"), helpTip("vo")),
         uploadInput(ctx, data, "voiceover", "vo", t("vo.files")),
-        generateVo(ctx, data),
+        asking ? null : generateVo(ctx, data),
         h("div", { class: "row", style: "margin-top:12px" },
           h("button", { class: "btn", type: "button",
             onclick: () => ctx.openDialog("oldvo", { gate: openGate(data, "voiceover"), data }) }, t("vo.reuse")),

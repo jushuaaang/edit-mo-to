@@ -193,6 +193,7 @@ function modelsCard(ctx) {
       ...rows.filter(([id]) => !avoid.has(id)).map(([id, name]) => h("option", { value: id }, name)));
     sel.value = p.default_model && !avoid.has(p.default_model) ? p.default_model : "";
     sel.disabled = false;
+    pick.hidden = false;
   };
   const save = async (patch) => {
     sel.disabled = true;
@@ -220,14 +221,17 @@ function modelsCard(ctx) {
     show(p);
     msg.textContent = "";
   }).catch((e) => say(e.message, "err"));
-  return h("section", { class: "card", "aria-labelledby": "models-h" },
-    h("h3", { id: "models-h" }, t("settings.models_h")), h("p", { class: "hint" }, t("settings.models_p")),
+  // the table and the default dropdown show only once the models and this computer's choices are read: a damaged
+  // prefs file (or no table) leaves just the plain note, never empty headings or a blank dropdown
+  const pick = h("div", { hidden: true },
     h("div", { class: "tablewrap", style: "margin-top:10px" }, h("table", {},
       h("thead", {}, h("tr", {}, h("th", { scope: "col" }, t("settings.th_model")), h("th", { scope: "col" }, t("settings.avoid")))),
       body)),
     h("div", { class: "field", style: "margin-top:14px" }, h("label", { class: "lbl", for: "pref-default_model" }, t("settings.default_model")),
-      sel, h("div", { class: "hint" }, t("settings.default_hint"))),
-    msg);
+      sel, h("div", { class: "hint" }, t("settings.default_hint"))));
+  return h("section", { class: "card", "aria-labelledby": "models-h" },
+    h("h3", { id: "models-h" }, t("settings.models_h")), h("p", { class: "hint" }, t("settings.models_p")),
+    pick, msg);
 }
 
 /** "Generate for me" (spec "Generate for me (Joshua only)"): drawn only when GET /api/generate answers allowed: true
