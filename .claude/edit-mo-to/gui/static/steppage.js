@@ -188,16 +188,18 @@ const genConfirm = new Set();   // generate targets whose first-time warning is 
  *  when there is none) shows opts.doneLabel only when that file is at least as new as the last generate click, so an
  *  older file (one the editor dropped earlier) never reads as the result of a failed attempt. The first click ever shows the image-site warning (words.js gen.warn) inline (not a dialog); Continue
  *  saves generate_warned_at in this computer's prefs and it is never asked again. opts.vo: the ElevenLabs credits line
- *  instead, and no account warning. opts: {label, doneAt, doneLabel, vo} */
+ *  instead, and no account warning. opts.early: the click came before its step, so the note says "Saved for later"
+ *  (sp.saved_early), never that Claude is on it. opts: {label, doneAt, doneLabel, vo, early} */
 export function generateButton(ctx, data, step, id, opts = {}) {
   if (data?.generate !== true) return null;
   const target = `generate:${step}:${id}`;
   const pend = pendingFor(data, target).length > 0;
+  const waitText = () => (opts.early ? t("sp.saved_early") : waitingText(data));  // early: it waits for its step
   const askedAt = Math.max(-Infinity, ...(data?.events || [])
     .filter((e) => e.type === "action" && e.target === target).map((e) => Date.parse(e.at)).filter(Number.isFinite));
   const made = Number.isFinite(askedAt) && Number.isFinite(opts.doneAt) && opts.doneAt >= askedAt;
   const state = h("span", { class: "row" }, pend ? pendingChip() : made ? chip(opts.doneLabel, "ok") : null);
-  const note = h("span", { class: "hint", role: "status" }, pend ? waitingText(data) : "");
+  const note = h("span", { class: "hint", role: "status" }, pend ? waitText() : "");
   const btn = h("button", { class: "btn sm", type: "button", disabled: pend }, opts.label);
   const box = h("div", { class: "row genrow", "data-gen": target });
   const send = async () => {
@@ -205,7 +207,7 @@ export function generateButton(ctx, data, step, id, opts = {}) {
     try {
       await ctx.send({ type: "action", step, target });
       state.replaceChildren(pendingChip());
-      note.textContent = waitingText(data);
+      note.textContent = waitText();
     } catch (e) {
       note.textContent = e.message || t("common.not_sent");
       btn.disabled = false;

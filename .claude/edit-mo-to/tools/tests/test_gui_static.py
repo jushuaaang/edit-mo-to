@@ -869,3 +869,14 @@ def test_make_it_question_has_plain_buttons():
     en = _words()
     assert en["vo"]["make_it"] == "Make it" and en["vo"]["dont_make"] == "Don't make it"
     assert _is_label("vo.make_it") and _is_label("vo.dont_make")
+
+
+def test_an_early_generate_voiceover_click_says_it_waits():
+    """A Generate voiceover click before the Voiceover step waits there (SKILL.md), so its note never says Claude is on
+    it: it says the early "Saved for later" line instead."""
+    sp = (STATIC / "steppage.js").read_text(encoding="utf-8")
+    assert 'opts.early ? t("sp.saved_early") : waitingText(data)' in sp
+    assert "waitingText(data)" not in sp.split("export function generateButton(", 1)[1].split("\n}\n", 1)[0].replace(
+        'opts.early ? t("sp.saved_early") : waitingText(data)', "")
+    vo = _page("voiceover.js")
+    assert 'early: () => [uploadInput(ctx, data, "voiceover", "vo", t("vo.files")), generateVo(ctx, data, true)]' in vo

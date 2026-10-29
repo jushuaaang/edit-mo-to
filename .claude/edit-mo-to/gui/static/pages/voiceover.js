@@ -28,15 +28,16 @@ function newestVo(data) {
   return times.length ? Math.max(...times) / 1e6 : null;
 }
 
-const generateVo = (ctx, data) => generateButton(ctx, data, "voiceover", "all", { label: t("gen.voiceover"), vo: true,
-  doneAt: newestVo(data), doneLabel: t("gen.vo_saved") });
+/** early: the click came before the Voiceover step, so Claude keeps it until then ("Saved for later"). */
+const generateVo = (ctx, data, early = false) => generateButton(ctx, data, "voiceover", "all", { label: t("gen.voiceover"),
+  vo: true, early, doneAt: newestVo(data), doneLabel: t("gen.vo_saved") });
 
 export function render(root, data, ctx) {
   const where = `${ctx.folder}/vo/`;
   stepPage(root, "voiceover", data, ctx, {
     you: t("vo.you", { where }),
     labels: { vo_make_ok: { yes: t("vo.make_it"), no: t("vo.dont_make") } },
-    early: () => [uploadInput(ctx, data, "voiceover", "vo", t("vo.files")), generateVo(ctx, data)],
+    early: () => [uploadInput(ctx, data, "voiceover", "vo", t("vo.files")), generateVo(ctx, data, true)],
     body: () => [
       h("section", { class: "card" }, h("h3", {}, t("vo.file_h"), helpTip("vo")),
         uploadInput(ctx, data, "voiceover", "vo", t("vo.files")),
