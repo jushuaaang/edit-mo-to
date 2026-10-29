@@ -9,8 +9,8 @@ Standard library only.
         the model's default is eleven_multilingual_v2.
 
 The key comes from .claude/edit-mo-to/secrets.json ({"elevenlabs_api_key": "..."}, git-ignored, filled in by the
-editor). It is sent only in the xi-api-key header and never printed, logged or put in an error (any reply text is
-redacted). --out must be a new .mp3 directly in the vo/ folder of a video folder that has a job (.edit-mo-to/job.json);
+editor). It is sent only in the xi-api-key header, only to api.elevenlabs.io (redirects are refused, so the header
+never follows one to another host), and never printed, logged or put in an error (any reply text is redacted). --out must be a new .mp3 directly in the vo/ folder of a video folder that has a job (.edit-mo-to/job.json);
 anything else is refused before any call, so no credits are spent. Errors: {"ok": false, "error": ...}, exit 1.
 """
 import argparse
@@ -51,6 +51,22 @@ def open_new(part: Path):
         raise Refused(f"{part.name} appeared while saving; try again")
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow | getattr(os, "O_BINARY", 0)
     return os.fdopen(os.open(part, flags, 0o644), "wb")
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse every redirect: urllib would otherwise send the request again, xi-api-key header and all, to wherever the
+    Location points. The API never needs one, so a redirect is an error (HTTPError with its 3xx code)."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(req.full_url, code, f"redirect refused ({msg})", headers, fp)
+
+
+def _opener(*extra):
+    """The only opener this tool uses: urllib's defaults with redirects refused (extra handlers: tests only)."""
+    return urllib.request.build_opener(_NoRedirect, *extra)
+
+
+def _urlopen(req, timeout=None):
+    return _opener().open(req, timeout=timeout)
 
 
 def _fail(message: str) -> None:
@@ -130,10 +146,13 @@ def make(script: str, voice: "str | None", model: "str | None", out_raw: str) ->
                                  headers={"xi-api-key": key, "Content-Type": "application/json",
                                           "Accept": "audio/mpeg"})
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+        with _urlopen(req, timeout=TIMEOUT) as r:
             ctype = (r.headers.get("Content-Type") or "") if hasattr(r.headers, "get") else ""
             audio = r.read(MAX_AUDIO + 1)
     except urllib.error.HTTPError as e:
+        if 300 <= e.code < 400:
+            raise Refused(f"ElevenLabs answered with a redirect ({e.code}); refused so your key goes nowhere else. "
+                          "Nothing was saved; try again later") from None
         try:
             body = e.read(4096).decode("utf-8", "replace")
             detail = json.loads(body).get("detail")

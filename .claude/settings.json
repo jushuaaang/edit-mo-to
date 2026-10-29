@@ -2,6 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(.claude/edit-mo-to/run *)"
+    ],
+    "deny": [
+      "Read(.claude/edit-mo-to/secrets.json)"
     ]
   },
   "statusLine": {

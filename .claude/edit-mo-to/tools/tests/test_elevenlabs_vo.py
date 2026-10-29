@@ -26,6 +26,7 @@ def _no_network(monkeypatch):
     def refuse(*a, **k):
         raise AssertionError("a test tried to reach the network")
     monkeypatch.setattr(ev.urllib.request, "urlopen", refuse)
+    monkeypatch.setattr(ev, "_urlopen", refuse, raising=False)
     monkeypatch.setattr(socket.socket, "connect", refuse)
     monkeypatch.setattr(socket.socket, "connect_ex", refuse)
     monkeypatch.setattr(socket, "create_connection", refuse)
@@ -81,7 +82,7 @@ def _capture(monkeypatch, resp=None, exc=None):
         if exc:
             raise exc
         return resp or _Resp()
-    monkeypatch.setattr(ev.urllib.request, "urlopen", fake)
+    monkeypatch.setattr(ev, "_urlopen", fake)
     return seen
 
 
@@ -264,3 +265,61 @@ def test_a_planted_part_symlink_cannot_write_outside(job, capsys, monkeypatch, t
     dest = folder / "vo" / "a.mp3"
     assert not list(outside.iterdir())
     assert code == 0 and dest.is_file() and not dest.is_symlink() and dest.read_bytes() == MP3
+
+
+# --- Final review 2, M-6: the key never follows a redirect ---
+
+class _FakeHTTPS(urllib.request.HTTPSHandler):
+    """Answers in place of the network: the API host redirects (302) to another host, which would send audio back.
+    Records every request it is asked for, with its headers."""
+    def __init__(self):
+        super().__init__()
+        self.seen = []
+
+    def https_open(self, req):
+        import email.message
+        import urllib.response
+        self.seen.append((req.full_url, {k.lower(): v for k, v in req.header_items()}))
+        hdrs = email.message.Message()
+        if req.host == "api.elevenlabs.io":
+            hdrs["Location"] = "https://evil.example/steal"
+            resp = urllib.response.addinfourl(io.BytesIO(b""), hdrs, req.full_url, 302)
+            resp.msg = "Found"
+        else:
+            hdrs["Content-Type"] = "audio/mpeg"
+            resp = urllib.response.addinfourl(io.BytesIO(MP3), hdrs, req.full_url, 200)
+            resp.msg = "OK"
+        return resp
+
+
+def test_the_fake_redirect_would_leak_the_key_with_plain_urllib():
+    """Proves the test below is real: urllib's default opener follows the 302 and sends xi-api-key to the new host."""
+    fake = _FakeHTTPS()
+    req = urllib.request.Request("https://api.elevenlabs.io/v1/x", headers={"xi-api-key": KEY}, method="GET")
+    urllib.request.build_opener(fake).open(req, timeout=5).read()
+    assert [u for u, _ in fake.seen] == ["https://api.elevenlabs.io/v1/x", "https://evil.example/steal"]
+    assert fake.seen[1][1].get("xi-api-key") == KEY
+
+
+def test_make_refuses_a_redirect_and_never_sends_the_key_on(job, capsys, monkeypatch):
+    folder, script, _ = job
+    fake = _FakeHTTPS()
+    monkeypatch.setattr(ev, "_urlopen", lambda req, timeout=None: ev._opener(fake).open(req, timeout=timeout))
+    out_path = folder / "vo" / "vo_full.mp3"
+    code, out, err = _run(["make", str(script), "--voice", "21m00Tcm4TlvDq8ikWAM", "--out", str(out_path)], capsys)
+    assert code == 1 and json.loads(out)["ok"] is False
+    assert "redirect" in json.loads(out)["error"]
+    assert [u.split("?")[0] for u, _ in fake.seen] == ["https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM"]
+    assert not any("evil.example" in u for u, _ in fake.seen)
+    assert not out_path.exists() and KEY not in out + err
+
+
+def test_the_real_opener_refuses_redirects():
+    names = [type(h).__name__ for h in ev._opener().handlers]
+    assert "_NoRedirect" in names and "HTTPRedirectHandler" not in names
+
+
+def test_the_shared_settings_deny_reading_the_secrets_file():
+    """Final review 2, M-6: Claude's Read tool can't open secrets.json in this project (not only the skill text)."""
+    s = json.loads((TOOLS.parents[2] / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    assert "Read(.claude/edit-mo-to/secrets.json)" in s["permissions"]["deny"]
