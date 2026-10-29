@@ -70,3 +70,9 @@ Run tests from `.claude/edit-mo-to/tools/` with `.venv/bin/python -m pytest test
 Tasks 8–11 reviewed and fixed; final whole-branch review done and fixed (launcher only stops a verified own server). Added on Joshua's requests, each built and reviewed: Higgsfield replaces Seedance with per-model rules (`generators.json`), Google Flow asks the model, Gemini Omni Flash, models Claude avoids / Claude's default model, safer prompt wording + "Got flagged", beginner features (what to do now, word help, alerts, practice button, why this step, no codes), English/Taglish (labels English, sentences Taglish) with auto-detect, "Generate for me" (owner only: Flow via Claude in Chrome, ElevenLabs voiceover), plan usage % via the status line with videos left. Full suite on the Mac: 870 passed, 5 known environment failures (no cv2; VectCut MCP server errors).
 
 Next: a second whole-branch review of the work since 89c5b18 and its fixes, then Task 12 (practice run with Joshua on a fresh clone). Not run on real Windows yet (practice launch, status line).
+
+## Status 2026-10-29
+
+Final review 2 fixes done and pushed (5f4ff39..de4c328): collect_download `--since` + collected.json ledger (I-1), `vo_ok` confirm after an ElevenLabs make (I-2), damaged prefs.json never overwritten (M-3), ElevenLabs key never follows a redirect + project deny on secrets.json (M-6), Generate clip only on Flow jobs and pictures use Flow's image model (M-8, M-9), done chips need a file newer than the click (M-11). Suite: 889 passed, 5 known environment failures (needs /opt/homebrew/bin on PATH for ffmpeg/node). Not done: Settings warning for a damaged prefs.json, "Make it?" before ElevenLabs spends credits, other minors in final-review-2.md.
+
+Next: refresh the preview page screenshots, then Task 12 (practice run with Joshua on a fresh clone).
