@@ -88,3 +88,4 @@ Suite: 914 passed, 5 known environment failures (4 VectCut MCP, 1 cv2). Next: re
 
 Later 2026-10-29: preview reshot (artifact G2jN8YWoubm4E67vBjUZuM v9, harness in that session's scratchpad gui-shots/) and its 7 findings fixed in 80201ea (Make it? page, Shot 6 sheet chip, codes in activity/drop box, job card labels, damaged-settings model list, short folder paths, favicon). Suite 921 passed + 5 known. Taglish check page for Joshua: https://claude.ai/artifact/Ha5tN1qchdFvcSCp6Mev3c (299 sentences). Open: which shots get flagged most (asked). Next: Task 12 practice run with Joshua.
 Joshua checked the Taglish page on 2026-10-29: all good, no fixes.
+Flagged shots (2026-10-29): Joshua says it depends; no up-front list. Learn from real "Got flagged" reports during editing instead.
