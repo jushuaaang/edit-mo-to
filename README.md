@@ -114,6 +114,22 @@ You:     Client B-roll.
 
 Lists and plans come as tables in the chat. Times are written `seconds:frames`: `7:12` means 7 seconds and 12 frames.
 
+## The app (Edit Mo To)
+
+Claude opens a small app in your browser next to the chat. You can answer every stop there instead of typing in the chat, and Claude carries on by itself.
+
+- **Dashboard:** all your videos, which step each one is on, and whether Claude is waiting on you. It also shows how much of your plan you've used this week and about how many more videos fit.
+- **One page per step:** Brief, Script, Storyboard, Voiceover, Timing, B-roll & prompts, Clips, Build & QA, Review, Captions, Music, Export. Each page shows **what to do now**, **why this step matters**, and Claude's question with buttons to answer.
+- **Work ahead:** some steps are **Open now** from the start: Brief, your own script, the voiceover file, the B-roll answers, the clips folder, captions and music. Everything else says **Waits for: (step)**. When Claude reaches a step you already did, it just asks "You chose X earlier. Still right?"
+- **Storyboard:** every shot as a card, with its prompt to copy and a box to drop the picture in. Shots are called "Shot 1", "Shot 2" and so on.
+- **Got flagged:** if an AI site blocks a prompt, tap **Got flagged** on that shot. Claude rewrites the prompt with safer wording.
+- **English or Taglish:** buttons and labels stay English; instructions can be in Taglish. Change it in **Settings**, or leave it on Auto.
+- **Word help:** each page lists its tricky words (like *B-roll* or *QA*) under "Words on this page"; tap one for a short explanation.
+- **Start practice:** a button on the dashboard opens a new Claude window already running `/practice-muna`.
+- **Report a bug / Suggest an improvement** (in Settings): saves your note on this computer; tell Claude "look at my feedback" to go through it.
+
+The app only runs on your own computer; nobody else can open it. If your settings file ever gets damaged, **Settings** shows a red warning and turns saving off, so your choices (like models Claude should never use) aren't wiped. Fix or delete the file it names, then reopen Settings.
+
 ## It learns how *you* edit
 
 ```mermaid
@@ -271,7 +287,7 @@ The app runs on this computer only (`127.0.0.1`, port 4810, or `gui_port` in `ma
 .claude/edit-mo-to/run gui/launch.py --open
 ```
 
-**What Claude may run without asking.** The workflow ships `.claude/settings.json`, which pre-approves one command pattern: `Bash(.claude/edit-mo-to/run *)`. `run` starts only the workflow's own Python scripts in `.claude/edit-mo-to/gui/` and `.claude/edit-mo-to/tools/`, with the tools' Python, and refuses anything else. Those scripts can do everything the workflow does with any arguments, including writing CapCut projects and `playbook_scan.py`'s reads of a shared Playbook folder over the network; no other shell command is pre-approved (no `rm`, no git, no curl). That is why an answer you give in the app carries on without a permission question in chat. Your own `.claude/settings.local.json` is never changed.
+**What Claude may run without asking.** The workflow ships `.claude/settings.json`, which pre-approves one command pattern: `Bash(.claude/edit-mo-to/run *)`. `run` starts only the workflow's own Python scripts in `.claude/edit-mo-to/gui/` and `.claude/edit-mo-to/tools/`, with the tools' Python, and refuses anything else. Those scripts can do everything the workflow does with any arguments, including writing CapCut projects and `playbook_scan.py`'s reads of a shared Playbook folder over the network; no other shell command is pre-approved (no `rm`, no git, no curl). That is why an answer you give in the app carries on without a permission question in chat. Your own `.claude/settings.local.json` is never changed. The same file also blocks Claude from reading `.claude/edit-mo-to/secrets.json`, where an ElevenLabs key would be kept.
 
 ### Getting updates
 The repo holds the shared workflow only: tools, agents, templates and starter rules. Nothing personal is ever uploaded, and Claude never pulls or pushes on its own. To get the newest version, tell Claude "update edit-mo-to": it runs `git pull --ff-only`, which never touches your `my-preferences.md`, client notes or videos.
