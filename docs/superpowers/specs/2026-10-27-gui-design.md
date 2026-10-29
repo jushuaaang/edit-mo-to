@@ -132,24 +132,25 @@ No login screen (the spec's wish), but the server must not be usable by other we
 - **Verse:** the bottom of the sidebar, on every page, shows in a muted italic serif: *"Remember the Lord your God, for it is he who gives you the ability to produce wealth."* with "DEUTERONOMY 8:18" in small gold capitals.
 - Step states in the sidebar: done (✓, green), working (blue), waiting on you (gold, "You" tag), optional (dashed, violet), error (red), not started (grey).
 
-### Working ahead (Joshua's call, 2026-10-28)
+### Working ahead (Joshua's call, 2026-10-28; approved 2026-10-29)
 
 The editor may work on steps that don't depend on earlier ones before Claude reaches them. A not-started step shows **"Open now"** in the sidebar when it takes early input, otherwise **"Waits for: <previous step>"**.
 
 | Step | What the editor can do early |
 |---|---|
-| Brief | everything on the page (any time) |
+| Brief | everything on the page: link, pasted brief, extra instructions, reference files (any time) |
 | Script | paste their own script |
 | Voiceover | upload the VO file(s) |
-| B-roll & prompts | answer B-roll source and generator |
+| B-roll & prompts | answer B-roll source, generator and model |
 | Clips | set the clips folder |
 | Captions | choose who adds captions |
 | Music | choose the source, upload their own track |
 
-Everything else waits. The table lives in one place, `gui/jobstate.py` (`EARLY`), and the server sends it with the job so the pages and the skill read the same list.
+Everything else waits. The table lives in one place, `gui/jobstate.py` (`EARLY`), and the server sends it with the job so the pages and the skill read the same list. The server refuses an early input that is not in the table (so "everything else waits" holds even for a stale page). A "Generate voiceover" click made early is not an early answer: Claude keeps it until the Voiceover step and asks there before it spends credits (see "Generate for me").
 
 - An early input is an inbox event with `"early": true` and `gate: null` (an `answer` with `target` `<step>:<question id>`, or an `upload`). It is saved like any other event and shows on its page as **"Saved for later"**.
-- When Claude reaches that step, it reads the step's early events and **confirms them instead of asking again**: the step's ⛔ gate still opens in its usual place and order, with the early answer as the default (a `confirm` question, "You chose X earlier. Still right?"). Nothing skips a gate; the editor only answers faster.
+- When Claude reaches that step, it reads the step's early events and **confirms them instead of asking again**: the step's ⛔ gate still opens in its usual place and order, with the early answer as the default (a `confirm` question with its own id `<id>_ok`, "You chose X earlier. Still right?"). Nothing skips a gate; the editor only answers faster. `reference/steps.md` lists each early input with its confirm question.
+- The page never moves a gate or a step itself: an early input is only a saved event until Claude asks about it.
 - An early answer never changes a step's state; only Claude moves a step out of "not started".
 
 ### Layout
@@ -281,6 +282,7 @@ Joshua sometimes has Claude make the media for him. This adds **"Generate for me
 - Text boxes: one per step page **and** one in the right panel for the whole job (Joshua's call).
 - The storyboard "add clips" idea was dropped; the text boxes cover it.
 - The architecture is fixed as the companion GUI (the spec left it open "after inspecting the repository").
+- **Working ahead (decision record, 2026-10-29).** Asked on 2026-10-27; Joshua approved it on 2026-10-29 as proposed: Brief, Script (own script), Voiceover upload, B-roll source and generator answers, Clips folder, Captions choice, and Music choice or upload can be done any time; everything else waits. Why: editors often have the VO, the music or their generator choice ready before Claude gets there, and waiting for each gate in turn wastes their time. Kept: every ⛔ gate still opens in order and Claude confirms each early answer there, so nothing moves past a gate the editor hasn't answered.
 - The spec's sections after 6 were never received; anything they held is not in this design.
 
 ## Left to the builder

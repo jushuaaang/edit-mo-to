@@ -250,3 +250,37 @@ def test_append_event_rejects_unknown_type(tmp_path):
     with pytest.raises(ValueError, match="type"):
         js.append_event(tmp_path, {"type": "bogus"})
     assert js.read_events(tmp_path) == []
+
+
+# --- Working ahead, approved 2026-10-29: the table is the page's real targets, and nothing else is early ---
+
+def test_early_table_names_the_brief_page_targets():
+    # the Brief page's drop zone saves its early files as `brief:upload` (steppage.js uploadInput), like Voiceover/Music
+    assert js.EARLY["brief"] == ["link", "paste", "instructions", "upload"]
+    assert js.EARLY["script"] == ["own_script"] and js.EARLY["voiceover"] == ["upload"]
+    assert js.EARLY["clips"] == ["clips_folder"] and js.EARLY["captions"] == ["who"]
+
+
+@pytest.mark.parametrize("event", [
+    {"type": "answer", "step": "timing", "gate": None, "target": "timing:unmatched", "value": "keep", "early": True},
+    {"type": "answer", "step": "music", "gate": None, "target": "music:timelines", "value": ["T1"], "early": True},
+    {"type": "answer", "step": "music", "gate": None, "target": "music", "value": "suno", "early": True},
+    {"type": "answer", "step": "captions", "gate": None, "target": "music:source", "value": "suno", "early": True},
+    {"type": "edit", "step": "script", "gate": None, "target": "script:own_script", "value": "x", "early": True},
+    {"type": "action", "step": "voiceover", "gate": None, "target": "voiceover:upload", "value": "x", "early": True},
+])
+def test_early_input_outside_the_table_refused(tmp_path, event):
+    _job(tmp_path)
+    with pytest.raises(ValueError):
+        js.append_event(tmp_path, event)
+    assert js.read_events(tmp_path) == []
+
+
+@pytest.mark.parametrize("step,ids", list(js.EARLY.items()))
+def test_every_early_input_in_the_table_is_kept(tmp_path, step, ids):
+    _job(tmp_path)
+    for i in ids:
+        kind = "upload" if i == "upload" else "answer"
+        ev = js.append_event(tmp_path, {"type": kind, "step": step, "gate": None, "target": f"{step}:{i}",
+                                        "value": "x", "early": True})
+        assert ev["early"] is True and "stale" not in ev

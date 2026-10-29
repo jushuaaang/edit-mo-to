@@ -325,3 +325,20 @@ def test_generate_clip_only_for_google_flow_and_pictures_use_an_image_model():
     assert "generators.py pick --site google-flow" in sec
     assert "image model" in sec and "never a video model" in sec
     assert "prompts were written for another site" in sec
+
+
+# --- Approved 2026-10-29: early inputs confirmed at their gates ---
+
+def test_every_early_input_has_its_confirm_in_steps():
+    import sys
+    sys.path.insert(0, str(CLAUDE / "edit-mo-to" / "gui"))
+    import jobstate as js
+    st = _text(STEPS)
+    table = st.split("### Early inputs and their confirms", 1)[1].split("\n### ", 1)[0]
+    for step, ids in js.EARLY.items():
+        for i in ids:
+            assert f"`{step}:{i}`" in table, f"{step}:{i}"
+    for ok in ("`own_script_ok`", "`vo_ok`", "`broll_source_ok`", "`generator_ok`", "`generator_model_ok`",
+               "`clips_folder_ok`", "`who_ok`", "`source_ok`", "`music_file_ok`"):
+        assert ok in table, ok
+    assert "generate:voiceover:all" in table                                  # an early Generate click waits too

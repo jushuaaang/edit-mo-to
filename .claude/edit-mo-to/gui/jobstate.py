@@ -31,9 +31,10 @@ GATE_KINDS = ("choice", "multi", "text", "confirm", "file")
 EVENT_TYPES = ("answer", "approve", "edit", "comment", "message", "action", "upload")
 # Working ahead (spec "Working ahead"): step -> the inputs the editor may give before Claude reaches the step.
 # An early input is an `answer` (target "<step>:<id>") or `upload` event with "early": true and "gate": null.
-# It never changes a step's state; at the step's gate Claude turns it into a confirm question.
+# It never changes a step's state; at the step's gate Claude turns it into a confirm question (steps.md, "Early inputs
+# and their confirms"). append_event refuses an early input that is not in this table: everything else waits.
 EARLY: dict[str, list[str]] = {
-    "brief": ["link", "paste", "instructions", "refs"],  # everything on the page, any time
+    "brief": ["link", "paste", "instructions", "upload"],  # everything on the page, any time (upload: reference files)
     "script": ["own_script"],
     "voiceover": ["upload"],
     "prompts": ["broll_source", "generator", "generator_model"],
@@ -220,6 +221,15 @@ def read_events(folder: Path, after: int = 0) -> list[dict]:
     return events
 
 
+def _check_early(event: dict) -> None:
+    """An early input is an `answer` or `upload` with target "<step>:<id>" from EARLY (and step = that step)."""
+    target = event.get("target")
+    step, _, qid = target.partition(":") if isinstance(target, str) else ("", "", "")
+    if event.get("type") not in ("answer", "upload") or qid not in EARLY.get(step, []) \
+            or event.get("step", step) != step:
+        raise ValueError(f"this can't be saved early ({target!r}); it waits until Claude reaches its step")
+
+
 def append_event(folder: Path, event: dict) -> dict:
     if event.get("type") not in EVENT_TYPES:
         raise ValueError(f"event type must be one of {EVENT_TYPES}, got {event.get('type')!r}")
@@ -228,6 +238,8 @@ def append_event(folder: Path, event: dict) -> dict:
             raise ValueError("early must be true or false")
         if event["early"] and event.get("gate"):
             raise ValueError("an early input answers no gate (gate must be null)")
+        if event["early"]:
+            _check_early(event)
     with lock(folder):
         last = read_events(folder)
         ev = dict(event)

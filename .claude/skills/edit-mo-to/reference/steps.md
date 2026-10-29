@@ -156,6 +156,21 @@ Every gate before a CapCut write includes `capcut_closed` (confirm): the page sh
 
 **An action or approve event never replaces a gate.** Page buttons that duplicate a gate question answer that question when the step's open gate asks it: Approve all answers `approve`, "Apply selected cuts" answers `cuts`, "Add captions" answers `timelines` (each an `answer` with the gate id, and the gate bar hides the question). Without that question open (no gate, or another gate of the step, e.g. Approve all while the keyframes gate is open) the button sends its `approve` / `action` event: take it only as the default and confirm it at that step's gate, like an early input (`<id>_ok`, e.g. `{"id": "approve_ok", "kind": "confirm", "text": "You approved the whole board earlier. Still approved?"}`); never run the step's work in its place. A CapCut write still needs `capcut_closed`. Answers sent outside a gate while a step runs (`answer` `<step>:<id>` with no gate) count like early inputs too: they are the default, and Claude confirms them at the gate.
 
+### Early inputs and their confirms
+The editor can give these before you reach their step (the sidebar shows "Open now"; the list is `jobstate.EARLY`, sent with the job as `early`). Each is an `answer` or `upload` event with `"early": true` and `gate: null`; the latest per target wins. The server refuses any other early input, so everything else waits. At each of these steps' start, read its early inputs (`job.py inbox "<folder>" --unhandled`) and confirm them at the step's ⛔ gate, in its usual place and order, never instead of it (SKILL.md, "Working ahead"). Each confirm is a `confirm` question with its own id and the early value in its text. `true` = use the early value; `false` = ask the original question (early value as `default`) or take the editor's new pick. Mark the early events handled once the gate is closed.
+
+| Step | Early input (target) | Confirm at the step's gate |
+|---|---|---|
+| brief | `brief:link`, `brief:paste`, `brief:instructions`, `brief:upload` (files in `refs/`) | none: they are the brief (they answer `brief`). Say in chat what you got from the app and go on, as when the brief comes with the request |
+| script | `script:own_script` | `own_script_ok`: "You pasted your own script earlier. Use it word for word?" (`false`: write one, step 3) |
+| voiceover | `voiceover:upload` (the file in `vo/`) | `vo_ok`: "You sent vo/<name> earlier. Use it?" (`false`: re-open with `vo`) |
+| prompts | `prompts:broll_source`, `prompts:generator`, `prompts:generator_model` | `broll_source_ok`, `generator_ok`, `generator_model_ok`: "You chose <label> earlier. Still right?", one per early answer, at the gate that asks them (B-roll / generator, or Storyboard first? when it asks them) |
+| clips | `clips:clips_folder` | `clips_folder_ok`: "You said the clips go in <folder>. Still right?" (`false`: ask `clips_folder`) |
+| captions | `captions:who` | `who_ok`: "You chose <who adds them> earlier. Still right?" (`false`: ask `who`) |
+| music | `music:source`, `music:upload` (the file in `music/`) | `source_ok`: "You chose <Suno / your own track> earlier. Still right?"; `music_file_ok`: "You sent music/<name> earlier. Use it?" |
+
+A `generate:voiceover:all` click made before the Voiceover step is not an early input: leave it unhandled until you reach the Voiceover step, then ask `vo_make_ok` there (SKILL.md, "Generate for me"). Never make a voiceover before the script is set.
+
 ### Events the pages send
 Read them with `job.py inbox "<folder>" --unhandled`, act on them, then `job.py handled "<folder>" <seq> …`. An early input has `"early": true` and `gate: null` (latest per target wins). `message` events are the "Tell Claude" boxes (a step box has `step`; the right panel has none).
 
