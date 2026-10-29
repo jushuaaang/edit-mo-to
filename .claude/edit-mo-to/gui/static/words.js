@@ -77,7 +77,7 @@ export const WORDS = {
       "remove_label", "remove", "new_change", "timeline", "mode_label", "list_h", "done_h", "done"],
     "script": ["yours", "save", "line_label", "send", "lang", "temp_on", "th_id", "th_line", "th_en", "mine", "write"],
     "timing": ["keep", "rerecord", "w_cut", "w_review", "cut_label", "cut", "apply", "cuts_sent", "h"],
-    "vo": ["lang_h", "files", "file_h", "reuse"],
+    "vo": ["lang_h", "files", "file_h", "reuse", "make_it", "dont_make"],
     "dlg": ["link_ph", "will_create", "has_job", "found", "brief_link", "create", "cancel_change", "quit_check",
       "capcut_title", "project_word", "name_label", "later", "use_name", "name_title", "frames_of", "regen",
       "use_anyway", "choose_file", "transcribe", "timeline_pick", "use", "use_id", "older_vo", "use_sentences",
@@ -186,7 +186,7 @@ export const WORDS = {
       "picture": "Generate picture", "clip": "Generate clip", "voiceover": "Generate voiceover", "continue": "Continue",
       "h": "Generate for me", "picture_saved": "Picture saved", "clip_saved": "Clip in folder", "vo_saved": "Voiceover in vo/",
       "warn": "Claude will use your own Chrome and your Google Flow credits. Google's terms may not allow automated use, so this could flag your account. Continue?",
-      "vo_line": "Uses your ElevenLabs credits, about 1 credit per character. Claude shows the count before it makes the file.",
+      "vo_line": "Uses your ElevenLabs credits, about 1 credit per character. Claude asks you before it makes the file.",
       "p": "Claude makes one clip per click in your own Chrome, then saves it in the clips folder. You can stop it anytime in the browser.",
       "clip_other_site": "This video's prompts were written for {gen}, so Claude can't make the clips for you. Generate clip only works with {site}. Make these clips yourself on {gen}."
     },
@@ -508,7 +508,7 @@ export const WORDS = {
     "vo": {
       "lang_h": "Script language", "times_with": " · Claude times the VO with", "set_at_brief": "Set at the brief.",
       "you": "Make the voiceover yourself (ElevenLabs), as one file or one per hook/body, then drop it here. It's copied to {where}",
-      "files": "Voiceover file(s)", "file_h": "Voiceover file", "reuse": "Reuse an older VO",
+      "files": "Voiceover file(s)", "file_h": "Voiceover file", "reuse": "Reuse an older VO", "make_it": "Make it", "dont_make": "Don't make it",
       "reuse_hint": "Saves credits: Claude transcribes an older VO and you pick the sentences."
     },
     "dlg": {
@@ -626,7 +626,7 @@ export const WORDS = {
     },
     "gen": {
       "warn": "Gagamitin ni Claude ang sarili mong Chrome at ang Google Flow credits mo. Baka hindi pinapayagan ng terms ng Google ang automated na paggamit, kaya pwedeng ma-flag ang account mo. Continue?",
-      "vo_line": "Gagamit ito ng ElevenLabs credits mo, mga 1 credit kada character. Ipapakita muna ni Claude ang bilang bago gawin ang file.",
+      "vo_line": "Gagamit ito ng ElevenLabs credits mo, mga 1 credit kada character. Tatanungin ka muna ni Claude bago niya gawin ang file.",
       "p": "Isang clip kada click ang gagawin ni Claude sa sarili mong Chrome, tapos ise-save niya sa clips folder. Pwede mo itong itigil anumang oras sa browser.",
       "clip_other_site": "Para sa {gen} isinulat ang prompts ng video na ito, kaya hindi ito kayang gawin ni Claude para sa iyo. Gumagana lang ang Generate clip sa {site}. Ikaw na ang gumawa ng clips na ito sa {gen}."
     },

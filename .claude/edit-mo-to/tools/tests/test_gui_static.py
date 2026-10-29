@@ -837,7 +837,7 @@ def test_done_chips_need_a_file_newer_than_the_generate_click():
     assert "doneAt:" in vo and "vo_mtimes" in vo
 
 
-# --- Final review 2, M-3 (Settings part) ---
+# --- Final review 2, M-3 (Settings part) and the "Make it?" ask before ElevenLabs spends credits ---
 
 def test_settings_warns_about_a_damaged_prefs_file_and_turns_saving_off():
     text = _page("settings.js")
@@ -853,3 +853,19 @@ def test_settings_warns_about_a_damaged_prefs_file_and_turns_saving_off():
         assert k in tl["settings"] and tl["settings"][k] != en["settings"][k], k
     # the path and reason come from the server: always as text nodes (parts / textContent), never through innerHTML
     assert "innerHTML" not in text and "html:" not in text
+
+
+def test_generate_voiceover_line_says_claude_asks_first():
+    en, tl = _words(), _all_words()["tl"]
+    assert "asks you before" in en["gen"]["vo_line"] and "credits" in en["gen"]["vo_line"]
+    assert tl["gen"]["vo_line"] != en["gen"]["vo_line"]
+
+
+def test_make_it_question_has_plain_buttons():
+    """The `vo_make_ok` confirm (asked before ElevenLabs spends credits) shows "Make it" / "Don't make it" in the gate bar;
+    the page only sends the answer, Claude makes the file (or not)."""
+    text = _page("voiceover.js")
+    assert "labels: { vo_make_ok: { yes: t(\"vo.make_it\"), no: t(\"vo.dont_make\") } }" in text
+    en = _words()
+    assert en["vo"]["make_it"] == "Make it" and en["vo"]["dont_make"] == "Don't make it"
+    assert _is_label("vo.make_it") and _is_label("vo.dont_make")

@@ -327,7 +327,18 @@ def test_generate_clip_only_for_google_flow_and_pictures_use_an_image_model():
     assert "prompts were written for another site" in sec
 
 
-# --- Approved 2026-10-29: early inputs confirmed at their gates ---
+# --- Approved 2026-10-29: "Make it?" before ElevenLabs spends credits; early inputs confirmed at their gates ---
+
+def test_elevenlabs_make_is_asked_first():
+    sec = _gen_section()
+    assert "vo_make_ok" in sec
+    assert sec.index("vo_make_ok") < sec.index("elevenlabs_vo.py make")      # asked before the make
+    assert sec.index("elevenlabs_vo.py make") < sec.index('"id": "vo_ok"')   # vo_ok stays after it
+    st = _text(STEPS)
+    assert ('{"id": "vo_make_ok", "kind": "confirm", "text": "Make the voiceover with ElevenLabs? About N characters, '
+            'uses your ElevenLabs credits."}') in st
+    assert "`vo_make_ok` (confirm)" in st                                      # in the gate table
+
 
 def test_every_early_input_has_its_confirm_in_steps():
     import sys
