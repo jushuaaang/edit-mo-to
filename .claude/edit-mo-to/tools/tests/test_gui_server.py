@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import jobstate as js  # noqa: E402
 import machine  # noqa: E402
 import server  # noqa: E402
+import generators  # noqa: E402
 
 TOKEN = "test-token-123"
 DEMO = "Uvola Cereza Ácida"
@@ -794,6 +795,34 @@ def test_broken_prefs_file_highlights_no_pick(api):
     (api.tmp / "gui" / "prefs.json").write_text("{broken", encoding="utf-8")
     g = api.json("GET", "/api/generators")[1]
     assert g["picks"] is None and "google-flow" in g["generators"]
+
+
+@pytest.mark.parametrize("broken", ["{broken", "[1, 2]", '{"avoid_models": "veo"}', '{"default_model": 5}'])
+def test_a_save_never_overwrites_a_broken_prefs_file(api, broken):
+    """Final review 2, M-3: a damaged prefs.json is never merged into and overwritten (that would wipe the avoid list,
+    and the next pick could choose an avoided model). The save fails with a clear error and the file stays as it was;
+    pick keeps refusing (exit 3) until the editor fixes or deletes it."""
+    gui = api.tmp / "gui"
+    gui.mkdir(exist_ok=True)
+    (gui / "prefs.json").write_text(broken, encoding="utf-8")
+    s, d = api.json("POST", "/api/prefs", {"sound": False})
+    assert s == 400 and "damaged" in d["error"] and "nothing was saved" in d["error"]
+    assert api.json("POST", "/api/usage", {"pct": 40})[0] == 400
+    with pytest.raises(ValueError, match="damaged"):
+        js.update_prefs(gui, {"ui_lang_detected": "tl"})          # what `job.py lang tl` does
+    assert (gui / "prefs.json").read_text(encoding="utf-8") == broken
+    with pytest.raises(generators.PrefsError):
+        generators.read_prefs(gui / "prefs.json")
+    assert api.json("GET", "/api/generators")[1]["picks"] is None
+
+
+def test_a_prefs_file_with_unknown_keys_is_not_damaged(api):
+    gui = api.tmp / "gui"
+    gui.mkdir(exist_ok=True)
+    (gui / "prefs.json").write_text(json.dumps({"evil": 1, "avoid_models": ["x:y"], "sound": "loud"}), encoding="utf-8")
+    s, d = api.json("POST", "/api/prefs", {"notify": False})
+    assert s == 200 and d["notify"] is False
+    assert json.loads((gui / "prefs.json").read_text(encoding="utf-8")) == {"avoid_models": [], "notify": False}
 
 
 def test_server_tests_run_on_a_fake_home(api):

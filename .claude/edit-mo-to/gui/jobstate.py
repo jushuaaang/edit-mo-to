@@ -406,6 +406,38 @@ def read_prefs(path: Path) -> dict:
     return {k: saved[k] if k in saved else (list(v) if isinstance(v, list) else v) for k, v in PREFS.items()}
 
 
+class PrefsDamaged(ValueError):
+    """prefs.json exists but can't be read or makes no sense: a save must not overwrite it (that would wipe the
+    editor's avoid list, and the next pick could choose a model they avoid)."""
+
+
+def _saved_prefs(path: Path) -> dict:
+    """The saved prefs to merge a change into: {} when there is no file yet. A file that can't be read, isn't a JSON
+    object, or holds a wrong type for the model settings (the same checks as generators.read_prefs, which makes pick
+    refuse) raises PrefsDamaged, and the file is left as it is."""
+    def damaged(why: str):
+        return PrefsDamaged(f"Your settings file is damaged ({why}), so nothing was saved. This keeps your \"never use\" "
+                            f"models safe. Fix or delete {Path(path).as_posix()}, then set your settings again.")
+    try:
+        raw = Path(path).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return {}
+    except OSError as e:
+        raise damaged(f"can't read it: {e.strerror or e}") from None
+    try:
+        saved = json.loads(raw)
+    except ValueError:
+        raise damaged("not valid JSON") from None
+    if not isinstance(saved, dict):
+        raise damaged("not a settings object")
+    avoid, default = saved.get("avoid_models", []), saved.get("default_model")
+    if not isinstance(avoid, list) or not all(isinstance(x, str) for x in avoid):
+        raise damaged("the never-use list is not a list of models")
+    if default is not None and not isinstance(default, str):
+        raise damaged("Claude's default model is not a model")
+    return saved
+
+
 @contextmanager
 def prefs_lock(gui: Path):
     """The cross-process lock for <gui>/prefs.json (<gui>/prefs.lock), shared by the server and job.py."""
@@ -416,18 +448,15 @@ def prefs_lock(gui: Path):
 def update_prefs(gui: Path, patch: dict) -> dict:
     """Check every key of patch, then merge it into <gui>/prefs.json under prefs_lock; the file keeps only known,
     valid keys that were saved (defaults are not written). Claude's default model can't be one it avoids (ValueError;
-    send both keys to change both). Returns read_prefs."""
+    send both keys to change both). A damaged prefs.json is never overwritten (PrefsDamaged, a ValueError).
+    Returns read_prefs."""
     if not isinstance(patch, dict) or not patch:
         raise ValueError("nothing to save")
     for key, value in patch.items():
         check_pref(key, value)
     path = Path(gui) / "prefs.json"
     with prefs_lock(gui):
-        try:
-            saved = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            saved = {}
-        merged = {**_clean(saved if isinstance(saved, dict) else {}), **patch}
+        merged = {**_clean(_saved_prefs(path)), **patch}
         if merged.get("default_model") and merged["default_model"] in merged.get("avoid_models", []):
             raise ValueError("Claude's default model can't be a model Claude avoids")
         write_json_atomic(path, merged)
@@ -436,16 +465,12 @@ def update_prefs(gui: Path, patch: dict) -> dict:
 
 def add_usage_reading(gui: Path, pct) -> dict:
     """Append the weekly % the editor typed (0-100) with the time to prefs usage_readings, under prefs_lock (the last
-    USAGE_READINGS_KEEP stay). Returns read_prefs."""
+    USAGE_READINGS_KEEP stay). A damaged prefs.json is never overwritten (PrefsDamaged). Returns read_prefs."""
     if not isinstance(pct, (int, float)) or isinstance(pct, bool) or not 0 <= pct <= 100:
         raise ValueError("type the weekly % as a number from 0 to 100")
     path = Path(gui) / "prefs.json"
     with prefs_lock(gui):
-        try:
-            saved = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            saved = {}
-        merged = _clean(saved if isinstance(saved, dict) else {})
+        merged = _clean(_saved_prefs(path))
         readings = (merged.get("usage_readings") or []) + [{"pct": pct, "at": _now()}]
         merged["usage_readings"] = readings[-USAGE_READINGS_KEEP:]
         write_json_atomic(path, merged)
