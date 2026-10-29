@@ -420,7 +420,11 @@ def read_prefs(path: Path) -> dict:
 
 class PrefsDamaged(ValueError):
     """prefs.json exists but can't be read or makes no sense: a save must not overwrite it (that would wipe the
-    editor's avoid list, and the next pick could choose a model they avoid)."""
+    editor's avoid list, and the next pick could choose a model they avoid). `why` is the plain reason."""
+
+    def __init__(self, message: str, why: str = ""):
+        super().__init__(message)
+        self.why = why
 
 
 def _saved_prefs(path: Path) -> dict:
@@ -429,7 +433,7 @@ def _saved_prefs(path: Path) -> dict:
     refuse) raises PrefsDamaged, and the file is left as it is."""
     def damaged(why: str):
         return PrefsDamaged(f"Your settings file is damaged ({why}), so nothing was saved. This keeps your \"never use\" "
-                            f"models safe. Fix or delete {Path(path).as_posix()}, then set your settings again.")
+                            f"models safe. Fix or delete {Path(path).as_posix()}, then set your settings again.", why)
     try:
         raw = Path(path).read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -448,6 +452,15 @@ def _saved_prefs(path: Path) -> dict:
     if default is not None and not isinstance(default, str):
         raise damaged("Claude's default model is not a model")
     return saved
+
+
+def prefs_damaged(path: Path) -> "str | None":
+    """The plain reason a save into prefs.json would refuse (PrefsDamaged), or None when it would not."""
+    try:
+        _saved_prefs(path)
+    except PrefsDamaged as e:
+        return e.why
+    return None
 
 
 @contextmanager

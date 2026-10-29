@@ -522,7 +522,8 @@ def test_prefs_known_keys_only_on_this_computer(api):
     assert api.json("GET", "/api/prefs", token=None)[0] == 401
     assert json.loads((api.tmp / "gui" / "prefs.json").read_text(encoding="utf-8")) == {"notify": False, "sound": False}
     (api.tmp / "gui" / "prefs.json").write_text("not json", encoding="utf-8")   # a broken file reads as the defaults
-    assert api.json("GET", "/api/prefs")[1] == defaults
+    d = api.json("GET", "/api/prefs")[1]                                          # ... and says it is broken
+    assert {k: v for k, v in d.items() if not k.startswith("broken")} == defaults and d["broken"] is True
 
 
 def test_prefs_language_choice_and_detected_language(api):
@@ -814,6 +815,31 @@ def test_a_save_never_overwrites_a_broken_prefs_file(api, broken):
     with pytest.raises(generators.PrefsError):
         generators.read_prefs(gui / "prefs.json")
     assert api.json("GET", "/api/generators")[1]["picks"] is None
+
+
+@pytest.mark.parametrize("broken,why", [("{broken", "not valid JSON"), ("[1, 2]", "not a settings object"),
+                                        ('{"avoid_models": "veo"}', "never-use list"),
+                                        ('{"default_model": 5}', "default model")])
+def test_get_prefs_says_when_the_file_is_damaged(api, broken, why):
+    """Final review 2, M-3 (Settings part): GET /api/prefs reports broken: true with a plain reason and the file's path
+    exactly when a save would refuse (PrefsDamaged), so Settings can warn and turn its Save off."""
+    gui = api.tmp / "gui"
+    gui.mkdir(exist_ok=True)
+    assert "broken" not in api.json("GET", "/api/prefs")[1]                     # no file yet: fine
+    (gui / "prefs.json").write_text(json.dumps({"sound": False}), encoding="utf-8")
+    assert "broken" not in api.json("GET", "/api/prefs")[1]                     # a good file: fine
+    (gui / "prefs.json").write_text(broken, encoding="utf-8")
+    s, d = api.json("GET", "/api/prefs")
+    assert s == 200 and d["broken"] is True and why in d["broken_why"]
+    assert d["broken_path"] == (gui / "prefs.json").as_posix()
+    assert api.json("POST", "/api/prefs", {"sound": False})[0] == 400          # and a save still refuses
+    assert (gui / "prefs.json").read_text(encoding="utf-8") == broken
+
+
+def test_prefs_damaged_reason_in_jobstate(tmp_path):
+    assert js.prefs_damaged(tmp_path / "prefs.json") is None                    # missing: not damaged
+    (tmp_path / "prefs.json").write_text("{x", encoding="utf-8")
+    assert js.prefs_damaged(tmp_path / "prefs.json") == "not valid JSON"
 
 
 def test_a_prefs_file_with_unknown_keys_is_not_damaged(api):

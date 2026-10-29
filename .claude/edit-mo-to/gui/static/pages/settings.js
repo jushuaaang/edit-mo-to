@@ -2,6 +2,8 @@
 // alert switches, the models Claude picks (avoid list and Claude's default, from generators.json), setup checks, Report a bug / Suggest an improvement (saved on this computer; Send to Joshua opens a
 // pre-filled issue). "Generate for me" (only where GET /api/generate says allowed): the ElevenLabs key as set / not set
 // (never the key), the voice and model ids (prefs), and where the key goes.
+// A damaged prefs.json (GET /api/prefs says broken: true): a warning at the top, and every control that saves is off,
+// because the server refuses to overwrite it (that keeps the "never use" list); the model list it can't read isn't shown.
 import { h, chip, checksTable, STEPS, stepTitle } from "../ui.js";
 import { t, parts } from "../words.js";
 import { savePrefs, langOf } from "../nextstep.js";
@@ -12,6 +14,14 @@ const PATHS = [  // machine.json key -> its label (WORDS.set.*)
 ];
 const LANG_PREF = "ui_lang";  // auto | en | tl
 const LANGS = [["auto", "settings.lang_auto"], ["en", "settings.lang_en"], ["tl", "settings.lang_tl"]];
+const isBroken = (p) => p?.broken === true;  // the server's word only; a missing flag means the file is fine
+
+/** The warning for a damaged prefs.json. The path and reason come from the server and go in as text, never as HTML. */
+function brokenBanner(p) {
+  return h("div", { class: "banner err", role: "alert" },
+    h("b", {}, ...parts("settings.broken", { path: h("span", { class: "mono" }, String(p.broken_path || "prefs.json")) })),
+    p.broken_why ? h("span", {}, t("settings.broken_why", { why: String(p.broken_why) })) : null);
+}
 
 function dateText(iso) {
   const d = new Date(iso);
@@ -113,7 +123,7 @@ function langCard(ctx) {
     next.click();
     next.focus();
   });
-  ctx.api("/api/prefs").then((p) => { show(p); msg.textContent = ""; })
+  ctx.api("/api/prefs").then((p) => { show(p); msg.textContent = ""; if (isBroken(p)) btns.forEach((b) => { b.disabled = true; }); })
     .catch((e) => { msg.className = "msg err"; msg.textContent = e.message; });
   return h("section", { class: "card", "aria-labelledby": "lang-h" },
     h("h3", { id: "lang-h" }, t("settings.lang_h")), h("p", { class: "hint" }, t("settings.lang_p")), seg, hint, msg);
@@ -152,7 +162,7 @@ function alertsCard(ctx) {
   ctx.api("/api/prefs").then((p) => {
     notify.checked = p.notify;
     sound.checked = p.sound;
-    notify.disabled = sound.disabled = false;
+    notify.disabled = sound.disabled = isBroken(p);
     msg.textContent = "";
   }).catch((e) => { msg.className = "msg err"; msg.textContent = e.message; });
   return h("section", { class: "card", "aria-labelledby": "alerts-h" },
@@ -206,6 +216,7 @@ function modelsCard(ctx) {
     rows = Object.entries(g?.generators || {}).flatMap(([site, s]) => Object.entries(s?.models || {})
       .map(([m, row]) => [`${site}:${m}`, `${String(s?.label ?? site)} · ${String(row?.label ?? m)}`]));
     if (!rows.length) { say(t("prompts.no_table"), "err"); return; }
+    if (isBroken(p)) { say(t("settings.broken_models"), "err"); return; }   // no list: it can't be read, so none is shown
     show(p);
     msg.textContent = "";
   }).catch((e) => say(e.message, "err"));
@@ -230,8 +241,8 @@ function generateCard(ctx) {
     const msg = h("div", { class: "msg", role: "status" });
     const field = (key, labelKey) => h("div", {}, h("label", { class: "lbl", for: `pref-${key}` }, t(labelKey)),
       h("input", { class: "f mono", id: `pref-${key}`, value: typeof p?.[key] === "string" ? p[key] : "", "data-key": `pref:${key}`,
-        spellcheck: "false", autocomplete: "off", maxlength: "64", style: "max-width:340px" }));
-    const save = h("button", { class: "btn sm pri", type: "button" }, t("common.save"));
+        spellcheck: "false", autocomplete: "off", maxlength: "64", style: "max-width:340px", disabled: isBroken(p) }));
+    const save = h("button", { class: "btn sm pri", type: "button", disabled: isBroken(p) }, t("common.save"));
     save.addEventListener("click", async () => {
       const v = (k) => document.getElementById(`pref-${k}`).value.trim() || null;
       save.disabled = true;
@@ -339,8 +350,16 @@ export function render(root, data, ctx) {
   const msg = h("div", { class: "msg", role: "status" });
   const say = (text, kind) => { msg.className = `msg ${kind || ""}`; msg.textContent = text; };
   const paths = pathsCard(ctx, say);
+  const save = h("button", { class: "btn pri", type: "button", onclick: paths.save }, t("common.save"));
+  const warn = h("div");
+  ctx.api("/api/prefs").then((p) => {
+    if (!isBroken(p)) return;
+    warn.replaceChildren(brokenBanner(p));
+    save.disabled = true;   // "nothing can be saved": the page's Save is off too until the file is fixed
+  }).catch(() => {});       // the cards below say what went wrong
   root.append(
     h("div", { class: "head" }, h("div", {}, h("h1", {}, t("shell.settings")), h("p", {}, t("set.sub"))),
-    h("div", { style: "text-align:right" }, h("button", { class: "btn pri", type: "button", onclick: paths.save }, t("common.save")), msg)),
+    h("div", { style: "text-align:right" }, save, msg)),
+    warn,
     h("div", { class: "stack" }, langCard(ctx), paths.node, alertsCard(ctx), modelsCard(ctx), generateCard(ctx), checksCard(ctx), feedbackCard(ctx)));
 }

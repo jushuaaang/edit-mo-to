@@ -177,7 +177,10 @@ export const WORDS = {
       "el_voice": "ElevenLabs voice id", "el_model": "ElevenLabs model id",
       "gen_p": "Claude makes the pictures and clips in Google Flow, and the voiceover with ElevenLabs, when you click Generate. Only on this computer.",
       "key_where": "Paste your key into .claude/edit-mo-to/secrets.json on this Mac. Never paste it in chat.",
-      "voice_hint": "The voice and model Claude uses for the voiceover, from your ElevenLabs account. Saved on this computer only."
+      "voice_hint": "The voice and model Claude uses for the voiceover, from your ElevenLabs account. Saved on this computer only.",
+      "broken": "Your settings file is damaged, so nothing can be saved. Your \"never use\" models are still safe. Fix or delete {path}.",
+      "broken_why": "What's wrong: {why}.",
+      "broken_models": "Claude can't read your model settings until the file is fixed. Until then it won't pick a model for you; it asks you instead."
     },
     "gen": {
       "picture": "Generate picture", "clip": "Generate clip", "voiceover": "Generate voiceover", "continue": "Continue",
@@ -616,7 +619,10 @@ export const WORDS = {
       "default_hint": "Ito ang unang imumungkahi ni Claude. Hindi pwedeng default ang model na hindi ginagamit ni Claude.",
       "gen_p": "Si Claude ang gagawa ng pictures at clips sa Google Flow, at ng voiceover sa ElevenLabs, kapag pinindot mo ang Generate. Sa computer na ito lang.",
       "key_where": "I-paste ang key mo sa .claude/edit-mo-to/secrets.json sa Mac na ito. Huwag itong i-paste sa chat.",
-      "voice_hint": "Ang voice at model na gagamitin ni Claude sa voiceover, galing sa ElevenLabs account mo. Naka-save sa computer na ito lang."
+      "voice_hint": "Ang voice at model na gagamitin ni Claude sa voiceover, galing sa ElevenLabs account mo. Naka-save sa computer na ito lang.",
+      "broken": "Sira ang settings file mo, kaya walang ma-save. Safe pa rin ang mga \"never use\" models mo. Ayusin o i-delete ang {path}.",
+      "broken_why": "Ang problema: {why}.",
+      "broken_models": "Hindi mabasa ni Claude ang model settings mo hangga't hindi naaayos ang file. Habang ganoon, hindi siya pipili ng model para sa iyo; tatanungin ka na lang niya."
     },
     "gen": {
       "warn": "Gagamitin ni Claude ang sarili mong Chrome at ang Google Flow credits mo. Baka hindi pinapayagan ng terms ng Google ang automated na paggamit, kaya pwedeng ma-flag ang account mo. Continue?",

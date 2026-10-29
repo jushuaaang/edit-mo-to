@@ -835,3 +835,21 @@ def test_done_chips_need_a_file_newer_than_the_generate_click():
     assert "doneAt:" in sb and "keyframe_mtimes" in sb
     assert "doneAt:" in clips and "clip_mtimes" in clips
     assert "doneAt:" in vo and "vo_mtimes" in vo
+
+
+# --- Final review 2, M-3 (Settings part) ---
+
+def test_settings_warns_about_a_damaged_prefs_file_and_turns_saving_off():
+    text = _page("settings.js")
+    assert "p.broken === true" in text or "p?.broken === true" in text
+    assert "broken_path" in text and "broken_why" in text
+    assert 'class: "banner err"' in text and 'role: "alert"' in text
+    assert "settings.broken" in text
+    en, tl = _words(), _all_words()["tl"]
+    assert en["settings"]["broken"] == ("Your settings file is damaged, so nothing can be saved. Your \"never use\" "
+                                        "models are still safe. Fix or delete {path}.")
+    for k in ("broken", "broken_why", "broken_models"):
+        assert not _is_label(f"settings.{k}"), k
+        assert k in tl["settings"] and tl["settings"][k] != en["settings"][k], k
+    # the path and reason come from the server: always as text nodes (parts / textContent), never through innerHTML
+    assert "innerHTML" not in text and "html:" not in text

@@ -17,7 +17,8 @@ by GET /?k=<token>, or header X-EMT-Token). A Host other than 127.0.0.1:<port> /
 foreign Origin, is refused (403). Files are read or written only inside {root} and {tmp}; writes (inbox,
 gui.json, uploads, new job) only inside a video folder of {root} (folders.is_video_folder). One exception,
 read-only: GET /api/temp-en may also read a CapCut project under {capcut_drafts}. GET/POST /api/prefs keep this computer's
-GUI prefs (jobstate.PREFS: known keys only) in {tmp}/gui/prefs.json. GET /api/generators is generators.json plus
+GUI prefs (jobstate.PREFS: known keys only) in {tmp}/gui/prefs.json; GET adds broken: true (+ broken_why, broken_path)
+when the file is damaged and a save would refuse. GET /api/generators is generators.json plus
 `safe` and `picks` (the model Claude picks per site, from those prefs), as /api/job carries it.
 
 GET /api/usage is the dashboard's usage box (usage.report): the plan's week and 5-hour % from {tmp}/gui/usage.json (saved
@@ -497,7 +498,14 @@ def _gui_dir(h) -> Path:
 
 
 def r_prefs(h, q):
-    return js.read_prefs(_gui_dir(h) / "prefs.json")
+    """The prefs, plus broken: true, broken_why (plain reason) and broken_path when a save would refuse
+    (jobstate.PrefsDamaged), so Settings can warn and turn its saving off."""
+    path = _gui_dir(h) / "prefs.json"
+    out = js.read_prefs(path)
+    why = js.prefs_damaged(path)
+    if why is not None:
+        out.update(broken=True, broken_why=why, broken_path=path.as_posix())
+    return out
 
 
 def r_prefs_save(h, q):
