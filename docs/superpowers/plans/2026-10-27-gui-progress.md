@@ -26,7 +26,7 @@ Built task by task (subagent-driven: one implementer and one reviewer per task).
 2. Then Tasks 9, 10 and 11 can run **in parallel** (different files): each in its own branch from the reviewed Task 8, each with its own review, then merge. Tasks 9 and 10 put their styles in their own CSS files instead of editing `app.css`, to keep merges clean.
 3. Final whole-branch review (most capable model), using the deferred list below, then Task 12 with Joshua.
 
-**Open question for Joshua (asked 2026-10-27, not answered yet):** let the editor work early on steps that don't depend on earlier ones ("Open now" / "Waits for: X" in the sidebar). Proposed table: Brief any time; Script (paste own) any time; Voiceover upload any time; B-roll source and generator answers any time; Clips folder any time; Captions choice any time; Music choice or upload any time; everything else waits. Early answers are saved and Claude confirms them instead of asking again; gates keep their order. If yes, update the spec and add it to Tasks 9 and 11 before starting them.
+**Question for Joshua (asked 2026-10-27; answered YES on 2026-10-29, built, see "Status 2026-10-29 (later)"):** let the editor work early on steps that don't depend on earlier ones ("Open now" / "Waits for: X" in the sidebar). Proposed table: Brief any time; Script (paste own) any time; Voiceover upload any time; B-roll source and generator answers any time; Clips folder any time; Captions choice any time; Music choice or upload any time; everything else waits. Early answers are saved and Claude confirms them instead of asking again; gates keep their order. If yes, update the spec and add it to Tasks 9 and 11 before starting them.
 
 ## Decisions made during the build (keep these)
 
@@ -76,3 +76,12 @@ Next: a second whole-branch review of the work since 89c5b18 and its fixes, then
 Final review 2 fixes done and pushed (5f4ff39..de4c328): collect_download `--since` + collected.json ledger (I-1), `vo_ok` confirm after an ElevenLabs make (I-2), damaged prefs.json never overwritten (M-3), ElevenLabs key never follows a redirect + project deny on secrets.json (M-6), Generate clip only on Flow jobs and pictures use Flow's image model (M-8, M-9), done chips need a file newer than the click (M-11). Suite: 889 passed, 5 known environment failures (needs /opt/homebrew/bin on PATH for ffmpeg/node). Not done: Settings warning for a damaged prefs.json, "Make it?" before ElevenLabs spends credits, other minors in final-review-2.md.
 
 Next: refresh the preview page screenshots, then Task 12 (practice run with Joshua on a fresh clone).
+
+## Status 2026-10-29 (later)
+
+Joshua approved three things, now built (b9ec707..da9d2bb, not pushed):
+- **Early steps.** Decision record in the spec ("Working ahead", "Decisions that differ from the spec"). `steps.md` has "Early inputs and their confirms" (each early input and the confirm Claude asks at its gate). The server refuses an early input that is not in `jobstate.EARLY`; Brief's early files are `brief:upload`. A Generate voiceover click made before the Voiceover step waits there and says "Saved for later".
+- **Settings warning for a damaged prefs.json** (M-3, Settings part): `/api/prefs` adds `broken`, `broken_why`, `broken_path`; Settings shows the warning, turns off every control that saves (and the page's Save), and hides the model list it can't read.
+- **"Make it?" before ElevenLabs spends credits:** the `vo_make_ok` confirm before `make` (Make it / Don't make it in the gate bar), then `vo_ok` after it.
+
+Suite: 914 passed, 5 known environment failures (4 VectCut MCP, 1 cv2). Next: refresh the preview page screenshots, then Task 12.
