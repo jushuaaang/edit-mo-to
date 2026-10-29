@@ -31,7 +31,12 @@ def _dl(downloads, name, data=b"data", age=0.0):
     return p
 
 
+T0 = time.time() - 3600   # the default --since for the tests below: an hour ago (each test passes its own when it matters)
+
+
 def _run(argv, capsys):
+    if "--since" not in argv:
+        argv = [*argv, "--since", str(T0)]
     code = 0
     try:
         cd.main(argv)
@@ -73,9 +78,11 @@ def test_clip_into_the_clips_folder(env, capsys):
 def test_only_recent_downloads(env, capsys):
     folder, downloads = env
     _dl(downloads, "old.png", age=3 * 3600)
-    code, out = _run([str(folder), "storyboard/SB-1.png", "--downloads", str(downloads)], capsys)
+    since = str(time.time() - 4 * 3600)
+    code, out = _run([str(folder), "storyboard/SB-1.png", "--downloads", str(downloads), "--since", since], capsys)
     assert code == 1 and "no new" in out["error"]
-    code, out = _run([str(folder), "storyboard/SB-1.png", "--downloads", str(downloads), "--within", "240"], capsys)
+    code, out = _run([str(folder), "storyboard/SB-1.png", "--downloads", str(downloads), "--within", "240",
+                      "--since", since], capsys)
     assert code == 0
 
 
@@ -168,3 +175,100 @@ def test_the_cards_own_clips_folder_is_allowed(env, capsys):
     _dl(downloads, "a.mp4", b"v")
     code, out = _run([str(folder), "My Clips/V01.mp4", "--downloads", str(downloads)], capsys)
     assert code == 0 and (folder / "My Clips" / "V01.mp4").read_bytes() == b"v"
+
+
+# --- Review I-1: never the same download twice (--since the Generate click, and a ledger of collected sources) ---
+
+def test_since_is_required(env, capsys):
+    folder, downloads = env
+    _dl(downloads, "a.png")
+    with pytest.raises(SystemExit) as e:
+        cd.main([str(folder), "storyboard/SB-1.png", "--downloads", str(downloads)])
+    assert e.value.code == 2
+    assert not (folder / "storyboard" / "SB-1.png").exists()
+
+
+def test_a_download_from_before_the_click_is_not_taken(env, capsys):
+    folder, downloads = env
+    _dl(downloads, "shot5.png", b"five", age=120)          # downloaded before this Generate click
+    since = str(time.time() - 60)
+    code, out = _run([str(folder), "storyboard/SB-6.png", "--downloads", str(downloads), "--since", since], capsys)
+    assert code == 1 and "no new" in out["error"]
+    assert not (folder / "storyboard" / "SB-6.png").exists()
+    _dl(downloads, "shot6.png", b"six", age=0)
+    code, out = _run([str(folder), "storyboard/SB-6.png", "--downloads", str(downloads), "--since", since], capsys)
+    assert code == 0 and out["from"] == "shot6.png"
+
+
+def test_since_takes_an_iso_time_too(env, capsys):
+    from datetime import datetime, timedelta
+    folder, downloads = env
+    _dl(downloads, "old.png", age=120)
+    at = (datetime.now().astimezone() - timedelta(seconds=60)).isoformat(timespec="seconds")   # an event's "at"
+    code, out = _run([str(folder), "storyboard/SB-1.png", "--downloads", str(downloads), "--since", at], capsys)
+    assert code == 1 and "no new" in out["error"]
+    _dl(downloads, "new.png", age=0)
+    code, out = _run([str(folder), "storyboard/SB-1.png", "--downloads", str(downloads), "--since", at], capsys)
+    assert code == 0 and out["from"] == "new.png"
+
+
+def test_a_bad_since_is_refused(env, capsys):
+    folder, downloads = env
+    _dl(downloads, "a.png")
+    code, out = _run([str(folder), "storyboard/SB-1.png", "--downloads", str(downloads), "--since", "soon"], capsys)
+    assert code == 1 and "--since" in out["error"]
+
+
+def test_the_same_download_is_never_collected_twice(env, capsys):
+    """The review's reproduction: one flow1.png, then SB-1 and SB-2 both "ok" from it. The second must be refused."""
+    folder, downloads = env
+    _dl(downloads, "flow1.png", b"one")
+    code, out = _run([str(folder), "storyboard/SB-1.png", "--downloads", str(downloads)], capsys)
+    assert code == 0 and out["from"] == "flow1.png"
+    code, out = _run([str(folder), "storyboard/SB-2.png", "--downloads", str(downloads)], capsys)
+    assert code == 1 and out["ok"] is False and "already" in out["error"] and "SB-1" in out["error"]
+    assert not (folder / "storyboard" / "SB-2.png").exists()
+    ledger = json.loads((folder / ".edit-mo-to" / "collected.json").read_text(encoding="utf-8"))
+    assert [(e["name"], e["size"]) for e in ledger["sources"]] == [("flow1.png", 3)]
+    assert ledger["sources"][0]["target"] == "storyboard/SB-1.png"
+
+
+def test_an_older_collected_download_is_skipped_for_a_newer_one(env, capsys):
+    folder, downloads = env
+    _dl(downloads, "flow1.png", b"one", age=30)
+    code, out = _run([str(folder), "storyboard/SB-1.png", "--downloads", str(downloads)], capsys)
+    assert code == 0
+    _dl(downloads, "flow2.png", b"two", age=0)
+    code, out = _run([str(folder), "storyboard/SB-2.png", "--downloads", str(downloads)], capsys)
+    assert code == 0 and out["from"] == "flow2.png"
+    assert (folder / "storyboard" / "SB-2.png").read_bytes() == b"two"
+
+
+def test_a_failed_copy_is_not_in_the_ledger(env, capsys):
+    folder, downloads = env
+    (folder / "storyboard").mkdir()
+    (folder / "storyboard" / "SB-1.png").write_bytes(b"mine")
+    _dl(downloads, "flow1.png", b"one")
+    code, _ = _run([str(folder), "storyboard/SB-1.png", "--downloads", str(downloads)], capsys)   # exists, no --replace
+    assert code == 1
+    assert not (folder / ".edit-mo-to" / "collected.json").exists()
+    code, out = _run([str(folder), "storyboard/SB-2.png", "--downloads", str(downloads)], capsys)
+    assert code == 0 and out["from"] == "flow1.png"
+
+
+def test_a_broken_ledger_fails_closed(env, capsys):
+    folder, downloads = env
+    (folder / ".edit-mo-to" / "collected.json").write_text("{not json", encoding="utf-8")
+    _dl(downloads, "flow1.png", b"one")
+    code, out = _run([str(folder), "storyboard/SB-1.png", "--downloads", str(downloads)], capsys)
+    assert code == 1 and "collected.json" in out["error"]
+    assert not (folder / "storyboard" / "SB-1.png").exists()
+    assert (folder / ".edit-mo-to" / "collected.json").read_text(encoding="utf-8") == "{not json"   # left as it was
+
+
+def test_the_ledger_write_leaves_no_part_file(env, capsys):
+    folder, downloads = env
+    _dl(downloads, "flow1.png", b"one")
+    code, _ = _run([str(folder), "storyboard/SB-1.png", "--downloads", str(downloads)], capsys)
+    assert code == 0
+    assert sorted(p.name for p in (folder / ".edit-mo-to").iterdir()) == ["collected.json", "job.json"]

@@ -1,14 +1,20 @@
 """Copy the newest matching download into a job's file ("Generate for me": a picture or clip Claude just downloaded
 from Google Flow in the editor's Chrome). Standard library only.
 
-    collect_download.py "<video folder>" <target> [--downloads DIR] [--within MIN] [--replace]
+    collect_download.py "<video folder>" <target> --since <time> [--downloads DIR] [--within MIN] [--replace]
 
 <target> is relative to the video folder (or absolute inside it), e.g. storyboard/SB-5.png or clips/V01_L02.mp4.
 Its extension picks the kind: a picture (png jpg jpeg webp), a video (mp4 mov m4v webm) or audio (mp3 wav m4a).
-The newest file of that kind in the Downloads folder (default ~/Downloads; hidden and unfinished .crdownload / .part /
-.download files skipped), saved within the last --within minutes (default 30), is copied (the download stays). The
-copy keeps the downloaded file's extension (SB-5.png + a .jpg download -> SB-5.jpg). An existing file is never
-overwritten without --replace; with it, the same-name files of that kind are replaced, so a keyframe keeps one file.
+--since (required) is when this item's Generate started: the generate event's "at" (an ISO time) or epoch seconds
+(`date +%s` taken just before pressing Generate). Only a download saved at or after it counts, so a failed or missing
+download never picks up the previous item's file. The newest file of that kind in the Downloads folder (default
+~/Downloads; hidden and unfinished .crdownload / .part / .download files skipped), saved since --since and within the
+last --within minutes (default 30), and not collected before, is copied (the download stays). Every copied download
+is remembered ({name, size, mtime_ns, target, at}) in <video folder>/.edit-mo-to/collected.json (written atomically),
+and a download already in it is never taken again; a collected.json that can't be read refuses (fail closed: fix or
+delete it). The copy keeps the downloaded file's extension (SB-5.png + a .jpg download -> SB-5.jpg). An existing file
+is never overwritten without --replace; with it, the same-name files of that kind are replaced, so a keyframe keeps
+one file.
 
 The target is checked where it really lands (its folder resolved, symlinks followed): it must be in storyboard/,
 clips/, vo/, music/, refs/ or the job card's clips_folder, inside the video folder. Refused: a folder without
@@ -23,11 +29,13 @@ import os
 import shutil
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 KINDS = {"picture": {".png", ".jpg", ".jpeg", ".webp"}, "video": {".mp4", ".mov", ".m4v", ".webm"},
          "audio": {".mp3", ".wav", ".m4a"}}
 UNFINISHED = {".crdownload", ".part", ".download", ".tmp"}
+LEDGER_KEEP = 500   # the last N collected downloads stay in collected.json
 
 
 class Refused(Exception):
@@ -92,9 +100,69 @@ def target_path(folder: Path, raw: str) -> "tuple[Path, set]":
     return real, kind
 
 
-def newest(downloads: Path, kind: set, within_min: float) -> Path:
-    since = time.time() - within_min * 60
-    best = None
+def parse_since(raw: str) -> float:
+    """Epoch seconds from epoch seconds or an ISO time (a generate event's "at"); Refused when it is neither."""
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        pass
+    try:
+        when = datetime.fromisoformat(str(raw).strip().replace("Z", "+00:00"))
+    except ValueError:
+        raise Refused(f"--since must be the Generate time (epoch seconds or an ISO time), got {raw!r}") from None
+    return when.timestamp() if when.tzinfo else when.astimezone().timestamp()
+
+
+def _ledger_path(folder: Path) -> Path:
+    return folder.resolve() / ".edit-mo-to" / "collected.json"
+
+
+def read_ledger(folder: Path) -> list:
+    """The collected downloads ([{name, size, mtime_ns, target, at}]); [] when there is no file yet. A file that can't
+    be read or makes no sense refuses: without it a download could be taken twice."""
+    path = _ledger_path(folder)
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return []
+    except OSError as e:
+        raise Refused(f"can't read {path} ({e}); fix or delete it, then try again") from None
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        data = None
+    sources = data.get("sources") if isinstance(data, dict) else None
+    if not isinstance(sources, list) or not all(isinstance(e, dict) for e in sources):
+        raise Refused(f"{path} is damaged; fix or delete it, then try again")
+    return sources
+
+
+def _key(entry) -> tuple:
+    return (entry.get("name"), entry.get("size"), entry.get("mtime_ns"))
+
+
+def _source_key(p: Path, st: os.stat_result) -> tuple:
+    return (p.name, st.st_size, st.st_mtime_ns)
+
+
+def write_ledger(folder: Path, sources: list) -> None:
+    """Replace collected.json atomically: a new .part file (open_new: no planted link followed), then os.replace."""
+    path = _ledger_path(folder)
+    part = path.with_name(f".{path.name}.part")
+    try:
+        with open_new(part) as f:
+            f.write(json.dumps({"sources": sources[-LEDGER_KEEP:]}, ensure_ascii=False, indent=1).encode("utf-8"))
+        os.replace(part, path)
+    finally:
+        part.unlink(missing_ok=True)
+
+
+def newest(downloads: Path, kind: set, within_min: float, since: float, collected: list) -> "tuple[Path, os.stat_result]":
+    """The newest download of that kind saved since `since` and within the last within_min minutes, not already in
+    `collected` (the ledger)."""
+    since = max(since, time.time() - within_min * 60)
+    done = {_key(e): e for e in collected}
+    best, skipped = None, None
     try:
         entries = list(downloads.iterdir())
     except OSError as e:
@@ -106,16 +174,28 @@ def newest(downloads: Path, kind: set, within_min: float) -> Path:
             st = p.stat()
         except OSError:
             continue
-        if p.is_file() and st.st_mtime >= since and (best is None or st.st_mtime > best[0]):
-            best = (st.st_mtime, p)
+        if not p.is_file() or st.st_mtime < since:
+            continue
+        if _source_key(p, st) in done:
+            if skipped is None or st.st_mtime > skipped[0]:
+                skipped = (st.st_mtime, done[_source_key(p, st)])
+            continue
+        if best is None or st.st_mtime > best[0]:
+            best = (st.st_mtime, p, st)
     if best is None:
-        raise Refused(f"no new download of that kind in the last {within_min:g} minutes in {downloads}")
-    return best[1]
+        if skipped is not None:
+            was = skipped[1]
+            raise Refused(f"the newest download ({was.get('name')}) was already saved as {was.get('target')}; "
+                          "no new download arrived for this item")
+        raise Refused(f"no new download of that kind since this Generate started (and in the last {within_min:g} "
+                      f"minutes) in {downloads}")
+    return best[1], best[2]
 
 
-def collect(folder: Path, raw: str, downloads: Path, within_min: float, replace: bool) -> dict:
+def collect(folder: Path, raw: str, downloads: Path, within_min: float, replace: bool, since: float) -> dict:
     target, kind = target_path(folder, raw)
-    src = newest(downloads, kind, within_min)
+    collected = read_ledger(folder)
+    src, src_st = newest(downloads, kind, within_min, since, collected)
     dest = target.with_suffix(src.suffix.lower())
     same = [target.with_suffix(ext) for ext in kind]
     taken = [p for p in same if p.exists() or p.is_symlink()]
@@ -139,6 +219,9 @@ def collect(folder: Path, raw: str, downloads: Path, within_min: float, replace:
     for p in same:
         if p != dest and (p.exists() or p.is_symlink()):
             p.unlink()
+    rel = dest.resolve().relative_to(folder.resolve()).as_posix()
+    write_ledger(folder, collected + [{"name": src.name, "size": src_st.st_size, "mtime_ns": src_st.st_mtime_ns,
+                                       "target": rel, "at": datetime.now().astimezone().isoformat(timespec="seconds")}])
     return {"path": dest.resolve().as_posix(), "from": src.name}
 
 
@@ -149,11 +232,13 @@ def main(argv=None) -> None:
     p.add_argument("folder")
     p.add_argument("target")
     p.add_argument("--downloads", default=str(Path.home() / "Downloads"))
+    p.add_argument("--since", required=True,
+                   help="when this Generate started: the generate event's \"at\" or epoch seconds (required)")
     p.add_argument("--within", type=float, default=30.0, help="minutes (default 30)")
     p.add_argument("--replace", action="store_true")
     a = p.parse_args(argv)
     try:
-        result = collect(Path(a.folder), a.target, Path(a.downloads), a.within, a.replace)
+        result = collect(Path(a.folder), a.target, Path(a.downloads), a.within, a.replace, parse_since(a.since))
     except (Refused, OSError) as e:
         print(json.dumps({"ok": False, "error": str(e)}, ensure_ascii=False))
         sys.exit(1)
