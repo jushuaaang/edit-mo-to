@@ -31,11 +31,12 @@ script: <numbered lines with Hook/Body/CTA labels>   script_file: <the same line
 timings_compact: {tmp}/reports/<job>/timings.txt   (media_timing vo --compact; or beats for product ads)
 timings: {tmp}/reports/<job>/timings.json          (the JSON, for the tools' --timings)
 limits: {tmp}/reports/<job>/limits.json
-broll_source: client | ai | both     generator: google-flow | seedance
+broll_source: client | ai | both     generator: higgsfield | google-flow     generator_model: <model id from generators.json, or the name the editor gave> (either site)
 vo: <path(s): one file, or one per hook/body>   music: <path or none>   (product ads: music is required; others: none until step 11)
 client_broll_folder: <path or none>   (check that it exists before dispatching)
 inventory: {tmp}/reports/<job>/inv/inventory.json, or one inv_<subfolder>/inventory.json per shortlisted subfolder of a big library   (when client B-roll exists)
 revision: <requests + target timeline>      (review loop only)
+graphics_picks: {"<line id>": ["<template>", …] | ["auto"]}   (storyboard and edit-plan, from step 3's Pick the graphics: use exactly these templates; several = a storyboard variant each, and one style timeline per pick: timeline n uses each moment's n-th pick, or its only one)
 aroll_cuts: <keep.json path(s) from speech_cuts.py>   (talking-head A-roll only)
 script_lang: <es | de | en | fil | …> (media_timing / speech_cuts --lang: the code, but en for English and Filipino)   script_en: {tmp}/reports/<job>/script_en.txt (one per VO file)   (TEMP_EN on: edit-plan writes plan2 `temp_en`)
 temp_en_removed: true | [<timelines>]   (only after the editor deleted TEMP_EN_delete_me: everywhere → plan-wide "temp_en_removed": true; from some timelines → "temp_en_removed": true on those plan2 timelines)
@@ -79,7 +80,7 @@ scope: full | delta   changed: <clip #s per timeline, ovN / prompt ids / ops sin
 - Storyboard approval: "Here's the full storyboard built from your images. Approve this direction, or tell me what to change."
 - VO: "Generate the voiceover in ElevenLabs and send me the file."
 - B-roll source: "Use the client's B-roll, generate AI videos, or both?"
-- Generator: "Where will you generate: Seedance or Google Flow?"
+- Generator: "Where will you generate: Higgsfield or Google Flow?" Then, for either site: "Which Higgsfield model?" or "Which Google Flow model?"
 - Clips ready: "Tell me when all the clips are generated and in <folder>."
 - Review: "Which timeline is this change for? And should I make a new timeline for it, or work directly in that timeline (I'll back it up first)?"
 - Quit CapCut: "Please quit CapCut completely before I write to the project, and tell me when it's closed."

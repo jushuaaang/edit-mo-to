@@ -206,6 +206,14 @@ def test_cli_prompts_prints_the_dict(tmp_path, capsys):
     assert out["rows"][0]["check"] == "prompts" and out["verdict"].startswith("FAIL")
 
 
+def test_prompts_unverified_generator_is_an_open_row_not_a_fail():
+    res = qc.check_prompts_rows({"style": "product-ad", "generator": "higgsfield", "generator_model": "kling-3.0",
+                                 "prompts": []}, [], None)
+    assert res["verdict"] == "PASS"
+    assert [(r["check"], r["status"]) for r in res["rows"]] == [("generator_limits", "OPEN")]
+    assert "Higgsfield · Kling 3.0" in res["rows"][0]["evidence"]
+
+
 def _api_up():
     import requests
     try:

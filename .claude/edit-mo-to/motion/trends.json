@@ -1,0 +1,16 @@
+{
+  "source": "https://prompt-motion.com/",
+  "checked": "2026-10-31",
+  "note": "What's popular in motion videos right now: Prompt Motion's gallery categories with their entry counts (more entries = more popular), mapped to our templates. Only names and counts are kept here; the videos and prompts belong to their creators. Claude marks a fitting template as suggested when its category is popular; re-check the site now and then and update the counts.",
+  "categories": [
+    {"name": "Product UI", "count": 105, "templates": ["cursor-ui", "glass-card-v2", "glass-card", "glass-toggle", "prompt-bar", "notify", "comment-cta", "hud-frame"]},
+    {"name": "Kinetic type", "count": 96, "templates": ["kinetic-type", "kinetic-type-v2", "kinetic-title", "big-text", "word-pop", "knockout-caption", "gravity-drop", "glass-title", "title-card"]},
+    {"name": "Shapes", "count": 42, "templates": ["morph-flow", "section-chip", "live-markup", "badge-pop", "badge-pop-v2"]},
+    {"name": "Charts", "count": 34, "templates": ["data-viz", "stat", "glass-counter", "odometer", "glass-split", "glass-compare"]},
+    {"name": "Diagrams", "count": 31, "templates": ["checklist", "callout", "pain-marker", "eye-cross-section-v2", "collagen-network-v2", "membrane-molecule-v2"]},
+    {"name": "Characters", "count": 27, "templates": ["lottie"]},
+    {"name": "Photos", "count": 23, "templates": ["product-3d", "film-strip", "eyedropper-palette"]},
+    {"name": "Phone", "count": 22, "templates": ["phone-cards", "notify"]},
+    {"name": "Code", "count": 21, "templates": ["prompt-bar"]}
+  ]
+}

@@ -16,6 +16,8 @@ CLI (prints JSON):
                                                  HyperFrames audit: lint, runtime errors, text overflow/overlap,
                                                  contrast. Held problems are errors/warnings; entrance blips are info
     preview <file.mov> <out.png> [seconds]       one frame composited over green (check transparency)
+    previews [--only a,b]                        a still per template in ..\motion\previews\<name>.jpg (the app's
+                                                 "Pick the graphics" cards); render_concurrency at a time
     trace <logo.png> <out.svg> [--threshold 0-255] [--invert]
                                                  trace a PNG logo to a one-colour SVG outline (OpenCV
                                                  contours, holes kept), for logo-reveal when no SVG exists
@@ -47,6 +49,7 @@ HF_BIN = MOTION / "node_modules" / ".bin" / ("hyperframes.cmd" if os.name == "nt
 DEFAULTS_RE = re.compile(r"\A\s*<!--defaults\s+(\{.*?\})\s*-->\s*", re.S)
 PLACEHOLDER_RE = re.compile(r"\{\{\s*([a-zA-Z0-9_]+)\s*\}\}")
 GSAP_CDN = "https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"  # copied into skeleton/, so renders work offline
+LOTTIE_CDN = "https://cdn.jsdelivr.net/npm/lottie-web@5.12.2/build/player/lottie_svg.min.js"  # skeleton/lottie.min.js
 
 
 HELD_DEFECTS = {"canvas_overflow", "text_box_overflow", "clipped_text", "content_overlap", "text_occluded"}
@@ -97,7 +100,7 @@ def fill(template: str, variables: dict) -> str:
             v = int(v)
         return html.escape(str(v), quote=True)
 
-    return PLACEHOLDER_RE.sub(sub, body).replace(GSAP_CDN, "gsap.min.js")
+    return PLACEHOLDER_RE.sub(sub, body).replace(GSAP_CDN, "gsap.min.js").replace(LOTTIE_CDN, "lottie.min.js")
 
 
 def template_text(name: str) -> str:
@@ -349,10 +352,48 @@ def check(name: str, variables: dict | None = None, snapshots_dir: Path | None =
 def preview(mov: Path, png: Path, at: float | None = None) -> Path:
     info = _probe(Path(mov))
     t = info["duration"] / 2 if at is None else at
-    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=0x00aa44:s=1080x1920",
+    size = f"{info.get('width') or 1080}x{info.get('height') or 1920}"  # 16:9 templates render 1920x1080
+    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=0x00aa44:s={size}",
                     "-ss", str(t), "-i", str(mov), "-filter_complex", "[0][1]overlay,scale=360:-1",
                     "-frames:v", "1", str(png)], check=True)
     return Path(png)
+
+
+PREVIEWS = MOTION / "previews"  # one still per template (<name>.jpg), the app's "Pick the graphics" cards
+
+
+def make_previews(only: "list[str] | None" = None, out_dir: Path = PREVIEWS, concurrency: int | None = None) -> dict:
+    """A small still per template, for the app's template cards: each template rendered once with its own sample
+    values (no slim pass), the frame at 60% of its duration over the app's dark panel colour, 360 px wide, as
+    <out_dir>/<name>.jpg. A template that fails to render is listed under "failed" and the rest go on."""
+    names = only or list(list_templates())
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    concurrency = _config_int("render_concurrency") if concurrency is None else concurrency
+    work = Path(tempfile.mkdtemp(prefix="emt-previews-", dir=os.environ.get("EMT_MOTION_TMP")))
+
+    def one(name: str) -> tuple[str, str | None]:
+        mov = work / f"{name}.mov"
+        try:
+            info = render(name, mov, slim=False)
+            at = float(info.get("duration") or 2) * 0.6
+            size = f"{info.get('width') or 1080}x{info.get('height') or 1920}"
+            subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=0x1D1A17:s={size}",
+                            "-ss", f"{at:.3f}", "-i", str(mov), "-filter_complex", "[0][1]overlay,scale=360:-1",
+                            "-frames:v", "1", "-q:v", "4", str(out_dir / f"{name}.jpg")], check=True)
+            return name, None
+        except Exception as e:  # noqa: BLE001 - one template's failure never stops the rest
+            return name, str(e)[-300:]
+        finally:
+            mov.unlink(missing_ok=True)
+
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
+            results = list(pool.map(one, names))
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    return {"made": [n for n, err in results if err is None], "failed": {n: err for n, err in results if err},
+            "dir": plain_path(out_dir)}
 
 
 def cutout(clip: Path, out: Path, start: float = 0.0, length: float | None = None) -> dict:
@@ -432,6 +473,9 @@ def main(argv: list[str]) -> None:
         out = trace(Path(args[0]), Path(args[1]), thr, "--invert" in args)
     elif cmd == "preview":
         out = {"png": str(preview(Path(args[0]), Path(args[1]), float(args[2]) if len(args) > 2 else None))}
+    elif cmd == "previews":
+        only = args[args.index("--only") + 1].split(",") if "--only" in args else None
+        out = make_previews(only)
     else:
         raise SystemExit(__doc__)
     print(json.dumps(out, ensure_ascii=False, indent=2))

@@ -1,0 +1,246 @@
+<!--defaults {"title": "Edit Mo To app", "sub": "sumusunod sa parehong job", "big": "12", "big_label": "PAREHONG JOB", "big_unit": "steps", "status_busy": "Ginagawa ang explainer...", "status_done": "Sariling explainer video", "btn": "Panoorin", "btn_done": "Mamaya na", "notif_label": "New message", "notif": "Sariling explainer video", "line": "Sa workflow muna tayo.", "em": "workflow", "t_card": "0.15", "t_notif": "2.6", "t_line": "4.6", "bg": "#E8481C", "dark": "#0F0F10", "card": "#FFFFFF", "ink": "#111111", "muted": "#8A847C", "accent": "#E8481C", "cream": "#F3EEE6", "font": "Inter Tight", "serif": "Instrument Serif", "mono": "JetBrains Mono", "hud": "1", "hud_label": "EDIT-MO-TO · EXPLAINER", "section": "02 · THE APP", "tc_offset": "0", "duration": 7} -->
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500;700;800;900&family={{serif}}:ital@0;1&family={{mono}}:wght@500;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: {{bg}}; }
+  #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "{{font}}", sans-serif; color: {{ink}}; -webkit-font-smoothing: antialiased; }
+  .fill { position: absolute; inset: 0; }
+  #bgbase { background: {{bg}}; }
+  #bgdark { background: {{dark}}; opacity: 0; }
+  /* HUD */
+  #hud { position: absolute; inset: 0; color: {{ink}}; font-family: "{{mono}}", monospace; font-weight: 700; font-size: 18px; letter-spacing: .18em; }
+  .br { position: absolute; width: 34px; height: 34px; border: 0 solid currentColor; opacity: .75; }
+  .br.a { left: 40px; top: 40px; border-left-width: 2px; border-top-width: 2px; }
+  .br.b { right: 40px; top: 40px; border-right-width: 2px; border-top-width: 2px; }
+  .br.c { left: 40px; bottom: 40px; border-left-width: 2px; border-bottom-width: 2px; }
+  .br.d { right: 40px; bottom: 40px; border-right-width: 2px; border-bottom-width: 2px; }
+  .hl { position: absolute; white-space: nowrap; }
+  #hudL { left: 92px; top: 48px; } #hudR { right: 92px; top: 48px; } #hudT { right: 92px; bottom: 48px; }
+  #hudT b { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: currentColor; margin-right: 12px; vertical-align: 1px; }
+  /* stage */
+  #cam { position: absolute; inset: 0; transform-origin: 50% 50%; }
+  #cardw { position: absolute; left: 280px; top: 190px; width: 640px; height: 700px; }
+  #card { position: absolute; inset: 0; background: {{card}}; border-radius: 34px; box-shadow: 0 40px 90px rgba(60,20,0,.28), 0 6px 18px rgba(60,20,0,.18); padding: 44px 48px; overflow: hidden; }
+  #head { display: flex; align-items: center; gap: 20px; }
+  #logo { width: 62px; height: 62px; border-radius: 50%; background: {{accent}}; display: grid; place-items: center; flex: none; }
+  #logo svg { width: 30px; height: 30px; }
+  #names { flex: 1; min-width: 0; }
+  #ttl { font-weight: 800; font-size: 36px; letter-spacing: -.01em; white-space: nowrap; line-height: 1.1; }
+  #sub { font-family: "{{mono}}", monospace; font-weight: 500; font-size: 18px; color: {{ink}}; opacity: .62; white-space: nowrap; margin-top: 6px; }
+  #tog { width: 76px; height: 42px; border-radius: 21px; background: #D9D3CA; position: relative; flex: none; }
+  #knob { position: absolute; left: 5px; top: 5px; width: 32px; height: 32px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+  #lab { font-family: "{{mono}}", monospace; font-weight: 700; font-size: 18px; letter-spacing: .2em; opacity: .6; margin-top: 30px; }
+  #bigrow { display: flex; align-items: baseline; gap: 10px; margin-top: 4px; height: 150px; }
+  #big { font-weight: 900; font-size: 150px; letter-spacing: -.04em; line-height: 1; white-space: nowrap; }
+  #bigx { font-family: "{{serif}}", serif; font-style: italic; font-weight: 400; font-size: 96px; line-height: 1; color: {{accent}}; white-space: nowrap; }
+  #bars { display: flex; align-items: flex-end; gap: 14px; height: 150px; margin-top: 22px; }
+  .bar { flex: 1; background: {{ink}}; border-radius: 8px; transform-origin: 50% 100%; }
+  .bar.hot { background: {{accent}}; }
+  #stat { display: flex; align-items: center; gap: 16px; margin-top: 28px; height: 40px; }
+  #spin { width: 38px; height: 38px; position: relative; flex: none; }
+  #spin svg { position: absolute; inset: 0; }
+  #stxt { position: relative; font-weight: 700; font-size: 25px; white-space: nowrap; flex: 1; height: 34px; }
+  #stxt span { position: absolute; left: 0; top: 0; }
+  #btn { position: relative; margin-top: 26px; height: 74px; border-radius: 37px; background: {{ink}}; color: #fff; overflow: hidden; }
+  #btnfill { position: absolute; inset: 0; background: {{accent}}; transform-origin: 0 50%; transform: scaleX(0); }
+  .bl { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 12px; font-weight: 800; font-size: 26px; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+  #cursor { position: absolute; left: 0; top: 0; width: 44px; height: 54px; }
+  /* notification */
+  #notw { position: absolute; left: 1000px; top: 450px; width: 760px; }
+  #notif { display: flex; align-items: center; gap: 26px; background: {{card}}; border-radius: 40px; padding: 30px 36px; box-shadow: 0 34px 80px rgba(60,20,0,.30), 0 4px 14px rgba(60,20,0,.18); }
+  #nicon { width: 76px; height: 76px; border-radius: 22px; background: {{ink}}; display: grid; place-items: center; flex: none; }
+  #ntxt { min-width: 0; flex: 1; }
+  #nlab { font-family: "{{mono}}", monospace; font-weight: 700; font-size: 19px; letter-spacing: .18em; text-transform: uppercase; opacity: .62; white-space: nowrap; }
+  #nq { font-family: "{{serif}}", serif; font-style: italic; font-size: 60px; line-height: 1.05; color: {{ink}}; white-space: nowrap; margin-top: 6px; }
+  #nq em { color: {{accent}}; font-style: italic; }
+  /* line (title) */
+  #rule { position: absolute; left: 50%; top: 600px; width: 1300px; height: 6px; margin-left: -650px; background: {{cream}}; border-radius: 3px; transform: scaleX(0); }
+  #ttlw { position: absolute; left: 0; right: 0; top: 380px; height: 220px; overflow: hidden; text-align: center; }
+  #lt { display: inline-block; white-space: nowrap; font-weight: 900; font-size: 150px; letter-spacing: -.035em; line-height: 210px; color: {{cream}}; }
+  #lt .w { display: inline-block; }
+  #lt .em { font-family: "{{serif}}", serif; font-style: italic; font-weight: 400; letter-spacing: -.01em; color: {{accent}}; padding: 0 .04em; }
+  #lt .ch { display: inline-block; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1920" data-height="1080">
+  <div id="bgl" class="clip fill" data-start="0" data-duration="{{duration}}" data-track-index="0"><div id="bgbase" class="fill"></div><div id="bgdark" class="fill"></div></div>
+  <div id="stage" class="clip fill" data-start="0" data-duration="{{duration}}" data-track-index="1">
+    <div id="cam">
+      <div id="cardw"><div id="card">
+        <div id="head" class="in">
+          <div id="logo"><svg viewBox="0 0 30 30" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M11 8 L22 15 L11 22 Z" fill="#fff"/></svg></div>
+          <div id="names"><div id="ttl"></div><div id="sub"></div></div>
+          <div id="tog"><div id="knob"></div></div>
+        </div>
+        <div id="lab" class="in"></div>
+        <div id="bigrow" class="in"><div id="big">0</div><div id="bigx"></div></div>
+        <div id="bars"></div>
+        <div id="stat" class="in">
+          <div id="spin">
+            <svg id="ring" viewBox="0 0 38 38"><circle cx="19" cy="19" r="15" fill="none" stroke="{{ink}}" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="28 80"/></svg>
+            <svg id="ok" viewBox="0 0 38 38"><circle cx="19" cy="19" r="17" fill="{{accent}}"/><path d="M11.5 19.5 L16.8 24.5 L26.5 14" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div id="stxt"><span id="s1"></span><span id="s2"></span></div>
+        </div>
+        <div id="btn" class="in"><div id="btnfill"></div>
+          <div id="b1" class="bl"><span></span><svg width="26" height="20" viewBox="0 0 26 20" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10 H23 M15 3 L23 10 L15 17"/></svg></div>
+          <div id="b2" class="bl"><svg width="24" height="20" viewBox="0 0 24 20" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10.5 L8.5 17 L22 3"/></svg><span></span></div>
+        </div>
+      </div></div>
+      <div id="notw" data-layout-allow-overflow><div id="notif">
+        <div id="nicon"><svg width="40" height="32" viewBox="0 0 40 32" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"><rect x="2" y="2" width="36" height="28" rx="5"/><path d="M3 5 L20 18 L37 5"/></svg></div>
+        <div id="ntxt"><div id="nlab"></div><div id="nq"><em></em></div></div>
+      </div></div>
+      <svg id="cursor" viewBox="0 0 44 54"><path d="M4 3 L4 42 L14 32 L21 49 L28 46 L21 30 L35 30 Z" fill="{{ink}}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></svg>
+    </div>
+  </div>
+  <div id="titlel" class="clip fill" data-start="0" data-duration="{{duration}}" data-track-index="2">
+    <div id="tin" class="fill"><div id="rule"></div>
+    <div id="ttlw" data-layout-allow-overflow><div id="lt" data-layout-allow-overflow></div></div></div>
+  </div>
+  <div id="hudl" class="clip fill" data-start="0" data-duration="{{duration}}" data-track-index="3">
+    <div id="hud"><i class="br a"></i><i class="br b"></i><i class="br c"></i><i class="br d"></i>
+      <div id="hudL" class="hl"></div><div id="hudR" class="hl"></div><div id="hudT" class="hl"><b></b><span></span></div></div>
+  </div>
+</div>
+<script>
+  const D = {{duration}};
+  const dec = s => { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; };
+  const $ = id => document.getElementById(id);
+  const num = (s, d) => { const n = parseFloat(dec(s)); return isFinite(n) ? n : d; };
+  const T_CARD = num("{{t_card}}", 0.15), T_NOTIF = num("{{t_notif}}", 2.6), T_LINE = num("{{t_line}}", 4.6);
+  const FPS = 30, TC0 = num("{{tc_offset}}", 0);
+
+  // ---- text ----
+  $("ttl").textContent = dec("{{title}}");
+  $("sub").textContent = dec("{{sub}}");
+  $("lab").textContent = dec("{{big_label}}");
+  $("bigx").textContent = dec("{{big_unit}}");
+  $("s1").textContent = dec("{{status_busy}}");
+  $("s2").textContent = dec("{{status_done}}");
+  $("b1").querySelector("span").textContent = dec("{{btn}}");
+  $("b2").querySelector("span").textContent = dec("{{btn_done}}");
+  $("nlab").textContent = dec("{{notif_label}}");
+  $("nq").querySelector("em").textContent = dec("{{notif}}");
+  $("hudL").textContent = dec("{{hud_label}}");
+  $("hudR").textContent = dec("{{section}}");
+  if (dec("{{hud}}") === "0") $("hud").style.display = "none";
+  const BIG = dec("{{big}}"), BIGN = parseInt(BIG, 10), BIG_IS_NUM = /^\d+$/.test(BIG);
+  if (!BIG) { $("bigrow").style.display = "none"; $("lab").style.display = "none"; }
+  $("big").textContent = BIG_IS_NUM ? "0" : BIG;
+  const bh = [0.26, 0.4, 0.34, 0.56, 0.5, 0.78, 1.0];
+  bh.forEach((h, i) => { const b = document.createElement("div"); b.className = "bar" + (i === bh.length - 1 ? " hot" : ""); b.style.height = (h * 100) + "%"; $("bars").appendChild(b); });
+
+  // title line, words -> chars; the emphasis word in the serif italic
+  const LINE = dec("{{line}}"), EM = dec("{{em}}").trim().toLowerCase();
+  LINE.split(/\s+/).filter(Boolean).forEach((w, i, arr) => {
+    const ws = document.createElement("span");
+    const bare = w.replace(/[.,!?;:]+$/, "");
+    ws.className = "w" + (EM && bare.toLowerCase() === EM ? " em" : "");
+    [...w].forEach(c => { const s = document.createElement("span"); s.className = "ch"; s.textContent = c; ws.appendChild(s); });
+    $("lt").appendChild(ws);
+    if (i < arr.length - 1) $("lt").appendChild(document.createTextNode(" "));
+  });
+
+  // ---- auto-fit ----
+  function fitW(el, maxW) {
+    el.style.fontSize = "";
+    const w = el.scrollWidth;
+    if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
+  }
+  function fitAll() {
+    fitW($("ttl"), 350); fitW($("sub"), 350); fitW($("big"), 300); fitW($("bigx"), 230);
+    fitW($("stxt"), 470); fitW($("s1"), 470); fitW($("s2"), 470);
+    fitW($("b1"), 480); fitW($("b2"), 480);
+    fitW($("nlab"), 560); fitW($("nq"), 560);
+    fitW($("lt"), 1640);
+    const rw = Math.min(1720, $("lt").getBoundingClientRect().width / (gsap.getProperty("#lt", "scaleX") || 1) + 80);
+    $("rule").style.width = rw + "px"; $("rule").style.marginLeft = (-rw / 2) + "px";
+  }
+  fitAll();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
+
+  // ---- timeline ----
+  const tl = gsap.timeline({ paused: true });
+  const tc = { t: 0 };
+  const pad = n => String(Math.floor(n)).padStart(2, "0");
+  const setTC = () => { const s = tc.t + TC0; $("hudT").querySelector("span").textContent = "TC " + pad(s / 3600) + ":" + pad((s / 60) % 60) + ":" + pad(s % 60) + ":" + pad(Math.round((s % 1) * FPS) % FPS); };
+  tl.to(tc, { t: D, duration: D, ease: "none", onUpdate: setTC }, 0);
+  setTC();
+
+  // card: blank white card glitch-slices in, then the UI builds itself
+  const c0 = T_CARD;
+  gsap.set("#cardw", { transformOrigin: "50% 50%" });
+  gsap.set(".in, #bars", { opacity: 0 });
+  gsap.set(".bar", { scaleY: 0 });
+  gsap.set("#ok", { scale: 0, transformOrigin: "50% 50%" });
+  gsap.set("#s2", { opacity: 0, y: 14 });
+  gsap.set("#b2", { opacity: 0, y: 20 });
+  gsap.set("#notw", { y: -700, rotation: -3, opacity: 0 });
+  gsap.set("#tin", { opacity: 0 });
+  gsap.set("#cursor", { x: 1500, y: 1180 });
+  tl.fromTo("#cardw", { scale: 0.86, opacity: 0, filter: "blur(14px)" }, { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.32, ease: "power3.out" }, c0);
+  // glitch: a few hard horizontal offsets (stepped, like the reference's slice jitter)
+  [[0.05, -14, 0.06], [0.1, 10, -0.04], [0.15, -6, 0.02], [0.2, 0, 0]].forEach(([dt, x, sk]) => tl.set("#card", { x, skewX: sk * 60 }, c0 + dt));
+  tl.to("#head", { opacity: 1, duration: 0.25 }, c0 + 0.3);
+  tl.fromTo("#head", { y: 14 }, { y: 0, duration: 0.35, ease: "power3.out" }, c0 + 0.3);
+  tl.to(["#lab", "#bigrow"], { opacity: 1, duration: 0.25, stagger: 0.06 }, c0 + 0.4);
+  tl.to("#bars", { opacity: 1, duration: 0.01 }, c0 + 0.5);
+  tl.to(".bar", { scaleY: 1, duration: 0.5, ease: "back.out(1.3)", stagger: 0.07 }, c0 + 0.55);
+  tl.to(["#stat", "#btn"], { opacity: 1, duration: 0.25, stagger: 0.08 }, c0 + 0.7);
+  // toggle switches on
+  tl.to("#knob", { x: 34, duration: 0.28, ease: "back.out(1.6)" }, c0 + 0.85);
+  tl.to("#tog", { backgroundColor: "{{accent}}", duration: 0.2 }, c0 + 0.85);
+  // number counts up with a scramble blur on the last digit
+  if (BIG_IS_NUM) {
+    const cnt = { v: 0 };
+    tl.to(cnt, { v: BIGN, duration: 1.1, ease: "power2.out", onUpdate: () => { $("big").textContent = String(Math.round(cnt.v)); } }, c0 + 0.45);
+    tl.fromTo("#big", { filter: "blur(6px)" }, { filter: "blur(0px)", duration: 1.1, ease: "power2.in" }, c0 + 0.45);
+  }
+  // spinner turns, then becomes a check
+  const tDone = Math.max(c0 + 1.5, T_NOTIF - 0.9);
+  tl.fromTo("#ring", { rotation: 0, transformOrigin: "50% 50%" }, { rotation: 360 * Math.max(1, Math.round((tDone - c0 - 0.7) / 0.6)), duration: Math.max(0.3, tDone - c0 - 0.7), ease: "none" }, c0 + 0.7);
+  tl.to("#ring", { scale: 0, opacity: 0, transformOrigin: "50% 50%", duration: 0.15 }, tDone);
+  tl.to("#ok", { scale: 1, duration: 0.35, ease: "back.out(2)" }, tDone + 0.05);
+  tl.to("#s1", { opacity: 0, y: -14, duration: 0.18 }, tDone);
+  tl.to("#s2", { opacity: 1, y: 0, duration: 0.25, ease: "power3.out" }, tDone + 0.06);
+  // cursor arrives and clicks the button; the click causes the notification
+  const tClick = Math.max(c0 + 1.2, T_NOTIF - 0.22);
+  tl.to("#cursor", { x: 670, y: 800, duration: 0.7, ease: "power3.inOut" }, tClick - 0.75);
+  tl.to("#cursor", { scale: 0.82, duration: 0.07, yoyo: true, repeat: 1, transformOrigin: "10% 10%" }, tClick);
+  tl.to("#btn", { scale: 0.96, duration: 0.07, yoyo: true, repeat: 1 }, tClick);
+  tl.to("#btnfill", { scaleX: 1, duration: 0.3, ease: "power3.out" }, tClick + 0.04);
+  tl.to("#b1", { opacity: 0, y: -20, duration: 0.15 }, tClick + 0.04);
+  tl.to("#b2", { opacity: 1, y: 0, duration: 0.25, ease: "power3.out" }, tClick + 0.1);
+  tl.to("#cursor", { x: 900, y: 1010, opacity: 0, duration: 0.6, ease: "power2.in" }, tClick + 0.35);
+  // notification drops in (tiny overshoot), camera eases toward it
+  tl.set("#notw", { opacity: 1 }, T_NOTIF);
+  tl.to("#notw", { y: 0, rotation: 0, duration: 0.55, ease: "back.out(1.15)" }, T_NOTIF);
+  tl.fromTo("#notif", { filter: "blur(10px)" }, { filter: "blur(0px)", duration: 0.35 }, T_NOTIF);
+  tl.to("#cam", { scale: 1.045, x: -60, duration: 1.4, ease: "power2.inOut" }, T_NOTIF);
+
+  // exit: the whole stage squashes into a line; the line becomes the title's underline on the dark scene
+  const tX = Math.max(T_NOTIF + 0.7, T_LINE - 0.5);
+  tl.to("#cam", { scaleY: 0.012, scaleX: 1.06, x: 0, filter: "blur(3px)", duration: 0.22, ease: "power3.in" }, tX);
+  tl.set("#stage", { opacity: 0 }, tX + 0.24);
+  tl.set("#bgdark", { opacity: 1 }, tX + 0.24);
+  tl.set("#tin", { opacity: 1 }, tX + 0.24);
+  tl.to("#hud", { color: "{{cream}}", duration: 0.01 }, tX + 0.24);
+  tl.fromTo("#rule", { scaleX: 0.75, opacity: 1 }, { scaleX: 1, duration: 0.3, ease: "power3.out" }, tX + 0.24);
+  // title rises from behind the line, char by char: outline first, then the fill lands
+  const chars = gsap.utils.toArray("#lt .ch");
+  gsap.set(chars, { yPercent: 105 });
+  tl.to(chars, { yPercent: 0, duration: 0.5, ease: "power4.out", stagger: 0.022 }, T_LINE - 0.12);
+  tl.fromTo("#lt .w:not(.em)", { color: "rgba(0,0,0,0)", webkitTextStroke: "2px {{cream}}" }, { color: "{{cream}}", webkitTextStroke: "0px {{cream}}", duration: 0.3, ease: "power2.out", immediateRender: false }, T_LINE + 0.35);
+  tl.to("#lt", { scale: 1.03, duration: Math.max(0.3, D - T_LINE - 0.3), ease: "none" }, T_LINE + 0.3);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

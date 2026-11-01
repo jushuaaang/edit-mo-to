@@ -3,7 +3,7 @@
 Reads ../machine.json (untracked; copy machine.example.json). Any key it leaves out falls back to this
 platform's default below.
 
-usage: python machine.py   prints the resolved paths as JSON
+usage: python machine.py   prints the resolved paths as JSON (generate_for_me_accounts shown only as a count)
 """
 import json
 import os
@@ -50,5 +50,15 @@ PATHS = load()
 TMP = Path(PATHS["tmp"])
 BUILD = (TMP / "build").as_posix()
 
+def printable(cfg: dict) -> dict:
+    """cfg for printing: the "Generate for me" account emails never reach a terminal or a chat."""
+    out = dict(cfg)
+    if "generate_for_me_accounts" in out:
+        accounts = out["generate_for_me_accounts"]
+        n = len(accounts) if isinstance(accounts, list) else 0
+        out["generate_for_me_accounts"] = f"({n} account{'' if n == 1 else 's'}, hidden)"
+    return out
+
+
 if __name__ == "__main__":
-    print(json.dumps(PATHS, indent=1))
+    print(json.dumps(printable(PATHS), indent=1))

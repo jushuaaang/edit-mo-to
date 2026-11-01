@@ -1,0 +1,177 @@
+<!--defaults {"label": "HELPER AGENTS", "title": "May helper agents si Claude.", "em": "helper agents", "names": "Style agent|Editor agent|QA", "subs": "nagpa-plan ng shots|nagbi-build sa CapCut|chine-check laban sa brief", "icons": "board|scissors|check", "times": "0.5,5.6,7.8", "tags": "UGC|B-roll|Claymation|Pixar|Product ad", "t_tags": "2.4", "tag_times": "", "bg": "#F3EEE6", "card": "#FFFFFF", "ink": "#111111", "muted": "#8A847C", "accent": "#E8481C", "font": "Inter Tight", "serif": "Instrument Serif", "mono": "JetBrains Mono", "hud": "1", "hud_label": "EDIT-MO-TO · EXPLAINER", "section": "04 · HELPER AGENTS", "tc_offset": "0", "duration": 11} -->
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500;700;800;900&family={{serif}}:ital@0;1&family={{mono}}:wght@500;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: {{bg}}; }
+  #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "{{font}}", sans-serif; color: {{ink}}; -webkit-font-smoothing: antialiased; }
+  .fill { position: absolute; inset: 0; }
+  #bgbase { background: {{bg}}; }
+  /* HUD */
+  #hud { position: absolute; inset: 0; color: {{ink}}; font-family: "{{mono}}", monospace; font-weight: 700; font-size: 18px; letter-spacing: .18em; }
+  .br { position: absolute; width: 34px; height: 34px; border: 0 solid currentColor; opacity: .75; }
+  .br.a { left: 40px; top: 40px; border-left-width: 2px; border-top-width: 2px; }
+  .br.b { right: 40px; top: 40px; border-right-width: 2px; border-top-width: 2px; }
+  .br.c { left: 40px; bottom: 40px; border-left-width: 2px; border-bottom-width: 2px; }
+  .br.d { right: 40px; bottom: 40px; border-right-width: 2px; border-bottom-width: 2px; }
+  .hl { position: absolute; white-space: nowrap; }
+  #hudL { left: 92px; top: 48px; } #hudR { right: 92px; top: 48px; } #hudT { right: 92px; bottom: 48px; }
+  #hudT b { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: {{accent}}; margin-right: 12px; vertical-align: 1px; }
+  /* stage */
+  #cam { position: absolute; inset: 0; }
+  #lab { position: absolute; left: 0; right: 0; top: 236px; text-align: center; font-family: "{{mono}}", monospace; font-weight: 700; font-size: 24px; letter-spacing: .32em; color: {{ink}}; white-space: nowrap; }
+  #lab i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: {{accent}}; margin-right: 16px; vertical-align: 2px; }
+  #ttlw { position: absolute; left: 0; right: 0; top: 284px; text-align: center; }
+  #ttl { display: inline-block; font-weight: 800; font-size: 76px; letter-spacing: -.025em; line-height: 1.1; white-space: nowrap; }
+  #ttl .w { display: inline-block; }
+  #ttl .em { font-family: "{{serif}}", serif; font-style: italic; font-weight: 400; letter-spacing: -.005em; color: {{accent}}; }
+  #row { position: absolute; left: 0; right: 0; top: 476px; height: 330px; }
+  .cw { width: 440px; height: 330px; position: absolute; left: 0; top: 0; }
+  .cd { position: absolute; inset: 0; background: {{card}}; border-radius: 30px; box-shadow: 0 22px 50px rgba(40,30,20,.10), 0 3px 10px rgba(40,30,20,.06); display: flex; flex-direction: column; align-items: center; padding: 30px 28px 0; }
+  .ring { position: absolute; inset: -3px; border-radius: 33px; border: 3px solid {{accent}}; opacity: 0; }
+  .num { width: 46px; height: 46px; border-radius: 50%; background: {{accent}}; color: #fff; font-family: "{{mono}}", monospace; font-weight: 700; font-size: 22px; display: grid; place-items: center; }
+  .ic { width: 92px; height: 92px; margin-top: 22px; }
+  .ic path, .ic rect, .ic circle, .ic line { stroke-dasharray: 400; stroke-dashoffset: 400; }
+  .nm { font-weight: 800; font-size: 40px; letter-spacing: -.015em; margin-top: 20px; white-space: nowrap; }
+  .sb { font-weight: 500; font-size: 27px; color: {{ink}}; opacity: .72; margin-top: 8px; white-space: nowrap; }
+  /* tags */
+  .tg { position: absolute; left: 0; top: 0; }
+  .tgi { background: {{card}}; color: {{accent}}; font-weight: 700; font-size: 30px; padding: 12px 24px; border-radius: 30px; white-space: nowrap; box-shadow: 0 10px 26px rgba(40,30,20,.12), 0 2px 6px rgba(40,30,20,.08); }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1920" data-height="1080">
+  <div id="bgl" class="clip fill" data-start="0" data-duration="{{duration}}" data-track-index="0"><div id="bgbase" class="fill"></div></div>
+  <div id="stage" class="clip fill" data-start="0" data-duration="{{duration}}" data-track-index="1">
+    <div id="cam">
+      <div id="lab"><i></i><span></span></div>
+      <div id="ttlw"><div id="ttl"></div></div>
+      <div id="row"></div>
+      <div id="tags"></div>
+    </div>
+  </div>
+  <div id="hudl" class="clip fill" data-start="0" data-duration="{{duration}}" data-track-index="2">
+    <div id="hud"><i class="br a"></i><i class="br b"></i><i class="br c"></i><i class="br d"></i>
+      <div id="hudL" class="hl"></div><div id="hudR" class="hl"></div><div id="hudT" class="hl"><b></b><span></span></div></div>
+  </div>
+</div>
+<script>
+  const D = {{duration}};
+  const dec = s => { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; };
+  const $ = id => document.getElementById(id);
+  const list = s => dec(s).split("|").map(x => x.trim());
+  const nums = (s, d) => { const a = dec(s).split(/[|,]/).map(parseFloat); return d.map((v, i) => isFinite(a[i]) ? a[i] : v); };
+  const FPS = 30, TC0 = parseFloat(dec("{{tc_offset}}")) || 0;
+  const ICON = {
+    board: '<rect x="10" y="16" width="30" height="24" rx="4"/><rect x="52" y="16" width="30" height="24" rx="4"/><rect x="10" y="52" width="30" height="24" rx="4"/><rect x="52" y="52" width="30" height="24" rx="4"/>',
+    scissors: '<circle cx="24" cy="68" r="11"/><circle cx="68" cy="68" r="11"/><path d="M31 59 L66 12"/><path d="M61 59 L26 12"/>',
+    check: '<circle cx="46" cy="46" r="34"/><path d="M30 47 L41 58 L63 35"/>',
+    chat: '<path d="M14 18 H78 V62 H40 L24 76 V62 H14 Z"/>',
+    spark: '<path d="M46 10 V82 M10 46 H82 M21 21 L71 71 M71 21 L21 71"/>',
+    doc: '<path d="M22 10 H56 L72 26 V82 H22 Z"/><path d="M34 46 H60 M34 60 H60"/>'
+  };
+
+  // ---- build ----
+  $("lab").querySelector("span").textContent = dec("{{label}}");
+  $("hudL").textContent = dec("{{hud_label}}");
+  $("hudR").textContent = dec("{{section}}");
+  if (dec("{{hud}}") === "0") $("hud").style.display = "none";
+  const TITLE = dec("{{title}}"), EM = dec("{{em}}").trim().toLowerCase();
+  if (!TITLE) $("ttlw").style.display = "none";
+  // emphasis phrase -> serif italic accent (matched case-insensitively, kept as one span)
+  (function () {
+    const low = TITLE.toLowerCase(), k = EM ? low.indexOf(EM) : -1;
+    const parts = k >= 0 ? [[TITLE.slice(0, k), 0], [TITLE.slice(k, k + EM.length), 1], [TITLE.slice(k + EM.length), 0]] : [[TITLE, 0]];
+    parts.forEach(([txt, em]) => {
+      if (!txt) return;
+      if (em) { const s = document.createElement("span"); s.className = "w em"; s.textContent = txt; $("ttl").appendChild(s); return; }
+      txt.split(/(\s+)/).forEach(w => { if (!w) return; if (/^\s+$/.test(w)) { $("ttl").appendChild(document.createTextNode(" ")); return; } const s = document.createElement("span"); s.className = "w"; s.textContent = w; $("ttl").appendChild(s); });
+    });
+  })();
+  const NAMES = list("{{names}}").filter(Boolean).slice(0, 4), SUBS = list("{{subs}}"), ICONS = list("{{icons}}");
+  const N = NAMES.length;
+  const TIMES = nums("{{times}}", NAMES.map((_, i) => 0.5 + i * 2.2));
+  NAMES.forEach((n, i) => {
+    const w = document.createElement("div"); w.className = "cw"; w.id = "c" + i;
+    w.innerHTML = '<div class="cd"><div class="num"></div><svg class="ic" viewBox="0 0 92 92" fill="none" stroke="{{ink}}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">' + (ICON[ICONS[i]] || ICON.doc) + '</svg><div class="nm"></div><div class="sb"></div></div><div class="ring"></div>';
+    w.querySelector(".num").textContent = String(i + 1);
+    w.querySelector(".nm").textContent = n;
+    w.querySelector(".sb").textContent = SUBS[i] || "";
+    $("row").appendChild(w);
+  });
+  // tag slots around the stage (centre x, centre y, rotation)
+  const SLOTS = [[420, 182, -5], [1500, 176, 4], [330, 915, 3], [960, 952, -2], [1590, 908, -4], [150, 640, 6], [1770, 640, -6]];
+  const TAGS = list("{{tags}}").filter(Boolean).slice(0, SLOTS.length);
+  const T_TAGS = parseFloat(dec("{{t_tags}}")) || 2.4;
+  const TT = nums("{{tag_times}}", TAGS.map((_, i) => T_TAGS + i * 0.32));
+  TAGS.forEach((t, i) => {
+    const g = document.createElement("div"); g.className = "tg"; g.id = "g" + i; g.setAttribute("data-layout-allow-overflow", "");
+    g.innerHTML = '<div class="tgi" data-layout-allow-overlap></div>'; g.querySelector(".tgi").textContent = t;
+    $("tags").appendChild(g);
+  });
+
+  // ---- auto-fit ----
+  function fitW(el, maxW) {
+    el.style.fontSize = "";
+    const w = el.scrollWidth;
+    if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
+  }
+  function fitAll() {
+    fitW($("lab"), 1500); fitW($("ttl"), 1600);
+    document.querySelectorAll(".nm, .sb").forEach(el => fitW(el, 384));
+    document.querySelectorAll(".tgi").forEach(el => fitW(el, 300));
+  }
+  fitAll();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
+
+  // ---- timeline ----
+  const tl = gsap.timeline({ paused: true });
+  const tc = { t: 0 };
+  const pad = n => String(Math.floor(n)).padStart(2, "0");
+  const setTC = () => { const s = tc.t + TC0; $("hudT").querySelector("span").textContent = "TC " + pad(s / 3600) + ":" + pad((s / 60) % 60) + ":" + pad(s % 60) + ":" + pad(Math.round((s % 1) * FPS) % FPS); };
+  tl.to(tc, { t: D, duration: D, ease: "none", onUpdate: setTC }, 0);
+  setTC();
+
+  // label + title: soft rise, per word
+  tl.fromTo("#lab", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 0.05);
+  tl.fromTo("#ttl .w", { opacity: 0, y: 26, filter: "blur(8px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "power3.out", stagger: 0.07 }, 0.15);
+
+  // cards drop in one by one (fade-up + settle, like the reference), the newest one holds the focus ring
+  // the row re-centres as each card arrives (card 1 alone in the middle, then they make room)
+  const posX = (j, k) => 960 + (j - (k - 1) / 2) * 488 - 220;
+  NAMES.forEach((_, i) => {
+    const t = TIMES[i], c = "#c" + i;
+    gsap.set(c, { opacity: 0, x: posX(i, i + 1) });
+    for (let j = 0; j < i; j++) tl.to("#c" + j, { x: posX(j, i + 1), duration: 0.5, ease: "power3.inOut" }, t - 0.08);
+    tl.fromTo(c, { opacity: 0, y: 46, scale: 0.94 }, { opacity: 1, y: 0, scale: 1, duration: 0.55, ease: "back.out(1.2)", immediateRender: false }, t);
+    tl.fromTo(c + " .num", { scale: 0 }, { scale: 1, duration: 0.4, ease: "back.out(2)", immediateRender: false }, t + 0.12);
+    tl.to(c + " .ic *", { strokeDashoffset: 0, duration: 0.7, ease: "power2.out", stagger: 0.08 }, t + 0.15);
+    tl.fromTo([c + " .nm", c + " .sb"], { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out", stagger: 0.08, immediateRender: false }, t + 0.22);
+    tl.to(c + " .ring", { opacity: 1, duration: 0.25 }, t + 0.2);
+    tl.to(c, { y: -8, duration: 0.35, ease: "power2.out" }, t + 0.55);
+    if (i > 0) { tl.to("#c" + (i - 1) + " .ring", { opacity: 0, duration: 0.25 }, t + 0.1); tl.to("#c" + (i - 1), { y: 0, duration: 0.35 }, t + 0.1); }
+  });
+
+  // tags fly out of the first card (the style agent plans the looks), then float
+  const c0 = { x: 960, y: 476 + 165 };
+  TAGS.forEach((_, i) => {
+    const [x, y, r] = SLOTS[i], g = "#g" + i;
+    gsap.set(g, { xPercent: -50, yPercent: -50, x: c0.x, y: c0.y, opacity: 0, scale: 0.4 });
+    tl.to(g, { x, y, rotation: r, scale: 1, opacity: 1, duration: 0.6, ease: "back.out(1.25)" }, TT[i]);
+    const fs = TT[i] + 0.6, per = 1.6 + (i % 3) * 0.25, reps = Math.max(0, Math.floor((D - fs) / per) - 1);
+    if (reps > 0) tl.to(g + " .tgi", { y: (i % 2 ? 9 : -9), duration: per / 2, ease: "sine.inOut", yoyo: true, repeat: reps * 2 - 1 }, fs);
+  });
+  // once the next agent speaks, the tags step back so one thing holds the focus
+  if (N > 1 && TAGS.length) tl.to(".tg", { opacity: 0.4, duration: 0.4 }, Math.max(TIMES[1], Math.max(...TT) + 0.62));
+
+  // exit: content softly blurs out, the scene background stays
+  tl.to("#cam", { opacity: 0, filter: "blur(10px)", scale: 0.98, duration: 0.25, ease: "power2.in" }, D - 0.27);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!--defaults {"anim_file": "", "color": "", "size": 360, "x": 540, "y": 960, "speed": 1, "loop": "no", "duration": 2.5} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lottie-web@5.12.2/build/player/lottie_svg.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; }
+  #anim { position: absolute; left: {{x}}px; top: {{y}}px; width: {{size}}px; height: {{size}}px; }
+  .data { display: none; }
+</style>
+</head>
+<body>
+<!-- A Lottie animation (LottieFiles / After Effects export, .json) played frame-locked to the overlay timeline.
+     anim_file: path to the .json (inlined by motion_render); empty = the built-in checkmark.
+     color: "" keeps the file's colours; a hex colour recolours every solid fill and stroke (one-colour icons).
+     x, y: the animation's centre on the 1080x1920 frame; size: its width and height in px.
+     speed: 1 = the file's own speed; loop: "yes" repeats it for the whole duration, "no" plays once and holds
+     the last frame. -->
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="clip" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0"><div id="anim"></div></div>
+  <div id="af" class="data">{{anim_file}}</div>
+</div>
+<script>
+  const D = {{duration}}, SPEED = Number("{{speed}}") || 1, LOOP = "{{loop}}" === "yes", COLOR = "{{color}}";
+  // built-in default: a ring that draws itself, then a checkmark
+  const CHECK = {"v":"5.7.4","fr":30,"ip":0,"op":40,"w":200,"h":200,"nm":"check","ddd":0,"assets":[],"layers":[{"ddd":0,"ind":1,"ty":4,"nm":"check","sr":1,
+    "ks":{"o":{"a":0,"k":100},"r":{"a":0,"k":0},"p":{"a":0,"k":[100,100,0]},"a":{"a":0,"k":[0,0,0]},"s":{"a":0,"k":[100,100,100]}},"ao":0,
+    "shapes":[
+      {"ty":"gr","nm":"ring","it":[
+        {"ty":"el","nm":"e","d":1,"p":{"a":0,"k":[0,0]},"s":{"a":0,"k":[160,160]}},
+        {"ty":"tm","nm":"t","m":1,"s":{"a":0,"k":0},"o":{"a":0,"k":0},
+         "e":{"a":1,"k":[{"t":0,"s":[0],"i":{"x":[0.3],"y":[1]},"o":{"x":[0.6],"y":[0]}},{"t":18,"s":[100]}]}},
+        {"ty":"st","nm":"s","c":{"a":0,"k":[0.18,0.8,0.44,1]},"o":{"a":0,"k":100},"w":{"a":0,"k":12},"lc":2,"lj":2},
+        {"ty":"tr","p":{"a":0,"k":[0,0]},"a":{"a":0,"k":[0,0]},"s":{"a":0,"k":[100,100]},"r":{"a":0,"k":-90},"o":{"a":0,"k":100}}]},
+      {"ty":"gr","nm":"tick","it":[
+        {"ty":"sh","nm":"p","ks":{"a":0,"k":{"c":false,"v":[[-36,2],[-10,28],[40,-26]],"i":[[0,0],[0,0],[0,0]],"o":[[0,0],[0,0],[0,0]]}}},
+        {"ty":"tm","nm":"t","m":1,"s":{"a":0,"k":0},"o":{"a":0,"k":0},
+         "e":{"a":1,"k":[{"t":14,"s":[0],"i":{"x":[0.3],"y":[1]},"o":{"x":[0.6],"y":[0]}},{"t":30,"s":[100]}]}},
+        {"ty":"st","nm":"s","c":{"a":0,"k":[0.18,0.8,0.44,1]},"o":{"a":0,"k":100},"w":{"a":0,"k":14},"lc":2,"lj":2},
+        {"ty":"tr","p":{"a":0,"k":[0,0]},"a":{"a":0,"k":[0,0]},"s":{"a":0,"k":[100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":100}}]}],
+    "ip":0,"op":40,"st":0,"bm":0}]};
+
+  let data = CHECK;
+  const raw = document.getElementById("af").textContent.trim();
+  if (raw) { try { data = JSON.parse(raw); } catch (e) { data = CHECK; } }
+
+  // recolour: every static solid fill ("fl") and stroke ("st") colour becomes COLOR; gradients and images stay
+  function hexRgb(h) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(h.trim());
+    if (!m) return null;
+    const n = parseInt(m[1], 16);
+    return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255];
+  }
+  function recolour(node, rgb) {
+    if (Array.isArray(node)) { node.forEach((n) => recolour(n, rgb)); return; }
+    if (!node || typeof node !== "object") return;
+    if ((node.ty === "fl" || node.ty === "st") && node.c && node.c.a === 0 && Array.isArray(node.c.k)) {
+      node.c.k = [rgb[0], rgb[1], rgb[2], node.c.k[3] ?? 1];
+    }
+    for (const k in node) if (k !== "c") recolour(node[k], rgb);
+  }
+  const rgb = COLOR ? hexRgb(COLOR) : null;
+  if (rgb) recolour(data, rgb);
+
+  const box = document.getElementById("anim");
+  gsap.set(box, { xPercent: -50, yPercent: -50 });
+  const anim = lottie.loadAnimation({ container: box, renderer: "svg", loop: false, autoplay: false, animationData: data,
+                                      rendererSettings: { preserveAspectRatio: "xMidYMid meet" } });
+  const frames = Math.max(1, (data.op || 1) - (data.ip || 0) - 1), fr = data.fr || 30;
+
+  const tl = gsap.timeline({ paused: true });
+  const head = { t: 0 };
+  // the playhead: seconds of animation time; HyperFrames seeks tl, and every seek sets the exact Lottie frame
+  tl.to(head, { t: D * SPEED, duration: D, ease: "none",
+                onUpdate: () => { const f = head.t * fr; anim.goToAndStop(LOOP ? f % (frames + 1) : Math.min(f, frames), true); } }, 0);
+  tl.fromTo(box, { scale: 0.6, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 0.25, ease: "back.out(1.8)" }, 0);
+  tl.to(box, { autoAlpha: 0, scale: 0.9, duration: 0.25, ease: "power2.in" }, Math.max(0.3, D - 0.3));
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

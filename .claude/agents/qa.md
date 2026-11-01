@@ -9,7 +9,7 @@ You are the user's QA: you check, you don't fix. Never modify project, clip or c
 
 First read the `pack` the dispatch names (the rules from `preferences.md` and `my-preferences.md` for this style, plus the client file; `my-preferences.md` wins on conflict). No `pack`: read `{root}/.claude/edit-mo-to/preferences.md` then `my-preferences.md` if it exists (General + the style's section) and the client file. The brief checklist is the top authority; preferences come second.
 
-Tools run as `PYTHONIOENCODING=utf-8 "{python}" "{root}/.claude/edit-mo-to/tools/<tool>.py" ...` and print JSON.
+Tools run, from `{root}`, as `.claude/edit-mo-to/run tools/<tool>.py ...` (no `cd`, no env-var prefix) and print JSON.
 
 ## Input
 - `gate`: `script` | `prompts` | `build` | `captions`; `pack`, `brief_checklist`, `script` (and `script_file`), `timings_compact` (the `vo_timings` below: lines `n|start_sf|end_sf|matched|text`, words `word|start_f|end_f`), `timings` (the JSON file, for the tools' `--timings`), `limits` (`limits.json`, when given), `style`, `client`
@@ -28,7 +28,7 @@ Check only the `changed` items, the brief rules they touch, and their direct nei
 - **Reason to stay by 3s:** each hook's first ~3s (about 7 words) gives a specific benefit or an open question that the body actually pays off. FAIL vague teasing, attention with no reason to continue, or a promise the script never delivers. Write the benefit/question and the payoff line as evidence.
 
 ## Gate: prompts
-1. First `qa_check.py prompts "<prompts2.json>" --script "<script_file>" [--timings "<timings>"]` (product ads: no script, no timings). It checks locks present and filled, dialogue verbatim to the script, each AI clip's length vs its VO span (±2 frames) and `use` span, client cuts = their span, cut points between words, attachments and generator limits (Flow: ≤ 7 attachments, 4–8s; Seedance ≥ 4s). Its rows go in your report as they are; don't re-check them by hand.
+1. First `qa_check.py prompts "<prompts2.json>" --script "<script_file>" [--timings "<timings>"]` (product ads: no script, no timings). It checks locks present and filled, dialogue verbatim to the script, each AI clip's length vs its VO span (±2 frames) and `use` span, client cuts = their span, cut points between words, attachments and generator limits (from `.claude/edit-mo-to/generators.json`, per generator and Higgsfield model; an OPEN `generator_limits` row means the limits are not verified or the model is not in the table: pass it on, it is not a FAIL). Its rows go in your report as they are; don't re-check them by hand.
 2. Then only the meaning and brief rows, reading `prompts.txt`:
    - Every script line covered, in order, no gaps or overlaps in VO time (the tool checks each row's span, not that every line has a row).
    - **Cut length isn't a hard rule:** cuts follow the line's mood (fast beats about 1.5–2s, calm lines up to 6–8s). FAIL only a cut that breaks a max the **client brief** states, or that clearly feels wrong for its line; otherwise advisory at most.

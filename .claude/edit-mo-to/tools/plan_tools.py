@@ -9,7 +9,11 @@ CLI (prints JSON):
     prompts <prompts2.json> [--script script.txt] [--timings vo.json] [--out prompts.txt]
                          expand the compact prompt spec into the table(s) and one full prompt block per prompt
     check-prompts <prompts2.json> [--script script.txt] [--timings vo.json]
-                         locks, dialogue, length vs VO span, attachments, generator limits; exit code 1 when any
+                         locks, dialogue, length vs VO span, attachments, generator limits (generators.json, by
+                         `generator` and, for a generator with models, `generator_model`); exit code 1 when any. A model whose
+                         limits are not verified, or not in the table, prints one `warning:` line (stderr, and
+                         "warnings" in the JSON); it is not an error. So does each risky word from safe-words.json
+                         found in a video or image prompt (the shot, the word, a plain hint): a site may block it
     ops <old_plan.json> <new_plan.json> "<timeline>" --segments dump.json [--out ops.json]
                          clip differences between two contract plans as `capcut_project.py patch` ops (µs);
                          dump.json is `capcut_project.py segments` of the built timeline
@@ -23,6 +27,7 @@ from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parent
 sys.path.insert(0, str(TOOLS))
+import generators as gens  # noqa: E402
 import motion_render as mr  # noqa: E402
 from machine import TMP  # noqa: E402
 from media_timing import to_sf  # noqa: E402
@@ -488,8 +493,65 @@ def _kind(p: dict) -> str:
     return p.get("kind", "video")
 
 
-def _is_seedance(spec: dict) -> bool:
-    return "seedance" in (spec.get("mode"), spec.get("generator"))
+def prompt_warnings(spec: dict) -> list[str]:
+    """Warnings, not errors: the generator's limits are not verified, or the model is not in generators.json; then
+    risky words a video site may block (wording_warnings)."""
+    w = gens.for_spec(spec)["warning"]
+    return ([w] if w else []) + wording_warnings(spec)
+
+
+SAFE_WORDS = TOOLS.parent / "safe-words.json"
+WORDING_FIELDS = ("subject", "setting", "action", "camera", "look", "dialogue")   # never `negative`: it names what to avoid
+PLAIN_IDS = ((r"SB-0*(\d+)", "Shot {}"), (r"CHAR-0*(\d+)", "Character {}"), (r"AI-0*(\d+)", "AI clip {}"),
+             (r"P0*(\d+)", "Prompt {}"), (r"S0*(\d+)", "Shot {}"))
+
+
+def _plain(pid) -> str:
+    """A prompt id in plain words, the code kept in brackets: "AI clip 3 (AI-3)", "Shot 5 (SB-5)"."""
+    s = str(pid)
+    for pat, word in PLAIN_IDS:
+        m = re.fullmatch(pat, s, re.I)
+        if m:
+            return f"{word.format(int(m.group(1)))} ({s})"
+    return f"Prompt {s}"
+
+
+def _safe_groups() -> list[tuple[dict, list]]:
+    """(group, [(phrase, compiled whole-word pattern)]) from safe-words.json; none when the file is missing."""
+    try:
+        groups = json.loads(SAFE_WORDS.read_text(encoding="utf-8"))["groups"]
+    except (OSError, ValueError, KeyError):
+        return []
+    return [(g, [(w, re.compile(r"(?<![\w-])" + re.escape(w) + r"(?![\w-])", re.I)) for w in g.get("words", [])])
+            for g in groups.values()]
+
+
+def _risky(text: str, groups) -> list[tuple[str, dict]]:
+    """(phrase, group) for each listed phrase in text, once each, in list order."""
+    return [(w, g) for g, pats in groups for w, pat in pats if pat.search(text or "")]
+
+
+def wording_warnings(spec: dict) -> list[str]:
+    """One warning per risky phrase (safe-words.json) in a video or image prompt, naming the shot, with the group's
+    hint; a lock's text is checked once (it is in every prompt that lists it). Never an error, never a rewrite."""
+    groups = _safe_groups()
+    out: list[str] = []
+    used: dict = {}
+    for p in spec.get("prompts", []):
+        if _kind(p) == CLIENT:
+            continue
+        text = "\n".join(str(p[k]) for k in WORDING_FIELDS if p.get(k))
+        text += "\n" + "\n".join(str(v) for v in (p.get("lock_overrides") or {}).values())
+        for w, g in _risky(text, groups):
+            out.append(f'{_plain(p.get("id", "?"))}: "{w}" may get the prompt blocked ({g["label"]}). {g["hint"]}')
+        for k in p.get("locks", []):
+            if k not in (p.get("lock_overrides") or {}):
+                used[k] = used.get(k, 0) + 1
+    for k, n in used.items():
+        for w, g in _risky(spec.get("locks", {}).get(k, ""), groups):
+            out.append(f'the {k} lock (in {n} prompt{"s" if n > 1 else ""}): "{w}" may get the prompts blocked '
+                       f'({g["label"]}). {g["hint"]}')
+    return out
 
 
 def _lock_text(spec: dict, p: dict, name: str) -> str:
@@ -516,7 +578,7 @@ def check_prompts(spec: dict, script_lines: list[str], timings: dict | None) -> 
     if style not in REQUIRED_LOCKS:
         return [f"unknown style {style!r} (one of {', '.join(REQUIRED_LOCKS)})"]
     errs: list[str] = []
-    seedance = _is_seedance(spec)
+    gen = gens.for_spec(spec)   # limits per generator and Higgsfield model, from generators.json
     keys = set(spec.get("attach", {}))
     video = []
     for p in spec.get("prompts", []):
@@ -553,13 +615,11 @@ def check_prompts(spec: dict, script_lines: list[str], timings: dict | None) -> 
         if _kind(p) in IMAGE_KINDS:
             continue
         gl = p.get("gen_len_s")
-        if not seedance and len(p.get("attach", [])) > 7:
-            errs.append(f"{w}: Flow allows 7 attachments at most, has {len(p['attach'])}")
-        if gl is not None:
-            if not seedance and not 4 <= gl <= 8:
-                errs.append(f"{w}: Flow generation must be 4–8 s, got {gl} s")
-            if seedance and gl < 4:
-                errs.append(f"{w}: Seedance clips must be at least 4 s, got {gl} s")
+        if gen["max_attach"] is not None and len(p.get("attach", [])) > gen["max_attach"]:
+            errs.append(f"{w}: {gen['label']} allows {gen['max_attach']} attachments at most, has {len(p['attach'])}")
+        bad_len = gens.length_error(gen, gl) if gl is not None else None
+        if bad_len:
+            errs.append(f"{w}: {bad_len}")
         if style == "product-ad":
             continue
         video.append(p)
@@ -635,8 +695,14 @@ def _quoted_in(dialogue: str, action: str) -> bool:
     return bool(_words(dialogue)) and all(w in it for w in _words(dialogue))
 
 
+GENERIC_START = "Start from the attached image."   # the start line of Kling, Veo and unknown Higgsfield models
+
+
 def _block(spec: dict, p: dict) -> str:
-    parts = ["Start on @Image1."] if _is_seedance(spec) and _kind(p) == "video" else []
+    start = gens.for_spec(spec)["start_line"]   # e.g. Seedance's "Start on @Image1."; none for Google Flow
+    if start == GENERIC_START and not p.get("attach"):  # "the attached image" only when something is attached
+        start = None
+    parts = [start] if start and _kind(p) == "video" else []
     for label, key in (("Subject", "subject"), ("Setting", "setting"), ("Action", "action"),
                        ("Camera", "camera"), ("Look", "look")):
         if p.get(key):
@@ -685,7 +751,7 @@ def render_prompts(spec: dict, script_lines: list[str], timings: dict | None) ->
             out.append("| " + " | ".join(_cell(c) for c in (
                 f"{p['id']} (generate)", f"{p.get('line', '')}: {line}" if line else p.get("line", ""),
                 to_sf(i / FPS) if i is not None else "", to_sf(o / FPS) if o is not None else "",
-                length, spec.get("generator", ""), cut, ", ".join(p.get("attach", [])))) + " |")
+                length, gens.for_spec(spec)["label"] if spec.get("generator") == "higgsfield" or spec.get("generator_model") else spec.get("generator", ""), cut, ", ".join(p.get("attach", [])))) + " |")
         out.append("")
     if imgs:
         out += ["| # | Script line | Shot | Save as |", "|---|---|---|---|"]
@@ -838,13 +904,15 @@ def main(argv: list[str]) -> None:
         spec = json.loads(Path(args[0]).read_text(encoding="utf-8"))
         lines = [l for l in Path(opt("--script")).read_text(encoding="utf-8").splitlines() if l.strip()] if opt("--script") else []
         timings = json.loads(Path(opt("--timings")).read_text(encoding="utf-8")) if opt("--timings") else None
-        errs = check_prompts(spec, lines, timings)
+        errs, warns = check_prompts(spec, lines, timings), prompt_warnings(spec)
+        for w in warns:
+            print(f"warning: {w}", file=sys.stderr)
         if cmd == "check-prompts":
-            print(json.dumps({"ok": not errs, "errors": errs}, indent=1, ensure_ascii=False))
+            print(json.dumps({"ok": not errs, "errors": errs, "warnings": warns}, indent=1, ensure_ascii=False))
             raise SystemExit(1 if errs else 0)
         out_p = Path(opt("--out") or Path(args[0]).with_name("prompts.txt"))
         out_p.write_text(render_prompts(spec, lines, timings), encoding="utf-8")
-        out = {"prompts": str(out_p), "count": len(spec.get("prompts", [])), "errors": errs}
+        out = {"prompts": str(out_p), "count": len(spec.get("prompts", [])), "errors": errs, "warnings": warns}
     else:
         raise SystemExit(f"unknown command {cmd!r}\n{__doc__}")
     print(json.dumps(out, indent=1, ensure_ascii=False))

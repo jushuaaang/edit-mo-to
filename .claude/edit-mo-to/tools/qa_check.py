@@ -1,6 +1,7 @@
 """Mechanical build QA: every build-gate check of qa.md that needs no eyes, reporting only failures.
 
-CLI (prints JSON {"rows": [...], "passed": N, "verdict": ...}; exit code 1 on a FAIL verdict):
+CLI (prints JSON {"rows": [...], "passed": N, "verdict": ...}; exit code 1 on a FAIL verdict; every command takes
+--out <file>: the JSON goes to that file, its folder created, and stdout gets {"saved", "verdict"}):
     build <plan.json> "<project>" [--timelines "A,B"] [--changed 3,7,ov2] [--limits limits.json] [--search dir ...]
                          clips/overlays present at their time and length, extras, tracks and volumes, VO span and
                          edges, rotation, layout, overlays on cuts, reuse, dead stretches, talking head > 5 s,
@@ -12,7 +13,9 @@ CLI (prints JSON {"rows": [...], "passed": N, "verdict": ...}; exit code 1 on a 
                          caption_sync, caption_band, caption_gaps, plus the OPEN temp_en row (--script / --timings default to the
                          timeline's captions, else the plan's when the timeline plays the plan's VO: captions.caption_inputs)
     prompts <prompts2.json> [--script script.txt] [--timings t.json]
-                         plan_tools.check_prompts, as the same row format
+                         plan_tools.check_prompts, as the same row format, plus an OPEN generator_limits row when
+                         the generator's limits are not verified or the model is not in generators.json, and an
+                         OPEN safe_wording row per risky word a video site may block (safe-words.json)
 Rows are FAIL (counts toward the verdict) or OPEN (for the user to look at). `passed` counts the checks that ran
 and produced no rows.
 """
@@ -39,7 +42,8 @@ DELTA_CHECKS = {"present", "extras", "overlay_on_cut", "reuse", "vo_span"}
 ALL_CHECKS = ["present", "extras", "tracks_volumes", "vo_span", "rotation", "layout", "overlay_on_cut", "reuse",
               "dead_stretch", "talking_head_5s", "sfx_repeat", "music_level", "duration", "canvas", "captions",
               "unknown_source"]
-OPEN_CHECKS = {"rotation", "dead_stretch", "music_level", "temp_en", "caption_gaps"}   # advisory: the user looks, the verdict ignores them
+OPEN_CHECKS = {"rotation", "dead_stretch", "music_level", "temp_en", "caption_gaps", "generator_limits",
+               "safe_wording"}   # advisory: the user looks, the verdict ignores them
 TEMP_EN_TRACK = "TEMP_EN_delete_me"   # build_project's temporary English review track
 CAPTIONS_TRACK = "captions"           # build_project's step-10 caption track
 GAP_S = 0.5
@@ -511,7 +515,40 @@ def check_prompts_rows(spec: dict, script_lines: list[str], timings: dict | None
     errs = pt.check_prompts(spec, script_lines, timings)
     rows = [{"n": i, "check": "prompts", "status": "FAIL", "evidence": e, "fix": "fix the prompt spec", "timeline": ""}
             for i, e in enumerate(errs, 1)]
+    gen = pt.gens.for_spec(spec)["warning"]
+    rows += [{"n": len(rows) + 1, "check": "generator_limits", "status": "OPEN", "evidence": gen,
+              "fix": "confirm the limits on the site, then set the row's verified date in generators.json",
+              "timeline": ""}] if gen else []   # advisory: the verdict ignores it
+    for w in pt.wording_warnings(spec):       # advisory too: a word a video site may block
+        rows.append({"n": len(rows) + 1, "check": "safe_wording", "status": "OPEN", "evidence": w,
+                     "fix": "reword it as the hint says (safe-words.json), unless the brief needs it", "timeline": ""})
     return {"rows": rows, "passed": 0 if errs else 1, "verdict": f"FAIL ({len(errs)} issues)" if errs else "PASS"}
+
+
+def _pop_out(argv: list) -> "str | None":
+    """Remove `--out <path>` from argv and return the path (None when absent)."""
+    if "--out" not in argv:
+        return None
+    i = argv.index("--out")
+    if i + 1 >= len(argv):
+        raise SystemExit("--out needs a path")
+    path = argv[i + 1]
+    del argv[i:i + 2]
+    return path
+
+
+def _emit(res, out: "str | None", indent=1) -> None:
+    """The JSON result: to stdout, or with --out to that file (its folder created) and {"saved", "verdict"?} to stdout."""
+    text = json.dumps(res, ensure_ascii=False, indent=indent)
+    if out is None:
+        print(text)
+        return
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    Path(out).write_text(text + "\n", encoding="utf-8")
+    short = {"saved": out}
+    if isinstance(res, dict) and "verdict" in res:
+        short["verdict"] = res["verdict"]
+    print(json.dumps(short, ensure_ascii=False))
 
 
 def main(argv: list[str]) -> None:
@@ -519,7 +556,8 @@ def main(argv: list[str]) -> None:
         sys.stdout.reconfigure(encoding="utf-8")   # Windows consoles default to cp1252
     if not argv or argv[0] in ("-h", "--help"):
         raise SystemExit(__doc__)
-    cmd, args = argv[0], argv[1:]
+    cmd, args = argv[0], list(argv[1:])
+    out = _pop_out(args)
 
     def opt(k):
         return args[args.index(k) + 1] if k in args else None
@@ -569,7 +607,7 @@ def main(argv: list[str]) -> None:
         res = check_prompts_rows(load(args[0]), lines, load(opt("--timings")) if opt("--timings") else None)
     else:
         raise SystemExit(f"unknown command {cmd!r}\n{__doc__}")
-    print(json.dumps(res, indent=1, ensure_ascii=False))
+    _emit(res, out)
     if "FAIL" in res["verdict"]:
         raise SystemExit(1)
 

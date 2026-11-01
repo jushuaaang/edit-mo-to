@@ -30,7 +30,7 @@
   gsap.set("#card", { xPercent: -50 });
   tl.fromTo("#card", { y: 80, opacity: 0, scale: 0.85 }, { y: 0, opacity: 1, scale: 1, duration: 0.4, ease: "back.out(1.8)" }, 0);
   tl.to(counter, { v: V, duration: Math.min(1.0, D * 0.4), ease: "power2.out",
-                   onUpdate: () => { document.getElementById("n").textContent = counter.v.toFixed(DEC); } }, 0.2);
+                   onUpdate: () => { document.getElementById("n").textContent = counter.v.toLocaleString("en-US", { minimumFractionDigits: DEC, maximumFractionDigits: DEC }); } }, 0.2);
   tl.to("#card", { opacity: 0, y: -40, duration: 0.25, ease: "power2.in" }, D - 0.3);
   window.__timelines["main"] = tl;
   tl.seek(0);

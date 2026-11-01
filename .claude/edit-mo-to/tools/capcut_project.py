@@ -30,7 +30,8 @@ CLI (prints JSON):
                                                  everything else stays byte-for-byte (auto-backup, writes
                                                  draft_content.json, validates before writing; --dry-run)
     segments <project> <name> [search_dir ...]   list what's on a timeline (layout, text, original files);
-                                                 search_dirs help find sources CapCut forgot
+                                                 search_dirs help find sources CapCut forgot;
+                                                 any command takes --out <file.json> (JSON to that file)
     backup <project> <name>                      back up a timeline
     list <project>
     wait <draft_dir> [timeout_s]                 wait for an async VectCutAPI save
@@ -223,6 +224,11 @@ def _placeholder(project: Path, first: Path | None = None) -> str | None:
 def _capcut_running() -> bool:
     import subprocess
 
+    if sys.platform != "win32":  # macOS: the process is named "CapCut"
+        try:
+            return subprocess.run(["pgrep", "-x", "CapCut"], capture_output=True, timeout=10).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return False
     try:
         out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq CapCut.exe", "/NH"],
                              capture_output=True, text=True, timeout=10).stdout
@@ -596,6 +602,10 @@ def add_tracks(project: Path, name: str, draft: Path, track_type: str = "audio",
     if not peek:
         raise ValueError(f"draft {draft} has no {track_type} tracks with segments")
     if track_type == "text":
+        # an emptied track of the same name (all its segments removed by patch) is dropped, not a clash
+        new_names = {t.get("name") for t in peek}
+        timeline["tracks"] = [t for t in timeline.get("tracks", [])
+                              if t.get("segments") or t.get("type") != "text" or t.get("name") not in new_names]
         have_names = {t.get("name") for t in timeline.get("tracks", []) if t.get("name")}
         for t in peek:
             if t.get("name") in have_names:
@@ -1343,7 +1353,35 @@ def list_timelines(project: Path) -> list[dict]:
             for t in pj["timelines"] if not t.get("is_marked_delete")]
 
 
+def _pop_out(argv: list) -> "str | None":
+    """Remove `--out <path>` from argv and return the path (None when absent)."""
+    if "--out" not in argv:
+        return None
+    i = argv.index("--out")
+    if i + 1 >= len(argv):
+        raise SystemExit("--out needs a path")
+    path = argv[i + 1]
+    del argv[i:i + 2]
+    return path
+
+
+def _emit(res, out: "str | None", indent=1) -> None:
+    """The JSON result: to stdout, or with --out to that file (its folder created) and {"saved", "verdict"?} to stdout."""
+    text = json.dumps(res, ensure_ascii=False, indent=indent)
+    if out is None:
+        print(text)
+        return
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    Path(out).write_text(text + "\n", encoding="utf-8")
+    short = {"saved": out}
+    if isinstance(res, dict) and "verdict" in res:
+        short["verdict"] = res["verdict"]
+    print(json.dumps(short, ensure_ascii=False))
+
+
 def main(argv: list[str]) -> None:
+    argv = list(argv)
+    dest = _pop_out(argv)
     if not argv or len(argv) - 1 < MIN_ARGS.get(argv[0], 0):
         raise SystemExit(__doc__)
     cmd, args = argv[0], argv[1:]
@@ -1383,7 +1421,7 @@ def main(argv: list[str]) -> None:
         out = {"draft": str(wait_for_draft(Path(args[0]), float(args[1]) if len(args) > 1 else 30))}
     else:
         raise SystemExit(__doc__)
-    print(json.dumps(out, ensure_ascii=False, indent=2))
+    _emit(out, dest, indent=2)
 
 
 if __name__ == "__main__":

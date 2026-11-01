@@ -1,0 +1,284 @@
+"""AI-clip generator rules: the one loader for `.claude/edit-mo-to/generators.json`.
+
+plan_tools (prompt checks and the start line), context_pack (the generator's limits in the pack), qa_check and the
+GUI server read the table through here, so no tool or page keeps its own copy of the rules.
+
+    rules(generator, model=None) -> dict      one row, normalised (see _row), plus "generator", "model", "label",
+                                              "warning" (None, or the one line Claude says when the limits are
+                                              not verified or the model is unknown)
+    for_spec(spec) -> dict                    the same for a prompts2 spec (`generator`, `generator_model`, old `mode`)
+    length_error(rule, seconds) -> str|None   why a generated length breaks the row, or None
+    strictest() -> dict                       the fallback limits for an unknown model {min_s, max_s, max_attach}
+    model_ids() -> list[str]                  every model as "<site>:<model>", in table order
+    pick_model(prefs=None, site=None) -> str|None
+                                              the model Claude uses when it chooses one itself: the editor's
+                                              `default_model` unless avoided, else the first model of the site (the
+                                              default's site when no site is given) not in `avoid_models`; never an
+                                              avoided one (None when every candidate is). prefs: {avoid_models,
+                                              default_model}; None reads this computer's GUI prefs ({tmp}/gui/prefs.json;
+                                              a missing file = no avoid list, no default; a broken or unreadable one
+                                              raises PrefsError: fail closed)
+
+CLI:  generators.py pick [--site S]           prints the model Claude picks as "<site>:<model>" (exit 1: every model
+                                              is avoided; exit 2: unknown site; exit 3: the prefs file can't be read,
+                                              so ask the editor which model)
+"""
+import json
+import os
+import sys
+from functools import lru_cache
+from pathlib import Path
+
+FILE = Path(__file__).resolve().parents[1] / "generators.json"
+DEFAULT = "google-flow"   # a spec with no generator has always been checked with the Flow limits
+KEYS = ("min_s", "max_s", "lengths_s", "max_attach", "start_frame", "start_line", "end_frame", "verified", "notes", "prefs")
+
+
+@lru_cache(maxsize=4)
+def _load(path: str, mtime: float) -> dict:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def load(path: Path = FILE) -> dict:
+    """The whole table (re-read when the file changes)."""
+    p = Path(path)
+    return _load(str(p), p.stat().st_mtime)
+
+
+def names(path: Path = FILE) -> list[str]:
+    """Every generator name a tool accepts: the table's keys and the old aliases (`seedance`, `flow`)."""
+    t = load(path)
+    return sorted({*t["generators"], *t.get("aliases", {})})
+
+
+def _row(raw: dict) -> dict:
+    return {k: raw.get(k) for k in KEYS} | {"prefs": list(raw.get("prefs") or [])}
+
+
+def _range(r: dict) -> "tuple[float | None, float | None]":
+    if r.get("lengths_s"):
+        return min(r["lengths_s"]), max(r["lengths_s"])
+    return r.get("min_s"), r.get("max_s")
+
+
+def _has_limits(r: dict) -> bool:
+    """A site that carries its own limits (Google Flow's 4-8 s, 7 attachments): used when no model is named."""
+    return any(r.get(k) is not None for k in ("min_s", "max_s", "lengths_s", "max_attach"))
+
+
+def _strictest(t: dict) -> dict:
+    """The fallback limits: the longest minimum, shortest maximum and smallest attachment cap in the table."""
+    rows = []
+    for g in t["generators"].values():
+        # a site with its own limits (Google Flow) counts by those, never by its models: the fallback does not move
+        rows += list(g["models"].values()) if "models" in g and not _has_limits(g) else [g]
+    los, his = zip(*(_range(r) for r in rows))
+    caps = [r["max_attach"] for r in rows if r.get("max_attach") is not None]
+    return {"min_s": max((x for x in los if x is not None), default=None),
+            "max_s": min((x for x in his if x is not None), default=None),
+            "max_attach": min(caps, default=None)}
+
+
+def strictest(path: Path = FILE) -> dict:
+    """{min_s, max_s, max_attach}: the safe limits Claude uses for a model the table does not know (the GUI shows them)."""
+    return _strictest(load(path))
+
+
+def _fmt(x) -> str:
+    return f"{x:g}"
+
+
+def _lengths(ls: list) -> str:
+    """[4, 6, 8] -> "4, 6 or 8 s"; [8] -> "8 s"."""
+    return f"{', '.join(_fmt(x) for x in ls[:-1])} or {_fmt(ls[-1])} s" if len(ls) > 1 else f"{_fmt(ls[0])} s"
+
+
+def _limits(r: dict) -> str:
+    if r.get("lengths_s"):
+        length = _lengths(r["lengths_s"])
+    else:
+        length = f"{_fmt(r['min_s'])}–{_fmt(r['max_s'])} s"
+    return f"{length}, at most {r['max_attach']} attachments"
+
+
+def rules(generator: "str | None", model: "str | None" = None, path: Path = FILE) -> dict:
+    t = load(path)
+    gens, aliases = t["generators"], t.get("aliases", {})
+    gen = (generator or DEFAULT).strip().lower()
+    warning = None
+    if gen in aliases:
+        model = model or aliases[gen].get("model")
+        gen = aliases[gen]["generator"]
+    if gen not in gens:
+        warning = f"unknown generator {generator!r}; using the {gens[DEFAULT]['label']} limits from generators.json"
+        gen = DEFAULT
+    site = gens[gen]
+    key = (model or "").strip()
+    if "models" not in site or (not key and _has_limits(site)):
+        r = _row(site) | {"generator": gen, "model": None, "label": site["label"]}
+    else:
+        hit = next((k for k, m in site["models"].items() if key.lower() in (k.lower(), m["label"].lower())), None)
+        hit = hit or site.get("aliases", {}).get(key.lower())   # "Seedance", "Kling": a name without a version
+        if hit:
+            r = _row(site["models"][hit]) | {"generator": gen, "model": hit,
+                                             "label": f"{site['label']} · {site['models'][hit]['label']}"}
+        elif _has_limits(site):   # Google Flow: an unknown model keeps the site's own limits, and says it is not verified
+            r = _row(site) | {"generator": gen, "model": key, "verified": None, "label": f"{site['label']} · {key}"}
+            warning = (f"{r['label']} is not in generators.json; using the {site['label']} limits "
+                       f"({_limits(r)}), not verified; add the model's row to generators.json")
+        else:
+            fb = site["fallback"]
+            r = _row(fb) | _strictest(t) | {"generator": gen, "model": key or None, "verified": None,
+                                            "label": f"{site['label']} · {key or fb['label']}"}
+            if key:
+                warning = (f"{r['label']} is not in generators.json; using the strictest limits in the table "
+                           f"({_limits(r)}); add the model's row to generators.json")
+            else:
+                warning = (f"no {site['label']} model given (generator_model); using the strictest limits in the "
+                           f"table ({_limits(r)})")
+    if warning is None and r["verified"] is None:
+        warning = f"limits for {r['label']} are not verified; check them in generators.json"
+    return r | {"warning": warning}
+
+
+def for_spec(spec: dict, path: Path = FILE) -> dict:
+    """A prompts2 spec's rules. Old specs: "seedance" as `generator` or `mode` = Higgsfield · Seedance 2.0 (today's
+    Seedance rules); "flow" = Google Flow."""
+    gen, mode = spec.get("generator"), spec.get("mode")
+    if gen != "higgsfield" and "seedance" in (gen, mode):
+        gen = "seedance"
+    return rules(gen, spec.get("generator_model"), path)
+
+
+def length_error(r: dict, seconds) -> "str | None":
+    if r.get("lengths_s"):
+        if seconds not in r["lengths_s"]:
+            opts = _lengths(r["lengths_s"])
+            return f"{r['label']} generates only {opts} clips, got {_fmt(seconds)} s"
+        return None
+    lo, hi = r.get("min_s"), r.get("max_s")
+    if lo is not None and hi is not None and not lo <= seconds <= hi:
+        return f"{r['label']} generation must be {_fmt(lo)}–{_fmt(hi)} s, got {_fmt(seconds)} s"
+    if hi is None and lo is not None and seconds < lo:
+        return f"{r['label']} clips must be at least {_fmt(lo)} s, got {_fmt(seconds)} s"
+    if lo is None and hi is not None and seconds > hi:
+        return f"{r['label']} clips must be at most {_fmt(hi)} s, got {_fmt(seconds)} s"
+    return None
+
+
+def describe(r: dict) -> str:
+    """The rules as a few lines for a context pack."""
+    if r.get("lengths_s"):
+        length = "fixed lengths " + ", ".join(_fmt(x) for x in r["lengths_s"]) + " s (take the next one up, trim in the edit)"
+    elif r.get("min_s") is not None and r.get("max_s") is not None:
+        length = f"{_fmt(r['min_s'])}–{_fmt(r['max_s'])} s"
+    elif r.get("min_s") is not None:
+        length = f"at least {_fmt(r['min_s'])} s"
+    else:
+        length = "no limit in the table"
+    lines = [f"## Generator: {r['label']} (from generators.json)",
+             f"- Clip length: {length}.",
+             f"- Attachments: {'no cap' if r.get('max_attach') is None else f'at most {r['max_attach']}'}.",
+             f"- Start frame: {'yes' if r.get('start_frame') else 'no'}; end frame: {'yes' if r.get('end_frame') else 'no'}.",
+             f"- Video prompts start with: {r['start_line']!r} (plan_tools.py prompts adds it)." if r.get("start_line")
+             else "- No start line is added to video prompts."]
+    if r.get("notes"):
+        lines.append(f"- Notes: {r['notes']}")
+    if r.get("warning"):
+        lines.append(f"- Warning: {r['warning']}. Say so in chat.")
+    return "\n".join(lines)
+
+
+# ---------- the model Claude picks (spec "Models Claude avoids, per editor") ----------
+
+def model_ids(path: Path = FILE) -> list[str]:
+    """Every model row as "<site>:<model>", in table order (the ids `avoid_models` and `default_model` use)."""
+    return [f"{g}:{m}" for g, site in load(path)["generators"].items() for m in site.get("models", {})]
+
+
+def prefs_file() -> Path:
+    """This computer's GUI prefs, {tmp}/gui/prefs.json (EDIT_MO_TO_GUI_TMP overrides tmp, as in gui/jobstate.py)."""
+    tmp = os.environ.get("EDIT_MO_TO_GUI_TMP")
+    if not tmp:
+        import machine
+        tmp = machine.PATHS["tmp"]
+    return Path(tmp) / "gui" / "prefs.json"
+
+
+class PrefsError(ValueError):
+    """The prefs file exists but can't be read or makes no sense: Claude must not guess the avoid list."""
+
+
+def read_prefs(file: "Path | None" = None, path: Path = FILE) -> dict:
+    """{avoid_models, default_model} from the GUI prefs, known ids only. A missing file gives no avoid list and no
+    default; a file that can't be read, isn't JSON, or holds a wrong type raises PrefsError (fail closed: reading it
+    as "no avoid list" could pick a model the editor avoids)."""
+    f = Path(file or prefs_file())
+    try:
+        raw = f.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return {"avoid_models": [], "default_model": None}
+    except OSError as e:
+        raise PrefsError(f"can't read {f}: {e}") from None
+    try:
+        saved = json.loads(raw)
+    except ValueError:
+        raise PrefsError(f"{f} is not valid JSON") from None
+    if not isinstance(saved, dict):
+        raise PrefsError(f"{f} is not a settings object")
+    avoid, default = saved.get("avoid_models", []), saved.get("default_model")
+    if not isinstance(avoid, list) or not all(isinstance(x, str) for x in avoid):
+        raise PrefsError(f"{f}: avoid_models is not a list of model ids")
+    if default is not None and not isinstance(default, str):
+        raise PrefsError(f"{f}: default_model is not a model id")
+    ids = set(model_ids(path))
+    return {"avoid_models": [x for x in avoid if x in ids], "default_model": default if default in ids else None}
+
+
+def site_key(site: str, path: Path = FILE) -> str:
+    """A site name or an old alias ("flow") -> the table's key; ValueError when unknown."""
+    t = load(path)
+    s = (site or "").strip().lower()
+    s = t.get("aliases", {}).get(s, {}).get("generator", s)
+    if s not in t["generators"]:
+        raise ValueError(f"unknown site {site!r} (one of {', '.join(t['generators'])})")
+    return s
+
+
+def pick_model(prefs: "dict | None" = None, site: "str | None" = None, path: Path = FILE) -> "str | None":
+    p = read_prefs(path=path) if prefs is None else prefs
+    ids = model_ids(path)
+    avoid = {x for x in (p.get("avoid_models") or []) if isinstance(x, str)}
+    default = p.get("default_model") if p.get("default_model") in ids else None
+    site = site_key(site, path) if site is not None else None
+    if default and default not in avoid and (site is None or default.startswith(site + ":")):
+        return default
+    first = site or (default.split(":", 1)[0] if default else None)
+    order = [i for i in ids if first is None or i.startswith(first + ":")]
+    if site is None and first is not None:   # no site asked: the default's site first, then any other
+        order += [i for i in ids if i not in order]
+    return next((i for i in order if i not in avoid), None)
+
+
+def main(argv: list[str]) -> int:
+    if not argv or argv[0] != "pick" or len(argv) not in (1, 3) or (len(argv) == 3 and argv[1] != "--site"):
+        print(__doc__, file=sys.stderr)
+        return 2
+    try:
+        got = pick_model(site=argv[2] if len(argv) == 3 else None)
+    except PrefsError as e:
+        print(f"can't read your model settings; ask the editor which model ({e})", file=sys.stderr)
+        return 3
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    if got is None:
+        print("every model of that site is in this editor's avoid list (Settings: When Claude picks, never use); "
+              "ask the editor which model to use", file=sys.stderr)
+        return 1
+    print(got)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

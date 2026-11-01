@@ -125,6 +125,8 @@ def clip_body(draft_id: str, clip: dict, canvas: tuple[int, int]) -> dict:
     speed = clip.get("speed") or 1.0
     s_us = round(clip["src_in"] * 1e6)
     e_us = s_us + round((US(at_f + len_f) - US(at_f)) * speed)
+    while round((e_us - s_us) / speed) > US(at_f + len_f) - US(at_f):   # slow speeds: the server rounds the length up by 1 us
+        e_us -= 1
     track = clip.get("track", "video_main")
     vol = clip_volume(clip)
     scale = clip.get("scale", 1.0)

@@ -1,0 +1,207 @@
+<!--defaults {"ask": "Bago ka pa *lang?", "placeholder": "Type a command", "cmd1": "/practice-muna", "sub1": "Parehong 12 steps · 10-second video", "cmd2": "/edit-mo-to", "sub2": "Una mong real client", "button": "Tara, edit na!", "t_in": 0.15, "t_type1": 0.9, "t_enter1": 2.6, "t_type2": 3.9, "t_enter2": 5.4, "t_btn": 6.1, "t_press": 7.3, "cps": 13, "cursor": "1", "hud": "1", "hud_label": "EDIT-MO-TO · EXPLAINER", "section": "07 · SIMULAN", "tc_offset": "0", "bg": "#F3EEE6", "ink": "#111111", "muted": "#8A847C", "card": "#FFFFFF", "accent": "#E8481C", "font": "Inter Tight", "serif": "Instrument Serif", "mono": "JetBrains Mono", "top": 380, "duration": 9} -->
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500;600;700;800;900&family={{serif}}:ital@0;1&family={{mono}}:wght@500;600&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "{{font}}", sans-serif; color: {{ink}}; }
+  #scene { position: absolute; inset: 0; background: {{bg}}; overflow: hidden; }
+  #vig { position: absolute; inset: 0; background: radial-gradient(70% 70% at 50% 45%, rgba(255,255,255,.5) 0%, rgba(255,255,255,0) 60%, rgba(80,60,40,.07) 100%); }
+  #cam { position: absolute; inset: 0; transform-origin: 960px 560px; }
+  .mono { font-family: "{{mono}}", monospace; }
+  #ask { position: absolute; left: 160px; width: 1600px; top: 160px; text-align: center; white-space: nowrap; font-weight: 800; font-size: 84px; letter-spacing: -.035em; }
+  .w { display: inline-block; white-space: nowrap; }
+  .w.s { font-family: "{{serif}}", serif; font-style: italic; font-weight: 400; letter-spacing: -.01em; font-size: 1.14em; line-height: .9; }
+  .w.a { color: {{accent}}; }
+  /* the one shape: palette, then the button */
+  #shape { position: absolute; left: 960px; top: {{top}}px; width: 1120px; height: 380px; border-radius: 30px; background: {{card}}; overflow: hidden;
+           box-shadow: 0 1px 3px rgba(40,30,20,.08), 0 30px 80px rgba(60,40,20,.13), 0 0 0 1px rgba(40,30,20,.05); }
+  #L-pal { position: absolute; left: 0; top: 0; width: 1120px; height: 380px; }
+  #search { position: absolute; left: 0; right: 0; top: 0; height: 124px; border-bottom: 1px solid rgba(17,17,17,.08); }
+  #mag { position: absolute; left: 42px; top: 40px; width: 44px; height: 44px; }
+  #ph { position: absolute; left: 112px; top: 38px; font-size: 40px; font-weight: 500; color: {{muted}}; white-space: nowrap; }
+  #typed { position: absolute; left: 112px; top: 33px; font-size: 46px; font-weight: 500; white-space: pre; }
+  #caret { display: inline-block; width: 4px; height: 50px; margin-left: 4px; background: {{ink}}; vertical-align: -9px; }
+  #list { position: absolute; left: 16px; right: 16px; top: 140px; height: 224px; }
+  .row { position: absolute; left: 0; right: 0; height: 104px; border-radius: 20px; color: {{ink}}; background-color: rgba(241,236,228,0); }
+  .hl { position: absolute; inset: 0; border-radius: 20px; background: #F1ECE4; opacity: 0; }
+  .rin { position: absolute; left: 26px; right: 26px; top: 0; height: 104px; display: flex; align-items: center; gap: 26px; font-size: 40px; white-space: nowrap; }
+  .ico { width: 58px; height: 58px; flex: none; border-radius: 15px; border: 2.5px solid currentColor; opacity: .85; position: relative; }
+  .ico svg { position: absolute; inset: 0; }
+  .cmd { font-family: "{{mono}}", monospace; font-weight: 600; font-size: 1em; flex: none; }
+  .sub { flex: none; font-weight: 600; font-size: .8em; color: {{muted}}; letter-spacing: -.01em; }
+  .ent { flex: none; margin-left: auto; font-family: "{{mono}}", monospace; font-size: .7em; font-weight: 600; opacity: .55; }
+  #L-btn { position: absolute; left: 50%; top: 50%; height: 140px; display: flex; align-items: center; justify-content: center; color: #fff; white-space: nowrap; }
+  #blabel { font-weight: 800; font-size: 64px; letter-spacing: -.03em; }
+  #ok { position: absolute; left: 0; top: 50%; width: 64px; height: 64px; margin-top: -32px; }
+  #ring { position: absolute; left: 50%; top: 50%; width: 200px; height: 200px; margin: -100px 0 0 -100px; border-radius: 50%; border: 3px solid {{ink}}; opacity: 0; }
+  #cur { position: absolute; left: 0; top: 0; width: 50px; height: 50px; }
+  /* shared explainer HUD */
+  .br { position: absolute; width: 34px; height: 34px; border-color: {{ink}}; border-style: solid; border-width: 0; opacity: .75; }
+  .hud { position: absolute; font-family: "{{mono}}", monospace; font-weight: 700; font-size: 18px; letter-spacing: .18em; text-transform: uppercase; white-space: pre; color: {{ink}}; }
+  #h-tl { left: 92px; top: 48px; } #h-tr { right: 92px; top: 48px; } #h-br { right: 92px; bottom: 48px; }
+  #h-br b { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: {{accent}}; margin-right: 12px; vertical-align: 1px; }
+  #src { display: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1920" data-height="1080">
+  <div id="scene" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0" data-layout-allow-overflow>
+    <div id="vig"></div>
+    <div id="cam">
+      <div id="ask" data-layout-allow-overlap></div>
+      <div id="shapewrap"><div id="shape" data-layout-allow-overflow>
+        <div id="L-pal" data-layout-allow-overlap>
+          <div id="search"><svg id="mag" viewBox="0 0 44 44"><circle cx="19" cy="19" r="12" fill="none" stroke="{{ink}}" stroke-width="3.5"/><path d="M28 28 L38 38" stroke="{{ink}}" stroke-width="3.5" stroke-linecap="round"/></svg>
+            <div id="ph" data-layout-allow-overlap>{{placeholder}}</div>
+            <div id="typed" class="mono" data-layout-allow-overlap><span id="tt"></span><span id="caret"></span></div></div>
+          <div id="list">
+            <div id="r1" class="row" data-layout-allow-overlap><div class="hl"></div><div class="rin">
+              <span class="ico"><svg viewBox="0 0 58 58"><path d="M23 19 L38 27.5 L23 36 Z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" transform="translate(-2.5 -1.5)"/></svg></span>
+              <span class="cmd">{{cmd1}}</span><span class="sub">{{sub1}}</span><span class="ent">↵</span></div></div>
+            <div id="r2" class="row" data-layout-allow-overlap><div class="hl"></div><div class="rin">
+              <span class="ico"><svg viewBox="0 0 58 58"><path d="M19 35 L33 21 L37 25 L23 39 L18 40 Z M30 24 L34 28" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" transform="translate(-2.5 -2.5)"/></svg></span>
+              <span class="cmd">{{cmd2}}</span><span class="sub">{{sub2}}</span><span class="ent">↵</span></div></div>
+          </div>
+        </div>
+        <div id="L-btn" data-layout-allow-overlap><svg id="ok" viewBox="0 0 64 64"><circle id="okc" cx="32" cy="32" r="28" fill="#fff"/><path id="okp" d="M20 33 L28 41 L44 24" fill="none" stroke="{{ink}}" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span id="blabel">{{button}}</span></div>
+      </div><div id="ring" data-layout-ignore></div></div>
+    </div>
+    <svg id="cur" viewBox="0 0 64 64" data-layout-ignore><path d="M10 6 L10 50 L21 39 L29 57 L37 53.5 L29 36 L45 36 Z" fill="{{ink}}" stroke="#fff" stroke-width="3.5" stroke-linejoin="round"/></svg>
+    <div id="hudwrap">
+      <div class="br" style="left:40px;top:40px;border-left-width:2px;border-top-width:2px"></div>
+      <div class="br" style="right:40px;top:40px;border-right-width:2px;border-top-width:2px"></div>
+      <div class="br" style="left:40px;bottom:40px;border-left-width:2px;border-bottom-width:2px"></div>
+      <div class="br" style="right:40px;bottom:40px;border-right-width:2px;border-bottom-width:2px"></div>
+      <div id="h-tl" class="hud">{{hud_label}}</div><div id="h-tr" class="hud">{{section}}</div><div id="h-br" class="hud"><b></b><span id="tcv"></span></div>
+    </div>
+  </div>
+  <div id="src"><span id="s-ask">{{ask}}</span><span id="s-c1">{{cmd1}}</span><span id="s-c2">{{cmd2}}</span></div>
+</div>
+<script>
+  const D = {{duration}}, N = s => Number(s), TOP = N("{{top}}");
+  const T_IN = N("{{t_in}}"), T1 = N("{{t_type1}}"), E1 = N("{{t_enter1}}"), T2 = N("{{t_type2}}"), E2 = N("{{t_enter2}}"),
+        T_BTN = N("{{t_btn}}"), T_PR = N("{{t_press}}"), CPS = Math.max(1, N("{{cps}}")), TC0 = N("{{tc_offset}}");
+  const $ = id => document.getElementById(id), txt = id => $(id).textContent.trim();
+  function words(el, text) {
+    el.textContent = "";
+    text.split(/\s+/).filter(Boolean).forEach((tok, i) => {
+      let w = tok, s = false, a = false;
+      while (/^[*^]/.test(w)) { if (w[0] === "*") s = true; else a = true; w = w.slice(1); }
+      if (i) el.appendChild(document.createTextNode(" "));
+      const sp = document.createElement("span"); sp.className = "w" + (s ? " s" : "") + (a ? " a" : ""); sp.textContent = w; el.appendChild(sp);
+    });
+    return [...el.querySelectorAll(".w")];
+  }
+  const askW = words($("ask"), txt("s-ask")), C1 = txt("s-c1"), C2 = txt("s-c2");
+  function fitW(el, maxW) {
+    el.style.fontSize = "";
+    const w = el.scrollWidth;
+    if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
+  }
+  let BW = 760;
+  function layout() {
+    fitW($("ask"), 1600);
+    $("ask").style.top = (TOP - 70 - $("ask").getBoundingClientRect().height) + "px";
+    document.querySelectorAll(".rin").forEach(r => { fitW(r, 1036); let fs = parseFloat(getComputedStyle(r).fontSize), n = 0; while (r.scrollWidth > 1036 && n++ < 30) { fs *= 0.96; r.style.fontSize = fs + "px"; } });
+    $("tt").textContent = C1.length > C2.length ? C1 : C2; fitW($("typed"), 960); $("tt").textContent = "";
+    fitW($("ph"), 960);
+    fitW($("blabel"), 1300);
+    BW = $("blabel").scrollWidth + 240;
+    $("L-btn").style.width = BW + "px"; $("L-btn").style.marginLeft = -BW / 2 + "px"; $("L-btn").style.marginTop = "-70px";
+    $("ok").style.left = "58px";
+  }
+  layout();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { layout(); paint(clock.t); });
+
+  // pure function of time: what the field shows, the caret, the timecode
+  const clock = { t: 0 }, p2 = n => String(n).padStart(2, "0"), CLR = T2 - 0.25;
+  function paint(t) {
+    let s = "", typing = false, full = false;
+    if (t >= T1 && t < CLR) { const n = Math.min(C1.length, Math.floor((t - T1) * CPS + 1e-6) + 1); s = C1.slice(0, n); typing = true; full = n >= C1.length; }
+    else if (t >= T2 && t < T_BTN + 0.35) { const n = Math.min(C2.length, Math.floor((t - T2) * CPS + 1e-6) + 1); s = C2.slice(0, n); typing = true; full = n >= C2.length; }
+    $("tt").textContent = s;
+    $("ph").style.opacity = s ? 0 : 1;
+    $("caret").style.opacity = t >= T_IN + 0.4 && t < T_BTN && (!full || Math.floor(t * 2.4) % 2 === 0) ? 1 : 0;
+    const f = Math.round((TC0 + t) * 30);
+    $("tcv").textContent = `TC ${p2(Math.floor(f / 108000))}:${p2(Math.floor(f / 1800) % 60)}:${p2(Math.floor(f / 30) % 60)}:${p2(f % 30)}`;
+  }
+  const tl = gsap.timeline({ paused: true });
+  tl.to(clock, { t: D, duration: D, ease: "none", onUpdate: () => paint(clock.t) }, 0);
+  if ("{{hud}}" !== "1") $("hudwrap").style.display = "none";
+  else tl.from("#hudwrap > *", { opacity: 0, duration: 0.3, stagger: 0.03 }, 0);
+
+  const S = $("shape"), SPR = "back.out(1.15)", H2 = 380, H1 = 268, R1 = $("r1"), R2 = $("r2");
+  gsap.set(S, { xPercent: -50 }); gsap.set(R2, { y: 112 }); gsap.set("#cam", { scale: 1.2 });
+  // 0. a blurred search box opens into the palette; the question lands above it
+  tl.fromTo(S, { width: 560, height: 124, opacity: 0, filter: "blur(16px)", y: 30 },
+    { width: 1120, height: H2, opacity: 1, filter: "blur(0px)", y: 0, duration: 0.7, ease: SPR }, T_IN);
+  tl.fromTo("#list", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, T_IN + 0.3);
+  askW.forEach((w, i) => tl.fromTo(w, { opacity: 0, y: 30, filter: "blur(14px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.42, ease: "power3.out" }, T_IN + 0.1 + i * 0.12));
+  tl.to("#ask", { opacity: 0, y: -30, filter: "blur(12px)", duration: 0.35, ease: "power2.in" }, CLR - 0.1);
+
+  const hl = (row, t, on) => tl.to(row, { backgroundColor: on ? "rgba(241,236,228,1)" : "rgba(241,236,228,0)", duration: 0.2 }, t);
+  const select = (row, t) => {
+    tl.to(row, { backgroundColor: "{{ink}}", duration: 0.18 }, t);
+    tl.to(row, { color: "#ffffff", duration: 0.18 }, t);
+    tl.to(row.querySelector(".sub"), { color: "rgba(255,255,255,.78)", duration: 0.18 }, t);
+    tl.to(row, { scale: 0.985, duration: 0.07 }, t);
+    tl.to(row, { scale: 1, duration: 0.25, ease: SPR }, t + 0.07);
+  };
+  // 1. "/practice-muna" types itself; the list filters to its row, Enter selects it
+  const F1 = T1 + 1.5 / CPS;
+  tl.to(R2, { opacity: 0, filter: "blur(8px)", duration: 0.22 }, F1);
+  tl.to(S, { height: H1, duration: 0.5, ease: SPR }, F1);
+  hl(R1, F1 + 0.05, true);
+  select(R1, E1);
+  // 2. clear, "/edit-mo-to" types; both rows show for "/", then it filters to the client row
+  tl.to(R1, { backgroundColor: "rgba(241,236,228,0)", duration: 0.2 }, CLR);
+  tl.to(R1, { color: "{{ink}}", duration: 0.2 }, CLR);
+  tl.to(R1.querySelector(".sub"), { color: "{{muted}}", duration: 0.2 }, CLR);
+  tl.to(S, { height: H2, duration: 0.45, ease: SPR }, T2);
+  tl.to(R2, { opacity: 1, filter: "blur(0px)", duration: 0.25 }, T2 + 0.05);
+  const F2 = T2 + 1.5 / CPS + 0.05;
+  tl.to(R1, { opacity: 0, filter: "blur(8px)", duration: 0.2 }, F2);
+  tl.to(R2, { y: 0, duration: 0.45, ease: SPR }, F2 + 0.05);
+  tl.to(S, { height: H1, duration: 0.5, ease: SPR }, F2 + 0.05);
+  hl(R2, F2 + 0.1, true);
+  select(R2, E2);
+  // 3. the palette folds into one black pill button, centred
+  tl.to(S, { width: () => BW, height: 140, borderRadius: 70, y: 540 - 70 - TOP, duration: 0.65, ease: SPR }, T_BTN);
+  tl.to(S, { backgroundColor: "{{ink}}", duration: 0.25 }, T_BTN + 0.05);
+  tl.to("#L-pal", { opacity: 0, filter: "blur(10px)", scale: 0.96, duration: 0.18, ease: "power2.in" }, T_BTN);
+  gsap.set("#L-btn", { opacity: 0 });
+  tl.fromTo("#L-btn", { opacity: 0, filter: "blur(10px)", scale: 1.05 }, { opacity: 1, filter: "blur(0px)", scale: 1, duration: 0.32, ease: "power3.out", immediateRender: false }, T_BTN + 0.2);
+  const TB2 = T_BTN + 0.65, PUSH = Math.max(0.3, D - TB2);
+  tl.to("#cam", { scale: 1.3, duration: 0.65, ease: "power3.inOut" }, T_BTN);
+  tl.to("#cam", { scale: 1.36, duration: PUSH, ease: "none" }, TB2);
+  // 4. the cursor presses it: soft press, a ring, a check pops in beside the label
+  gsap.set("#okc", { scale: 0, transformOrigin: "32px 32px" }); gsap.set("#okp", { strokeDasharray: 40, strokeDashoffset: 40 });
+  tl.to(S, { scale: 0.95, duration: 0.08 }, T_PR);
+  tl.to(S, { scale: 1, duration: 0.35, ease: SPR }, T_PR + 0.08);
+  tl.fromTo("#ring", { scale: 0.6, opacity: 0.25 }, { scale: 3, opacity: 0, duration: 0.6, ease: "power2.out", immediateRender: false }, T_PR + 0.02);
+  tl.to("#blabel", { x: 40, duration: 0.35, ease: SPR }, T_PR + 0.06);
+  tl.to("#okc", { scale: 1, duration: 0.3, ease: SPR }, T_PR + 0.1);
+  tl.to("#okp", { strokeDashoffset: 0, duration: 0.3, ease: "power2.out" }, T_PR + 0.2);
+  const C = $("cur"); gsap.set(C, { opacity: 0 });
+  if ("{{cursor}}" === "1") {
+    // canvas position of the label's centre at the camera's zoom then
+    const k = T_PR < TB2 ? 1.3 : 1.3 + 0.06 * Math.min(1, (T_PR - TB2) / PUSH);
+    const tx = 960 + 100 * k - 8, ty = 560 - 2 * k - 5;
+    tl.fromTo(C, { x: 1560, y: 990, opacity: 0 }, { x: tx, y: ty, opacity: 1, duration: 0.6, ease: "power3.inOut", immediateRender: false }, T_PR - 0.65);
+    tl.to(C, { scale: 0.85, transformOrigin: "8px 5px", duration: 0.07 }, T_PR);
+    tl.to(C, { scale: 1, duration: 0.18 }, T_PR + 0.08);
+    tl.to(C, { x: tx + 150, y: ty + 200, opacity: 0, duration: 0.5, ease: "power2.in" }, T_PR + 0.45);
+  }
+  tl.set({}, {}, D);
+  window.__timelines["main"] = tl;
+  paint(0);
+  tl.seek(0);
+</script>
+</body>
+</html>

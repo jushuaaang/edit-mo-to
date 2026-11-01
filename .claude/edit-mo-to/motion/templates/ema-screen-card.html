@@ -1,0 +1,189 @@
+<!--defaults {"image": "", "img_w": 1920, "img_h": 1080, "num": "01", "label": "Dashboard", "hl": "[{\"x\":420,\"y\":560,\"w\":260,\"h\":56,\"t\":0.6},{\"x\":1140,\"y\":270,\"w\":700,\"h\":380,\"t\":2.2},{\"x\":1640,\"y\":20,\"w\":230,\"h\":44,\"t\":3.6}]", "caption_chip": "Pindutin dito", "push": 1.1, "pull": 0.2, "pad": 10, "card_w": 1440, "top": 178, "intro": "1", "outro": "1", "cursor": "0", "bg": "#EFE9DF", "dot": "rgba(60,45,20,.10)", "wash": "rgba(212,175,106,.20)", "accent": "#D4AF6A", "ink": "#1A1714", "chip_bg": "#FFFDF8", "cap_bg": "#FFFDF8", "cap_fg": "#1A1714", "dim": 0.42, "font": "Space Grotesk", "body": "Inter", "mono": "JetBrains Mono", "duration": 5} -->
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;700&family={{body}}:wght@600;700&family={{mono}}:wght@700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+  #root { position: absolute; inset: 0; overflow: hidden; }
+  #bg { position: absolute; inset: 0; background-color: {{bg}};
+        background-image: radial-gradient(ellipse 55% 50% at 50% 48%, {{wash}}, transparent 70%), radial-gradient({{dot}} 1.3px, transparent 1.6px);
+        background-size: 100% 100%, 30px 30px; }
+  #cam { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  #stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  #card { position: absolute; border-radius: 22px; overflow: hidden; background: #0C0B0A;
+          box-shadow: 0 0 0 1px rgba(0,0,0,.10), 0 2px 4px rgba(40,30,15,.10), 0 30px 70px -10px rgba(40,30,15,.32); }
+  #shot { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #mock { position: absolute; inset: 0; background: #0C0B0A; }
+  #mock i { position: absolute; display: block; border-radius: 6px; }
+  #dim { position: absolute; left: 0; top: 0; border-radius: 12px; opacity: 0; box-shadow: 0 0 0 4000px rgba(12,11,10,{{dim}}); }
+  #ring { position: absolute; left: 0; top: 0; border-radius: 14px; border: 3px solid {{accent}}; opacity: 0;
+          box-shadow: 0 0 0 6px rgba(212,175,106,.22), 0 0 28px rgba(212,175,106,.45); }
+  #pulse { position: absolute; left: 0; top: 0; border-radius: 18px; border: 2px solid {{accent}}; opacity: 0; }
+  .cap { position: absolute; left: 0; top: 0; white-space: nowrap; opacity: 0;
+         font: 600 30px/1 "{{body}}", sans-serif; color: {{cap_fg}}; background: {{cap_bg}};
+         padding: 14px 22px 15px 20px; border-radius: 14px; display: flex; align-items: center; gap: 12px;
+         box-shadow: 0 0 0 1px rgba(212,175,106,.55), 0 10px 26px -6px rgba(12,11,10,.55); }
+  .cap b { width: 10px; height: 10px; border-radius: 50%; background: {{accent}}; flex: none; }
+  #chip { position: absolute; display: flex; align-items: center; gap: 16px; white-space: nowrap;
+          background: {{chip_bg}}; border-radius: 16px; padding: 10px 24px 10px 10px;
+          box-shadow: 0 0 0 1px rgba(0,0,0,.06), 0 8px 24px -8px rgba(40,30,15,.30); }
+  #num { font: 700 26px/1 "{{mono}}", monospace; color: {{accent}}; background: #151311; border-radius: 10px; padding: 10px 12px; letter-spacing: .04em; }
+  #lab { font: 700 36px/1 "{{font}}", sans-serif; color: {{ink}}; letter-spacing: -.01em; }
+  #cur { position: absolute; left: 0; top: 0; width: 40px; height: 48px; opacity: 0; }
+</style>
+</head>
+<body>
+<div id="main" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1920" data-height="1080">
+  <div id="root" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="bg"></div>
+    <div id="cam" data-layout-allow-overflow><div id="stage">
+      <div id="card">
+        <div id="mock">
+          <i style="left:0;top:0;width:15.6%;height:100%;background:#151311;border-radius:0"></i>
+          <i style="left:15.6%;top:0;width:84.4%;height:7.8%;background:#151311;border-radius:0;border-bottom:2px solid #2A2622"></i>
+          <i style="left:2.1%;top:3.7%;width:8.3%;height:2.4%;background:#D4AF6A"></i>
+          <i style="left:2.1%;top:13%;width:11.5%;height:4%;background:#2A2622"></i>
+          <i style="left:2.1%;top:19.4%;width:9.4%;height:1.7%;background:#2A2622"></i>
+          <i style="left:2.1%;top:24%;width:10.4%;height:1.7%;background:#2A2622"></i>
+          <i style="left:19.8%;top:13%;width:36.5%;height:3.7%;background:rgba(243,239,232,.85)"></i>
+          <i style="left:19.8%;top:18.5%;width:25%;height:1.7%;background:rgba(166,157,145,.6)"></i>
+          <i style="left:19.8%;top:25%;width:37.5%;height:35.2%;background:#151311;border:2px solid #2A2622"></i>
+          <i style="left:59.4%;top:25%;width:36.5%;height:35.2%;background:#151311;border:2px solid #2A2622"></i>
+          <i style="left:21.9%;top:51.9%;width:13.5%;height:5.2%;background:#D4AF6A"></i>
+          <i style="left:19.8%;top:63.9%;width:76%;height:27.8%;background:#151311;border:2px solid #2A2622"></i>
+          <i style="left:85.4%;top:1.9%;width:12%;height:4.1%;background:#D4AF6A"></i>
+        </div>
+        <img id="shot" src="{{image}}" alt="" />
+        <div id="dim"></div>
+      </div>
+      <div id="pulse"></div>
+      <div id="ring"></div>
+      <div id="caps"></div>
+      <svg id="cur" viewBox="0 0 40 48"><path d="M4 3 L4 37 L13 29 L19 44 L25 41 L19 27 L31 27 Z" fill="#0C0B0A" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg>
+    </div></div>
+    <div id="chip"><span id="num">{{num}}</span><span id="lab">{{label}}</span></div>
+    <i id="hldata" hidden data-v="{{hl}}" data-cap="{{caption_chip}}"></i>
+  </div>
+</div>
+<script>
+  window.__timelines = window.__timelines || {};
+  const D = Number("{{duration}}"), IW = Number("{{img_w}}") || 1920, IH = Number("{{img_h}}") || 1080;
+  const PUSH = Number("{{push}}"), PULL = Number("{{pull}}"), PAD = Number("{{pad}}");
+  const INTRO = "{{intro}}" !== "0", OUTRO = "{{outro}}" !== "0", CURSOR = "{{cursor}}" === "1";
+  const $ = id => document.getElementById(id);
+  if ("{{image}}" === "") $("shot").style.display = "none"; else $("mock").style.display = "none";
+
+  // card geometry (canvas px)
+  let cw = Number("{{card_w}}"), ch = cw * IH / IW;
+  const maxH = 1080 - Number("{{top}}") - 70;
+  if (ch > maxH) { ch = maxH; cw = ch * IW / IH; }
+  const cl = (1920 - cw) / 2, ct = Number("{{top}}"), k = cw / IW;
+  const CX = cl + cw / 2, CY = ct + ch / 2;
+  Object.assign($("card").style, { left: cl + "px", top: ct + "px", width: cw + "px", height: ch + "px" });
+  $("cam").style.transformOrigin = CX + "px " + CY + "px";
+  Object.assign($("chip").style, { left: cl + "px", top: (ct - 92) + "px" });
+
+  // highlights: JSON list [{x,y,w,h,t,c?,z?}] in screenshot px, or "x,y,w,h,t; ..." text
+  function parseHL(s) {
+    s = (s || "").trim(); if (!s) return [];
+    for (const v of [s, s.replace(/'/g, '"')]) { try { const a = JSON.parse(v); if (Array.isArray(a)) return a; } catch (e) {} }
+    return s.split(";").map(p => p.split(",").map(Number)).filter(a => a.length >= 5 && a.every(isFinite))
+            .map(a => ({ x: a[0], y: a[1], w: a[2], h: a[3], t: a[4] }));
+  }
+  const data = $("hldata"), CAP = data.getAttribute("data-cap") || "";
+  const HL = parseHL(data.getAttribute("data-v")).map(h => ({ x: +h.x || 0, y: +h.y || 0, w: +h.w || 10, h: +h.h || 10,
+      t: Math.max(0, +h.t || 0), c: (h.c !== undefined ? String(h.c) : CAP), z: (h.z !== undefined ? +h.z : PUSH) }))
+    .sort((a, b) => a.t - b.t);
+  const boxOf = h => ({ x: cl + h.x * k - PAD, y: ct + h.y * k - PAD, width: h.w * k + 2 * PAD, height: h.h * k + 2 * PAD });
+  const inCard = b => ({ x: b.x - cl, y: b.y - ct, width: b.width, height: b.height });
+
+  // caption chips: one element per step (crossfaded = seek-safe)
+  const caps = HL.map((h, i) => {
+    if (!h.c) return null;
+    const el = document.createElement("div"); el.className = "cap"; el.innerHTML = "<b></b><span></span>";
+    el.lastChild.textContent = h.c; $("caps").appendChild(el); return el;
+  });
+  function fitW(el, maxW) {
+    el.style.fontSize = "";
+    const w = el.getBoundingClientRect().width / (gsap.getProperty(el, "scale") || 1);
+    if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
+  }
+  function placeCaps() {
+    HL.forEach((h, i) => {
+      const el = caps[i]; if (!el) return;
+      const s = Math.max(1, h.z), b = boxOf(h);
+      fitW(el, 720 * s);
+      const w = el.offsetWidth, ht = el.offsetHeight / s;
+      const below = b.y + b.height + 18 + ht <= ct + ch - 12 || b.y - 18 - ht < ct + 12;
+      let x = b.x + b.width / 2 - w / 2;
+      x = Math.min(Math.max(x, cl + 16 - (w - w / s) / 2), cl + cw - 16 - w + (w - w / s) / 2);
+      const y = below ? b.y + b.height + 16 : b.y - 16 - el.offsetHeight;
+      gsap.set(el, { x: x, y: y, scale: 1 / s, transformOrigin: below ? "50% 0%" : "50% 100%" });
+    });
+  }
+  function fitAll() { fitW($("lab"), 1000); placeCaps(); }
+  fitAll();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
+
+  const tl = gsap.timeline({ paused: true });
+  if (INTRO) {
+    tl.fromTo("#stage", { y: 46, scale: 0.965, opacity: 0, filter: "blur(10px)" },
+                        { y: 0, scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.42, ease: "power3.out", transformOrigin: CX + "px " + CY + "px" }, 0);
+    tl.fromTo("#chip", { x: -26, opacity: 0 }, { x: 0, opacity: 1, duration: 0.36, ease: "power3.out" }, 0.1);
+  }
+  const camFor = h => {
+    const b = boxOf(h), dx = b.x + b.width / 2 - CX, dy = b.y + b.height / 2 - CY, s = h.z;
+    let x = -dx * (s - 1 + PULL), y = -dy * (s - 1 + PULL);
+    // keep the whole pushed card on screen (it floats, never crops) when it fits
+    const hw = cw * s / 2, hh = ch * s / 2;
+    const clamp = (v, lo, hi) => lo > hi ? (lo + hi) / 2 : Math.min(Math.max(v, lo), hi);
+    if (2 * hw <= 1840) x = clamp(x, 40 + hw - CX, 1880 - hw - CX);
+    else x = clamp(x, 40 - (CX + (b.x - CX) * s), 1880 - (CX + (b.x + b.width - CX) * s));   // zoomed past the frame: keep the highlighted box whole
+    if (2 * hh <= 1050 - (ct - 70)) y = clamp(y, ct - 70 + hh - CY, 1050 - hh - CY);
+    else y = clamp(y, 30 - (CY + (b.y - CY) * s), 1050 - (CY + (b.y + b.height - CY) * s));
+    return { scale: s, x: x, y: y };
+  };
+  const tEnd = OUTRO ? D - 0.25 : D;
+  HL.forEach((h, i) => {
+    if (h.t >= tEnd - 0.1) return;
+    const b = boxOf(h), ib = inCard(b);
+    if (i === 0) {
+      gsap.set("#ring", b); gsap.set("#dim", ib);
+      tl.fromTo("#ring", { opacity: 0, scale: 1.18 }, { opacity: 1, scale: 1, duration: 0.34, ease: "power3.out" }, h.t);
+      tl.to("#dim", { opacity: 1, duration: 0.4, ease: "power2.out" }, h.t);
+    } else {
+      tl.to("#ring", { ...b, duration: 0.5, ease: "power3.inOut" }, h.t);
+      tl.to("#dim", { ...ib, duration: 0.5, ease: "power3.inOut" }, h.t);
+    }
+    const land = h.t + (i === 0 ? 0.26 : 0.46);
+    tl.fromTo("#pulse", { x: b.x, y: b.y, width: b.width, height: b.height, opacity: 0.9 },
+             { x: b.x - 16, y: b.y - 16, width: b.width + 32, height: b.height + 32, opacity: 0, duration: 0.5, ease: "power2.out", immediateRender: false }, land);
+    tl.to("#cam", { ...camFor(h), duration: 0.85, ease: "power2.inOut" }, h.t);
+    if (CURSOR) {
+      const px = b.x + b.width * 0.62, py = b.y + b.height * 0.62;
+      if (i === 0) tl.fromTo("#cur", { x: px + 140, y: py + 120, opacity: 0 }, { x: px, y: py, opacity: 1, duration: 0.3, ease: "power2.out" }, Math.max(0, h.t - 0.3));
+      else tl.to("#cur", { x: px, y: py, duration: 0.5, ease: "power3.inOut" }, h.t);
+      tl.to("#cur", { scale: 0.86, duration: 0.07, ease: "power1.in", transformOrigin: "10% 6%" }, land - 0.04);
+      tl.to("#cur", { scale: 1, duration: 0.12, ease: "power2.out" }, land + 0.03);
+    }
+    const el = caps[i];
+    if (el) {
+      const next = HL[i + 1], off = next && next.t < tEnd ? next.t : null;
+      tl.fromTo(el, { opacity: 0, filter: "blur(6px)", yPercent: 18 }, { opacity: 1, filter: "blur(0px)", yPercent: 0, duration: 0.3, ease: "power3.out" }, land + 0.04);
+      if (off !== null) tl.to(el, { opacity: 0, filter: "blur(6px)", duration: 0.16, ease: "power2.in" }, off);
+    }
+  });
+  if (OUTRO) {
+    tl.to("#stage", { y: -30, opacity: 0, filter: "blur(8px)", duration: 0.22, ease: "power2.in" }, D - 0.25);
+    tl.to("#chip", { x: -20, opacity: 0, duration: 0.18, ease: "power2.in" }, D - 0.25);
+  }
+  tl.set({}, {}, D);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

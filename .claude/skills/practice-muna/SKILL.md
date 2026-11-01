@@ -1,6 +1,6 @@
 ---
 name: practice-muna
-description: Practice run of the full edit-mo-to workflow on the editor's own raw clip, shrunk to a 10-second video. Same 12 steps, same stops, same agents as a real client job, with a short "in a real job" tip at each stop, so a new user learns the workflow (and checks their install) before working on a real client. Use when the user runs /practice-muna, or asks to practise, rehearse, test-drive or demo the workflow.
+description: Practice run of the full edit-mo-to workflow on any brief (a clip of the editor talking, an explainer, an ad), shrunk to a 10-second video so it runs faster. Same 12 steps, same stops, same agents as a real client job, with a short "in a real job" tip at each stop, so a new user learns the workflow (and checks their install) before working on a real client. Use when the user runs /practice-muna, or asks to practise, rehearse, test-drive or demo the workflow.
 ---
 
 # /practice-muna
@@ -12,15 +12,23 @@ A practice run ("practice muna": practise first) is a **real `/edit-mo-to` job, 
 - Add **one line** starting "In a real job:" that says what would happen with a client (e.g. "In a real job: you'd generate this voiceover in ElevenLabs and send me the file.").
 - Talk in plain, beginner-friendly words.
 
-**Speed:** everything is about 10 s, so keep agent jobs small, run independent agents in parallel, and skip nothing. A rehearsal takes about 15–25 minutes.
+**Language:** reply in the editor's language (English, Taglish or Tagalog). Never translate the script, the VO, the generator prompts or the editor's text. Judge the editor's language only from their own words to you: their chat messages and the brief they send (a brief written in Tagalog or Taglish counts). Never from the video's own text: the script and the editor's script edits, the VO, prompts, captions or on-screen text, which can be Tagalog while the editor talks to you in English.
+
+**Speed:** a practice works exactly like a real job, only faster, because the output is about 10 s: keep agent jobs small, run independent agents in parallel, and skip nothing. A practice takes about 15–25 minutes.
 
 ## Before step 1
-⛔ "Send me a raw video to practise on: any clip of you (or anyone) talking to the camera, at least 15 seconds, straight from your phone." When it arrives, run `PYTHONIOENCODING=utf-8 "{python}" "{root}/.claude/edit-mo-to/tools/rehearse.py" prepare "<raw video>"` (about 1 minute the first time). It lays out a practice job in `{root}/_practice/<name>/`: `brief.md`, `script.txt`, `keep.json`, `broll/`, `music.wav` and `prepare.json` (palette, the speaker's face box, word frames, beats). Say: "I made a practice job from your clip. Now we do exactly what we'd do for a client."
+Ask for the brief in chat: ⛔ "Send me a brief (any kind: a clip of you talking, an explainer, an ad), or say 'surprise me'. Everything is optional." Make the practice folder `{root}/_practice/Practice <date>/` (with a clip, copy it into its `refs/`).
 
-## The 12 steps, rehearsal inputs
+Then pick the kind of practice from what the brief holds:
+- **Talking clip, no written brief** (a video of someone talking in `refs/`, nothing pasted): the **clip practice** in the table below. Run `.claude/edit-mo-to/run tools/rehearse.py prepare "<clip>" --out "<practice folder>"` (about 1 minute the first time): it adds `brief.md`, `script.txt`, `keep.json`, `broll/`, `music.wav` and `prepare.json` (palette, the speaker's face box, word frames, beats) to the folder. Say: "I made a practice job from your clip. Now we do exactly what we'd do for a client."
+- **A written brief** (pasted text, a link or a brief file; an explainer, a product ad, anything; files optional): the **brief practice**: the 12 steps of `/edit-mo-to` on that brief, as written there, with these practice rules: the video is **about 10 s** (`limits.json` `max_s` 10 unless the brief says shorter; a script of 1–3 short lines), the style is whatever the brief needs (`broll`, `pixar`, `claymation`, `product-ad`, `ugc`, or motion graphics only), and at each stop offer a suggested answer that keeps it moving: no storyboard unless the brief is AI-heavy, the voiceover from the editor (suggested: record yourself reading the script on your phone; or Generate for me where allowed), AI or motion-graphics clips only where nothing else works (and say which ones the editor would generate). A clip in `refs/` is used as footage.
+- **Nothing at all:** ⛔ ask which they want, with two suggested answers: "a clip of you talking (send me its file path)" or "an explainer about edit-mo-to, motion graphics only".
+
+## The 12 steps, clip practice inputs
+(The brief practice uses `/edit-mo-to`'s own steps with the practice rules above; this table is for the clip practice.)
 | Step | Real job | Rehearsal input · suggested answer |
 |---|---|---|
-| 1 Brief | the client's brief, references, video folder | `brief.md` + folder `{root}/_practice/<name>/`. Show the brief; no reference video. |
+| 1 Brief | the client's brief, references, video folder | `brief.md` + the practice folder. Show the brief; no reference video. |
 | 2 Checklist + style | every brief rule, style picked | build the checklist from `brief.md` (8 rules); style **UGC talking head** (`ugc`). Suggested: "Looks right." |
 | 3 Script + storyboard | the brief's script or one you write; "Storyboard first?" | the script is `script.txt` (what was said, word for word). Suggested storyboard answer: **yes**, 4–5 panels (`mode: storyboard`, real frames from the clip; graphics in the brief's colours). |
 | 4 Voiceover | the editor's ElevenLabs file | the clip's own audio is the voiceover. Suggested: "Use the clip's audio." |

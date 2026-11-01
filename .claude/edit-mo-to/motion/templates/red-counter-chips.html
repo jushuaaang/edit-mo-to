@@ -1,0 +1,178 @@
+<!--defaults {"num": "01", "label": "The whole workflow", "counter_label": "EDIT-MO-TO STEPS", "value": "12", "from": "0", "serif_line": "steps, in ten seconds.", "chips": "brief|script|voiceover|prompts|b-roll|build|review|captions|music|export", "payoff": "Same stops as a real client job.", "hud_tl": "EDIT-MO-TO  /  PRACTICE RUN", "hud_bl": "PRACTICE MUNA", "hud_br": "SC 02 / 03", "tc_start": "2.5", "bg": "#E5231B", "fg": "#FFFFFF", "chip_bg": "#141414", "chip_fg": "#FFFFFF", "tag_bg": "#E5231B", "font": "Inter Tight", "serif": "Instrument Serif", "mono": "JetBrains Mono", "t_count": 0.45, "count_dur": 1.6, "t_payoff": 3.2, "size": 400, "duration": 5} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;700;800;900&family={{serif}}:ital@0;1&family={{mono}}:wght@500&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "{{font}}", sans-serif; color: {{fg}}; }
+  #scene { position: absolute; inset: 0; background: {{bg}}; }
+  #vig { position: absolute; inset: 0; background: radial-gradient(120% 80% at 50% 45%, rgba(0,0,0,0) 45%, rgba(60,0,0,.28) 100%); }
+  #cam { position: absolute; inset: 0; transform-origin: 540px 900px; }
+  .mono { font-family: "{{mono}}", monospace; font-weight: 500; font-size: 21px; letter-spacing: .16em; text-transform: uppercase; white-space: pre; }
+  .hud { position: absolute; color: {{fg}}; }
+  .br { position: absolute; width: 42px; height: 42px; border-color: {{fg}}; border-style: solid; border-width: 0; opacity: .9; }
+  #h-tl { left: 72px; top: 92px; } #h-tr { right: 72px; top: 92px; } #h-bl { left: 72px; bottom: 96px; } #h-br { right: 72px; bottom: 96px; }
+  #hline { position: absolute; left: 72px; right: 72px; bottom: 82px; height: 2px; background: {{fg}}; opacity: .55; }
+  #sec { position: absolute; left: 72px; top: 200px; display: flex; align-items: baseline; gap: 22px; white-space: nowrap; }
+  #sec .n { font-family: "{{serif}}", serif; font-style: italic; font-size: 104px; line-height: 1; }
+  #sec .t { font-weight: 700; font-size: 50px; letter-spacing: -.02em; }
+  #secline { position: absolute; left: 72px; top: 318px; width: 560px; height: 2px; background: {{fg}}; opacity: .6; transform-origin: 0 50%; }
+  #bgchips, #fgchips, #streaks { position: absolute; inset: 0; }
+  .chip { position: absolute; display: flex; align-items: center; gap: .5em; background: {{chip_bg}}; color: {{chip_fg}}; white-space: nowrap;
+          font-weight: 700; letter-spacing: -.01em; border-radius: 999px; padding: .38em .42em .38em .75em; box-shadow: 0 10px 30px rgba(60,0,0,.25); }
+  .chip .d { width: .36em; height: .36em; border-radius: 50%; background: {{tag_bg}}; flex: none; }
+  .chip .g { background: {{tag_bg}}; color: #fff; font-size: .62em; font-weight: 800; border-radius: 999px; padding: .32em .7em; letter-spacing: .02em; }
+  #fgchips .chip { font-size: 48px; }
+  #bgchips .chip { font-size: 26px; opacity: .55; filter: blur(3px); box-shadow: none; }
+  .streak { position: absolute; height: 3px; border-radius: 2px; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.55)); }
+  #count { position: absolute; left: 72px; top: 610px; }
+  #count .mono { opacity: .95; }
+  #num { font-weight: 900; font-size: {{size}}px; letter-spacing: -.05em; line-height: .9; font-variant-numeric: tabular-nums; margin-top: 18px; white-space: nowrap; }
+  #serif { font-family: "{{serif}}", serif; font-style: italic; font-size: 80px; line-height: 1; margin-top: 26px; white-space: nowrap; }
+  #pay { position: absolute; left: 60px; right: 60px; top: 960px; transform: translateY(-50%); text-align: left; font-weight: 800;
+         font-size: 140px; line-height: 1.0; letter-spacing: -.045em; text-wrap: balance; }
+  .w { display: inline-block; overflow: hidden; padding: 0 .02em .12em; margin-bottom: -.12em; vertical-align: top; }
+  .wi { display: inline-block; }
+  #src { display: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="scene" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0" data-layout-allow-overflow>
+    <div id="vig"></div>
+    <div id="cam">
+      <div id="bgchips" data-layout-ignore></div>
+      <div id="streaks" data-layout-ignore></div>
+      <div id="count" data-layout-allow-overlap><div class="mono">{{counter_label}}</div><div id="num">0</div><div id="serif">{{serif_line}}</div></div>
+      <div id="fgchips" data-layout-allow-overflow></div>
+      <div id="pay" data-layout-allow-overlap></div>
+    </div>
+    <div id="sec"><span class="n">{{num}}</span><span class="t">{{label}}</span></div>
+    <div id="secline"></div>
+    <div class="br" style="left:40px;top:40px;border-left-width:2px;border-top-width:2px"></div>
+    <div class="br" style="right:40px;top:40px;border-right-width:2px;border-top-width:2px"></div>
+    <div class="br" style="left:40px;bottom:40px;border-left-width:2px;border-bottom-width:2px"></div>
+    <div class="br" style="right:40px;bottom:40px;border-right-width:2px;border-bottom-width:2px"></div>
+    <div id="h-tl" class="hud mono">{{hud_tl}}</div><div id="h-tr" class="hud mono">TC 00:00:00:00</div>
+    <div id="h-bl" class="hud mono">{{hud_bl}}</div><div id="h-br" class="hud mono">{{hud_br}}</div>
+    <div id="hline"></div>
+  </div>
+  <div id="src"><span id="s-chips">{{chips}}</span><span id="s-pay">{{payoff}}</span></div>
+</div>
+<script>
+  const D = {{duration}}, TC = Number("{{t_count}}"), CD = Number("{{count_dur}}"), TP = Math.min(Number("{{t_payoff}}"), D - 0.9);
+  const V = Number("{{value}}"), F = Number("{{from}}"), TC0 = Number("{{tc_start}}");
+  const txt = id => document.getElementById(id).textContent;
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  function chip(word, tag, parent) {
+    const c = document.createElement("div"); c.className = "chip";
+    const d = document.createElement("span"); d.className = "d";
+    const t = document.createElement("span"); t.textContent = word;
+    const g = document.createElement("span"); g.className = "g"; g.textContent = tag;
+    c.appendChild(d); c.appendChild(t); c.appendChild(g); parent.appendChild(c); return c;
+  }
+  const words = txt("s-chips").split("|").map(s => s.trim()).filter(Boolean);
+  // foreground chips: slots above and below the counter, so they never sit on the number
+  const SLOTS = [[70, 360], [580, 375], [300, 470], [80, 1300], [590, 1290], [330, 1410], [60, 1530], [620, 1520], [280, 1640], [700, 1640], [720, 470], [760, 1410]];
+  const fg = words.slice(0, SLOTS.length).map((w, i) => {
+    const c = chip(w, String(i + 1).padStart(2, "0"), document.getElementById("fgchips"));
+    const [x, y] = SLOTS[i]; c.style.left = x + "px"; c.style.top = y + "px"; c.setAttribute("data-layout-allow-overlap", "");
+    return c;
+  });
+  // background chips: small, blurred, drifting at depth
+  const bg = [];
+  for (let i = 0; i < 22; i++) {
+    const c = chip(words[i % words.length] || "", String((i % 12) + 1).padStart(2, "0"), document.getElementById("bgchips"));
+    c.style.left = Math.round(rnd() * 1000 - 60) + "px"; c.style.top = Math.round(330 + rnd() * 1380) + "px";
+    const s = 0.7 + rnd() * 0.9; c.style.fontSize = Math.round(22 * s) + "px"; c.style.filter = `blur(${(2 + rnd() * 4).toFixed(1)}px)`;
+    bg.push([c, 40 + rnd() * 140]);
+  }
+  const streaks = [];
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement("div"); s.className = "streak";
+    s.style.top = Math.round(260 + rnd() * 1450) + "px"; s.style.width = Math.round(220 + rnd() * 480) + "px"; s.style.left = "1100px";
+    document.getElementById("streaks").appendChild(s); streaks.push(s);
+  }
+  // payoff words
+  const pay = document.getElementById("pay");
+  txt("s-pay").split(/\s+/).filter(Boolean).forEach((w, i) => {
+    if (i) pay.appendChild(document.createTextNode(" "));
+    const o = document.createElement("span"); o.className = "w";
+    const n = document.createElement("span"); n.className = "wi"; n.textContent = w; o.appendChild(n); pay.appendChild(o);
+  });
+  function fitW(el, maxW) {
+    el.style.fontSize = "";
+    const w = el.getBoundingClientRect().width / (gsap.getProperty(el, "scaleX") || 1);
+    if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
+  }
+  function fitPay() {  // at most 4 lines and no word wider than the safe width
+    pay.style.fontSize = "";
+    let fs = parseFloat(getComputedStyle(pay).fontSize);
+    for (let k = 0; k < 30; k++) {
+      const lines = pay.getBoundingClientRect().height / fs;
+      const widest = Math.max(...[...pay.querySelectorAll(".w")].map(e => e.getBoundingClientRect().width));
+      if (lines <= 4.3 && widest <= 960) break;
+      fs *= 0.93; pay.style.fontSize = fs + "px";
+    }
+  }
+  const numEl = document.getElementById("num");
+  function fitAll() {
+    numEl.textContent = Math.round(Math.max(Math.abs(V), Math.abs(F))).toLocaleString("en-US");
+    fitW(numEl, 940); numEl.textContent = Math.round(F).toLocaleString("en-US");
+    fitW(document.getElementById("serif"), 940); fitW(document.getElementById("sec"), 940); fitPay();
+  }
+  fitAll();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
+
+  const tl = gsap.timeline({ paused: true });
+  // live timecode in the HUD
+  const tcEl = document.getElementById("h-tr"), clock = { t: 0 };
+  const tc = () => { const f = Math.round((TC0 + clock.t) * 30), p = n => String(n).padStart(2, "0");
+    tcEl.textContent = `TC 00:00:${p(Math.floor(f / 30))}:${p(f % 30)}`; };
+  tl.to(clock, { t: D, duration: D, ease: "none", onUpdate: tc }, 0); tc();
+  tl.from(".br, .hud, #hline", { opacity: 0, duration: 0.25, stagger: 0.02 }, 0);
+  // section label: serif number, then the label wipes in, the rule draws
+  tl.from("#sec .n", { yPercent: 60, opacity: 0, duration: 0.35, ease: "power3.out" }, 0.05);
+  tl.from("#sec .t", { clipPath: "inset(0 100% 0 0)", x: -20, duration: 0.45, ease: "power3.out" }, 0.15);
+  tl.from("#secline", { scaleX: 0, duration: 0.5, ease: "power2.inOut" }, 0.2);
+  // background chips drift the whole time
+  bg.forEach(([c, sp], i) => {
+    tl.from(c, { opacity: 0, duration: 0.3 }, 0.05 + (i % 6) * 0.04);
+    tl.to(c, { x: -sp * D * 0.6, duration: D, ease: "none" }, 0);
+  });
+  // foreground chips: arrive fast from the right with motion blur, then keep drifting
+  fg.forEach((c, i) => {
+    const t = 0.3 + i * 0.16;
+    tl.fromTo(c, { x: 900, opacity: 0, filter: "blur(14px)", scaleX: 1.25 },
+      { x: 0, opacity: 1, filter: "blur(0px)", scaleX: 1, duration: 0.55, ease: "power3.out" }, t);
+    tl.to(c, { x: -(40 + (i % 4) * 22), duration: Math.max(0.3, TP - t - 0.55), ease: "none" }, t + 0.55);
+  });
+  // counter
+  const cnt = { v: F };
+  tl.from("#count .mono", { opacity: 0, y: 12, duration: 0.3 }, TC - 0.15);
+  tl.from("#num", { opacity: 0, y: 40, filter: "blur(10px)", duration: 0.35, ease: "power3.out" }, TC - 0.1);
+  tl.to(cnt, { v: V, duration: CD, ease: "power2.out", onUpdate: () => { numEl.textContent = Math.round(cnt.v).toLocaleString("en-US"); } }, TC);
+  tl.to("#num", { scale: 1.035, transformOrigin: "0% 60%", duration: 0.12, ease: "power2.out", yoyo: true, repeat: 1 }, TC + CD - 0.05);
+  tl.from("#serif", { opacity: 0, y: 24, duration: 0.45, ease: "power3.out" }, TC + 0.6);
+  tl.fromTo("#cam", { scale: 1 }, { scale: 1.03, duration: TP, ease: "none" }, 0);
+  // payoff: everything streaks off to the left, the payoff line drops in big
+  streaks.forEach((s, i) => {
+    if (i % 2 === 0) tl.fromTo(s, { x: 0 }, { x: -1900, duration: 0.6, ease: "none", immediateRender: false }, 0.4 + i * 0.12);
+    tl.fromTo(s, { x: 0 }, { x: -1900, duration: 0.45, ease: "power1.in", immediateRender: false }, TP - 0.25 + (i % 7) * 0.03);
+  });
+  tl.to("#fgchips .chip", { x: "-=700", opacity: 0, filter: "blur(16px)", duration: 0.35, stagger: 0.015, ease: "power3.in" }, TP - 0.1);
+  tl.to("#count", { x: -500, opacity: 0, filter: "blur(16px)", duration: 0.35, ease: "power3.in" }, TP);
+  tl.to("#bgchips", { opacity: 0.35, duration: 0.3 }, TP);
+  tl.to("#cam", { scale: 1, duration: 0.45, ease: "power3.out" }, TP + 0.1);
+  tl.fromTo("#pay", { opacity: 0 }, { opacity: 1, duration: 0.01 }, TP + 0.2);
+  tl.from("#pay .wi", { yPercent: 115, duration: 0.5, stagger: 0.06, ease: "power3.out" }, TP + 0.22);
+  tl.fromTo("#pay", { scale: 1 }, { scale: 1.03, transformOrigin: "0% 50%", duration: Math.max(0.2, D - TP - 0.3), ease: "none" }, TP + 0.3);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>
