@@ -1,0 +1,185 @@
+<!--defaults {"words": "12 steps", "key": "12", "cards": "Brief|Script|Storyboard|Voiceover|Timing|B-roll & prompts|Clips|Build & QA|Review|Captions|Music|Export", "card_tag": "explainer", "counter": "STEP", "old": "ibang video", "new": "Dito: ang app", "new_key": "ang app", "sub": "", "t_words": 0.1, "t_cards": 1.0, "t_whip": 2.0, "t_old": 2.9, "t_swap": 3.5, "t_sub": 4.1, "bg": "#0C0B0A", "panel": "#151311", "line": "#2A2622", "fg": "#F3EFE8", "muted": "#A69D91", "accent": "#D4AF6A", "font": "Space Grotesk", "font_text": "Inter", "mono": "JetBrains Mono", "size": 200, "glow": "0.10", "fade_out": "0", "duration": 6} -->
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500;600;700&family={{font_text}}:wght@400;500;600&family={{mono}}:wght@500;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "{{font}}", sans-serif; color: {{fg}}; }
+  #scene { position: absolute; inset: 0; background: {{bg}}; overflow: hidden; }
+  #glow { position: absolute; left: 50%; top: 0; width: 1700px; height: 900px; margin-left: -850px; margin-top: -380px; border-radius: 50%;
+          background: radial-gradient(closest-side, {{accent}}, transparent); opacity: {{glow}}; }
+  #floor { position: absolute; left: 0; right: 0; top: 700px; bottom: 0; background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.55)); }
+  .mono { font-family: "{{mono}}", monospace; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; }
+  #wrap { position: absolute; inset: 0; }
+  #stage { position: absolute; inset: 0; perspective: 2400px; perspective-origin: 960px 470px; }
+  .card { position: absolute; left: 960px; top: 540px; width: 270px; height: 420px; margin: -210px 0 0 -135px;
+          background: {{panel}}; border: 1.5px solid {{line}}; border-radius: 22px; padding: 22px 22px 24px;
+          -webkit-box-reflect: below 14px linear-gradient(transparent 62%, rgba(255,255,255,.16)); }
+  .card .num { font-size: 22px; color: {{muted}}; display: flex; justify-content: space-between; align-items: center; }
+  .card .num i { width: 9px; height: 9px; border-radius: 50%; background: {{line}}; display: block; }
+  .card .thumb { margin-top: 18px; height: 190px; border-radius: 14px; background: {{bg}}; border: 1px solid {{line}}; position: relative; overflow: hidden; }
+  .card .thumb b { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%; border: 1.5px solid {{muted}}; }
+  .card .thumb b:after { content: ""; position: absolute; left: 21px; top: 16px; border-left: 16px solid {{muted}}; border-top: 10px solid transparent; border-bottom: 10px solid transparent; }
+  .card .thumb s { position: absolute; left: 14px; right: 14px; bottom: 14px; height: 3px; border-radius: 2px; background: {{line}}; text-decoration: none; }
+  .card .thumb s u { position: absolute; left: 0; top: 0; bottom: 0; width: 34%; background: {{muted}}; border-radius: 2px; }
+  .card .tag { margin-top: 16px; font-size: 17px; color: {{muted}}; letter-spacing: .16em; }
+  .card .name { position: absolute; left: 22px; right: 22px; bottom: 22px; font-size: 32px; font-weight: 600; letter-spacing: -.02em; line-height: 1.05; white-space: nowrap; }
+  .card.on { border-color: {{accent}}; }
+  .card.on .num, .card.on .tag { color: {{accent}}; }
+  .card.on .num i { background: {{accent}}; }
+  .card.on .thumb b { border-color: {{accent}}; }
+  .card.on .thumb b:after { border-left-color: {{accent}}; }
+  .card.on .thumb s u { background: {{accent}}; }
+  #head { position: absolute; left: 0; right: 0; top: 540px; height: 0; }
+  .line { position: absolute; left: 50%; top: 0; transform: translate(-50%, -50%); white-space: nowrap; font-weight: 700;
+          font-size: {{size}}px; letter-spacing: -.045em; line-height: 1.1; }
+  .w { display: inline-block; overflow: hidden; padding: 0 .03em .12em; margin-bottom: -.12em; vertical-align: top; }
+  .wi { display: inline-block; }
+  .k { color: {{accent}}; }
+  #ctr { position: absolute; left: 0; right: 0; top: 196px; text-align: center; font-size: 22px; color: {{muted}}; }
+  #ctr b { color: {{accent}}; font-weight: 700; }
+  #swap { position: absolute; left: 0; right: 0; top: 0; height: 1080px; }
+  #old { position: absolute; left: 50%; top: 470px; transform: translate(-50%, -50%); white-space: nowrap; font-weight: 700; font-size: 150px; letter-spacing: -.045em; }
+  #old .strike { position: absolute; left: -2%; right: -2%; top: 54%; height: 8px; border-radius: 4px; background: {{muted}}; transform-origin: 0 50%; }
+  #new { position: absolute; left: 50%; top: 560px; transform: translate(-50%, -50%); white-space: nowrap; font-weight: 700; font-size: 170px; letter-spacing: -.045em; }
+  #sub { position: absolute; left: 0; right: 0; top: 700px; text-align: center; font-family: "{{font_text}}", sans-serif; font-weight: 500; font-size: 40px; color: {{muted}}; letter-spacing: -.01em; white-space: nowrap; }
+  #all { position: absolute; inset: 0; }
+  #src { display: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1920" data-height="1080">
+  <div id="scene" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0" data-layout-allow-overflow>
+    <div id="all">
+    <div id="glow"></div><div id="floor"></div>
+    <svg width="0" height="0" style="position:absolute"><filter id="mb" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur id="mbg" stdDeviation="0 0" /></filter></svg>
+    <div id="wrap"><div id="stage"></div></div>
+    <div id="ctr" class="mono"></div>
+    <div id="head"><div class="line" id="l1"></div></div>
+    <div id="swap">
+      <div id="old"><span id="oldt">{{old}}</span><div class="strike"></div></div>
+      <div id="new"></div>
+      <div id="sub">{{sub}}</div>
+    </div>
+    </div>
+  </div>
+  <div id="src"><span id="s1">{{words}}</span><span id="sk">{{key}}</span><span id="sc">{{cards}}</span><span id="sn">{{new}}</span><span id="snk">{{new_key}}</span><span id="stg">{{card_tag}}</span><span id="sct">{{counter}}</span></div>
+</div>
+<script>
+  const D = {{duration}};
+  const TW = Number("{{t_words}}"), TC = Number("{{t_cards}}"), TWH = Number("{{t_whip}}"), TO = Number("{{t_old}}"), TS = Number("{{t_swap}}"), TSUB = Number("{{t_sub}}");
+  const txt = id => document.getElementById(id).textContent;
+  const $ = id => document.getElementById(id);
+  function words(el, text, key) {
+    const ki = key ? text.indexOf(key) : -1;
+    let pos = 0;
+    text.split(/\s+/).filter(Boolean).forEach((w, i) => {
+      const at = text.indexOf(w, pos); pos = at + w.length;
+      const o = document.createElement("span"); o.className = "w";
+      const n = document.createElement("span"); n.className = "wi";
+      const a = Math.max(0, ki - at), b = Math.min(w.length, ki + (key || "").length - at);
+      if (ki >= 0 && a < b) {
+        if (a) n.appendChild(document.createTextNode(w.slice(0, a)));
+        const k = document.createElement("span"); k.className = "k"; k.textContent = w.slice(a, b); n.appendChild(k);
+        if (b < w.length) n.appendChild(document.createTextNode(w.slice(b)));
+      } else n.textContent = w;
+      o.appendChild(n);
+      if (i) el.appendChild(document.createTextNode(" "));
+      el.appendChild(o);
+    });
+  }
+  words($("l1"), txt("s1"), txt("sk"));
+  words($("new"), txt("sn"), txt("snk"));
+
+  // cards
+  const labels = txt("sc").split("|").map(s => s.trim()).filter(Boolean);
+  const N = labels.length, tag = txt("stg"), ctrWord = txt("sct");
+  const stage = $("stage"), cards = [];
+  const pad = n => String(n).padStart(2, "0");
+  labels.forEach((l, i) => {
+    const c = document.createElement("div"); c.className = "card";
+    c.innerHTML = `<div class="num mono"><span>${pad(i + 1)}</span><i></i></div><div class="thumb"><b></b><s><u></u></s></div><div class="tag mono"></div><div class="name"></div>`;
+    c.querySelector(".tag").textContent = tag;
+    c.querySelector(".name").textContent = l;
+    stage.appendChild(c); cards.push(c);
+  });
+  // auto-fit: base sizes are known (no style reads), the real font is measured by scrollWidth
+  function fitW(el, maxW, base) {
+    el.style.fontSize = base + "px";
+    const w = el.scrollWidth;
+    if (w > maxW) el.style.fontSize = (base * maxW / w) + "px";
+  }
+  const SIZE = Number("{{size}}");
+  function fitAll() {
+    fitW($("l1"), 1640, SIZE); fitW($("old"), 1640, 150); fitW($("new"), 1640, 170); fitW($("sub"), 1640, 40);
+    cards.forEach(c => fitW(c.querySelector(".name"), 224, 32));
+  }
+  fitAll();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
+
+  // the carousel's centre index over time: a pure function of t (seek-safe, gives the velocity for motion blur)
+  const E3o = gsap.parseEase("power3.out"), E3io = gsap.parseEase("power3.inOut"), E2o = gsap.parseEase("power2.out"), Elin = t => t;
+  const startC = -6.5, c1 = Math.min(N - 1, 3.6), c2 = Math.min(N - 1, 4.6), c3 = Math.max(0, N - 4.2), c4 = Math.max(0, N - 3.9);
+  const segs = [[TC, TC + 1.15, startC, c1, E3o], [TC + 1.15, TWH, c1, c2, Elin], [TWH, TWH + 0.6, c2, c3, E3io], [TWH + 0.6, D, c3, c4, E2o]];
+  function centre(t) {
+    if (t <= segs[0][0]) return startC;
+    for (const [a, b, x, y, e] of segs) if (t <= b) return b > a ? x + (y - x) * e(Math.min(1, (t - a) / (b - a))) : y;
+    return segs[segs.length - 1][3];
+  }
+  const STEP = 17, R = 980, Z0 = 120, P = 2400;
+  const ctr = $("ctr"), mbg = $("mbg");
+  let lastOn = -1;
+  function layout(t) {
+    const c = centre(t);
+    cards.forEach((el, i) => {
+      const th = (i - c) * STEP, r = th * Math.PI / 180;
+      if (Math.abs(th) > 84) { el.style.visibility = "hidden"; return; }
+      el.style.visibility = "visible";
+      const x = R * Math.sin(r), z = R * (1 - Math.cos(r)) - Z0;
+      el.style.transform = `translate3d(${x.toFixed(1)}px,0,${z.toFixed(1)}px) rotateY(${(-th).toFixed(2)}deg)`;
+      el.style.opacity = Math.max(0, Math.min(1, (84 - Math.abs(th)) / 22)).toFixed(3);
+    });
+    const on = Math.max(0, Math.min(N - 1, Math.round(c)));
+    const live = t >= TC && c > -0.5;
+    if (on !== lastOn || !live) { cards.forEach((el, i) => el.classList.toggle("on", live && i === on)); lastOn = live ? on : -1; }
+    ctr.innerHTML = "";
+    if (ctrWord) ctr.append(ctrWord + " ");
+    const b = document.createElement("b"); b.textContent = pad(live ? on + 1 : 0); ctr.append(b, " / " + pad(N) + (live ? "  ·  " + labels[on] : ""));
+    const v = Math.abs(centre(t + 1 / 60) - centre(t - 1 / 60)) * 30;  // cards per second
+    mbg.setAttribute("stdDeviation", `${Math.min(20, v * 1.8).toFixed(2)} 0`);
+    $("stage").style.filter = v > 0.4 ? "url(#mb)" : "none";
+  }
+
+  const tl = gsap.timeline({ paused: true, onUpdate: () => layout(tl.time()) });
+  tl.to({}, { duration: D }, 0);  // keeps the timeline D long so onUpdate fires on every seek
+  // 1. words roll up word by word
+  tl.from("#l1 .wi", { yPercent: 115, duration: 0.5, stagger: 0.1, ease: "power3.out" }, TW);
+  // 2. the title shrinks up into the header; the counter appears under it; cards sweep in from the right
+  tl.to("#head", { y: -400, scale: 0.3, duration: 0.7, ease: "power3.inOut" }, TC - 0.05);
+  gsap.set("#ctr", { opacity: 0 });
+  tl.fromTo("#ctr", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" }, TC + 0.35);
+  // 3. the old way: carousel pulls back out of focus, the old word rolls in
+  gsap.set("#old", { opacity: 0 });
+  tl.to("#wrap", { opacity: 0.12, scale: 0.94, filter: "blur(8px)", duration: 0.55, ease: "power2.inOut" }, TO - 0.1);
+  tl.to("#head, #ctr", { opacity: 0, y: "-=20", duration: 0.3, ease: "power2.in" }, TO - 0.1);
+  tl.fromTo("#old", { opacity: 0, y: 70, filter: "blur(12px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.45, ease: "power3.out" }, TO);
+  // 4. the swap: old greys, gets struck and steps up; the new line rises in with the accent
+  gsap.set("#old .strike", { scaleX: 0 });
+  tl.to("#oldt", { color: "{{muted}}", duration: 0.3, ease: "power1.out" }, TS);
+  tl.to("#old .strike", { scaleX: 1, duration: 0.32, ease: "power3.inOut" }, TS);
+  tl.to("#old", { y: -110, scale: 0.6, opacity: 0.55, duration: 0.55, ease: "power3.inOut" }, TS + 0.2);
+  tl.from("#new .wi", { yPercent: 120, filter: "blur(10px)", duration: 0.5, stagger: 0.08, ease: "power3.out" }, TS + 0.28);
+  if (txt("sn").trim() === "") gsap.set("#new", { display: "none" });
+  tl.from("#sub", { opacity: 0, y: 24, filter: "blur(8px)", duration: 0.45, ease: "power3.out" }, TSUB);
+  tl.fromTo("#swap", { scale: 1 }, { scale: 1.03, duration: Math.max(0.5, D - TO), ease: "none" }, TO);
+  if ("{{fade_out}}" === "1") tl.to("#all", { opacity: 0, duration: 0.18, ease: "power2.in" }, D - 0.2);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+  layout(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,233 @@
+<!--defaults {"word1": "ISANG", "word2": "CLICK", "line2": "LANG.", "wordmark": "Edit Mo To", "sub": "APP EXPLAINER", "meta": "", "hud_tl": "EDIT MO TO", "hud_tl2": "APP EXPLAINER", "hud_tr": "HOOK", "hud_tr2": "30 FPS", "t_dots": 0.1, "t_slam": 0.9, "t_click": 1.25, "t_line2": 1.55, "t_resolve": 3.0, "bg": "#0C0B0A", "fg": "#F3EFE8", "muted": "#A69D91", "slam": "#D4AF6A", "slam_hi": "#E9CF96", "slam_lo": "#A9813D", "ink": "#0C0B0A", "accent": "#D4AF6A", "font": "Space Grotesk", "wm_font": "Space Grotesk", "mono": "JetBrains Mono", "size": 250, "wm_size": 230, "grain": 0.07, "duration": 5} -->
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500;700&family={{mono}}:wght@500;700&display=block" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{wm_font}}:wght@500;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: {{bg}}; }
+  #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "{{font}}", sans-serif; -webkit-font-smoothing: antialiased; }
+  #scene { position: absolute; inset: 0; background: {{bg}}; --hud: {{fg}}; --hud2: {{muted}}; }
+  #cam { position: absolute; inset: 0; transform-origin: 960px 540px; }
+  /* dots gather */
+  #dots { position: absolute; left: 960px; top: 540px; width: 0; height: 0; }
+  .arm { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+  .d { position: absolute; left: -17px; top: -17px; width: 34px; height: 34px; border-radius: 50%; background: {{accent}}; }
+  #ring { position: absolute; left: 960px; top: 540px; width: 340px; height: 340px; margin: -170px 0 0 -170px; border-radius: 50%; border: 1.5px solid {{fg}}; }
+  #ring2 { position: absolute; left: 960px; top: 540px; width: 200px; height: 200px; margin: -100px 0 0 -100px; border-radius: 50%; border: 1.5px dashed {{fg}}; }
+  #cross { position: absolute; left: 946px; top: 526px; width: 28px; height: 28px; }
+  /* colour slam */
+  .disc { position: absolute; left: 960px; top: 540px; width: 2400px; height: 2400px; margin: -1200px 0 0 -1200px; border-radius: 50%; }
+  #slam { background: radial-gradient(circle at 50% 50%, {{slam_hi}} 0%, {{slam}} 34%, {{slam_lo}} 125%); }
+  #slamring { background: transparent; border: 4px solid {{fg}}; }
+  #words { position: absolute; inset: 0; }
+  #bw { position: absolute; left: 0; top: 0; }
+  #blk { white-space: nowrap; color: {{ink}}; font-weight: 700; font-size: {{size}}px; line-height: 1; letter-spacing: -.035em; }
+  #l1 { display: flex; align-items: center; }
+  #w1 { display: inline-block; }
+  #br { display: inline-flex; align-items: center; margin-left: .14em; }
+  .bk { display: block; width: .16em; height: .9em; overflow: visible; }
+  #w2 { display: inline-block; padding: 0 .07em; }
+  #w2 .c { display: inline-block; }
+  #l2m { overflow: hidden; padding: .02em .1em .08em 0; }
+  #l2 { display: inline-block; }
+  #disc { background: {{bg}}; }
+  /* wordmark */
+  #wmw { position: absolute; left: 0; top: 0; }
+  #wm { white-space: nowrap; font-family: "{{wm_font}}", sans-serif; font-weight: 700; font-size: {{wm_size}}px; letter-spacing: -.045em; line-height: 1.1; color: {{fg}}; display: flex; align-items: baseline; }
+  #wm .c { display: inline-block; overflow: hidden; padding: 0 .02em .1em; margin: 0 -.02em -.1em; vertical-align: top; }
+  #wm .ci { display: inline-block; }
+  #pd { display: inline-block; width: .19em; height: .19em; margin-left: .05em; }
+  #sub { position: absolute; left: 0; top: 0; white-space: nowrap; font-family: "{{mono}}", monospace; font-weight: 700; font-size: 30px; letter-spacing: .34em; color: {{fg}}; }
+  #meta { position: absolute; left: 0; top: 0; white-space: nowrap; font-family: "{{mono}}", monospace; font-weight: 500; font-size: 18px; letter-spacing: .22em; color: {{muted}}; }
+  #rdot { position: absolute; left: 960px; top: 540px; width: 44px; height: 44px; margin: -22px 0 0 -22px; }
+  #rdotin { width: 100%; height: 100%; border-radius: 50%; background: {{accent}}; }
+  /* grain + HUD */
+  #grain { position: absolute; inset: 0; width: 1920px; height: 1080px; mix-blend-mode: overlay; opacity: {{grain}}; pointer-events: none; }
+  .br { position: absolute; width: 30px; height: 30px; border: 0 solid var(--hud); opacity: .8; }
+  .hud { position: absolute; font-family: "{{mono}}", monospace; font-size: 19px; letter-spacing: .2em; white-space: pre; color: var(--hud2); font-weight: 500; }
+  .hud b { color: var(--hud); font-weight: 700; }
+  #h-tl { left: 86px; top: 74px; } #h-tr { right: 86px; top: 74px; } #h-br { right: 86px; bottom: 74px; }
+  .sq { display: inline-block; width: 11px; height: 11px; border: 1.5px solid var(--hud); margin-right: 4px; vertical-align: 1px; }
+  .sq.on { background: var(--hud); }
+  #src { display: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1920" data-height="1080">
+  <div id="scene" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0" data-layout-allow-overflow>
+    <div id="cam">
+      <div id="ring2" data-layout-ignore></div><div id="ring" data-layout-ignore></div>
+      <svg id="cross" viewBox="0 0 28 28" data-layout-ignore><path d="M14 2 V26 M2 14 H26" stroke="{{fg}}" stroke-width="1.5" opacity=".5"/></svg>
+      <div id="dots" data-layout-ignore></div>
+      <div id="slamring" class="disc" data-layout-ignore></div>
+      <div id="slam" class="disc" data-layout-ignore></div>
+      <div id="words" data-layout-allow-overflow><div id="bw"><div id="blk">
+        <div id="l1"><span id="w1">{{word1}}</span><span id="br"><svg class="bk" viewBox="0 0 16 90" preserveAspectRatio="none"><path id="bkl" d="M16 2 H3 V88 H16" pathLength="1" fill="none" stroke="{{ink}}" stroke-width="4"/></svg><span id="w2" data-layout-allow-overlap></span><svg class="bk" viewBox="0 0 16 90" preserveAspectRatio="none"><path id="bkr" d="M0 2 H13 V88 H0" pathLength="1" fill="none" stroke="{{ink}}" stroke-width="4"/></svg></span></div>
+        <div id="l2m"><span id="l2">{{line2}}</span></div>
+      </div></div></div>
+      <div id="disc" class="disc" data-layout-ignore></div>
+      <div id="wmw"><div id="wm"></div></div>
+      <div id="sub">{{sub}}</div><div id="meta">{{meta}}</div>
+      <div id="rdot" data-layout-ignore><div id="rdotin"></div></div>
+    </div>
+    <svg id="grain" viewBox="0 0 1920 1080" data-layout-ignore><filter id="nz"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter><rect width="1920" height="1080" filter="url(#nz)"/></svg>
+    <div class="br" style="left:40px;top:40px;border-left-width:2px;border-top-width:2px"></div>
+    <div class="br" style="right:40px;top:40px;border-right-width:2px;border-top-width:2px"></div>
+    <div class="br" style="left:40px;bottom:40px;border-left-width:2px;border-bottom-width:2px"></div>
+    <div class="br" style="right:40px;bottom:40px;border-right-width:2px;border-bottom-width:2px"></div>
+    <div id="h-tl" class="hud"><b>{{hud_tl}}</b>  {{hud_tl2}}</div>
+    <div id="h-tr" class="hud"><span id="sqs"><i class="sq"></i><i class="sq"></i><i class="sq"></i><i class="sq"></i></span> {{hud_tr}}  <b>{{hud_tr2}}</b></div>
+    <div id="h-br" class="hud"><span id="fno">F0000</span>  <b id="tc">00:00:00:00</b></div>
+  </div>
+  <div id="src"><span id="s-w2">{{word2}}</span><span id="s-wm">{{wordmark}}</span></div>
+</div>
+<script>
+  const D = {{duration}};
+  const num = (v, d) => { const n = Number(v); return isFinite(n) ? n : d; };
+  const TS = num("{{t_slam}}", 0.9), TD = Math.min(num("{{t_dots}}", 0.1), TS - 0.2);
+  const TC = Math.max(num("{{t_click}}", TS + 0.35), TS + 0.15), TL2 = Math.max(num("{{t_line2}}", TC + 0.3), TC + 0.1);
+  const TR = Math.min(Math.max(num("{{t_resolve}}", TL2 + 1), TL2 + 0.3), D - 0.9);
+  const hasW2 = document.getElementById("s-w2").textContent.trim() !== "";
+  const hasL2 = document.getElementById("l2").textContent.trim() !== "";
+  if (!hasW2) document.getElementById("br").remove();
+  if (!hasL2) document.getElementById("l2m").remove();
+  const split = (txt, host, cls) => [...txt].forEach(ch => {
+    const o = document.createElement("span"); o.className = "c";
+    if (cls) { const n = document.createElement("span"); n.className = cls; n.textContent = ch === " " ? " " : ch; o.appendChild(n); }
+    else o.textContent = ch === " " ? " " : ch;
+    host.appendChild(o);
+  });
+  if (hasW2) split(document.getElementById("s-w2").textContent.trim(), document.getElementById("w2"));
+  const wm = document.getElementById("wm");
+  split(document.getElementById("s-wm").textContent.trim(), wm, "ci");
+  const pd = document.createElement("span"); pd.id = "pd"; wm.appendChild(pd);
+  // dots: 8 arms around the centre
+  const dots = document.getElementById("dots");
+  for (let i = 0; i < 8; i++) {
+    const a = document.createElement("div"); a.className = "arm"; a.style.transform = `rotate(${i * 45 + 22.5}deg)`;
+    const d = document.createElement("div"); d.className = "d"; a.appendChild(d); dots.appendChild(a);
+  }
+
+  const P = { x0: 0, x1: 0, y0: 0, dx: 0, dy: 0, ds: 1 };
+  // measured motion runs through proxies, so a re-layout after the fonts load never needs tl.invalidate()
+  const M = { s1: 0, s2: 0, rx: 0, ry1: 0, ry2: 0, rs: 0, sq: 0 };
+  function apply() {
+    const x = (P.x0 + (P.x1 - P.x0) * M.s1) * (1 - M.s2), y = P.y0 * (1 - M.s2);
+    gsap.set("#bw", { x, y });
+    const sc = 1 + (P.ds - 1) * M.rs;
+    gsap.set("#rdot", { x: P.dx * M.rx, y: (P.dy - 150) * M.ry1 + 150 * M.ry2, scaleX: sc * (1 + 0.15 * M.sq), scaleY: sc * (1 - 0.22 * M.sq) });
+  }
+  const mv = (vars, dur, ease, at) => tl.to(M, { ...vars, duration: dur, ease, onUpdate: apply }, at);
+  function fitW(el, maxW) {
+    el.style.fontSize = "";
+    const w = el.getBoundingClientRect().width / (gsap.getProperty(el, "scaleX") || 1);
+    if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
+  }
+  function layout() {
+    const blk = document.getElementById("blk"), bw = document.getElementById("bw");
+    gsap.set(bw, { x: 0, y: 0 });
+    fitW(blk, 1640);
+    const W = blk.offsetWidth, H = blk.offsetHeight, l1 = document.getElementById("l1"), w1 = document.getElementById("w1");
+    const left = 960 - W / 2, top = 540 - H / 2;
+    bw.style.left = left + "px"; bw.style.top = top + "px";
+    // w1 alone, centred; then line 1 centred; then the full block (final layout)
+    P.x0 = 960 - (left + w1.offsetLeft + w1.offsetWidth / 2);
+    P.x1 = 960 - (left + l1.offsetWidth / 2);
+    P.y0 = 540 - (top + l1.offsetHeight / 2);
+    fitW(wm, 1500);
+    const ww = wm.offsetWidth, wh = wm.offsetHeight, wmw = document.getElementById("wmw");
+    const wl = 960 - ww / 2, wt = 540 - wh / 2 - 40;
+    wmw.style.left = wl + "px"; wmw.style.top = wt + "px";
+    P.dx = wl + pd.offsetLeft + pd.offsetWidth / 2 - 960;
+    P.dy = wt + pd.offsetTop + pd.offsetHeight / 2 - 540;
+    P.ds = pd.offsetWidth / 44;
+    const sub = document.getElementById("sub"), meta = document.getElementById("meta");
+    fitW(sub, 1400); fitW(meta, 1400);
+    sub.style.left = (960 - sub.offsetWidth / 2 + 13) + "px"; sub.style.top = (wt + wh + 22) + "px";
+    meta.style.left = (960 - meta.offsetWidth / 2 + 10) + "px"; meta.style.top = (wt + wh + 22 + sub.offsetHeight + 22) + "px";
+  }
+  layout();
+
+  const tl = gsap.timeline({ paused: true });
+  // HUD + live frame counter / timecode / beat squares
+  const clock = { t: 0 }, p2 = n => String(n).padStart(2, "0");
+  const fno = document.getElementById("fno"), tcEl = document.getElementById("tc"), sqs = [...document.querySelectorAll(".sq")];
+  const tick = () => {
+    const f = Math.round(clock.t * 30);
+    fno.textContent = "F" + String(f).padStart(4, "0");
+    tcEl.textContent = `00:00:${p2(Math.floor(f / 30))}:${p2(f % 30)}`;
+    const b = Math.floor(clock.t / 0.5) % 4; sqs.forEach((s, i) => s.classList.toggle("on", i === b));
+  };
+  tl.to(clock, { t: D, duration: D, ease: "none", onUpdate: tick }, 0); tick();
+  tl.from(".br, .hud", { opacity: 0, duration: 0.25, stagger: 0.03 }, 0);
+
+  // 1) dots gather: one dot, it splits, the ring forms and turns, then all collapse to the centre
+  const E = TS - 0.1, span = Math.max(0.3, E - TD);
+  const ds = gsap.utils.toArray(".d");
+  gsap.set(ds, { scale: 0 });
+  gsap.set("#words", { autoAlpha: 0 }); tl.set("#words", { autoAlpha: 1 }, TS);
+  tl.to(ds[0], { scale: 1, duration: 0.14, ease: "power3.out" }, TD);
+  tl.to(ds.slice(1), { scale: 1, duration: 0.12, ease: "power2.out", stagger: span * 0.05 }, TD + span * 0.12);
+  tl.fromTo(".d", { x: 0 }, { x: 46, duration: span * 0.3, ease: "power2.out", stagger: span * 0.04, immediateRender: false }, TD + span * 0.1);
+  tl.to(".d", { x: 128, duration: span * 0.4, ease: "power2.inOut" }, TD + span * 0.42);
+  tl.fromTo("#dots", { rotation: -40 }, { rotation: 70, duration: span, ease: "power1.inOut" }, TD);
+  tl.fromTo("#ring, #ring2, #cross", { opacity: 0, scale: 0.7 }, { opacity: (i) => [0.22, 0.14, 1][i], scale: 1, duration: span * 0.5, ease: "power2.out" }, TD + span * 0.25);
+  tl.to(".d", { x: 0, scale: 0.6, duration: 0.14, ease: "power3.in" }, E - 0.14);
+  tl.to("#ring, #ring2, #cross", { scale: 0.2, opacity: 0, duration: 0.14, ease: "power3.in" }, E - 0.14);
+
+  // 2) full-frame colour slam from the centre (a thin ring leads the disc), HUD flips to ink
+  tl.fromTo("#slamring", { scale: 0, opacity: 0.9 }, { scale: 1.06, opacity: 0, duration: 0.5, ease: "expo.out" }, TS - 0.04);
+  tl.fromTo("#slam", { scale: 0 }, { scale: 1, duration: 0.42, ease: "expo.out" }, TS - 0.02);
+  tl.set(".d", { opacity: 0 }, TS + 0.05);
+  tl.to("#scene", { "--hud": "{{ink}}", "--hud2": "{{ink}}", duration: 0.12 }, TS + 0.04);
+  // the heavy word slams in with a motion smear, the frame shakes once
+  tl.fromTo("#w1", { opacity: 0, x: -170, scaleX: 1.35, filter: "blur(16px)" },
+    { opacity: 1, x: 0, scaleX: 1, filter: "blur(0px)", duration: 0.3, ease: "expo.out", transformOrigin: "50% 50%" }, TS + 0.06);
+  tl.to("#cam", { x: 9, duration: 0.035, yoyo: true, repeat: 3, ease: "none" }, TS + 0.1);
+  tl.fromTo("#cam", { scale: 1 }, { scale: 1.035, duration: Math.max(0.3, TR - TS), ease: "none" }, TS);
+
+  // 3) [word2]: the line slides to make room, brackets draw, letters land on a jittered baseline
+  if (hasW2) {
+    mv({ s1: 1 }, 0.4, "expo.out", TC);
+    tl.fromTo("#bkl, #bkr", { strokeDasharray: 1, strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 0.3, ease: "power3.out", stagger: 0.06 }, TC + 0.02);
+    tl.fromTo("#br .bk", { scaleY: 0.6 }, { scaleY: 1, duration: 0.35, ease: "back.out(1.6)" }, TC);
+    const cs = gsap.utils.toArray("#w2 .c");
+    tl.fromTo(cs, { opacity: 0, yPercent: (i) => [38, -30, 24, -40, 30][i % 5], filter: "blur(8px)" },
+      { opacity: 1, yPercent: 0, filter: "blur(0px)", duration: 0.32, ease: "back.out(1.5)", stagger: 0.035 }, TC + 0.06);
+  }
+  // 4) line 2 rises from its mask while the block settles into its final place
+  if (hasL2) {
+    mv({ s2: 1 }, 0.45, "expo.out", TL2);
+    tl.fromTo("#l2", { yPercent: 105 }, { yPercent: 0, duration: 0.42, ease: "power3.out" }, TL2 + 0.04);
+  }
+
+  // 5) resolve: a dark disc swallows the slam, a gold dot stays, the wordmark writes on and the dot lands as its full stop
+  tl.to("#words", { opacity: 0, scale: 0.97, filter: "blur(10px)", duration: 0.2, ease: "power2.in", transformOrigin: "50% 50%" }, TR);
+  tl.set("#words", { autoAlpha: 0 }, TR + 0.21);
+  tl.fromTo("#disc", { scale: 0 }, { scale: 1, duration: 0.5, ease: "expo.inOut" }, TR);
+  tl.fromTo("#rdotin", { scale: 0 }, { scale: 1, duration: 0.25, ease: "back.out(1.6)" }, TR + 0.12);
+  tl.to("#scene", { "--hud": "{{fg}}", "--hud2": "{{muted}}", duration: 0.15 }, TR + 0.3);
+  const TW = TR + 0.5, cis = gsap.utils.toArray("#wm .ci"), wEnd = TW + 0.3 + cis.length * 0.04;
+  gsap.set("#wmw", { autoAlpha: 0 }); tl.set("#wmw", { autoAlpha: 1 }, TW - 0.02);
+  tl.fromTo(cis, { yPercent: 108 }, { yPercent: 0, duration: 0.5, ease: "power3.out", stagger: 0.04 }, TW);
+  mv({ rx: 1 }, wEnd - TW, "power2.inOut", TW);
+  mv({ ry1: 1 }, (wEnd - TW) * 0.55, "power2.out", TW);
+  mv({ ry2: 1 }, (wEnd - TW) * 0.45, "power2.in", TW + (wEnd - TW) * 0.55);
+  mv({ rs: 1 }, wEnd - TW, "power1.inOut", TW);
+  mv({ sq: 1 }, 0.06, "power2.out", wEnd);
+  tl.to(M, { sq: 0, duration: 0.22, ease: "power2.out", onUpdate: apply }, wEnd + 0.06);
+  tl.fromTo("#sub", { opacity: 0, y: 14, scaleX: 1.12 }, { opacity: 1, y: 0, scaleX: 1, duration: 0.55, ease: "power3.out", transformOrigin: "50% 50%" }, wEnd - 0.1);
+  tl.fromTo("#meta", { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, wEnd + 0.15);
+  tl.fromTo("#wmw", { scale: 1 }, { scale: 1.025, duration: Math.max(0.3, D - TW), ease: "none", transformOrigin: "50% 50%" }, TW);
+
+  apply();
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { layout(); apply(); });
+</script>
+</body>
+</html>

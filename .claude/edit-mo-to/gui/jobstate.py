@@ -27,7 +27,7 @@ from pathlib import Path
 STEPS = ["brief", "script", "storyboard", "voiceover", "timing", "prompts", "clips",
          "build", "review", "captions", "music", "export"]
 STATES = ("pending", "working", "waiting", "done", "skipped", "error")
-GATE_KINDS = ("choice", "multi", "text", "confirm", "file")
+GATE_KINDS = ("choice", "multi", "text", "confirm", "file", "cards")  # cards: pick a template by its preview
 EVENT_TYPES = ("answer", "approve", "edit", "comment", "message", "action", "upload")
 # Working ahead (spec "Working ahead"): step -> the inputs the editor may give before Claude reaches the step.
 # An early input is an `answer` (target "<step>:<id>") or `upload` event with "early": true and "gate": null.
@@ -327,8 +327,13 @@ PREFS = {"notify": True, "sound": True, "ui_lang": "auto", "ui_lang_detected": "
          "generate_warned_at": None, "elevenlabs_voice": None, "elevenlabs_model": None,
          # the weekly % the editor typed from Claude's /usage (the dashboard's manual fallback), oldest first:
          # [{"pct": 0-100, "at": ISO time}], the last USAGE_READINGS_KEEP kept (add_usage_reading)
-         "usage_readings": []}
+         "usage_readings": [],
+         # which Claude model does each part of the work (Settings' "Claude models"): {role: model}; a role left out,
+         # or "default", runs on what the main session uses (the agent files say `model: inherit`)
+         "claude_models": {}}
 USAGE_READINGS_KEEP = 20
+CLAUDE_ROLES = ("main", "motion-designer", "style", "editor", "qa")   # main = the Claude window the app opens
+CLAUDE_MODELS = ("default", "opus", "sonnet", "haiku")              # Claude Code's own model names
 PREF_CHOICES = {"ui_lang": ("auto", "en", "tl"), "ui_lang_detected": ("en", "tl")}   # string prefs: allowed values
 MODEL_PREFS = ("avoid_models", "default_model")   # checked against generators.json's model ids
 ID_PREFS = {"elevenlabs_voice": re.compile(r"[A-Za-z0-9]{1,64}"), "elevenlabs_model": re.compile(r"[a-z0-9_]{1,64}")}
@@ -376,6 +381,10 @@ def check_pref(key: str, value) -> None:
                 ok = False
             if not ok or set(r) != {"pct", "at"}:
                 raise ValueError("a usage reading is {\"pct\", \"at\"} with at an ISO time")
+    elif key == "claude_models":
+        if not isinstance(value, dict) or not set(value) <= set(CLAUDE_ROLES)                 or not all(v in CLAUDE_MODELS for v in value.values()):
+            raise ValueError(f"claude_models is {{role: model}}, roles {', '.join(CLAUDE_ROLES)}, "
+                             f"models {', '.join(CLAUDE_MODELS)}")
     elif key in ID_PREFS:
         if value is not None and (not isinstance(value, str) or not ID_PREFS[key].fullmatch(value)):
             raise ValueError(f"{key} must be an id (letters, digits{', _' if key == 'elevenlabs_model' else ''}) or null")
@@ -415,7 +424,8 @@ def read_prefs(path: Path) -> dict:
     except (OSError, ValueError):
         saved = {}
     saved = _clean(saved if isinstance(saved, dict) else {})
-    return {k: saved[k] if k in saved else (list(v) if isinstance(v, list) else v) for k, v in PREFS.items()}
+    return {k: saved[k] if k in saved else (list(v) if isinstance(v, list) else dict(v) if isinstance(v, dict) else v)
+            for k, v in PREFS.items()}
 
 
 class PrefsDamaged(ValueError):
@@ -535,6 +545,39 @@ def write_listening(folder: Path, step: str | None) -> Path:
 
 def clear_listening(folder: Path) -> None:
     _listening_path(folder).unlink(missing_ok=True)
+
+
+def _attached_path() -> Path:
+    return gui_dir() / "attached.json"
+
+
+def attached(max_age: float = 10.0) -> dict | None:
+    """The Claude that opened the app before any video existed and now listens on the app itself (`wait.py --app`):
+    {pid, since, beat}, or None when there is none (or its heartbeat is stale, or it is gone). Submit and Resume
+    hand the video to it instead of opening a second Claude."""
+    try:
+        data = json.loads(_retry(lambda: _attached_path().read_text(encoding="utf-8")))
+        pid, beat = int(data["pid"]), float(data["beat"])
+    except (OSError, ValueError, TypeError, KeyError):
+        return None
+    if time.time() - beat > max_age:
+        return None
+    return data if pid_alive(pid) else None
+
+
+def worked_on(folder: Path, within: float = 600.0) -> float | None:
+    """Minutes since Claude last changed this video's job.json, when a step is past `pending` (Claude has worked on
+    it, not just the app's New video) and it was within `within` seconds; else None. A second Claude on such a video
+    would redo its work, so the app asks first."""
+    path = state_dir(folder) / "job.json"
+    try:
+        age = time.time() - path.stat().st_mtime
+        job = json.loads(_retry(lambda: path.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return None
+    started = any(isinstance(st, dict) and st.get("state") not in (None, "pending")
+                  for st in (job.get("steps") or {}).values())
+    return round(age / 60, 1) if started and age < within else None
 
 
 def listening(folder: Path, max_age: float = 10.0) -> dict | None:

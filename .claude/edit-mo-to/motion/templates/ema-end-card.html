@@ -1,0 +1,162 @@
+<!--defaults {"mark1": "Edit Mo ", "mark2": "To", "line1": "Buksan ang Dashboard,", "strike": "", "line2": "Start", "pill": "practice na.", "foot": "Edit Mo To app", "button": "Start practice", "t_press": 3.35, "confetti": 36, "fade_out": "1", "bg": "#F3EEE5", "dot": "rgba(60,45,20,.10)", "wash": "rgba(212,175,106,.28)", "accent": "#D4AF6A", "accent2": "#E9CC8C", "accent_ink": "#94702C", "ink": "#16130F", "muted": "#857B6F", "strike_color": "#C2412D", "btn_bg": "#151311", "btn_fg": "#F3EFE8", "font": "Space Grotesk", "body": "Inter", "mono": "JetBrains Mono", "seed": 7, "duration": 5} -->
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;700&family={{body}}:wght@700&family={{mono}}:wght@600&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+  #root { position: absolute; inset: 0; overflow: hidden; font-family: "{{font}}", sans-serif; color: {{ink}}; }
+  #bg { position: absolute; inset: 0; background-color: {{bg}};
+        background-image: radial-gradient({{dot}} 1.3px, transparent 1.6px); background-size: 30px 30px; }
+  #wash { position: absolute; left: 960px; top: 300px; width: 1300px; height: 820px; margin: -410px 0 0 -650px; border-radius: 50%;
+          background: radial-gradient(ellipse at center, {{wash}}, transparent 68%); }
+  #grp { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  .row { position: absolute; left: 960px; display: flex; align-items: center; white-space: nowrap; }
+  #wm { top: 290px; gap: 0.32em; font-size: 150px; }
+  #mk { width: 0.9em; height: 0.9em; flex: none; }
+  #wmt { font-weight: 700; letter-spacing: -.035em; line-height: 1; }
+  #wmt b { font-weight: 700; color: {{accent_ink}}; }
+  #l1 { top: 590px; font-size: 64px; font-weight: 700; color: {{muted}}; letter-spacing: -.02em; gap: .26em; }
+  #l1 .w, #l2 .w { display: inline-block; }
+  #st { position: relative; display: inline-block; }
+  #stbar { position: absolute; left: -2%; top: 54%; width: 104%; height: .085em; border-radius: .05em; background: {{strike_color}}; }
+  #l2 { top: 735px; font-size: 96px; font-weight: 700; letter-spacing: -.035em; gap: .26em; }
+  #pill { display: inline-flex; align-items: center; gap: .26em; padding: .08em .34em .12em .3em; border-radius: .2em;
+          background: linear-gradient(100deg, {{accent2}}, {{accent}} 60%, #C99A4E); color: {{ink}};
+          box-shadow: 0 .14em .4em -.1em rgba(148,112,44,.55); }
+  #pill svg { width: .5em; height: .5em; flex: none; }
+  #ft { top: 912px; gap: 34px; }
+  #foot { font: 600 32px/1 "{{mono}}", monospace; color: {{ink}}; letter-spacing: -.01em; }
+  #btn { position: relative; font: 700 32px/1 "{{body}}", sans-serif; color: {{btn_fg}}; background: {{btn_bg}};
+         padding: 20px 30px 21px 32px; border-radius: 999px; display: flex; align-items: center; gap: 14px;
+         box-shadow: 0 10px 26px -8px rgba(21,19,17,.55); }
+  #btn i { font-style: normal; color: {{accent}}; }
+  #ripple { position: absolute; inset: 0; border-radius: 999px; border: 3px solid {{accent}}; opacity: 0; }
+  #cur { position: absolute; left: 0; top: 0; width: 46px; height: 55px; opacity: 0; }
+  #fx { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  .cf { position: absolute; left: 0; top: 0; opacity: 0; overflow: visible; }
+  .sp { position: absolute; left: 0; top: 0; width: 34px; height: 34px; opacity: 0; }
+</style>
+</head>
+<body>
+<div id="main" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1920" data-height="1080">
+  <div id="root" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="bg"></div><div id="wash" data-layout-ignore></div>
+    <div id="grp" data-layout-allow-overflow>
+      <div class="row" id="wm">
+        <svg id="mk" viewBox="0 0 100 100"><rect x="2" y="2" width="96" height="96" rx="24" fill="{{accent}}"/><path d="M38 28 L74 50 L38 72 Z" fill="{{ink}}" stroke="{{ink}}" stroke-width="6" stroke-linejoin="round"/><rect x="22" y="28" width="7" height="44" rx="3.5" fill="{{ink}}"/></svg>
+        <div id="wmt"><span>{{mark1}}</span><b>{{mark2}}</b></div>
+      </div>
+      <div class="row" id="l1"></div>
+      <div class="row" id="l2"><span id="pill"><svg viewBox="0 0 10 10"><path d="M1.5 1 L9 5 L1.5 9 Z" fill="{{ink}}"/></svg><span>{{pill}}</span></span></div>
+      <div class="row" id="ft"><span id="foot">{{foot}}</span><span id="btn"><span>{{button}}</span><i>&rarr;</i><span id="ripple"></span></span></div>
+    </div>
+    <div id="fx" data-layout-allow-occlusion></div>
+    <svg id="cur" viewBox="0 0 40 48"><path d="M4 3 L4 37 L13 29 L19 44 L25 41 L19 27 L31 27 Z" fill="#0C0B0A" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg>
+    <i id="txt" hidden data-l1="{{line1}}" data-st="{{strike}}" data-l2="{{line2}}"></i>
+  </div>
+</div>
+<script>
+  window.__timelines = window.__timelines || {};
+  const D = Number("{{duration}}"), K = Math.min(1, D / 5), TP = Math.min(Number("{{t_press}}"), D - 0.9);
+  const $ = id => document.getElementById(id);
+  const T = $("txt"), L1 = (T.getAttribute("data-l1") || "").trim(), ST = (T.getAttribute("data-st") || "").trim(), L2 = (T.getAttribute("data-l2") || "").trim();
+  function words(row, text, before) {
+    return text ? text.split(/\s+/).map(w => { const s = document.createElement("span"); s.className = "w"; s.textContent = w;
+      before ? row.insertBefore(s, before) : row.appendChild(s); return s; }) : [];
+  }
+  const w1 = words($("l1"), L1);
+  let stEl = null;
+  if (ST) { stEl = document.createElement("span"); stEl.id = "st"; stEl.className = "w"; stEl.textContent = ST;
+            const bar = document.createElement("i"); bar.id = "stbar"; stEl.appendChild(bar); $("l1").appendChild(stEl); }
+  const w2 = words($("l2"), L2, $("pill"));
+
+  function fitW(el, maxW) {
+    el.style.fontSize = "";
+    const w = el.getBoundingClientRect().width / (gsap.getProperty(el, "scale") || 1);
+    if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
+  }
+  function fitAll() { fitW($("wm"), 1500); fitW($("l1"), 1560); fitW($("l2"), 1640); fitW($("ft"), 1400); }
+  fitAll();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
+  gsap.set(".row", { xPercent: -50, yPercent: -50 });
+
+  // seeded random: same frames every render
+  let s = Number("{{seed}}") * 9301 + 49297;
+  const rnd = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+
+  const tl = gsap.timeline({ paused: true });
+  const b = t => t * K;
+  // 1. wordmark, centred on screen
+  tl.fromTo("#grp", { y: 230 }, { y: 150, duration: 0.6, ease: "power2.inOut" }, b(0.55));
+  gsap.set("#grp", { y: 230 });
+  tl.fromTo("#wash", { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.9, ease: "power2.out" }, 0);
+  tl.fromTo("#mk", { scale: 0.4, rotation: -14, opacity: 0 }, { scale: 1, rotation: 0, opacity: 1, duration: 0.5, ease: "back.out(1.5)" }, 0.04);
+  tl.fromTo("#wmt", { x: -40, opacity: 0, filter: "blur(10px)" }, { x: 0, opacity: 1, filter: "blur(0px)", duration: 0.5, ease: "power3.out" }, 0.12);
+  // 2. line 1, word by word, then the strike
+  const t1 = b(0.6);
+  w1.forEach((w, i) => tl.fromTo(w, { y: 26, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: "power3.out" }, t1 + i * 0.09 * K));
+  let tS = t1 + w1.length * 0.09 * K;
+  if (stEl) {
+    tl.fromTo(stEl, { y: 26, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: "power3.out" }, tS);
+    tl.fromTo("#stbar", { scaleX: 0, transformOrigin: "0% 50%" }, { scaleX: 1, duration: 0.3, ease: "power2.inOut" }, tS + 0.3 * K);
+    tl.to(stEl, { color: "{{strike_color}}", opacity: 0.75, duration: 0.25 }, tS + 0.3 * K);
+    tS += 0.55 * K;
+  }
+  // 3. line 2 + pill slam + confetti
+  const t2 = Math.max(b(1.45), tS + 0.15 * K);
+  tl.to("#grp", { y: 70, duration: 0.5, ease: "power2.inOut" }, t2 - 0.1);
+  w2.forEach((w, i) => tl.fromTo(w, { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: "power3.out" }, t2 + i * 0.1 * K));
+  const tp = t2 + Math.max(1, w2.length) * 0.1 * K + 0.25 * K;
+  tl.fromTo("#pill", { scale: 1.55, rotation: -9, opacity: 0, filter: "blur(8px)" },
+                     { scale: 1, rotation: -3, opacity: 1, filter: "blur(0px)", duration: 0.32, ease: "back.out(1.3)" }, tp);
+  tl.to("#pill", { rotation: 0, duration: 0.5, ease: "power2.out" }, tp + 0.5);
+  tl.to("#grp", { y: 0, duration: 0.6, ease: "power2.inOut" }, tp + 0.1);
+  const fx = $("fx"), COLS = ["{{accent}}", "{{accent}}", "{{ink}}", "{{muted}}", "{{accent2}}", "{{strike_color}}"];
+  const N = Math.max(0, Math.min(90, Number("{{confetti}}") | 0));
+  const pr = $("pill").getBoundingClientRect(), ox = pr.left + pr.width / 2, oy = pr.top + pr.height / 2 - 230;
+  for (let i = 0; i < N; i++) {
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "svg"); c.setAttribute("class", "cf"); c.setAttribute("data-layout-ignore", "");
+    const w = 6 + rnd() * 5, h = 14 + rnd() * 12; c.setAttribute("width", w); c.setAttribute("height", h); c.setAttribute("viewBox", "0 0 " + w + " " + h);
+    c.innerHTML = "<rect width=\"" + w + "\" height=\"" + h + "\" rx=\"3\" fill=\"" + COLS[i % COLS.length] + "\"/>"; fx.appendChild(c);
+    const a = -Math.PI * (0.08 + rnd() * 0.84), v = 260 + rnd() * 520;
+    const dx = Math.cos(a) * v * 1.5, up = Math.sin(a) * v, t0 = tp + 0.06 + rnd() * 0.08;
+    gsap.set(c, { x: ox - 200 + rnd() * 400, y: oy - 20 + rnd() * 40, rotation: rnd() * 180 });
+    tl.to(c, { opacity: 1, duration: 0.05 }, t0);
+    tl.to(c, { x: "+=" + dx, rotation: "+=" + (rnd() * 720 - 360), duration: 1.9, ease: "power2.out" }, t0);
+    tl.to(c, { y: "+=" + up, duration: 0.5, ease: "power2.out" }, t0);
+    tl.to(c, { y: "+=" + (Math.abs(up) + 260 + rnd() * 240), duration: 1.4, ease: "power1.in" }, t0 + 0.5);
+    tl.to(c, { opacity: 0, duration: 0.4 }, t0 + 1.5);
+  }
+  // 4. footer + cursor press
+  const tf = tp + 0.45 * K;
+  tl.fromTo("#ft", { y: 28, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: "power3.out" }, tf);
+  const br = $("btn").getBoundingClientRect(), bx = br.left + br.width * 0.6, by = br.top + br.height * 0.38 - 230;
+  tl.fromTo("#cur", { x: bx + 360, y: by + 220, opacity: 0 }, { x: bx + 360, y: by + 220, opacity: 1, duration: 0.15 }, Math.max(tf + 0.2, TP - 0.7));
+  tl.to("#cur", { x: bx, y: by, duration: 0.55, ease: "power3.inOut" }, Math.max(tf + 0.25, TP - 0.6));
+  tl.to("#cur", { scale: 0.85, duration: 0.07, ease: "power1.in", transformOrigin: "10% 6%" }, TP - 0.04);
+  tl.to("#cur", { scale: 1, duration: 0.14, ease: "power2.out" }, TP + 0.04);
+  tl.to("#btn", { scale: 0.93, duration: 0.07, ease: "power1.in" }, TP - 0.04);
+  tl.to("#btn", { scale: 1, duration: 0.3, ease: "back.out(1.6)" }, TP + 0.04);
+  tl.fromTo("#ripple", { scale: 1, opacity: 0.9 }, { scale: 1.35, opacity: 0, duration: 0.55, ease: "power2.out", immediateRender: false }, TP);
+  // sparkles around the wordmark and button on the press
+  const SP = [[560, 210], [1400, 190], [1460, 400], [500, 420], [1330, 860], [1640, 960]];
+  SP.forEach((p, i) => {
+    const sp = document.createElementNS("http://www.w3.org/2000/svg", "svg"); sp.setAttribute("viewBox", "0 0 20 20"); sp.setAttribute("class", "sp"); sp.setAttribute("data-layout-ignore", "");
+    sp.innerHTML = '<path d="M10 0 C11 7 13 9 20 10 C13 11 11 13 10 20 C9 13 7 11 0 10 C7 9 9 7 10 0 Z" fill="' + (i % 2 ? "{{accent}}" : "{{accent_ink}}") + '"/>';
+    fx.appendChild(sp); gsap.set(sp, { x: p[0], y: p[1] });
+    const t0 = (i < 4 ? tp + 0.1 : TP + 0.05) + (i % 4) * 0.08;
+    tl.fromTo(sp, { scale: 0, rotation: -40, opacity: 1 }, { scale: 1, rotation: 0, duration: 0.3, ease: "back.out(1.4)" }, t0);
+    tl.to(sp, { scale: 0, rotation: 40, duration: 0.35, ease: "power2.in" }, t0 + 0.55);
+  });
+  if ("{{fade_out}}" === "1") {
+    tl.to(["#grp", "#cur", "#wash"], { opacity: 0, filter: "blur(6px)", duration: 0.3, ease: "power2.in" }, D - 0.32);
+  }
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

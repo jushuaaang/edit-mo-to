@@ -72,6 +72,7 @@ const ICONS = {
   home: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   check: '<path d="M5 12l5 5L20 7"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   alert: '<path d="M12 8v5"/><path d="M12 16.5v.5"/><circle cx="12" cy="12" r="9"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
@@ -289,164 +290,290 @@ function answered(ctx, gate, q) {
   return ev ? { value: ev.value } : null;
 }
 
-function answerText(value, file = false) {
-  if (value === true) return t("common.yes");
-  if (value === false) return t("common.no");
-  if (Array.isArray(value)) return value.length ? value.join(", ") : t("common.none");
-  const s = String(value ?? "");
-  return file ? s.split(/[\\/]/).pop() : s;  // a file answer is a path: show its name
+/** The checklist and approval confirms have no control of their own: Proceed is the yes, and anything missing or to
+ *  change goes in the note box. Every other yes/no question is a real decision: Yes / No radio buttons. A confirm
+ *  that is an instruction ("Please quit CapCut…", "It's saved") is a line to read; Proceed says it's done. */
+const APPROVALS = new Set(["checklist", "approve", "approve_ok"]);
+const isYesNo = (q) => q.kind === "confirm" && APPROVALS.has(q.id);
+// a question mark anywhere makes it a question ("…made? (Recommended for new clients.)" still asks Yes / No)
+const isInstruction = (q, label) => q.kind === "confirm" && (label?.no === null || !String(q.text || "").includes("?"));
+
+/** "Pick the graphics": one or more templates of a few (more than one = different styles to try), as cards with the
+ *  template's preview still, its name and what it's for. options [{value: template name (or "auto" = let Claude
+ *  choose), label, desc?, suggested?, why?}]; `suggested` cards carry a badge (`why`: e.g. popular on Prompt Motion).
+ *  "Let Claude choose" and the templates exclude each other. Claude's pick(s) (`default`, a name or a list) start
+ *  checked; nothing sends until Proceed, which sends the list. */
+function templateCards(name, q) {
+  const opts = (q.options || []).map((o) => (typeof o === "object" && o !== null ? o : { value: o, label: String(o) }));
+  const picked = Array.isArray(q.default) ? q.default : q.default === undefined ? [] : [q.default];
+  const inputs = [];
+  const node = h("div", { class: "tcards", role: "group", "aria-label": q.text }, opts.map((o) => {
+    const auto = o.value === "auto";
+    const input = h("input", { type: "checkbox", name, value: String(o.value), checked: picked.includes(o.value), class: "sr",
+      onchange: () => {  // Let Claude choose, or your own picks: not both
+        if (!input.checked) return;
+        inputs.forEach((x, i) => { if (x !== input && (auto || opts[i].value === "auto")) x.checked = false; });
+      } });
+    inputs.push(input);
+    const why = o.suggested ? String(o.why || t("gate.gfx_suggested_why")) : "";
+    return h("label", { class: `tcard${auto ? " auto" : ""}${o.suggested ? " suggested" : ""}`, title: why || null }, input,
+      o.suggested ? h("span", { class: "tbadge" }, `★ ${t("gate.gfx_suggested")}`) : null,
+      auto ? h("div", { class: "tthumb auto" }, "✦")
+        : h("img", { class: "tthumb", src: `/api/template-preview?name=${encodeURIComponent(String(o.value))}`, alt: "",
+          loading: "lazy", onerror: (e) => { e.target.replaceWith(h("div", { class: "tthumb none" }, String(o.label || o.value))); } }),
+      h("b", {}, String(o.label || o.value)), o.desc ? h("span", { class: "hint" }, String(o.desc)) : null,
+      why ? h("span", { class: "twhy" }, why) : null);
+  }));
+  // a look from prompt-motion.com (or any page): its link goes in the list; Claude has it built as a new template
+  const link = h("input", { type: "url", class: "f tlink", placeholder: "https://prompt-motion.com/…", "aria-label": t("gate.gfx_link") });
+  const value = () => {
+    const v = opts.filter((o, i) => inputs[i].checked).map((o) => o.value);
+    const url = link.value.trim();
+    if (/^https?:\/\/\S+$/i.test(url)) v.push(url);
+    return v.length ? v : undefined;
+  };
+  return { node: h("div", {}, h("p", { class: "hint tnote" }, t("gate.gfx_many")), node,
+    h("label", { class: "tlink-row" }, h("span", {}, t("gate.gfx_link")), link, h("span", { class: "hint" }, t("gate.gfx_link_hint")))),
+  value, lock: () => { inputs.forEach((x) => { x.disabled = true; }); link.disabled = true; } };
 }
 
-function questionControls(gate, q, ctx, done, label) {
+/** One-of-many as radio buttons (nothing sends until Proceed); `picked` starts selected. */
+function radios(name, options, picked) {
+  const inputs = options.map((o) => h("input", { type: "radio", name, value: JSON.stringify(o.value),
+    checked: picked !== undefined && o.value === picked }));
+  const node = h("div", { class: "radios", role: "radiogroup" },
+    ...options.map((o, i) => h("label", { class: "check" }, inputs[i], o.label)));
+  const value = () => { const i = inputs.findIndex((x) => x.checked); return i < 0 ? undefined : options[i].value; };
+  return { node, value, lock: () => inputs.forEach((x) => { x.disabled = true; }) };
+}
+/** Claude's own "What should change?" (id `changes`) is the note box: it isn't shown twice, and gets the note's text. */
+const isChanges = (q) => q.kind === "text" && q.id === "changes";
+
+/** One question's field: {node, value() -> value | undefined (nothing picked), lock()}. Nothing is sent from here. */
+function questionField(gate, q, ctx, label) {
   const box = h("div", { class: "opts" });
-  const answer = async (value, controls) => {
-    controls.forEach((c) => { c.disabled = true; });
-    try {
-      const ev = await ctx.send({ type: "answer", step: gate.step || null, gate: gate.id, target: q.id, value });
-      if (ev?.stale) { done({ value, stale: true }); return true; }  // the gate changed before the click
-      sentLocal.set(`${ctx.folder}|${gate.id}|${q.id}`, { value });
-      done({ value });
-      return true;
-    } catch (e) {
-      controls.forEach((c) => { c.disabled = false; });
-      toast(e.message || t("common.not_sent"));
-      return false;
-    }
-  };
   const options = (q.options || []).map((o) => (typeof o === "object" && o !== null
     ? { value: o.value ?? o.id ?? o.label, label: o.label ?? String(o.value ?? o.id) } : { value: o, label: String(o) }));
-
-  if (q.kind === "choice") {
-    const btns = options.map((o) => h("button", {
-      class: `btn${o.value === q.default ? " pri" : ""}`, type: "button", "data-value": JSON.stringify(o.value),
-      onclick: () => answer(o.value, btns),
-    }, o.label));
-    box.append(...btns);
-  } else if (q.kind === "confirm") {
-    // a page may relabel a confirm (labels: {yes, no}); no: null drops the No button (the storyboard's "It's saved")
-    const btns = [
-      h("button", { class: "btn pri", type: "button", "data-value": "true", onclick: () => answer(true, btns) }, label?.yes || t("common.yes")),
-      label?.no === null ? null
-        : h("button", { class: "btn", type: "button", "data-value": "false", onclick: () => answer(false, btns) }, label?.no || t("common.no")),
-    ].filter(Boolean);
-    box.append(...btns);
-  } else if (q.kind === "multi") {
+  const name = `gate-${gate.id}-${q.id}`;
+  if (q.kind === "choice") return radios(name, options, q.default);  // one of many; Claude's suggestion starts picked
+  if (q.kind === "cards") return templateCards(name, q);
+  if (q.kind === "confirm" && !isYesNo(q) && !isInstruction(q, label)) {  // a real yes/no decision
+    return radios(name, [{ value: true, label: label?.yes || t("common.yes") }, { value: false, label: label?.no || t("common.no") }],
+      q.default);
+  }
+  if (q.kind === "multi") {
     const defaults = Array.isArray(q.default) ? q.default : [];
     const checks = options.map((o) => h("input", { type: "checkbox", value: String(o.value), checked: defaults.includes(o.value),
       "data-key": `gate:${gate.id}:${q.id}:${o.value}` }));
-    const sendBtn = h("button", { class: "btn pri", type: "button" }, t("common.send"));
-    sendBtn.addEventListener("click", () => answer(
-      options.filter((o, i) => checks[i].checked).map((o) => o.value), [...checks, sendBtn]));
-    box.append(...options.map((o, i) => h("label", { class: "check" }, checks[i], o.label)), sendBtn);
-  } else if (q.kind === "text") {
+    box.append(...options.map((o, i) => h("label", { class: "check" }, checks[i], o.label)));
+    return { node: box, value: () => options.filter((o, i) => checks[i].checked).map((o) => o.value),
+      lock: () => checks.forEach((c) => { c.disabled = true; }) };
+  }
+  if (q.kind === "text") {
     const ta = h("textarea", { class: "f", rows: 2, "data-key": `gate:${gate.id}:${q.id}`, "aria-label": q.text },
       typeof q.default === "string" ? q.default : "");
-    const sendBtn = h("button", { class: "btn pri", type: "button" }, t("common.send"));
-    const go = () => { if (ta.value.trim()) answer(ta.value.trim(), [ta, sendBtn]); else ta.focus(); };
-    sendBtn.addEventListener("click", go);
-    ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); go(); } });
-    box.style.flexDirection = "column";
-    box.style.alignItems = "flex-start";
-    box.append(ta, sendBtn);
-  } else if (q.kind === "file") {
-    const [kind, id] = fileTarget(gate.step, q);
-    let saved = null;  // the uploaded path: a failed answer is sent again without uploading again
-    const retry = h("button", { class: "btn sm pri", type: "button", hidden: true }, t("gate.send_again"));
-    const sendPath = async () => { retry.hidden = await answer(saved, [retry]); };
-    retry.addEventListener("click", sendPath);
     box.style.display = "block";
-    box.append(dropZone(kind, ctx, { label: t("gate.drop_file"), id, onDone: (res) => { saved = res.path; sendPath(); } }),
-      retry);
+    box.append(ta);
+    return { node: box, value: () => ta.value.trim(), lock: () => { ta.disabled = true; } };  // optional: "" is none
   }
-  return box;
+  if (q.kind === "file") {  // the file is copied as it drops; Proceed sends its path
+    const [kind, id] = fileTarget(gate.step, q);
+    let saved;
+    box.style.display = "block";
+    const picked = h("ul", { class: "files" });
+    const zone = dropZone(kind, ctx, { label: t("gate.drop_file"), id, onDone: (res) => {
+      saved = res.path;
+      skip.checked = false;
+      if (kind === "keyframe") return;  // a picture for a card is replaced by dropping another, not removed
+      const name = String(res.path).split(/[\/]/).pop();
+      const x = h("button", { class: "file-x", type: "button", "aria-label": t("upload.remove", { name }), title: t("upload.remove", { name }) }, "×");
+      x.addEventListener("click", async () => {  // out of the video (into .edit-mo-to/removed/), and Claude is told
+        x.disabled = true;
+        try {
+          await ctx.api("/api/upload-remove", { body: { folder: ctx.folder, path: res.path } });
+          x.closest("li")?.remove();
+          if (saved === res.path) saved = undefined;
+        } catch (e) {
+          x.disabled = false;
+          toast(e.message || t("common.not_sent"));
+        }
+      });
+      picked.append(h("li", { title: res.path }, h("span", { class: "mono" }, name), x));
+    } });
+    // no file at all (e.g. a video with no voiceover): the answer is "skip"; Claude's `skip` names the choice
+    const skip = h("input", { type: "checkbox", onchange: () => { zone.classList.toggle("off", skip.checked); } });
+    box.append(zone, picked, h("label", { class: "check file-skip" }, skip, String(q.skip || t("gate.file_skip"))));
+    return { node: box, value: () => (skip.checked ? "skip" : saved),
+      lock: () => { zone.remove(); skip.disabled = true; } };
+  }
+  return { node: null, value: () => true, lock: () => {} };  // confirm: Proceed is the yes
 }
 
-/** "Waiting on you: …" with every question of the open gate; each answer is an `answer` event. */
-export function gateBar(gate, ctx, labels = {}) {
+/** The question bar: Claude's message, every question as a field (a yes/no question has none), the page's own extra
+ *  questions (`extra`: {target, questions: [{id, text, why}]}, e.g. the brief's questions, sent as one answer; and
+ *  `extra.before()`: the page's own edits sent first, e.g. the script lines changed in the table; `notesLabel`,
+ *  `notesPh`, `notesRequired`: the note box renamed, e.g. Review's "What should change?"), one
+ *  "Anything to add or change?" box (answer target "notes") and one Proceed that sends it all. */
+/** Questions already brought into view once (`${folder}|${gate id}`): a redraw never scrolls the page again. */
+const spotlit = new Set();
+/** Questions reopened with "Change my answer": `${folder}|${gate id}`. */
+const changing = new Set();
+
+/** Reopen a question's sent answers for changing (the loading card's Change my answer). */
+export function reopenGate(folder, gateId) {
+  changing.add(`${folder}|${gateId}`);
+}
+
+/** The answers this gate has in the inbox (not stale), and whether Claude has picked them all up (handled). */
+function gateAnswers(ctx, gate) {
+  const evs = (ctx.data?.events || []).filter((e) => e.type === "answer" && e.gate === gate.id && !e.stale);
+  const handled = new Set(ctx.data?.job?.handled || []);
+  return { evs, handled: evs.length > 0 && evs.every((e) => handled.has(e.seq)) };
+}
+
+export function gateBar(gate, ctx, labels = {}, extra = null) {
   const bar = h("section", { class: "gatebar", "aria-label": t("gate.waiting") });
   bar.append(h("div", { class: "gh" }, h("div", { class: "ic", "aria-hidden": "true" }, "!"),
     h("div", {}, h("b", {}, t("gate.waiting_title", { title: gate.title }), helpTip("question")), gate.detail ? h("span", {}, gate.detail) : null)));
-  for (const q of gate.questions || []) {
-    const wrap = h("div", { class: "gq" }, h("div", { class: "qt" }, q.text), q.why ? h("div", { class: "why" }, q.why) : null);
-    const showSent = (ans) => {
-      wrap.querySelectorAll("button, input, textarea, select").forEach((c) => { c.disabled = true; });
-      wrap.querySelectorAll(".drop").forEach((d) => d.remove());
-      wrap.querySelectorAll(".opts .btn").forEach((b) => {  // mark the answer given, not the default
-        const picked = b.dataset.value === JSON.stringify(ans.value);
-        b.classList.toggle("pri", picked);
-        b.setAttribute("aria-pressed", String(picked));
-      });
-      if (Array.isArray(ans.value)) {
-        wrap.querySelectorAll(".opts input[type=checkbox]").forEach((c) => { c.checked = ans.value.map(String).includes(c.value); });
-      }
-      if (!wrap.querySelector(".sent")) {
-        wrap.append(h("div", { class: "sent row" },
-          ans.stale ? chip(staleText(), "err") : chip(t("common.sent_waiting"), "wait"),
-          h("span", { class: "hint" }, t(ans.stale ? "gate.not_counted" : "gate.your_answer",
-            { answer: answerText(ans.value, q.kind === "file") }))));
-      }
-    };
-    wrap.append(questionControls(gate, q, ctx, showSent, labels[q.id]));
-    const ans = answered(ctx, gate, q);
-    if (ans) showSent(ans);
-    bar.append(wrap);
-  }
-  return bar;
-}
-
-// ---------- ask box ----------
-
-const TAG = /^\s*\[([a-z]+)\]\s*/;
-
-/** Claude's log lines for a step: entries with step === step, or text starting with "[step] ". */
-export function logForStep(log, step) {
-  return (log || []).flatMap((e) => {
-    const m = TAG.exec(e.text || "");
-    if (e.step === step) return [{ ...e, text: m ? e.text.slice(m[0].length) : e.text }];
-    if (m && m[1] === step) return [{ ...e, text: e.text.slice(m[0].length) }];
-    return [];
-  });
-}
-
-/** "Tell Claude about this step": that step's messages and Claude's step-tagged log lines, then a box. */
-export function askBox(step, data, ctx) {
-  const mine = (data?.events || []).filter((e) => e.type === "message" && e.step === step)
-    .map((e) => ({ at: e.at, text: e.text, me: true }));
-  const claude = logForStep(data?.job?.log, step).map((e) => ({ at: e.at, text: wordsIn(e.text, data), me: false }));
-  const items = [...mine, ...claude].sort((a, b) => Date.parse(a.at) - Date.parse(b.at)).slice(-12);
-  const hist = h("ol", { class: "hist", "aria-label": t("ask.history") },
-    items.map((it) => h("li", { class: it.me ? "me" : "cl" }, it.me ? it.text : t("ask.claude_says", { text: it.text }),
-      h("small", {}, it.me ? t("ask.you_at", { when: relTime(it.at) }) : relTime(it.at)))));
-  const id = `ask-${step}`;
-  const ta = h("textarea", { class: "f", id, rows: 2, "data-key": `ask:${step}`,
-    placeholder: t("ask.placeholder", { step: stepTitle(step).toLowerCase() }) });
-  const note = h("div", { class: "msg", role: "status" });
-  const btn = h("button", { class: "btn sm pri", type: "button" }, t("common.send"));
-  const go = async () => {
-    const text = ta.value.trim();
-    if (!text) { ta.focus(); return; }
-    btn.disabled = true;
-    try {
-      await ctx.send({ type: "message", step, text });
-      ta.value = "";
-      note.className = "msg ok";
-      note.textContent = t(data?.listening ? "common.sent_listening" : "common.saved_later");
-    } catch (e) {
-      note.className = "msg err";
-      note.textContent = e.message || t("common.not_sent");
-    } finally {
-      btn.disabled = false;
+  const key = `${ctx.folder}|${gate.id}`;
+  const qs = gate.questions || [];
+  const lastNotes = [...gateAnswers(ctx, gate).evs].reverse().find((e) => e.target === "notes");
+  const notes = h("textarea", { class: "f", rows: 3, id: `gate-notes-${gate.id}`, "data-key": `gate:${gate.id}:notes`,
+    placeholder: extra?.notesPh || t("gate.notes_ph") }, typeof lastNotes?.value === "string" ? lastNotes.value : "");
+  // every part the editor answers, in order: {node, check() -> what's missing | null}
+  const parts = [];
+  const fields = qs.map((q) => {
+    // "Quit CapCut": the page's red reminder says it; Proceed is the "it's closed" (checked first, below)
+    if (q.id === "capcut_closed") return { q, f: { node: null, value: () => true, lock: () => {} } };
+    const f = isChanges(q) ? { node: null, value: () => notes.value.trim(), lock: () => {} }
+      // a previous answer (Change my answer) starts picked / filled in
+      : questionField(gate, { ...q, default: answered(ctx, gate, q)?.value ?? q.default }, ctx, labels[q.id]);
+    if (!isYesNo(q) && !isChanges(q)) {
+      parts.push({ node: h("div", { class: "gq" }, h("div", { class: "qt" }, labels[q.id]?.text || q.text),
+        q.why ? h("div", { class: "why" }, q.why) : null, f.node),
+      check: () => (f.node && f.value() === undefined ? q.text : null) });
     }
+    return { q, f };
+  });
+  const extraBoxes = (extra?.questions || []).map((x) => {
+    const ta = h("textarea", { class: "f", rows: 2, "data-key": `gate:${gate.id}:x:${x.id}`, "aria-label": x.text });
+    parts.push({ node: h("div", { class: "gq" }, h("div", { class: "qt" }, x.text), x.why ? h("div", { class: "why" }, x.why) : null, ta),
+      check: () => null });
+    return { x, ta };
+  });
+  const notesLabel = extra?.notesLabel || t("gate.notes");
+  const notesPart = { node: h("div", { class: "gq" }, h("label", { class: "qt", for: notes.id }, notesLabel), notes),
+    check: () => (extra?.notesRequired && !notes.value.trim() ? notesLabel : null) };
+  if (extra?.notesFirst) parts.unshift(notesPart); else parts.push(notesPart);
+  const progress = h("div", { class: "gstep", "aria-live": "polite" });
+  bar.append(progress, ...parts.map((x) => x.node));
+  const msg = h("div", { class: "msg", role: "status" });
+  const btn = h("button", { class: "btn pri", type: "button" }, t("gate.proceed"));
+  const back = h("button", { class: "btn", type: "button" }, t("gate.back"));
+  const next = h("button", { class: "btn pri", type: "button" }, t("gate.next"));
+  const nav = h("div", { class: "row gnav", style: "margin-top:12px" }, back, next, btn);
+  bar.append(nav, msg);
+
+  const lockAll = (text, cls) => {
+    fields.forEach(({ f }) => f.lock());
+    extraBoxes.forEach(({ ta }) => { ta.disabled = true; });
+    notes.disabled = true;
+    btn.disabled = true;
+    msg.className = cls;
+    msg.textContent = text;
   };
-  btn.addEventListener("click", go);
-  ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); go(); } });
-  return h("section", { class: "ask", "aria-labelledby": `${id}-h` },
-    h("div", { class: "ah" }, h("span", { class: `pulse${data?.listening ? "" : " off"}`, "aria-hidden": "true" }),
-      h("b", { id: `${id}-h` }, t("ask.title")), h("span", {}, t("ask.sub", { step: stepTitle(step) }))),
-    items.length ? hist : null,
-    h("label", { class: "sr", for: id }, t("ask.label", { step: stepTitle(step) })), ta,
-    h("div", { class: "row spread", style: "margin-top:8px" }, h("span", { class: "hint" }, t("ask.ctrl_enter")), btn),
-    note);
+  const sent = qs.length && qs.every((q) => answered(ctx, gate, q));
+  const locked = sent && !changing.has(key);
+  // three or more parts: one at a time (Question n of N, Back, Next), Proceed on the last; fewer: all at once
+  const wizard = !locked && parts.length >= 3;
+  let at = 0;
+  const show = () => {
+    parts.forEach((x, i) => { x.node.hidden = wizard && i !== at; });
+    progress.hidden = !wizard;
+    progress.textContent = wizard ? t("gate.step_of", { n: at + 1, total: parts.length }) : "";
+    back.hidden = !wizard || at === 0;
+    next.hidden = !wizard || at === parts.length - 1;
+    btn.hidden = wizard && at !== parts.length - 1;
+  };
+  back.addEventListener("click", () => { at = Math.max(0, at - 1); msg.textContent = ""; show(); });
+  next.addEventListener("click", () => {
+    const missing = parts[at].check();
+    if (missing) { msg.className = "msg err"; msg.textContent = t("gate.answer_first", { question: missing }); return; }
+    msg.textContent = "";
+    at += 1;
+    show();
+    parts[at].node.querySelector("textarea, input")?.focus();
+  });
+  show();
+  if (!locked) {  // the editor's turn: the bar glows, and the first time this question shows the page brings it into view
+    bar.classList.add("attention");
+    if (!spotlit.has(key)) {
+      setTimeout(() => {
+        if (!bar.isConnected || spotlit.has(key)) return;  // a redraw replaced it: the new bar does this
+        spotlit.add(key);
+        bar.scrollIntoView({ block: "center" });  // instant: a smooth scroll is skipped by some browsers
+        // the first thing to answer: a choice, a box to type in, or the drop box (never the hidden file picker)
+        bar.querySelector(".drop, input:not([type=hidden]):not([type=file]):not(.sr):not([disabled]), textarea:not([disabled]), select")
+          ?.focus({ preventScroll: true });
+      }, 350);
+    }
+  }
+  if (locked) {
+    const stale = qs.some((q) => answered(ctx, gate, q)?.stale);
+    lockAll(stale ? staleText() : t("gate.sent"), stale ? "msg err" : "msg ok");
+    if (!stale) {  // until Claude picks them up the answers can still change; after that, tell Claude in the panel
+      bar.append(gateAnswers(ctx, gate).handled
+        ? h("p", { class: "hint gate-after" }, t("gate.too_late"))
+        : h("button", { class: "linkish gate-after", type: "button", onclick: () => {
+          changing.add(key);
+          bar.replaceWith(gateBar(gate, ctx, labels, extra));
+        } }, t("gate.change")));
+    }
+    return bar;
+  }
+  btn.addEventListener("click", async () => {
+    const gap = parts.findIndex((x) => x.check());  // e.g. Review's "What should change?" left empty
+    if (gap >= 0) {
+      msg.className = "msg err";
+      msg.textContent = t("gate.answer_first", { question: parts[gap].check() });
+      if (wizard) { at = gap; show(); }
+      return;
+    }
+    if (qs.some((q) => q.id === "capcut_closed")) {  // Claude writes to the project next: CapCut must be closed
+      btn.disabled = true;
+      const running = await ctx.api("/api/capcut").then((r) => Boolean(r?.running)).catch(() => false);
+      btn.disabled = false;
+      if (running) {
+        msg.className = "msg err";
+        msg.textContent = t("gate.capcut_running");
+        ctx.openDialog?.("capcut", { onClosed: () => { msg.textContent = ""; btn.click(); }, onCancel: () => {} });
+        return;
+      }
+    }
+    btn.disabled = true;
+    const send = (target, value) => ctx.send({ type: "answer", step: gate.step || null, gate: gate.id, target, value });
+    try {
+      if (extra?.before) await extra.before();
+      const answers = {};
+      for (const { x, ta } of extraBoxes) if (ta.value.trim()) answers[x.id] = ta.value.trim();
+      if (extra && Object.keys(answers).length) await send(extra.target, answers);
+      if (notes.value.trim() && !qs.some(isChanges)) await send("notes", notes.value.trim());
+      let stale = false;
+      for (const { q, f } of fields) {  // the questions last: once they're all in, Claude carries on
+        const ev = await send(q.id, f.value());
+        stale = stale || Boolean(ev?.stale);
+        sentLocal.set(`${ctx.folder}|${gate.id}|${q.id}`, { value: f.value(), stale: Boolean(ev?.stale) });
+      }
+      changing.delete(key);
+      bar.replaceWith(gateBar(gate, ctx, labels, extra));  // the sent view, with Change my answer
+      if (stale) lockAll(staleText(), "msg err");
+    } catch (e) {
+      btn.disabled = false;
+      msg.className = "msg err";
+      msg.textContent = e.message || t("common.not_sent");
+    }
+  });
+  return bar;
 }
 
 // ---------- setup check ----------

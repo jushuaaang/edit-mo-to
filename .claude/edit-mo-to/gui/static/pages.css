@@ -122,6 +122,7 @@ label.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13
   font: 400 12.5px/1.45 var(--font-text); text-transform: none; letter-spacing: 0; white-space: normal;
   box-shadow: 0 6px 20px rgba(0, 0, 0, .45); }
 .tip[hidden] { display: none; }
+.row.fallback[hidden] { display: none; }  /* .row's flex would show the Copy fallback before any launch */
 .words { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
 .words .word { display: inline-flex; align-items: center; color: var(--text); }
 .switchrow { display: flex; gap: 12px; align-items: flex-start; }
@@ -154,3 +155,4 @@ label.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13
 .usage-details summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 4px 0; }
 .usage-kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 8px 0 12px; font-size: 13px; }
 .usage-kv dt { color: var(--muted); }
+

@@ -234,6 +234,51 @@ function modelsCard(ctx) {
     pick, msg);
 }
 
+/** "Claude models" (this computer only): which Claude does each part of the work (prefs claude_models: {role:
+ *  model}). Claude reads it with `job.py models` before each helper it sends; the main pick opens the next Claude
+ *  window with `--model`. A dropdown saves at once and goes back if the save fails. */
+const CLAUDE_ROLES = ["main", "motion-designer", "style", "editor", "qa"];
+const CLAUDE_MODELS = ["default", "opus", "sonnet", "haiku"];
+function claudeModelsCard(ctx) {
+  const msg = h("div", { class: "msg", role: "status" }, t("settings.loading"));
+  let picked = {};
+  const sels = CLAUDE_ROLES.map((role) => {
+    const sel = h("select", { class: "f", id: `cm-${role}`, disabled: true, style: "max-width:340px" },
+      ...CLAUDE_MODELS.filter((m) => role !== "main" || m !== "default")
+        .map((m) => h("option", { value: m }, t(m === "default" && role === "main" ? "settings.cm_opus" : `settings.cm_${m}`))));
+    sel.addEventListener("change", async () => {
+      const want = { ...picked, [role]: sel.value };
+      CLAUDE_ROLES.forEach((r) => { if (want[r] === "default") delete want[r]; });
+      sels.forEach(({ sel: x }) => { x.disabled = true; });
+      try {
+        picked = (await savePrefs(ctx.api, { claude_models: want })).claude_models || {};
+        msg.className = "msg ok";
+        msg.textContent = t("settings.saved");
+      } catch (e) {
+        msg.className = "msg err";
+        msg.textContent = t("settings.not_saved", { why: e.message || "" });
+      }
+      show();
+    });
+    return { role, sel };
+  });
+  const show = () => sels.forEach(({ role, sel }) => {
+    sel.value = picked[role] || (role === "main" ? "opus" : "default");
+    sel.disabled = false;
+  });
+  ctx.api("/api/prefs").then((p) => {
+    picked = p.claude_models || {};
+    if (isBroken(p)) { msg.className = "msg err"; msg.textContent = t("settings.broken_models"); return; }
+    show();
+    msg.textContent = "";
+  }).catch((e) => { msg.className = "msg err"; msg.textContent = e.message; });
+  return h("section", { class: "card", "aria-labelledby": "cm-h" },
+    h("h3", { id: "cm-h" }, t("settings.cm_h")), h("p", { class: "hint" }, t("settings.cm_p")),
+    h("div", { class: "stack" }, ...sels.map(({ role, sel }) => h("div", { class: "field" },
+      h("label", { class: "lbl", for: sel.id }, t(`settings.cm_${role}`)), sel,
+      h("div", { class: "hint" }, t(`settings.cm_${role}_hint`))))), msg);
+}
+
 /** "Generate for me" (spec "Generate for me (Joshua only)"): drawn only when GET /api/generate answers allowed: true
  *  (fails closed: an error or any other answer leaves it hidden). The key is shown only as set / not set. */
 function generateCard(ctx) {
@@ -365,5 +410,5 @@ export function render(root, data, ctx) {
     h("div", { class: "head" }, h("div", {}, h("h1", {}, t("shell.settings")), h("p", {}, t("set.sub"))),
     h("div", { style: "text-align:right" }, save, msg)),
     warn,
-    h("div", { class: "stack" }, langCard(ctx), paths.node, alertsCard(ctx), modelsCard(ctx), generateCard(ctx), checksCard(ctx), feedbackCard(ctx)));
+    h("div", { class: "stack" }, langCard(ctx), paths.node, alertsCard(ctx), claudeModelsCard(ctx), modelsCard(ctx), generateCard(ctx), checksCard(ctx), feedbackCard(ctx)));
 }

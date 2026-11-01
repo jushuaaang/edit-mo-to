@@ -69,6 +69,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offs
   font: 700 13px var(--font-head); color: var(--on-accent); letter-spacing: .02em; }
 .brand .name { font: 700 17px var(--font-head); }
 .brand .by { font-size: 11.5px; color: var(--muted); margin-top: 6px; letter-spacing: .02em; }
+.side .nav[hidden], .side .navsec[hidden] { display: none; }
 .navsec { padding: 14px 18px 4px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav a { display: flex; align-items: center; gap: 10px; padding: 7px 10px; margin: 1px 8px; border-radius: 7px;
@@ -125,6 +126,10 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offs
 .feed li { display: flex; gap: 8px; }
 .feed time { flex: none; min-width: 34px; white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
 .feed li span { color: var(--text); }
+.feed li.say { flex-direction: column; gap: 4px; }  /* Claude's reply, word for word: a bubble, not a log line */
+.feed .say-text { color: var(--text); font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;
+  background: var(--panel2); border: 1px solid var(--line2); border-left: 3px solid var(--accent); border-radius: 10px;
+  padding: 10px 12px; }
 .claude { padding: 16px 18px; border-top: 1px solid var(--line); background: var(--panel2); }
 .status { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; margin-bottom: 10px; color: var(--muted); }
 .status.on { color: var(--text); }
@@ -132,6 +137,23 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offs
 .pulse { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--accent);
   box-shadow: 0 0 0 0 rgba(212, 175, 106, .6); animation: pulse 1.8s infinite; }
 .pulse.off { background: var(--muted); animation: none; box-shadow: none; }
+/* "Claude is working": a floating card while a step runs or a send waits to be picked up (never blocks the page) */
+.working { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 40; display: flex;
+  flex-direction: column; align-items: center; gap: 14px; width: min(420px, calc(100vw - 32px)); padding: 28px 28px 24px;
+  border-radius: 18px; background: var(--panel2); border: 1px solid var(--line2); border-top: 3px solid var(--accent);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .55); font-size: 15px; color: var(--text); text-align: center;
+  pointer-events: none; }  /* centred, medium, and clicks pass through: it never blocks the page */
+.working[hidden] { display: none; }
+/* the dimmed page behind it: the right panel (and its toggle on narrow screens) stays above, clickable and typable */
+body.is-working::before { content: ""; position: fixed; inset: 0; z-index: 39; background: rgba(0, 0, 0, .55); }
+body.is-working .rail { z-index: 41; }  /* narrow: the drawer is already fixed (z 50) */
+body.is-working .btn.rail-toggle { z-index: 41; }
+@media (min-width: 1101px) { body.is-working .rail { position: relative; } }
+.working b { font-size: 17px; }
+.working .working-text { color: var(--muted); margin-top: 6px; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.working .spin { flex: none; width: 40px; height: 40px; border-radius: 50%;
+  border: 3px solid var(--line2); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse { 70% { box-shadow: 0 0 0 8px rgba(212, 175, 106, 0); } 100% { box-shadow: 0 0 0 0 rgba(212, 175, 106, 0); } }
 
 /* ---------- components ---------- */
@@ -148,6 +170,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offs
 .spread { justify-content: space-between; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; }
 .card + .card, .stack > * + * { margin-top: 16px; }
+.grid2 > .card { margin-top: 0; }  /* side by side: same top line (the grid's gap spaces them) */
 .card h3 { font-size: 15px; margin-bottom: 10px; }
 .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .grid3 { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
@@ -193,6 +216,11 @@ td .note { font-size: 12px; color: var(--muted); margin-top: 3px; }
 .gq label.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 10px;
   border: 1px solid var(--line2); border-radius: 8px; background: var(--panel2); cursor: pointer; }
 .gq .sent { margin-top: 8px; }
+/* one answer of many: radio buttons, one per line, nothing sent until Proceed */
+.gq .radios { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 8px; }
+.gq .radios label.check { font-size: 14px; padding: 8px 14px; }
+.gq input[type=radio], .gq input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
+.gq label.check:has(input:checked) { border-color: var(--accent); }
 
 /* banners */
 .banner { display: flex; gap: 12px; align-items: center; border-radius: var(--r); padding: 12px 16px; margin-bottom: 16px; font-size: 13px; flex-wrap: wrap; }
@@ -209,14 +237,6 @@ td .note { font-size: 12px; color: var(--muted); margin-top: 3px; }
 .bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
 
 /* ask box */
-.ask { margin-top: 22px; background: var(--panel); border: 1px solid var(--accent-line); border-radius: var(--r); padding: 16px 18px; }
-.ask .ah { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-.ask .ah b { font: 600 14px var(--font-head); }
-.ask .ah span { font-size: 12px; color: var(--muted); }
-.hist { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; font-size: 12.5px; list-style: none; }
-.hist li { padding: 7px 10px; border-radius: 8px; background: var(--panel2); max-width: 80%; color: var(--muted); }
-.hist li.me { align-self: flex-end; background: var(--accent-soft); color: var(--text); }
-.hist li small { display: block; font-size: 10.5px; color: var(--muted); margin-top: 2px; }
 
 /* dashboard */
 .proj { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; color: inherit;
@@ -285,6 +305,166 @@ dialog.dlg::backdrop { background: rgba(0, 0, 0, .62); }
   .main { padding: 64px 16px 40px; }
 }
 
+/* ---------- polish (Minimalism & Swiss on Obsidian Champagne): calm surfaces, clear hierarchy, 200 ms feedback ---------- */
+.card { border-radius: 12px; padding: 20px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .03); }
+.card h3 { font-size: 15px; letter-spacing: -.005em; }
+.head h1 { font-size: 26px; letter-spacing: -.015em; }
+
+/* side-by-side cards: equal height, their main action pinned to the bottom */
+.grid2 > .card { display: flex; flex-direction: column; }
+.grid2 > .card > .row:last-child, .grid2 > .card > .actions { margin-top: auto; padding-top: 16px; }
+
+/* buttons: a comfortable target, smooth hover, a small press */
+.btn { min-height: 36px; padding: 8px 16px; transition: border-color .2s ease, background-color .2s ease, filter .2s ease,
+  transform .1s ease, box-shadow .2s ease; }
+.btn.sm { min-height: 28px; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn.pri { min-height: 40px; padding: 9px 20px; box-shadow: 0 4px 14px rgba(212, 175, 106, .18); }
+.btn.pri:hover:not(:disabled) { box-shadow: 0 6px 20px rgba(212, 175, 106, .28); }
+.btn:not(.pri):hover:not(:disabled) { background: #24201C; }
+
+/* the question bar: room to read, one clear Proceed */
+.gatebar { border-radius: 14px; padding: 20px 22px; background: linear-gradient(160deg, rgba(212, 175, 106, .10), var(--panel) 60%); }
+.gatebar .gq { margin-left: 42px; }
+.gatebar .gq .qt { font-size: 14px; }
+.gatebar .btn.pri { min-width: 160px; justify-content: center; margin-left: 42px; }
+.gatebar > .msg { margin-left: 42px; }
+.gq label.check { transition: border-color .2s ease, background-color .2s ease; }
+.gq label.check:hover { border-color: var(--muted); }
+
+/* Resume with Claude: under the listening line when Claude's window seems closed */
+.resume { margin-top: 10px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.resume > .btn { align-self: stretch; justify-content: center; }  /* full width: the one thing to do here */
+.resume[hidden] { display: none; }
+
+/* right panel: the job card folds up to one line, Claude's replies get the room */
+.jcwrap { flex: none; }
+.jcwrap > summary { list-style: none; cursor: pointer; display: flex; align-items: baseline; gap: 10px; min-height: 24px; }
+.jcwrap > summary::-webkit-details-marker { display: none; }
+.jcwrap > summary h2 { margin: 0; flex: none; }
+.jcwrap > summary h2::before { content: "▸"; display: inline-block; margin-right: 6px; transition: transform .2s ease; }
+.jcwrap[open] > summary h2::before { transform: rotate(90deg); }
+.jcwrap > summary .jcsum { font-size: 12.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.jcwrap[open] > summary .jcsum { display: none; }
+.jcwrap[open] > .jc { margin-top: 12px; max-height: 40vh; overflow: auto; }
+.jcwrap:not([open]) { padding-bottom: 14px; }
+.linkish { background: none; border: 0; padding: 0; color: var(--accent); font-size: 12px; cursor: pointer; text-decoration: underline;
+  text-underline-offset: 2px; }
+.feed { padding-top: 14px; }
+.claude .status { align-items: center; margin-bottom: 8px; }
+.claude .status .pulse { margin-top: 0; }
+.claude textarea.f { min-height: 64px; }
+
+.gatebar .gate-after { margin: 8px 0 0 42px; display: inline-block; }
+
+/* the loading card: which step, what now, what it just did */
+.working .working-body { width: 100%; }
+.working .working-step { margin-top: 6px; font: 600 13px var(--font-head); color: var(--accent); letter-spacing: .02em; }
+.working .working-text { font-size: 15px; color: var(--text); margin-top: 8px; }
+.working .working-done { list-style: none; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line2);
+  display: flex; flex-direction: column; gap: 6px; text-align: left; font-size: 12.5px; color: var(--muted); }
+.working .working-done li { display: flex; gap: 8px; align-items: baseline; }
+.working .working-done .tick { color: var(--ok); flex: none; }
+.working .working-done span:nth-child(2) { flex: 1; overflow-wrap: anywhere; }
+.working .working-done time { flex: none; font-size: 11.5px; }
+
+/* Review: "I want changes" / "It looks good" as two clickable option cards */
+.review-choice > label.card.choice { display: flex; flex-direction: row; gap: 12px; align-items: flex-start; cursor: pointer;
+  background: var(--panel2); transition: border-color .2s ease; }
+.review-choice > label.card.choice:hover { border-color: var(--muted); }
+.review-choice > label.card.choice.picked { border-color: var(--accent); }
+.review-choice input[type=radio] { accent-color: var(--accent); width: 18px; height: 18px; margin-top: 2px; flex: none; }
+.review-choice b { display: block; font-size: 14px; }
+.review-choice .hint { margin-top: 4px; }
+
+/* step-by-step questions: "Question n of N", one at a time, Back / Next, Proceed on the last */
+.gatebar .gstep { margin: 14px 0 0 42px; font: 600 12px var(--font-head); color: var(--accent); letter-spacing: .04em;
+  text-transform: uppercase; }
+.gatebar .gstep[hidden], .gatebar .btn[hidden], .gatebar .gq[hidden] { display: none; }
+.gatebar .gnav { margin-left: 42px; gap: 10px; }
+.gatebar .gnav .btn.pri { margin-left: 0; }
+
+/* the loading card lets clicks through, except its Change my answer link */
+.working .working-left { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 13px; color: var(--accent); }
+.working .working-left .i { width: 15px; height: 15px; }
+.working .todo { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line2); border-radius: 12px; background: rgba(255, 255, 255, .02); }
+.working .todo-h { display: flex; justify-content: space-between; font: 600 10.5px var(--font-head); text-transform: uppercase;
+  letter-spacing: .09em; color: var(--muted); margin-bottom: 8px; }
+.working .todo ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.working .todo li { display: flex; gap: 10px; align-items: center; font-size: 14px; color: var(--muted); }
+.working .todo li.done { color: var(--text); }
+.working .todo li.now { color: var(--text); font-weight: 600; }
+.working .todo .box { flex: none; width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--line2); display: grid; place-items: center; }
+.working .todo li.done .box { background: var(--accent); border-color: var(--accent); color: #17140F; }
+.working .todo li.done .box .i { width: 13px; height: 13px; stroke-width: 3; }
+.working .todo li.now .box { border-color: var(--accent); animation: todo-pulse 1.4s ease-in-out infinite; }
+@keyframes todo-pulse { 50% { box-shadow: 0 0 0 4px var(--accent-line); } }
+.working .working-change { pointer-events: auto; margin-top: 14px; font-size: 13px; }
+
+/* "Pick the graphics": template cards with a preview still */
+.tcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-top: 10px; }
+.tcard { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--line2); border-radius: 12px;
+  background: var(--panel2); cursor: pointer; transition: border-color .2s ease, box-shadow .2s ease; }
+.tcard:hover { border-color: var(--muted); }
+.tcard:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-line), 0 6px 18px rgba(212, 175, 106, .15); }
+.tcard:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tcard .tthumb { width: 100%; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 8px; background: #1D1A17; }
+.tcard .tthumb.auto, .tcard .tthumb.none { display: grid; place-items: center; color: var(--accent); font-size: 28px; }
+.tcard .tthumb.none { font-size: 12px; color: var(--muted); padding: 8px; text-align: center; }
+.tcard b { font-size: 13px; }
+.tcard .hint { font-size: 12px; line-height: 1.4; }
+.tcard { position: relative; }
+.tcard .tbadge { position: absolute; top: 14px; left: 14px; z-index: 1; padding: 3px 8px; border-radius: 999px;
+  background: var(--accent); color: #17140F; font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+.tcard.suggested { border-color: var(--accent-line); }
+.tcard .twhy { font-size: 11px; color: var(--accent); line-height: 1.35; }
+.tnote { margin: 6px 0 0; }
+.file-skip { margin-top: 10px; }
+.dropzone.off, .drop.off { opacity: .4; pointer-events: none; }
+.tlink-row { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; font-size: 13px; font-weight: 600; }
+.tlink-row .hint { font-weight: 400; font-size: 12px; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* the Quit CapCut reminder: no button, hard to miss */
+.banner.capcut { display: flex; gap: 14px; align-items: flex-start; border-width: 2px; padding: 16px 18px; }
+.banner.capcut b { font-size: 16px; }
+.banner.capcut .capcut-ic { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--err, #E5484D); color: #fff; font-weight: 800; }
+
+/* breathing room: the left panel's links sit apart from the logo's line, and the right panel's three parts (job
+   card, Claude's feed, the message box) are separate cards with space between them instead of strips that touch */
+.brand + .nav { margin-top: 10px; }
+.rail { gap: 10px; padding: 10px; background: var(--bg); }
+.rail .sec, .rail .feed, .rail .claude { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.rail .claude { background: var(--panel2); }
+.rail .sec { border-bottom: 1px solid var(--line); }
+
+/* the editor's own message in Claude's panel, and whether Claude has read it yet */
+.feed li.you { flex-direction: column; gap: 4px; align-items: flex-end; }
+.feed li.you .say-text { background: var(--panel2); border: 1px solid var(--line2); border-radius: 12px 12px 4px 12px;
+  padding: 8px 10px; color: var(--text); white-space: pre-wrap; max-width: 92%; }
+.feed li.you .you-wait, .feed li.you .you-read { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; }
+.feed li.you .you-wait { color: var(--accent); }
+.feed .spin.sm { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line2);
+  border-top-color: var(--accent); animation: spin .8s linear infinite; }
+
+/* the editor's turn: Claude's question glows so it is the first thing seen */
+.gatebar.attention { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-line), 0 0 28px rgba(212, 175, 106, .18);
+  animation: attention 1.6s ease-in-out 3; }
+@keyframes attention { 50% { box-shadow: 0 0 0 4px var(--accent-line), 0 0 36px rgba(212, 175, 106, .32); } }
+@media (prefers-reduced-motion: reduce) { .gatebar.attention { animation: none; } }
+.banner.you { border-color: var(--accent-line); }
+
+/* the voiceover script to copy */
+.vo-line { border: 1px solid var(--line2); border-radius: 10px; padding: 10px 12px; }
+.vo-line .vo-text { margin-top: 6px; white-space: pre-wrap; line-height: 1.55; }
+
+/* a dropped file's x */
+.files li { display: flex; align-items: center; gap: 8px; }
+.file-x { margin-left: auto; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line2); background: transparent;
+  color: var(--muted); font-size: 15px; line-height: 1; cursor: pointer; display: grid; place-items: center; flex: none; }
+.file-x:hover { color: var(--err); border-color: var(--err); }
+.file-x:disabled { opacity: .5; cursor: default; }

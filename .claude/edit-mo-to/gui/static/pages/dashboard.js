@@ -1,15 +1,10 @@
 // Dashboard: a card per video folder (each with its "what to do now" line), "Try a practice video" (Start practice:
-// POST /api/practice opens the editor's own Claude in a visible window; the Copy fallback shows only when that can't
-// happen), recent activity across videos, the setup check, "New video", and the plan usage box (usageCard).
-import { h, icon, chip, checksTable, relTime, stepTitle, STEPS, copyButton } from "../ui.js";
+// a practice video, opened on its Brief page like New video), recent activity across videos, the setup check,
+// "New video", and the plan usage box (usageCard).
+import { h, icon, chip, checksTable, relTime, stepTitle, STEPS, copyButton, toast } from "../ui.js";
 import { t, wordsIn } from "../words.js";
 import { nowStrip } from "../nextstep.js";
 
-const PRACTICE = "/practice-muna";  // what Start practice runs, and what the editor types in Claude when it can't
-const FALLBACK = new Set(["no-claude", "failed", "unsupported"]);  // these replies show the Copy fallback
-const PRACTICE_WHY = { "no-claude": "practice.no_claude", failed: "practice.failed", unsupported: "practice.unsupported",
-  busy: "practice.busy" };
-let practiceReply = null;  // the last Start practice reply, kept when the page re-renders (a language change)
 
 const REFRESH_MS = 5000;
 const USAGE_MS = 60000;  // the usage box reads /api/usage again this often (and on "Update my usage")
@@ -68,39 +63,15 @@ function card(summary, reply) {
       "aria-label": t("dash.progress") }, h("i", { style: `width:${pct}%;background:var(--${BAR[status]})` })));
 }
 
-/** "Try a practice video": Start practice asks the server to open Claude in a window the editor sees (the command is
- *  fixed in the server). Only when it can't (no `claude` command, the launch failed, or this system can't open a
- *  window) the card says why in plain words and shows "In Claude, type: /practice-muna [Copy]" instead. */
+/** "Try a practice video": Start practice makes a practice video (in _practice/) and opens its Brief page, exactly like
+ *  New video: the brief (any kind: a talking clip, an explainer, an ad) and the files are optional there, and Submit to
+ *  Claude opens Claude on it (/practice-muna-app) when none is listening. Only the output is short (about 10 s). */
 function practiceCard(ctx) {
-  const status = h("p", { class: "hint", role: "status" });
-  const fallback = h("div", { class: "row", hidden: true }, h("span", {}, t("practice.type")),
-    h("code", { class: "mono cmd" }, PRACTICE), copyButton(PRACTICE, t("practice.copy")));
   const btn = h("button", { class: "btn pri", type: "button" }, t("practice.start"));
-  const show = (reply) => {
-    practiceReply = reply;
-    status.textContent = !reply ? "" : reply.ok ? t("practice.opened")
-      : [t(PRACTICE_WHY[reply.reason] || "practice.failed"),
-        reply.hint === "automation" ? t("practice.mac_automation") : ""].filter(Boolean).join(" ");
-    status.className = reply && !reply.ok && reply.reason !== "busy" ? "msg err" : "hint";
-    fallback.hidden = !(reply && !reply.ok && FALLBACK.has(reply.reason));
-  };
-  btn.addEventListener("click", async () => {
-    btn.disabled = true;
-    status.className = "hint";
-    status.textContent = t("practice.starting");
-    let reply;
-    try {
-      reply = await ctx.api("/api/practice", { body: {} });
-    } catch {
-      reply = { ok: false, reason: "failed" };
-    }
-    show(reply?.ok || PRACTICE_WHY[reply?.reason] ? reply : { ok: false, reason: "failed" });
-    btn.disabled = false;
-  });
-  show(practiceReply);
+  btn.addEventListener("click", () => newVideo(ctx, btn, true));
   return h("section", { class: "card practice", "aria-labelledby": "practice-h" },
     h("h3", { id: "practice-h" }, t("practice.title")), h("p", { class: "hint" }, t("practice.what")),
-    h("div", { class: "row" }, btn), status, fallback);
+    h("div", { class: "row" }, btn));
 }
 
 const pct = (n) => String(Math.round(n));
@@ -217,6 +188,26 @@ function usageCard(ctx) {
 
 const setupTable = (checks, older) => checksTable(checks, [[t("dash.older_check"), chip(String(older), "mute")]]);
 
+/** New video (and Start practice, `practice`), one click and no form: the folder starts as "Video <date>" (or
+ *  "Practice <date>" in _practice/; " 2", " 3"… when taken), the brief goes on the Brief page it opens, and Claude
+ *  renames the folder after the client and product once it has read the brief. */
+async function newVideo(ctx, btn, practice = false) {
+  btn.disabled = true;
+  try {
+    const jobs = await ctx.api("/api/jobs");
+    const taken = new Set((jobs || []).filter((j) => Boolean(j.practice) === practice).map((j) => j.name));
+    const base = t(practice ? "dash.practice_name" : "dash.auto_name", { date: new Date().toLocaleDateString("en-CA") });
+    let folder = base;
+    for (let n = 2; taken.has(folder); n++) folder = `${base} ${n}`;
+    const res = await ctx.api("/api/new", { body: { folder, auto_folder: true, ...(practice ? { practice: true } : {}) } });
+    ctx.go(`#/job/${encodeURIComponent(res.folder)}/brief`);
+  } catch (e) {
+    toast(e.message || t("dash.create_failed"));
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 export function render(root, data, ctx) {
   const sub = h("p", {}, t("dash.looking"));
   const grid = h("div", { class: "grid3" });
@@ -226,10 +217,11 @@ export function render(root, data, ctx) {
   const older = h("div", {});
   const activity = h("ul", { class: "act" }, h("li", {}, t("common.loading")));
   const setup = h("div", {}, h("p", { class: "hint" }, t("common.checking")));
-  const newBtn = h("button", { class: "btn pri", type: "button", onclick: () => ctx.openDialog("new") }, icon("plus"), t("dash.new_video"));
+  const newBtn = h("button", { class: "btn pri", type: "button" }, icon("plus"), t("dash.new_video"));
+  newBtn.addEventListener("click", () => newVideo(ctx, newBtn));
   root.append(
     h("div", { class: "head" }, h("div", {}, h("h1", {}, greeting()), sub), newBtn),
-    grid, plan.card, tryIt, practice, older,
+    grid, plan.card, tryIt, practice, older,  // stacked: the plan card can be long
     h("div", { class: "grid2", style: "margin-top:20px" },
       h("section", { class: "card" }, h("h3", {}, t("dash.recent")), activity),
       h("section", { class: "card" }, h("h3", {}, t("checks.title")), setup)));

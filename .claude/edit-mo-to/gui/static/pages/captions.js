@@ -47,7 +47,7 @@ function sides(ctx, data) {
             value: () => (tls.length ? boxes.filter((b) => b.checked).map((b) => b.value) : null) })) : null));
 }
 
-/** The open gate asks `timelines`: "Add captions" answers it; the red banner still asks `capcut_closed`. */
+/** The open gate asks `timelines`: "Add captions" answers it; the bar's Proceed answers `capcut_closed` (the red reminder above). */
 function addAnswer(ctx, data, gate, picked) {
   const sent = gateAnswer(data, gate, "timelines");
   if (sent) return h("span", { class: "row" }, chip(t("captions.tl_sent"), "wait"));

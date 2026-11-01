@@ -1,6 +1,6 @@
 ---
 name: practice-muna
-description: Practice run of the full edit-mo-to workflow on the editor's own raw clip, shrunk to a 10-second video. Same 12 steps, same stops, same agents as a real client job, with a short "in a real job" tip at each stop, so a new user learns the workflow (and checks their install) before working on a real client. Use when the user runs /practice-muna, or asks to practise, rehearse, test-drive or demo the workflow.
+description: Practice run of the full edit-mo-to workflow on any brief (a clip of the editor talking, an explainer, an ad), shrunk to a 10-second video so it runs faster. Same 12 steps, same stops, same agents as a real client job, with a short "in a real job" tip at each stop, so a new user learns the workflow (and checks their install) before working on a real client. Use when the user runs /practice-muna, or asks to practise, rehearse, test-drive or demo the workflow.
 ---
 
 # /practice-muna
@@ -12,19 +12,36 @@ A practice run ("practice muna": practise first) is a **real `/edit-mo-to` job, 
 - Add **one line** starting "In a real job:" that says what would happen with a client (e.g. "In a real job: you'd generate this voiceover in ElevenLabs and send me the file.").
 - Talk in plain, beginner-friendly words.
 
-**Language:** reply in the editor's language (English, Taglish or Tagalog). When the editor writes in Taglish or Tagalog, run `.claude/edit-mo-to/run gui/job.py lang tl` once; when they switch back to English, `… lang en`. Never translate the script, the VO, the generator prompts or the editor's text.
+**Language:** reply in the editor's language (English, Taglish or Tagalog). When the editor writes in Taglish or Tagalog, run `.claude/edit-mo-to/run gui/job.py lang tl` once; when they switch back to English, `… lang en`. Never translate the script, the VO, the generator prompts or the editor's text. Judge the editor's language only from their own words to you: chat messages, gate answers and the "Anything to add or change?" notes, "Tell Claude" messages, and the brief they send (a brief written in Tagalog or Taglish counts). Never from the video's own text: the script and the editor's script edits (`script:<line id>`), the VO, prompts, captions or on-screen text, which can be Tagalog while the editor talks to you in English.
 
-**Speed:** everything is about 10 s, so keep agent jobs small, run independent agents in parallel, and skip nothing. A rehearsal takes about 15–25 minutes.
+**Speed:** a practice works exactly like a real job, only faster, because the output is about 10 s: keep agent jobs small, run independent agents in parallel, and skip nothing. A practice takes about 15–25 minutes.
 
-## Before step 1
-⛔ "Send me a raw video to practise on: any clip of you (or anyone) talking to the camera, at least 15 seconds, straight from your phone." When it arrives, run `.claude/edit-mo-to/run tools/rehearse.py prepare "<raw video>"` (about 1 minute the first time). It lays out a practice job in `{root}/_practice/<name>/`: `brief.md`, `script.txt`, `keep.json`, `broll/`, `music.wav` and `prepare.json` (palette, the speaker's face box, word frames, beats). Say: "I made a practice job from your clip. Now we do exactly what we'd do for a client."
+## Chat or app
+Like `/edit-mo-to`, a practice runs in one of two modes (that skill's "Two modes"): **chat mode** (`/practice-muna`) or **app mode** (`/practice-muna-app`, or a session the app opened).
+- **Chat mode:** everything happens in this chat. Ask for the brief here: ⛔ "Send me a brief (any kind: a clip of you talking, an explainer, an ad), or say 'surprise me'. Everything is optional." Make the practice folder `{root}/_practice/Practice <date>/` (a plain folder; with a clip, copy it into its `refs/`), then go on at "pick the kind of practice" below. No `launch.py`, `job.py`, `wait.py` or `say`; skip the app parts of this file.
+- **App mode:** this section and the rest as written.
+- **Switching to the app mid-way** works as in `/edit-mo-to` ("Switching to the app mid-way"): the practice folder becomes a job (`folder_auto` true) with everything done so far, then the app opens on it.
 
-Then open the GUI the same way as `/edit-mo-to` ("Before step 1" in its SKILL.md), so the editor learns the app in this run: `.claude/edit-mo-to/run gui/launch.py --folder "{root}/_practice/<name>"` (open the printed URL in the browser pane; in the CLI add `--open`), then `.claude/edit-mo-to/run gui/job.py init "{root}/_practice/<name>" --client Practice --product "<name>"`. From here follow the skill's GUI rule at every step and stop (job state, the gate in the GUI with `wait.py` in the background, the inbox), and say once: "You can answer each stop here in chat or in the app."
+## Before step 1 (app mode)
+The app is the editor's main place; this chat is optional. A practice starts in the app exactly like a real video: **Start practice** on the dashboard makes `{root}/_practice/Practice <date>/` (a job with `"folder_auto": true`, made the current job) and opens its **Brief** page, where everything is optional (pasted brief, link, instructions, files such as a talking clip), and **Submit to Claude** sends it (an `action` `brief:submit`) and, when no Claude is listening, opens this session with `/practice-muna`.
 
-## The 12 steps, rehearsal inputs
+So first read `{tmp}/gui/current.json`:
+- **A practice already under way** (steps past `pending`): the editor pressed **Resume with Claude** after its Claude window closed. Pick it up mid-way as `/edit-mo-to`'s "Picking a video up mid-way" says; don't start over.
+- **A folder under `{root}/_practice/` with a job and no checklist yet:** this is the practice. `job.py open` it (never `init`: the app made the job), `launch.py --folder "<folder>" --open` only when this session was started by typing (Submit already has the app open), read every `brief:` input and the files in `refs/`, mark them handled.
+- **Nothing there** (started by typing `/practice-muna-app`): open the app on its dashboard, `.claude/edit-mo-to/run gui/launch.py --open`, listen on the app (`wait.py --app`, `/edit-mo-to`'s "Open the GUI": Submit then hands the practice to you, no second Claude), and ask in chat and the app at once: ⛔ "Press **Start practice** in the app and give me a brief (any kind: a clip of you talking, an explainer, an ad), or send it here. Everything is optional." Make the practice folder yourself only if the editor answers in chat (`job.py init "{root}/_practice/Practice <date>"`).
+
+Then pick the kind of practice from what the brief holds:
+- **Talking clip, no written brief** (a video of someone talking in `refs/`, nothing pasted): the **clip practice** in the table below. Run `.claude/edit-mo-to/run tools/rehearse.py prepare "<clip>" --out "<practice folder>"` (about 1 minute the first time): it adds `brief.md`, `script.txt`, `keep.json`, `broll/`, `music.wav` and `prepare.json` (palette, the speaker's face box, word frames, beats) to the folder. Say: "I made a practice job from your clip. Now we do exactly what we'd do for a client."
+- **A written brief** (pasted text, a link or a brief file; an explainer, a product ad, anything; files optional): the **brief practice**: the 12 steps of `/edit-mo-to` on that brief, as written there, with these practice rules: the video is **about 10 s** (`limits.json` `max_s` 10 unless the brief says shorter; a script of 1–3 short lines), the style is whatever the brief needs (`broll`, `pixar`, `claymation`, `product-ad`, `ugc`, or motion graphics only), and at each stop offer a suggested answer that keeps it moving: no storyboard unless the brief is AI-heavy, the voiceover from the editor (suggested: record yourself reading the script on your phone; or Generate for me where allowed), AI or motion-graphics clips only where nothing else works (and say which ones the editor would generate). A clip in `refs/` is used as footage.
+- **Nothing at all:** ⛔ ask which they want, with two suggested answers: "a clip of you talking (add it on the Brief page; in chat mode, send me its file path)" or "an explainer about edit-mo-to, motion graphics only".
+
+In app mode, say once: "Answer each stop in the app (or here in chat if you like)." From here follow the skill's GUI rule at every step and stop (job state, the gate in the GUI with `wait.py` in the background, the inbox). Every stop must be answerable in the app: open each ⛔ stop as a GUI gate and wait for it with `wait.py`, never only in chat. Every reply you write in chat also goes to the app with `job.py say` (the skill's "Your replies in the app"). The folder rename of step 2 applies (`folder_auto`: the practice gets the product's name, still under `_practice/`).
+
+## The 12 steps, clip practice inputs
+(The brief practice uses `/edit-mo-to`'s own steps with the practice rules above; this table is for the clip practice.)
 | Step | Real job | Rehearsal input · suggested answer |
 |---|---|---|
-| 1 Brief | the client's brief, references, video folder | `brief.md` + folder `{root}/_practice/<name>/`. Show the brief; no reference video. |
+| 1 Brief | the client's brief, references, video folder | `brief.md` + the practice folder. Show the brief; no reference video. |
 | 2 Checklist + style | every brief rule, style picked | build the checklist from `brief.md` (8 rules); style **UGC talking head** (`ugc`). Suggested: "Looks right." |
 | 3 Script + storyboard | the brief's script or one you write; "Storyboard first?" | the script is `script.txt` (what was said, word for word). Suggested storyboard answer: **yes**, 4–5 panels (`mode: storyboard`, real frames from the clip; graphics in the brief's colours). |
 | 4 Voiceover | the editor's ElevenLabs file | the clip's own audio is the voiceover. Suggested: "Use the clip's audio." |
@@ -37,6 +54,6 @@ Then open the GUI the same way as `/edit-mo-to` ("Before step 1" in its SKILL.md
 | 12 Export + learning | the editor exports; the learning step | the same: they export, then run the learning step (`reference/learning.md`) on their hand edits. In a rehearsal, propose rules but save nothing unless they ask. |
 
 ## After step 12
-A short wrap-up: what each step was for (one line each), what worked on this computer (transcription, dead-air cutter, templates, cutout, frame sheets, CapCut build, captions, music merge, learning diff), and the one fix for anything that failed (the README's "Manual setup"). End with: "You're ready for a real client: type /edit-mo-to and send the brief."
+A short wrap-up: what each step was for (one line each), what worked on this computer (transcription, dead-air cutter, templates, cutout, frame sheets, CapCut build, captions, music merge, learning diff), and the one fix for anything that failed (the README's "Manual setup"). End with: "You're ready for a real client: type /edit-mo-to (or /edit-mo-to-app for the app) and send the brief." In app mode, then close the window as `/edit-mo-to` says at its very end (`gui/close_window.py`).
 
 Never add captions before step 10, except the `TEMP_EN_delete_me` review track; at step 10 the editor chooses. Never upload or send the video anywhere.

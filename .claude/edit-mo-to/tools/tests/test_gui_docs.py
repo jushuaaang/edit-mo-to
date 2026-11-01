@@ -53,7 +53,7 @@ def test_skill_mentions_gui_bridge():
 
 def test_skill_has_gui_hard_rule_and_working_ahead():
     s = _text(SKILL)
-    assert "**GUI.**" in s or "**GUI:**" in s
+    assert "**GUI (app mode only).**" in s or "**GUI.**" in s
     for needle in ("close-gate", "handled", "job.py inbox \"<folder>\" --unhandled", '"early": true', "You chose", "default",
                    "never skip the gate", "Bash runs from `{root}`"):
         assert needle in s, needle

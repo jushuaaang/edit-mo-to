@@ -386,6 +386,69 @@ def test_file_route_blocks_escape(api, tmp_path):
     assert api.call("GET", "/api/file" + _q(path=api.root / "missing.txt"))[0] == 404
 
 
+def test_new_job_needs_only_the_folder(api):
+    s, d = api.json("POST", "/api/new", {"folder": str(api.root / "From Brief")})
+    assert s == 200 and d["job"]["card"]["client"] == "" and d["job"]["card"]["product"] == ""
+    assert api.json("POST", "/api/new", {"client": "A"})[0] == 400  # the app always sends a name (its own when empty)
+    s, d = api.json("POST", "/api/new", {"folder": str(api.root / "Video 2026-10-31"), "auto_folder": True})
+    assert s == 200 and d["job"]["folder_auto"] is True and "folder_auto" not in api.json(
+        "POST", "/api/new", {"folder": str(api.root / "Named")})[1]["job"]
+
+
+def test_current_video_deleted_is_no_current_video(api):
+    s, d = api.json("POST", "/api/new", {"folder": "Gone Soon"})
+    assert api.json("GET", "/api/current")[1]["folder"] == d["folder"]
+    import shutil
+    shutil.rmtree(d["folder"])
+    assert api.json("GET", "/api/current")[1]["folder"] is None
+
+
+def test_resume_makes_the_video_current_then_opens_claude(api, launcher, monkeypatch):
+    monkeypatch.setattr(server, "_platform", lambda: "win32")
+    _demo(api)
+    other = api.root / "Other"
+    other.mkdir()
+    js.save(other, js.new_job(other, "", ""))
+    js.set_current(api.root / DEMO)
+    assert _practice(api, {"command": "edit-mo-to", "folder": str(other)}) == (200, {"ok": True})
+    assert Path(js.get_current()) == other  # the new Claude picks up this video
+    assert _practice(api, {"command": "edit-mo-to", "folder": str(api.root / "nope")})[0] == 404
+
+
+def test_window_state(tmp_path, monkeypatch):
+    monkeypatch.setenv("EDIT_MO_TO_GUI_TMP", str(tmp_path))
+    if sys.platform != "win32":
+        assert server.window_state() == "unknown"
+        return
+    assert server.window_state() == "unknown"  # the app opened no window
+    js.write_json_atomic(tmp_path / "gui" / "window.json", {"pid": 999999})
+    assert server.window_state() == "closed"   # that window is gone
+    js.write_json_atomic(tmp_path / "gui" / "window.json", {"pid": os.getppid()})
+    assert server.window_state() == "open"     # alive, with this test process under it
+
+
+def test_template_preview_only_by_template_name(api):
+    s = api.call("GET", "/api/template-preview" + _q(name="stat"))[0]
+    assert s in (200, 404)  # 404 until motion_render.py previews made it
+    assert api.call("GET", "/api/template-preview" + _q(name="../server"))[0] == 400
+    assert api.call("GET", "/api/template-preview" + _q(name="stat"), token=None)[0] in (401, 403)
+
+
+def test_new_practice_video_goes_in_practice(api):
+    s, d = api.json("POST", "/api/new", {"folder": "Practice 2026-10-31", "auto_folder": True, "practice": True})
+    assert s == 200 and Path(d["folder"]) == (api.root / "_practice" / "Practice 2026-10-31").resolve()
+    assert d["job"]["folder_auto"] is True  # the app creates _practice itself for Start practice
+    assert api.json("POST", "/api/new", {"folder": "../x", "practice": True})[0] == 400
+
+
+def test_start_claude_picks_one_of_two_fixed_commands(api, launcher, monkeypatch):
+    monkeypatch.setattr(server, "_platform", lambda: "win32")
+    assert _practice(api, {"command": "edit-mo-to"}) == (200, {"ok": True})
+    (argv, kw), = launcher
+    assert argv == ["cmd", "/k", "claude /edit-mo-to-app"]
+    assert _practice(api, {"command": "rm -rf /"})[0] == 400  # never text for the command line
+
+
 def test_new_job_conflict(api):
     folder = api.root / "Nativia New"
     body = {"client": "Nativia", "product": "Serum", "folder": str(folder)}
@@ -506,7 +569,7 @@ def test_prefs_known_keys_only_on_this_computer(api):
     """Per-computer GUI prefs ({tmp}/gui/prefs.json): alert switches and the language; unknown keys are refused."""
     defaults = {"notify": True, "sound": True, "ui_lang": "auto", "ui_lang_detected": "en", "avoid_models": [],
                 "default_model": None, "generate_warned_at": None, "elevenlabs_voice": None, "elevenlabs_model": None,
-                "usage_readings": []}
+                "usage_readings": [], "claude_models": {}}
     s, d = api.json("GET", "/api/prefs")
     assert s == 200 and d == defaults                                  # defaults before anything is saved
     assert not (api.tmp / "gui" / "prefs.json").exists()
@@ -539,7 +602,7 @@ def test_prefs_language_choice_and_detected_language(api):
     assert api.json("POST", "/api/prefs", {"sound": False})[1] == {
         "notify": True, "sound": False, "ui_lang": "auto", "ui_lang_detected": "tl", "avoid_models": [],
         "default_model": None, "generate_warned_at": None, "elevenlabs_voice": None, "elevenlabs_model": None,
-        "usage_readings": []}   # a Settings save keeps it
+        "usage_readings": [], "claude_models": {}}   # a Settings save keeps it
     (api.tmp / "gui" / "prefs.json").write_text(json.dumps({"ui_lang": "klingon", "ui_lang_detected": "tl"}),
                                                 encoding="utf-8")
     assert api.json("GET", "/api/prefs")[1]["ui_lang"] == "auto"         # a bad value on disk reads as the default
@@ -589,7 +652,7 @@ def launcher(monkeypatch):
 
     monkeypatch.setattr(server.subprocess, "run", fake_run)
     monkeypatch.setattr(server.subprocess, "Popen", fake_popen)
-    monkeypatch.setattr(server.shutil, "which", lambda name: "/usr/local/bin/claude" if name == "claude" else None)
+    monkeypatch.setattr(server.shutil, "which", lambda name, path=None: "/usr/local/bin/claude" if name == "claude" else None)
     monkeypatch.setattr(server, "_clock", lambda: calls.now)
     return calls
 
@@ -603,7 +666,7 @@ def test_practice_on_macos_runs_terminal_with_a_fixed_command(api, launcher, mon
     assert _practice(api) == (200, {"ok": True})
     (argv, kw), = launcher
     assert argv == ["osascript",
-                    "-e", f'tell application "Terminal" to do script "cd {_sh(api.root)} && claude \'/practice-muna\'"',
+                    "-e", f'tell application "Terminal" to do script "cd {_sh(api.root)} && claude \'/practice-muna-app\'"',
                     "-e", 'tell application "Terminal" to activate']
     assert kw.get("shell") in (None, False) and kw.get("timeout")
 
@@ -629,27 +692,29 @@ def test_practice_quotes_an_odd_root_for_the_shell_inside_applescript(tmp_path):
     shell_line = re.sub(r'\\(.)', r'\1', inner)
     assert re.fullmatch(r'(?:[^"\\]|\\.)*', inner), "an unescaped quote would end the AppleScript string early"
     words = shlex.split(shell_line)
-    assert words == ["cd", str(root), "&&", "claude", "/practice-muna"]
+    assert words == ["cd", str(root), "&&", "claude", "/practice-muna-app"]
     # a real shell (no Terminal, no claude) cds into the odd root: nothing in the name runs or expands
-    probe = shell_line.replace(" && claude '/practice-muna'", " && pwd")
+    probe = shell_line.replace(" && claude '/practice-muna-app'", " && pwd")
     assert probe != shell_line
     out = subprocess.run(["/bin/sh", "-c", probe], capture_output=True, text=True, encoding="utf-8", env={"HOME": "/nowhere"})
     assert out.returncode == 0 and out.stdout.strip() == str(root), out.stderr
 
 
 def test_practice_on_windows_opens_a_command_window_in_the_root(api, launcher, monkeypatch):
-    """A new console runs `claude /practice-muna` in the root; the request never waits for that window. The window keeps
+    """A new console runs `claude /practice-muna-app` in the root; the request never waits for that window. The window keeps
     its own console for input and output: no stdio arguments (DEVNULL would set STARTF_USESTDHANDLES, so cmd /k would
     read EOF and close, and claude would have no terminal)."""
     monkeypatch.setattr(server, "_platform", lambda: "win32")
     assert _practice(api) == (200, {"ok": True})
     (argv, kw), = launcher
     assert kw.pop("popen") is True               # Popen: started, not waited for (no subprocess.run)
-    assert argv == ["cmd", "/k", "claude /practice-muna"]
-    assert server.subprocess.list2cmdline(argv) == 'cmd /k "claude /practice-muna"'
+    assert argv == ["cmd", "/k", "claude /practice-muna-app"]
+    assert server.subprocess.list2cmdline(argv) == 'cmd /k "claude /practice-muna-app"'
     assert kw["cwd"] == str(api.root)            # the folder is the working directory, never text on the command line
     assert str(api.root) not in " ".join(argv)
     assert kw["creationflags"] == server.CREATE_NEW_CONSOLE == 0x10
+    env = kw.pop("env")                          # Windows: PATH read fresh from the registry (Claude Code installed later)
+    assert env.get("PATH") and not any(k.upper().startswith("CLAUDE") for k in env)  # a clean Claude, not a sub-session
     assert set(kw) == {"cwd", "creationflags"}   # no stdin / stdout / stderr, no capture_output, no timeout
 
 
@@ -667,7 +732,7 @@ def test_practice_refuses_without_claude_or_on_other_systems(api, launcher, monk
     monkeypatch.setattr(server, "_platform", lambda: "linux")
     assert _practice(api) == (200, {"ok": False, "reason": "unsupported"})
     monkeypatch.setattr(server, "_platform", lambda: "darwin")
-    monkeypatch.setattr(server.shutil, "which", lambda name: None)
+    monkeypatch.setattr(server.shutil, "which", lambda name, path=None: None)
     assert _practice(api) == (200, {"ok": False, "reason": "no-claude"})
     assert launcher == []
 
@@ -724,15 +789,17 @@ def test_practice_launches_once_per_ten_seconds(api, launcher, monkeypatch):
     assert len(launcher) == 2
 
 
-def test_practice_ignores_the_request_body_and_needs_the_token(api, launcher, monkeypatch):
+def test_practice_reads_only_the_command_name_and_needs_the_token(api, launcher, monkeypatch):
     monkeypatch.setattr(server, "_platform", lambda: "darwin")
     assert _practice(api, token=None)[0] == 401
     assert api.json("GET", "/api/practice")[0] == 404
     assert api.call("POST", "/api/practice", {}, headers={"Origin": "http://evil.example"})[0] == 403
     assert launcher == []
-    evil = {"command": "rm -rf ~", "cmd": "open -a Calculator", "root": "/etc", "path": "/tmp", "argv": ["sh", "-c", "x"],
-            "folder": "/", "args": "--dangerously-skip-permissions", "platform": "win32"}
-    assert _practice(api, evil) == (200, {"ok": True})
+    assert _practice(api, {"command": "rm -rf ~"})[0] == 400 and launcher == []  # a command not in COMMANDS: refused
+    assert _practice(api, {"folder": "/"})[0] in (400, 403, 404) and launcher == []  # only a video with a job
+    evil = {"cmd": "open -a Calculator", "root": "/etc", "path": "/tmp", "argv": ["sh", "-c", "x"],
+            "args": "--dangerously-skip-permissions", "platform": "win32"}
+    assert _practice(api, evil) == (200, {"ok": True})  # everything but "command" is ignored
     launcher.now += 20
     assert _practice(api) == (200, {"ok": True})
     (a1, k1), (a2, k2) = launcher
@@ -860,3 +927,59 @@ def test_server_tests_run_on_a_fake_home(api):
     status, data = api.json("GET", "/api/job" + _q(folder=folder.as_posix()))
     assert status == 200 and data["generate"] is False and "clip_files" not in data
     assert all(str(REAL_HOME) not in k for k in account._cache)
+
+
+def test_files_are_kept_and_revalidated(api):
+    s, h, _ = api.call("GET", "/static/app.js")
+    assert s == 200 and h["Cache-Control"] == "private, no-cache" and h["ETag"]  # kept, asked again each time
+    assert api.call("GET", "/static/app.js", headers={"If-None-Match": h["ETag"]})[0] == 304  # unchanged: no download
+    s, h, _ = api.call("GET", "/api/template-preview" + _q(name="stat"))
+    if s == 200:
+        assert h["Cache-Control"] == "private, max-age=86400"  # previews are kept a day
+
+
+def test_claude_models_pref_and_the_window_model(api, tmp_path):
+    s, d = api.json("POST", "/api/prefs", {"claude_models": {"main": "sonnet", "qa": "haiku"}})
+    assert s == 200 and d["claude_models"] == {"main": "sonnet", "qa": "haiku"}
+    assert api.json("POST", "/api/prefs", {"claude_models": {"qa": "gpt"}})[0] == 400  # Claude's own names only
+    assert api.json("POST", "/api/prefs", {"claude_models": {"boss": "opus"}})[0] == 400  # known parts only
+    assert server.practice_argv(tmp_path, "win32", "/edit-mo-to", "sonnet") == ["cmd", "/k", "claude --model sonnet /edit-mo-to"]
+    assert server.practice_argv(tmp_path, "win32", "/edit-mo-to", "default") == ["cmd", "/k", "claude /edit-mo-to"]
+    assert server.practice_argv(tmp_path, "win32", "/edit-mo-to", "x & calc") == ["cmd", "/k", "claude /edit-mo-to"]
+
+
+def test_practice_never_opens_a_second_claude(api, launcher, monkeypatch):
+    monkeypatch.setattr(server, "_platform", lambda: "win32")
+    folder = api.root / "Vid"
+    js.save(folder, js.new_job(folder, "", ""))
+    js.write_listening(folder, "script")
+    assert _practice(api, {"command": "edit-mo-to", "folder": str(folder)}) == (200, {"ok": False, "reason": "listening"})
+    js.clear_listening(folder)
+    job = js.load(folder)
+    job["steps"]["script"]["state"] = "working"
+    js.save(folder, job)  # a Claude changed it just now
+    s, d = _practice(api, {"command": "edit-mo-to", "folder": str(folder)})
+    assert d["reason"] == "recent" and not launcher  # asks first: it may still be running agents
+    gui = api.tmp / "gui"
+    gui.mkdir(exist_ok=True)
+    (gui / "attached.json").write_text(json.dumps({"pid": os.getpid(), "since": "x", "beat": time.time()}), encoding="utf-8")
+    assert _practice(api, {"command": "edit-mo-to", "folder": str(folder), "force": True}) == (200, {"ok": True, "attached": True})
+    assert not launcher and js.read_events(folder)[-1]["target"] == "app:resume"  # handed to the Claude on the app
+    (gui / "attached.json").unlink()
+    assert _practice(api, {"command": "edit-mo-to", "folder": str(folder), "force": True}) == (200, {"ok": True})
+    assert len(launcher) == 1  # only when the editor confirms, with no Claude listening anywhere
+
+
+def test_upload_remove_moves_the_file_out_and_tells_claude(api):
+    folder = _demo(api)
+    s, d = api.json("PUT", "/api/upload" + _q(folder=folder, kind="vo", name="take1.mp3"), raw=b"vo")
+    path = d["path"]
+    s, r = api.json("POST", "/api/upload-remove", {"folder": str(folder), "path": path})
+    assert s == 200 and not Path(path).exists()
+    assert (folder / ".edit-mo-to" / "removed" / "take1.mp3").read_bytes() == b"vo"  # kept, never deleted
+    assert js.read_events(folder)[-1]["target"] == "upload:removed"  # Claude won't use it
+    assert api.json("POST", "/api/upload-remove", {"folder": str(folder), "path": path})[0] == 404  # once only
+    other = folder / "brief.md"
+    other.write_text("x", encoding="utf-8")
+    assert api.json("POST", "/api/upload-remove", {"folder": str(folder), "path": other.as_posix()})[0] == 404
+    assert other.exists()  # only files the app uploaded, never any other file

@@ -136,6 +136,19 @@ def test_missing_inbox_times_out(tmp_path):
     assert p.returncode == 3
 
 
+def test_deleted_video_stops_the_waiter_and_stays_deleted(tmp_path):
+    folder = tmp_path / "Video 2026-10-31"
+    folder.mkdir()
+    js.save(folder, js.new_job(folder, "", ""))
+    p = _start(folder, "--timeout", "20")
+    assert _until(lambda: js.listening(folder) is not None)
+    import shutil
+    assert _until(lambda: not shutil.rmtree(folder, ignore_errors=True) and not folder.exists())
+    assert _out(p) == {"gone": True} and p.returncode == 6
+    time.sleep(0.5)
+    assert not folder.exists()  # the heartbeat never makes the folder again
+
+
 def test_superseded_waiter_leaves_new_file_intact(tmp_path):
     a = _start(tmp_path, "--timeout", "20")
     assert _until(lambda: js.listening(tmp_path) is not None)
@@ -197,3 +210,21 @@ def test_orphaned_waiter_exits(tmp_path):
     finally:
         if js.pid_alive(pid):
             os.kill(pid, signal.SIGKILL)
+
+
+def test_app_mode_waits_for_a_submitted_video(tmp_path, monkeypatch):
+    monkeypatch.setenv("EDIT_MO_TO_GUI_TMP", str(tmp_path / "gt"))
+    folder = tmp_path / "vid"
+    js.save(folder, js.new_job(folder, "", ""))
+    js.set_current(folder)
+    p = subprocess.Popen([sys.executable, str(WAIT), "--app", "--poll", "0.1"], stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
+    _procs.append((p, folder))
+    assert _until(lambda: js.attached() is not None)  # Submit / Resume now hand the video to this Claude
+    js.append_event(folder, {"type": "answer", "step": "brief", "gate": None, "target": "brief:paste", "value": "x"})
+    time.sleep(0.4)
+    assert p.poll() is None  # a brief being typed is not a Submit
+    js.append_event(folder, {"type": "action", "step": "brief", "target": "brief:submit"})
+    out = _out(p)
+    assert Path(out["folder"]) == folder and [e["target"] for e in out["events"]] == ["brief:paste", "brief:submit"]
+    assert p.returncode == 0 and js.attached() is None  # it lets go of the app when it leaves

@@ -74,7 +74,7 @@ something needs me (a login, a restart, or installing CapCut).
 
 Afterwards, always start Claude Code **in your video folder** (for example `D:\Video Editing`).
 
-**The app.** When you type `/edit-mo-to` or `/practice-muna`, Claude also opens **Edit Mo To**, a companion app, in the browser pane (or your browser). It shows each video's 12 steps, Claude's questions with buttons to answer them, the tables and prompts with Copy buttons, and the storyboard. The chat keeps working too: answer in whichever you like.
+**Chat or app.** `/edit-mo-to` and `/practice-muna` run in the chat only. Add `-app` to work with **Edit Mo To**, a companion app in your default browser: `/edit-mo-to-app` and `/practice-muna-app`. The app shows each video's 12 steps, Claude's questions with buttons to answer them, the tables and prompts with Copy buttons, and the storyboard. The chat keeps working too: answer in whichever you like.
 
 ## Step 2 · Practise first: `/practice-muna`
 
@@ -91,7 +91,7 @@ flowchart LR
 
 Type **`/practice-muna`** and send the clip. Every stop shows a suggested answer (just accept it) and a one-line tip on what happens in a real job. It takes about 15–25 minutes, and you finish knowing the whole workflow.
 
-Or press **Start practice** on the app's dashboard: it opens Terminal (Mac) or a command window (Windows) with Claude already running `/practice-muna` in your Video Editing folder.
+Or do it all in the app: press **Start practice** on the dashboard, give it any brief on the Brief page (a clip of you talking, an explainer, an ad, or nothing), and press **Submit to Claude**. If no Claude is running, it opens Terminal (Mac) or a command window (Windows) with Claude already running `/practice-muna-app` on it; you answer every stop in the app. A real video works the same way with **+ New video**.
 
 ## Step 3 · Your first real video
 
@@ -125,7 +125,7 @@ Claude opens a small app in your browser next to the chat. You can answer every 
 - **Got flagged:** if an AI site blocks a prompt, tap **Got flagged** on that shot. Claude rewrites the prompt with safer wording.
 - **English or Taglish:** buttons and labels stay English; instructions can be in Taglish. Change it in **Settings**, or leave it on Auto.
 - **Word help:** each page lists its tricky words (like *B-roll* or *QA*) under "Words on this page"; tap one for a short explanation.
-- **Start practice:** a button on the dashboard opens a new Claude window already running `/practice-muna`.
+- **Start practice:** a button on the dashboard makes a practice video and opens its Brief page, exactly like **+ New video**; **Submit to Claude** opens a Claude window on it when none is running.
 - **Report a bug / Suggest an improvement** (in Settings): saves your note on this computer; tell Claude "look at my feedback" to go through it.
 
 The app only runs on your own computer; nobody else can open it. If your settings file ever gets damaged, **Settings** shows a red warning and turns saving off, so your choices (like models Claude should never use) aren't wiped. Fix or delete the file it names, then reopen Settings.
@@ -178,7 +178,8 @@ The app's dashboard shows how much of your plan's week you have used, about how 
 |---|---|
 | Claude says CapCut is open | Quit CapCut completely (check the system tray), then tell Claude to continue |
 | "Backend is down" or port 9001 errors | Tell Claude "start the CapCut backend"; it knows how |
-| `/edit-mo-to` or `/practice-muna` doesn't show up | Start the Claude Code session in your video folder, not somewhere else |
+| `/edit-mo-to`, `/practice-muna` (or their `-app` versions) don't show up | Start the Claude Code session in your video folder, not somewhere else |
+| Submit to Claude says "Claude isn't installed as a terminal command" | The app opens Claude through the Claude Code command-line tool, which the desktop app doesn't include. Install it once: Windows `winget install Anthropic.ClaudeCode`, Mac `curl -fsSL https://claude.ai/install.sh \| bash`. The first window it opens may ask you to log in. |
 | Graphics fail to render | Check your internet connection (graphics load their fonts online), then retry |
 | Want the newest templates and fixes | Tell Claude "update edit-mo-to" (a safe `git pull`; your own rules and client notes are never touched) |
 
@@ -189,7 +190,7 @@ The app's dashboard shows how much of your plan's week you have used, about how 
 | Path | What |
 |---|---|
 | `CLAUDE.md` | house rules Claude reads in this folder |
-| `.claude/skills/edit-mo-to/` | the `/edit-mo-to` skill: 12 gated steps, plus step detail and the learning step |
+| `.claude/skills/edit-mo-to/` | the `/edit-mo-to` skill: 12 gated steps, plus step detail and the learning step (`edit-mo-to-app/` and `practice-muna-app/`: the same with the app) |
 | `.claude/agents/` | ugc, broll, claymation, pixar, product-ad (style), editor (CapCut builds), qa (checks), motion-designer (new looks and templates) |
 | `.claude/edit-mo-to/preferences.md` | shared starter rules everyone begins with |
 | `.claude/edit-mo-to/my-preferences.md` | your own learned rules (local only, gitignored; wins over the starter rules) |

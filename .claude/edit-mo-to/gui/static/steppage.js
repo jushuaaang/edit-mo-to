@@ -11,7 +11,7 @@
 // Inputs are inbox events: an `answer` with target "<step>:<id>" and gate null ("early": true while the step is
 // not started), an `upload`, or an `action` for buttons that change files (Claude acts on them). Every string from
 // job data, the inbox, outputs or file names reaches the DOM as text through h().
-import { h, chip, stepChip, gateBar, askBox, table, pendingChip, toast, dropZone, copyButton, stepTitle, previousStep,
+import { h, chip, stepChip, gateBar, table, pendingChip, toast, dropZone, copyButton, stepTitle, previousStep,
   STEPS, staleText } from "./ui.js";
 import { t } from "./words.js";
 import { nowStrip, getPrefs, savePrefs } from "./nextstep.js";
@@ -74,7 +74,7 @@ export function savedChip(data, ev) {
 
 // ---------- inputs ----------
 
-function field(label, forId, saved, ...kids) {
+export function field(label, forId, saved, ...kids) {
   return h("div", { class: "field" },
     h("div", { class: "row spread" }, forId ? h("label", { class: "lbl", for: forId }, label) : h("span", { class: "lbl" }, label),
       saved),
@@ -246,7 +246,37 @@ export function generateButton(ctx, data, step, id, opts = {}) {
 
 /** Files the server copied in for this step (its own `upload` events), newest last. */
 export function uploads(data, step) {
-  return (data?.events || []).filter((e) => e.type === "upload" && e.step === step && !e.early && typeof e.value === "string");
+  const gone = removedUploads(data);
+  return (data?.events || []).filter((e) => e.type === "upload" && e.step === step && !e.early && typeof e.value === "string"
+    && !gone.has(e.value));
+}
+
+/** The paths the editor took out with a file's x (`edit` events `upload:removed`). */
+export function removedUploads(data) {
+  return new Set((data?.events || []).filter((e) => e.type === "edit" && e.target === "upload:removed").map((e) => e.value));
+}
+
+/** The x on a dropped file: the server moves it out of the video (into .edit-mo-to/removed/, not deleted) and tells
+ *  Claude. Returns true when it went. */
+export async function removeUpload(ctx, path) {
+  try {
+    await ctx.api("/api/upload-remove", { body: { folder: ctx.folder, path } });
+    toast(t("upload.removed", { name: baseName(path) }));
+    return true;
+  } catch (e) {
+    toast(e.message || t("common.not_sent"));
+    return false;
+  }
+}
+
+export function removeButton(ctx, path, onGone) {
+  const btn = h("button", { class: "file-x", type: "button", title: t("upload.remove", { name: baseName(path) }),
+    "aria-label": t("upload.remove", { name: baseName(path) }) }, "×");
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    if (await removeUpload(ctx, path)) { btn.closest("li")?.remove(); onGone?.(); } else btn.disabled = false;
+  });
+  return btn;
 }
 
 /** A drop zone for the step's files. While the step is not started, each file is also saved as an early `upload`
@@ -261,7 +291,8 @@ export function uploadInput(ctx, data, step, kind, label) {
       try { await sendInput(ctx, data, step, "upload", res.path, "upload"); } catch (e) { toast(e.message || t("common.not_saved_try")); }
     } }),
     files.length ? h("ul", { class: "files" }, files.map((e) => h("li", { title: e.value },
-      h("span", { class: "mono" }, baseName(e.value)), early ? null : savedChip(data, e)))) : null);
+      h("span", { class: "mono" }, baseName(e.value)), early ? null : savedChip(data, e),
+      removeButton(ctx, e.value)))) : null);
 }
 
 /** A button whose work changes files: an `action` event Claude acts on. opts: {primary, value() -> value | false} */
@@ -304,46 +335,15 @@ export function youLine(text) {
   return h("div", { class: "banner you" }, chip(t("tag.you"), "you"), h("span", {}, text));
 }
 
-/** The red "Quit CapCut" banner while the open gate asks `capcut_closed`. Its button checks /api/capcut first;
- *  while CapCut still runs the "CapCut is still running" dialog rechecks every 2 s. */
+/** The red "Quit CapCut" reminder while the open gate asks `capcut_closed`: no button. Proceed in the question bar
+ *  answers it, after checking CapCut is really closed (the "CapCut is still running" dialog rechecks every 2 s). */
 export function capcutBanner(ctx, data, step) {
   const gate = openGate(data, step);
   const q = gate?.questions?.find((x) => x.id === CAPCUT_Q);
-  if (!q) return null;
-  const sent = gateAnswer(data, gate, q.id);
-  const status = h("span", { class: "hint", role: "status" });
-  const btn = h("button", { class: "btn pri", type: "button" }, t("sp.capcut_closed"));
-  const answer = async (value) => {
-    try {
-      const ev = await answerGate(ctx, gate, q.id, value);
-      btn.disabled = true;
-      status.textContent = ev?.stale ? staleText() : t("common.sent_waiting");
-    } catch (e) {
-      status.textContent = e.message || t("common.not_sent");
-      btn.disabled = false;
-    }
-  };
-  btn.addEventListener("click", async () => {
-    btn.disabled = true;
-    status.textContent = t("common.checking");
-    try {
-      const r = await ctx.api("/api/capcut");
-      if (r?.running) {
-        status.textContent = t("sp.capcut_running");
-        btn.disabled = false;
-        ctx.openDialog("capcut", { onClosed: () => answer(true), onCancel: () => answer("cancel") });
-      } else {
-        await answer(true);
-      }
-    } catch (e) {
-      status.textContent = e.message || t("sp.capcut_check_failed");
-      btn.disabled = false;
-    }
-  });
+  if (!q || gateAnswer(data, gate, q.id)) return null;
   return h("div", { class: "banner err capcut", role: "alert" },
-    h("div", {}, h("b", {}, t("sp.capcut_quit")), h("div", { class: "hint" }, q.why || q.text)),
-    sent ? h("span", { class: "row" }, chip(t(sent.value === "cancel" ? "sp.change_cancelled" : "common.sent_waiting"), "wait"))
-      : h("span", { class: "row" }, btn, status));
+    h("span", { class: "capcut-ic", "aria-hidden": "true" }, "!"),
+    h("div", {}, h("b", {}, t("sp.capcut_quit")), h("div", {}, t("sp.capcut_remind"))));
 }
 
 /** Every table output of the step (job.py output … kinds other than checklist/script), except `skip`. */
@@ -383,8 +383,8 @@ export function stepPage(root, step, data, ctx, parts = {}) {
   const st = stateOf(data, step);
   const name = String(ctx.folder || "").split("/").filter(Boolean).pop() || "";
   const gate = openGate(data, step);
-  const hide = new Set([CAPCUT_Q, ...(parts.hide || [])]);
-  const shown = gate ? { ...gate, questions: (gate.questions || []).filter((q) => !hide.has(q.id)) } : null;
+  const hide = new Set(parts.hide || []);
+  const shown = gate && !parts.hideGate ? { ...gate, questions: (gate.questions || []).filter((q) => !hide.has(q.id)) } : null;
   const answeredSome = gate && (gate.questions || []).some((q) => gateAnswer(data, gate, q.id));
   let content;
   if (st === "pending" && data?.early?.[step]) {
@@ -399,6 +399,7 @@ export function stepPage(root, step, data, ctx, parts = {}) {
   } else {
     content = parts.body ? parts.body() : [];
   }
+  const bar = () => gateBar(shown, ctx, parts.labels || {}, parts.gateExtra ? parts.gateExtra() : null);
   root.append(...[  // the DOM's append stringifies null ("null" text), so the absent parts are filtered out
     nowStrip(data, "page"),
     h("div", { class: "crumbs" }, t("page.crumb", { name, n: STEPS.indexOf(step) + 1 })),
@@ -406,9 +407,9 @@ export function stepPage(root, step, data, ctx, parts = {}) {
       h("p", { class: "why" }, h("span", { class: "sr" }, `${t("page.why_label")}: `), t(`why.${step}`), " ", h("span", { class: "takes" }, t(`time.${step}`))),
       job?.steps?.[step]?.note ? h("p", {}, job.steps[step].note) : null), stepChip(st)),
     parts.you ? youLine(parts.you) : null,
-    shown ? gateBar(shown, ctx, parts.labels || {}) : null,
+    shown && parts.gateFirst ? bar() : null,
     capcutBanner(ctx, data, step),
     answeredSome && !data?.listening ? h("div", { class: "banner wait", role: "status" }, h("span", {}, t("sp.not_listening"))) : null,
     h("div", { class: "stack" }, content),
-    askBox(step, data, ctx)].filter(Boolean));
+    shown && !parts.gateFirst ? bar() : null].filter(Boolean));  // the bar under what it asks about (gateFirst: above)
 }

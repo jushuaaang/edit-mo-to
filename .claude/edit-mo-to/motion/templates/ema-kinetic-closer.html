@@ -1,0 +1,174 @@
+<!--defaults {"label": "PAALALA", "line1": "Ikaw pa rin,", "line2": "ANG EDITOR", "chips": "BASAHIN|I-CHECK|PROCEED", "hot": 3, "status": "BASAHIN BAGO MAG-PROCEED", "hud_tl": "EDIT MO TO", "hud_tl2": "APP EXPLAINER", "hud_tr": "TRAINING", "hud_tr2": "1920×1080 · 30 FPS", "hud_br": "OUTRO", "tc_start": "0", "progress_from": 0.85, "progress_to": 1, "t_l1": 0.15, "t_l2": 0.6, "t_dot": 1.15, "t_chips": "1.7,2.5,3.5", "t_status": 4.0, "bg": "#0C0B0A", "fg": "#F3EFE8", "muted": "#A69D91", "accent": "#D4AF6A", "accent_fg": "#0C0B0A", "font": "Space Grotesk", "serif": "Instrument Serif", "mono": "JetBrains Mono", "size": 230, "x": 230, "duration": 5} -->
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500;700&family={{mono}}:wght@500;700&display=block" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{serif}}:ital@0;1&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: {{bg}}; }
+  #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "{{font}}", sans-serif; color: {{fg}}; -webkit-font-smoothing: antialiased; }
+  #scene { position: absolute; inset: 0; background: {{bg}}; }
+  #vig { position: absolute; inset: 0; background: radial-gradient(70% 70% at 40% 48%, rgba(255,255,255,.035) 0%, rgba(0,0,0,0) 55%, rgba(0,0,0,.45) 100%); }
+  #cam { position: absolute; inset: 0; transform-origin: 700px 520px; }
+  #blk { position: absolute; left: {{x}}px; top: 50%; transform: translateY(-53%); }
+  #lbl { font-family: "{{mono}}", monospace; font-weight: 700; font-size: 26px; letter-spacing: .26em; color: {{accent}}; white-space: pre; margin-bottom: 18px; }
+  #l1m { overflow: hidden; padding: .06em .3em .14em .02em; margin: -.06em 0 -.3em -.02em; }
+  #l1 { display: inline-block; font-family: "{{serif}}", serif; font-style: italic; font-weight: 400; font-size: calc({{size}}px * .66); line-height: 1; letter-spacing: -.01em; white-space: nowrap; }
+  #l2w { display: inline-block; position: relative; }
+  #l2row { display: flex; align-items: baseline; white-space: nowrap; font-weight: 700; font-size: {{size}}px; line-height: 1.02; letter-spacing: -.035em; }
+  #l2row .c { display: inline-block; overflow: hidden; padding: .04em .03em .06em; margin: -.04em -.03em -.06em; }
+  #l2row .ci { display: inline-block; }
+  #dotw { position: relative; display: inline-block; width: .2em; height: .2em; margin-left: .07em; }
+  #dot { position: absolute; inset: 0; border-radius: 50%; background: {{accent}}; }
+  .rg { position: absolute; left: 50%; top: 50%; border-radius: 50%; border: 1.5px solid {{accent}}; }
+  #rg1 { width: 340px; height: 340px; margin: -170px 0 0 -170px; }
+  #rg2 { width: 620px; height: 620px; margin: -310px 0 0 -310px; }
+  #ul { height: 5px; width: 100%; background: {{fg}}; margin-top: 6px; }
+  #chips { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 44px; max-width: 1400px; }
+  .chip { position: relative; font-family: "{{mono}}", monospace; font-weight: 700; font-size: 25px; letter-spacing: .14em; white-space: nowrap;
+          padding: 13px 24px 12px; border-radius: 999px; border: 2px solid rgba(243,239,232,.5); color: {{fg}}; overflow: hidden; }
+  .chip .fill { position: absolute; inset: 0; background: {{accent}}; border-radius: 999px; }
+  .chip .t { position: relative; }
+  .chip .t2 { position: absolute; left: 24px; top: 13px; color: {{accent_fg}}; }
+  #status { margin-top: 34px; font-family: "{{mono}}", monospace; font-weight: 500; font-size: 22px; letter-spacing: .22em; color: {{muted}}; white-space: pre; display: flex; align-items: center; gap: 16px; }
+  #sdot { width: 12px; height: 12px; border-radius: 50%; background: {{accent}}; flex: none; }
+  /* HUD */
+  .br { position: absolute; width: 30px; height: 30px; border: 0 solid {{fg}}; opacity: .7; }
+  .hud { position: absolute; font-family: "{{mono}}", monospace; font-size: 18px; letter-spacing: .16em; line-height: 1.45; white-space: pre; color: {{muted}};
+         text-shadow: -1px 0 rgba(238,123,110,.5), 1px 0 rgba(110,190,215,.4); }
+  .hud b { color: {{fg}}; font-weight: 700; }
+  #h-tl { left: 86px; top: 70px; } #h-tr { right: 86px; top: 70px; text-align: right; }
+  #h-bl { left: 86px; bottom: 82px; display: flex; align-items: center; gap: 12px; } #h-br { right: 86px; bottom: 82px; }
+  #tcd { width: 10px; height: 10px; border-radius: 50%; background: {{accent}}; }
+  #bar { position: absolute; left: 86px; right: 86px; bottom: 62px; height: 12px; }
+  #bar .base { position: absolute; left: 0; right: 0; top: 5px; height: 2px; background: {{muted}}; opacity: .35; }
+  #bar .tk { position: absolute; top: 0; width: 2px; height: 12px; background: {{muted}}; opacity: .45; }
+  #prog { position: absolute; left: 0; top: 5px; height: 2px; width: 100%; background: {{accent}}; transform-origin: 0 50%; }
+  #src { display: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1920" data-height="1080">
+  <div id="scene" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0" data-layout-allow-overflow>
+    <div id="vig"></div>
+    <div id="cam">
+      <div id="blk">
+        <div id="lbl"></div>
+        <div id="l1m"><span id="l1">{{line1}}</span></div>
+        <div id="l2w">
+          <div id="l2row"><span id="dotw" data-layout-ignore><span class="rg" id="rg2"></span><span class="rg" id="rg1"></span><span id="dot"></span></span></div>
+          <div id="ul"></div>
+        </div>
+        <div id="chips"></div>
+        <div id="status"><span id="sdot"></span><span id="stx">{{status}}</span></div>
+      </div>
+    </div>
+    <div class="br" style="left:40px;top:40px;border-left-width:2px;border-top-width:2px"></div>
+    <div class="br" style="right:40px;top:40px;border-right-width:2px;border-top-width:2px"></div>
+    <div class="br" style="left:40px;bottom:40px;border-left-width:2px;border-bottom-width:2px"></div>
+    <div class="br" style="right:40px;bottom:40px;border-right-width:2px;border-bottom-width:2px"></div>
+    <div id="h-tl" class="hud"><b>{{hud_tl}}</b>
+{{hud_tl2}}</div>
+    <div id="h-tr" class="hud"><b>{{hud_tr}}</b>
+{{hud_tr2}}</div>
+    <div id="h-bl" class="hud"><span id="tcd"></span><b id="tc">00:00:00:00</b></div>
+    <div id="h-br" class="hud"><b>{{hud_br}}</b></div>
+    <div id="bar"><div class="base"></div><div id="prog"></div></div>
+  </div>
+  <div id="src"><span id="s-lbl">{{label}}</span><span id="s-l2">{{line2}}</span><span id="s-chips">{{chips}}</span><span id="s-tc">{{t_chips}}</span></div>
+</div>
+<script>
+  const D = {{duration}};
+  const num = (v, d) => { const n = Number(v); return isFinite(n) ? n : d; };
+  const T1 = num("{{t_l1}}", 0.15), T2 = num("{{t_l2}}", 0.6), TDOT = Math.max(num("{{t_dot}}", 1.15), T2 + 0.3), TST = Math.min(num("{{t_status}}", 4), D - 0.4);
+  const txt = id => document.getElementById(id).textContent;
+  // label letters (typed), line-2 letters (rise from masks), chips
+  const lbl = document.getElementById("lbl");
+  [...txt("s-lbl").trim()].forEach(ch => { const s = document.createElement("span"); s.textContent = ch; lbl.appendChild(s); });
+  if (!txt("s-lbl").trim()) lbl.remove();
+  const row = document.getElementById("l2row"), dotw = document.getElementById("dotw");
+  [...txt("s-l2").trim()].forEach(ch => {
+    const o = document.createElement("span"); o.className = "c";
+    const n = document.createElement("span"); n.className = "ci"; n.textContent = ch === " " ? " " : ch;
+    o.appendChild(n); row.insertBefore(o, dotw);
+  });
+  const items = txt("s-chips").split("|").map(s => s.trim()).filter(Boolean);
+  const times = txt("s-tc").split(",").map(Number).filter(isFinite);
+  const HOT = Math.round(num("{{hot}}", items.length)) - 1;
+  const chips = document.getElementById("chips");
+  items.forEach((t, i) => {
+    const c = document.createElement("div"); c.className = "chip";
+    if (i === HOT) {
+      c.innerHTML = '<span class="fill"></span><span class="t"></span><span class="t t2"></span>';
+      const a = c.querySelector(".t"); a.textContent = t;
+      const ar = document.createElement("span"); ar.style.opacity = "0"; ar.textContent = " →"; a.appendChild(ar);
+      c.querySelector(".t2").textContent = t + " →";
+    } else { c.innerHTML = '<span class="t"></span>'; c.querySelector(".t").textContent = t; }
+    chips.appendChild(c);
+  });
+  if (!items.length) chips.remove();
+  if (!txt("stx").trim()) document.getElementById("status").remove();
+  // progress bar ticks
+  const bar = document.getElementById("bar");
+  for (let i = 0; i <= 20; i++) { const k = document.createElement("i"); k.className = "tk"; k.style.left = (i * 5) + "%"; k.style.opacity = i % 5 ? ".25" : ".55"; bar.appendChild(k); }
+
+  function fitW(el, maxW) {
+    el.style.fontSize = "";
+    const w = el.getBoundingClientRect().width / (gsap.getProperty(el, "scaleX") || 1);
+    if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
+  }
+  const MAXW = 1920 - Number("{{x}}") - 150;
+  function layout() { fitW(row, MAXW); fitW(document.getElementById("l1"), MAXW); }
+  layout();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
+
+  const tl = gsap.timeline({ paused: true });
+  // HUD: live timecode, progress fill
+  const clock = { t: 0 }, p2 = n => String(n).padStart(2, "0"), tcEl = document.getElementById("tc"), TC0 = num("{{tc_start}}", 0);
+  const tick = () => { const f = Math.round((TC0 + clock.t) * 30); tcEl.textContent = `00:00:${p2(Math.floor(f / 30) % 60)}:${p2(f % 30)}`; };
+  tl.to(clock, { t: D, duration: D, ease: "none", onUpdate: tick }, 0); tick();
+  tl.fromTo("#prog", { scaleX: num("{{progress_from}}", 0.85) }, { scaleX: num("{{progress_to}}", 1), duration: D, ease: "none" }, 0);
+  tl.fromTo(".br, .hud, #bar", { opacity: 0 }, { opacity: (i, el) => el.classList.contains("br") ? 0.7 : 1, duration: 0.3, stagger: 0.03 }, 0);
+  tl.fromTo("#tcd", { opacity: 1 }, { opacity: 0.25, duration: 0.5, repeat: Math.max(1, Math.floor(D / 0.5) - 1), yoyo: true, ease: "steps(1)" }, 0);
+  // underline draws first, alone (as in the reference), then the type arrives over it
+  tl.fromTo("#ul", { scaleX: 0 }, { scaleX: 1, transformOrigin: "0 50%", duration: 0.5, ease: "power3.inOut" }, Math.max(0, T1 - 0.12));
+  if (lbl.isConnected) tl.fromTo("#lbl span", { opacity: 0 }, { opacity: 1, duration: 0.01, stagger: 0.03 }, T1 + 0.1);
+  tl.fromTo("#l1", { yPercent: 110, rotation: 3 }, { yPercent: 0, rotation: 0, duration: 0.55, ease: "power3.out", transformOrigin: "0 100%" }, T1);
+  tl.fromTo("#l2row .ci", { yPercent: 110 }, { yPercent: 0, duration: 0.5, ease: "power3.out", stagger: 0.035 }, T2);
+  // the gold dot falls in from above and lands as the full stop; rings ripple out and stay faint
+  gsap.set("#dot", { y: -900 });
+  tl.to("#dot", { y: 0, duration: 0.38, ease: "power2.in" }, TDOT - 0.38);
+  tl.to("#dot", { scaleY: 0.72, scaleX: 1.2, transformOrigin: "50% 100%", duration: 0.06, ease: "power2.out" }, TDOT);
+  tl.to("#dot", { scaleY: 1, scaleX: 1, duration: 0.3, ease: "back.out(1.3)" }, TDOT + 0.06);
+  tl.fromTo("#rg1", { scale: 0, opacity: 0.9 }, { scale: 1, opacity: 0.32, duration: 0.7, ease: "expo.out" }, TDOT);
+  tl.fromTo("#rg2", { scale: 0, opacity: 0.7 }, { scale: 1, opacity: 0.14, duration: 0.9, ease: "expo.out" }, TDOT + 0.06);
+  tl.to("#l2w", { x: 6, duration: 0.03, yoyo: true, repeat: 3, ease: "none" }, TDOT);
+  // chips pop on their words; the hot chip lands outlined, then fills (its label morphs under a short blur)
+  const cs = gsap.utils.toArray(".chip");
+  cs.forEach((c, i) => {
+    const t = times[i] !== undefined ? times[i] : TDOT + 0.5 + i * 0.6;
+    tl.fromTo(c, { opacity: 0, y: 18, scale: 0.86 }, { opacity: 1, y: 0, scale: 1, duration: 0.32, ease: "back.out(1.4)" }, t);
+    if (i === HOT) {
+      const f = c.querySelector(".fill"), a = c.querySelector(".t:not(.t2)"), b = c.querySelector(".t2");
+      gsap.set(f, { scaleX: 0, transformOrigin: "0 50%" }); gsap.set(b, { opacity: 0 });
+      tl.to(f, { scaleX: 1, duration: 0.3, ease: "power3.inOut" }, t + 0.32);
+      tl.to(c, { borderColor: "{{accent}}", duration: 0.2 }, t + 0.32);
+      tl.to(a, { opacity: 0, filter: "blur(6px)", duration: 0.16 }, t + 0.4);
+      tl.fromTo(b, { opacity: 0, filter: "blur(6px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.2 }, t + 0.46);
+      tl.to(c, { scale: 0.95, duration: 0.07, ease: "power2.out" }, t + 0.34);
+      tl.to(c, { scale: 1, duration: 0.3, ease: "back.out(1.3)" }, t + 0.41);
+    }
+  });
+  if (document.getElementById("status")) {
+    tl.fromTo("#status", { opacity: 0, x: -16 }, { opacity: 1, x: 0, duration: 0.4, ease: "power3.out" }, TST);
+    tl.fromTo("#sdot", { scale: 1 }, { scale: 0.6, duration: 0.45, repeat: 5, yoyo: true, ease: "sine.inOut" }, TST + 0.3);
+  }
+  tl.fromTo("#cam", { scale: 1 }, { scale: 1.03, duration: D, ease: "none" }, 0);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

@@ -36,6 +36,7 @@ vo: <path(s): one file, or one per hook/body>   music: <path or none>   (product
 client_broll_folder: <path or none>   (check that it exists before dispatching)
 inventory: {tmp}/reports/<job>/inv/inventory.json, or one inv_<subfolder>/inventory.json per shortlisted subfolder of a big library   (when client B-roll exists)
 revision: <requests + target timeline>      (review loop only)
+graphics_picks: {"<line id>": ["<template>", …] | ["auto"]}   (storyboard and edit-plan, from step 3's Pick the graphics: use exactly these templates; several = a storyboard variant each, and one style timeline per pick: timeline n uses each moment's n-th pick, or its only one)
 aroll_cuts: <keep.json path(s) from speech_cuts.py>   (talking-head A-roll only)
 script_lang: <es | de | en | fil | …> (media_timing / speech_cuts --lang: the code, but en for English and Filipino)   script_en: {tmp}/reports/<job>/script_en.txt (one per VO file)   (TEMP_EN on: edit-plan writes plan2 `temp_en`)
 temp_en_removed: true | [<timelines>]   (only after the editor deleted TEMP_EN_delete_me: everywhere → plan-wide "temp_en_removed": true; from some timelines → "temp_en_removed": true on those plan2 timelines)
@@ -97,13 +98,13 @@ Every command runs from `{root}` as `.claude/edit-mo-to/run gui/job.py <command>
 `init` and `step "<folder>" export done` also save the plan's week % (from the project status line) into `job.json` for the dashboard's "A video uses about N% of your week"; nothing to run for it. If export was marked done before any reading existed, `.claude/edit-mo-to/run gui/job.py usage-mark "<folder>" finish` right after your next reply saves the finish (`"usage": null` = still no reading; never guess one). Never mark `start` late: a late start makes the video look cheaper.
 
 ### Gates
-`gate.json` is `{"title", "detail"?, "questions": [{"id", "text", "why"?, "kind", "options"?, "default"?}]}`; `kind` is `choice | multi | text | confirm | file`. `text` is the gate wording above, word for word. `options` are strings or `{"value", "label"}`. Pass it on stdin (no file outside the project to write, so no permission question):
+`gate.json` is `{"title", "detail"?, "questions": [{"id", "text", "why"?, "kind", "options"?, "default"?}]}`; `kind` is `choice | multi | text | confirm | file | cards`. A `file` question always has a skip box in the app (its answer is then `"skip"`); `"skip": "<label>"` names it. `text` is the gate wording above, word for word. `options` are strings or `{"value", "label"}`. Pass it on stdin (no file outside the project to write, so no permission question):
 ```
 .claude/edit-mo-to/run gui/job.py gate "<folder>" <step> --file - <<'JSON'
 {"title": "…", "questions": [{"id": "…", "kind": "confirm", "text": "…"}]}
 JSON
 ```
-(`--file <path>` still reads a file; `job.py output … --file -` and `--from <adapter> -` read stdin the same way). The step becomes `waiting`. Then run `.claude/edit-mo-to/run gui/wait.py "<folder>" --after <last seq> --step <step> --timeout 7100` with `run_in_background` and the longest background timeout (`timeout` 7200000 ms, 2 h). `wait.py` prints `{"events": [...]}` and exits 0 when the editor sends something (exit 3 with `{"events": []}`: `--timeout` passed; exit 4: another `wait.py` took over; exit 130 or 143: stopped). When it ends with no events (a timeout, killed, or stopped by Claude Code's background time limit), run it again with the same `--after`, and keep doing so until the gate is answered: an answer can come hours later. A gate answer is an `answer` event with `gate` = the gate id and `target` = the question id; a `stale` answer (to a gate that was replaced) doesn't count. `wait.py` exits on any new event (a message, an edit, an upload, or an answer to just one question), so after each wake handle the events that aren't answers (apply them or note them in chat, mark them handled) and run `wait.py --after <the new highest seq>` again until every question the gate needs is answered, in the GUI or in chat. Only then `close-gate`: closing early turns the editor's later answers into stale "Not counted" ones. Conditional questions are needed only when their condition holds: script `changes` only when `approve` is `false`; `generator_model` once `generator` is answered (both sites ask it); `capcut_closed` only once per review round; on the checklist gate, the brief `questions` answer only when there are brief questions (a skipped one gets its default as an `assumed` row).
+(`--file <path>` still reads a file; `job.py output … --file -` and `--from <adapter> -` read stdin the same way). The step becomes `waiting`. Then run `.claude/edit-mo-to/run gui/wait.py "<folder>" --after <last seq> --step <step> --timeout 7100` with `run_in_background` and the longest background timeout (`timeout` 7200000 ms, 2 h). `wait.py` prints `{"events": [...]}` and exits 0 when the editor sends something (exit 3 with `{"events": []}`: `--timeout` passed; exit 4: another `wait.py` took over; exit 6: the video was deleted, so stop and never wait on it again; exit 130 or 143: stopped). When it ends with no events (a timeout, killed, or stopped by Claude Code's background time limit), run it again with the same `--after`, and keep doing so until the gate is answered: an answer can come hours later. A gate answer is an `answer` event with `gate` = the gate id and `target` = the question id; a `stale` answer (to a gate that was replaced) doesn't count. `wait.py` exits on any new event (a message, an edit, an upload, or an answer to just one question), so after each wake handle the events that aren't answers (apply them or note them in chat, mark them handled) and run `wait.py --after <the new highest seq>` again until every question the gate needs is answered, in the GUI or in chat. Only then `close-gate`: closing early turns the editor's later answers into stale "Not counted" ones. Conditional questions are needed only when their condition holds: script `changes` only when `approve` is `false`; `generator_model` once `generator` is answered (both sites ask it); `capcut_closed` only once per review round; on the checklist gate, the brief `questions` answer only when there are brief questions (a skipped one gets its default as an `assumed` row).
 
 One example per kind:
 ```json
@@ -122,7 +123,8 @@ One example per kind:
   {"id": "approve", "kind": "confirm", "text": "Approve this script, or tell me what to change."},
   {"id": "changes", "kind": "text", "text": "What should change?"}]}
 {"title": "voiceover", "questions": [
-  {"id": "vo", "kind": "file", "text": "Generate the voiceover in ElevenLabs and send me the file."}]}
+  {"id": "vo", "kind": "file", "text": "Generate the voiceover in ElevenLabs and send me the file.",
+   "skip": "No voiceover (text and music only)"}]}
 {"title": "voiceover: make it?", "questions": [
   {"id": "vo_make_ok", "kind": "confirm", "text": "Make the voiceover with ElevenLabs? About N characters, uses your ElevenLabs credits."}]}
 {"title": "voiceover: generated", "questions": [
@@ -136,23 +138,24 @@ Working ahead, e.g. the editor picked the music source early: `{"id": "source_ok
 | Gate (wording above) | Step | Question ids (kind; values) |
 |---|---|---|
 | Brief | `brief` | `brief` (text). The page's own inputs answer it too: `brief:link`, `brief:paste`, `brief:instructions`, uploads into `refs/` |
-| Checklist | `brief` | `checklist` (confirm). The brief questions come back as one `answer` with target `questions` (value `{"<question id>": "<answer>"}`), so don't list them as gate questions |
+| Checklist | `brief` | `checklist` (confirm). The brief questions come back as one `answer` with target `questions` (value `{"<question id>": "<answer>"}`), sent with the gate's Proceed, so don't list them as gate questions. The gate text needs no "anything missing?": the app's note box (`notes`) asks that |
 | Script approval | `script` | `approve` (confirm), `changes` (text) |
 | Storyboard first? | `script` | `storyboard_first` (confirm); when yes, then `broll_source`, `generator` and `generator_model` (as step 6) |
 | Character sheet | `storyboard` | `character_sheet` (confirm; `true` = every `CHAR-n` is saved as `storyboard/CHAR-n.png`, dropped on its card or saved from outside the app; the gate bar shows it as "It's saved". Check the files are there before going on) |
 | Keyframes | `storyboard` | `keyframes` (confirm; the editor drops `SB-n` images on the cards) |
 | Storyboard approval | `storyboard` | `approve` (confirm; the page's Approve all answers it with `true`) |
-| VO | `voiceover` | `vo` (file); with Generate for me, first `vo_make_ok` (confirm) before the make spends credits, then `vo_ok` (confirm) after it |
+| VO | `voiceover` | `vo` (file, with `"skip": "No voiceover (text and music only)"`; answer `"skip"` = no VO, SKILL.md step 4); with Generate for me, first `vo_make_ok` (confirm) before the make spends credits, then `vo_ok` (confirm) after it |
 | Older-VO spans | `voiceover` | `oldvo` (text; the "Reuse an older VO" dialog answers it with `[{"id", "timeline"}]`) |
 | Unmatched lines | `timing` | `unmatched` (choice; `keep` \| `rerecord`) |
 | Which cuts | `timing` | `cuts` (multi; the cut ids, recommended ones as `default`) |
 | B-roll source / Generator | `prompts` | `broll_source` (choice; `client` \| `ai` \| `both`), `generator` (choice; `higgsfield` \| `google-flow`), `generator_model` (choice; the chosen site's model ids in `.claude/edit-mo-to/generators.json` plus `other`; asked for either site, with the text "Which Higgsfield model?" or "Which Google Flow model?"; `other`: ask the model's name in chat and pass that name as `generator_model`: Higgsfield gives it the table's strictest limits, Google Flow keeps its own 4–8 s, 7-attachment limits; either way with a warning). A Google Flow job with no model keeps today's Flow limits and prompts |
 | Clips ready / regenerate | `clips` | `clips_folder` (text), `regenerate` (multi; the FLAG clips) |
+| Pick the graphics | `script` (after the script is approved, before Storyboard first?) | `gfx_<line id>` (cards; one per graphic moment, `options` = templates from `motion/CATALOGUE.md` plus `auto`, popular-and-fitting ones `suggested` from `motion/trends.json`, `default` = Claude's pick(s) as a list; the answer is a list: the editor may pick several, and it may hold a link to a look to build, e.g. from prompt-motion.com). Only when the video has on-screen graphics |
 | Project name taken | `build` | `project_name` (text, `default` "<Product> 2"; the page's dialog answers it) |
 | Review | `review` | `timeline` (choice; the timelines), `mode` (choice; `inplace` \| `new`), `capcut_closed` (confirm) once per round |
 | Captions | `captions` | `who` (choice; `me` \| `claude`); then `timelines` (multi) and `capcut_closed` (confirm) |
 | Music | `music` | `source` (choice; `suno` \| `own`); then `timelines` (multi) and `capcut_closed` (confirm) |
-| Learning step | `export` | `save` (confirm); each proposal also comes back as `learn:<id>` (below) |
+| Learning step | `export` | `save` (confirm); each proposal also comes back as `learn:<id>` (below). The Export page shows the proposals with a "Save this rule" tick each (all ticked to start, Select all / none) and sends one `learn:<id>` per rule with the gate's Proceed: save exactly the rules marked `save` and decline the ones marked `decline`, each where its `scope` says. The app shows `save` as no Yes / No ("Proceed saves only the ticked rules"): its `true` only means the editor is done, never "save all". In chat, "save nothing" saves none |
 
 Every gate before a CapCut write includes `capcut_closed` (confirm): the page shows the red "Quit CapCut" banner and the "CapCut is still running" dialog for it. On a `capcut_closed` answer of `"cancel"`, drop that change.
 
@@ -174,11 +177,12 @@ The editor can give these before you reach their step (the sidebar shows "Open n
 A `generate:voiceover:all` click made before the Voiceover step is not an early input: leave it unhandled until you reach the Voiceover step, then ask `vo_make_ok` there (SKILL.md, "Generate for me"). Never make a voiceover before the script is set.
 
 ### Events the pages send
-Read them with `job.py inbox "<folder>" --unhandled`, act on them, then `job.py handled "<folder>" <seq> …`. An early input has `"early": true` and `gate: null` (latest per target wins). `message` events are the "Tell Claude" boxes (a step box has `step`; the right panel has none).
+Read them with `job.py inbox "<folder>" --unhandled`, act on them, then `job.py handled "<folder>" <seq> …`. An early input has `"early": true` and `gate: null` (latest per target wins). Your own replies go the other way with `job.py say "<folder>"` (text on stdin), shown in the app's Claude panel. `message` events come from the right panel's "Tell Claude anything" box (no `step`).
 
 | Step | Event (type, target) | What it asks |
 |---|---|---|
 | brief | `answer` `brief:link` / `brief:paste` / `brief:instructions`; `upload` `refs:<file>` (+ early `brief:upload`) | the brief, its link, extra instructions, reference files (in `refs/`) |
+| brief | `action` `brief:submit` | Submit to Claude: the brief is complete; read every `brief:` input and `refs/`, then step 2 |
 | brief | `answer` `brief:questions` (no gate) or `questions` (gate) | answers to the brief questions, `{"<id>": "<text>"}`: checklist rows with source `editor, <date>` |
 | script | `answer` `script:mode` (`mine` \| `write`), `script:own_script` (early) | use the editor's script / write one |
 | script | `edit` `script:<line id>` | the new text of that line (or its English line): update the script and `script_en.txt`, re-store the `script` output |
@@ -205,6 +209,8 @@ Read them with `job.py inbox "<folder>" --unhandled`, act on them, then `job.py 
 | captions | `answer` `captions:who` (early); `action` `captions:auto-done`; `action` `captions:add` (value: timelines; only while no gate asks `timelines`, which the button answers instead) | who adds captions; auto-caption is done; the timelines to caption (the default for the `timelines` gate, confirmed there with `capcut_closed`) |
 | music | `answer` `music:source` (early); `upload` `music:<file>` (+ early `music:upload`) | Suno or own track; the track in `music/` |
 | export | `action` `export:learn` | the editor exported: run the learning step |
+| export | `action` `export:skip-learn` | the editor exported and skips the learning step: no proposals, nothing saved; mark `export` done and say the video is finished |
+| any | `edit` `upload:removed` (`value` = the file's path) | the editor took that dropped file out with its x (the app moved it to `<folder>/.edit-mo-to/removed/`): don't use it; if it was the answer to a file question, ask again or take the next file. Say in chat which file you dropped from the job |
 | export | `answer` `learn:<id>` (`{"decision": "save" \| "decline", "scope": "general" \| "client"}`) | one learning proposal: `learn.py save` (with `--client` for `client`) or `learn.py decline` |
 
 **Got flagged** (a `…:flagged` action; the site blocked the prompt, often with a vague reason, and may still have used the credits): rewrite only that prompt in safer words (same shot, same timing; follow the `.claude/edit-mo-to/safe-words.json` hints and the contract's "Safe wording"; the editor's note says what the site objected to). Show the old and the new prompt in chat. Store it the same way as the original: a prompt row: edit that prompt in `prompts2.json`, add `"note": "rewritten after a flag"` to it, re-run `plan_tools.py prompts` and `check-prompts`, then `job.py output … prompts <kind> --from prompts` (the row shows the note); a storyboard card: the beat's `prompt` in `storyboard.json`, `status` `"changed"`. Log `.claude/edit-mo-to/run gui/job.py log "<folder>" "[<step>] Rewrote Shot N after a flag"` (the shot in words), mark the event handled, and write the trigger (the flagged words, the site's message and the rewrite) in `{tmp}/reports/<job>/notes.txt` so the learning step proposes it as a rule. Never regenerate by itself: the editor generates the new prompt.

@@ -3,11 +3,22 @@
 Every command prints one JSON line {"ok": true, ...}, or exits 1 with {"ok": false, "error": ...}.
 Run as `.claude/edit-mo-to/run gui/job.py <command> ...` from the repo root.
 
-    init <folder> --client C --product P [--resume]   create the job (refuses if one exists unless --resume)
+    init <folder> [--client C] [--product P] [--resume]
+                                                      create the job (refuses if one exists unless --resume);
+                                                      client/product left out are filled later with `card`
     open <folder>                                     make this the job the GUI shows
+    rename <folder> "<new name>"                      rename the video folder in place (same parent); prints the
+                                                      new folder. For a job with "folder_auto": true (the app's
+                                                      New video had no folder name), once client/product are known
     card <folder> key=value ...                       job card fields; timelines=a|b|c is a list;
                                                       temp_en=on|partial:<names>|removed|off
     step <folder> <step> <state> [--note T]           state: pending|working|waiting|done|skipped|error
+        [--todo "a|b|c"] [--tick N ...]               the step's checklist on the app's loading card: --todo sets
+                                                      the items (none ticked), --tick N ticks item N (1 = first);
+                                                      `done` ticks them all
+        [--eta SECONDS]                               your own guess of how long this stretch of work takes (an
+                                                      agent run, a build): the loading card counts it down. The app
+                                                      also times it from the ticks and from past runs
     gate <folder> <step> --file gate.json|-           open a gate (ids g-1, g-2, ...), step -> waiting
                                                       (--file - reads the JSON from stdin)
         gate.json: {"title", "detail"?, "questions": [{"id", "text", "why"?, "kind", "options"?, "default"?}]}
@@ -16,12 +27,19 @@ Run as `.claude/edit-mo-to/run gui/job.py <command> ...` from the repo root.
     output <folder> <step> <kind> --from <adapter> <tool-output.json|->
         adapters: timings, cuts, qa, clips, prompts (see adapters.py)
     log <folder> "<text>"                             activity line (last 200 kept)
+    stop-wait <folder>                                stop the wait.py listening on this video (Windows: stopping
+                                                      the background task doesn't reach it) and clear listening.json
+    say <folder> < text                               Claude's chat reply, word for word, from stdin, shown in the
+                                                      app's Claude panel (job.json "messages", last 100 kept)
     handled <folder> <seq> ...                        mark inbox events handled
     inbox <folder> [--unhandled] [--after N]          print the editor's events
     lang en|tl                                        the editor's language as Claude detected it (Taglish or
                                                       Tagalog -> tl, English -> en), for this computer: writes
                                                       ui_lang_detected into {tmp}/gui/prefs.json (no folder; the
                                                       app follows it while its Language setting is "Auto")
+    models                                            the Claude model per part of the work, from Settings:
+                                                      {"models": {"main", "motion-designer", "style", "editor",
+                                                      "qa"}: "default" | "opus" | "sonnet" | "haiku"}
     usage-mark <folder> start|finish                  copy the plan's week % from the status line's latest reading
                                                       ({tmp}/gui/usage.json, gui/statusline.py) into job.json "usage":
                                                       {start_pct, start_at, start_resets_at, finish_...}; skipped
@@ -40,8 +58,12 @@ file lock), so parallel job.py calls never lose an update.
 import argparse
 import functools
 import json
+import os
 import re
+import signal
 import sys
+import time
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -49,6 +71,7 @@ import adapters  # noqa: E402
 import jobstate as js  # noqa: E402
 
 LOG_KEEP = 200
+SAY_KEEP = 100  # Claude's replies kept for the app's Claude panel
 
 
 def _read_json(path: str):
@@ -114,6 +137,44 @@ def cmd_init(a) -> dict:
     return {"folder": folder.as_posix()}
 
 
+def _folder_name(name: str) -> str:
+    """A plain folder name from "<Client> <Product>": no path or Windows-illegal characters, single spaces."""
+    clean = re.sub(r"\s+", " ", re.sub(r'[<>:"/\\|?*\x00-\x1f]', " ", name)).strip().rstrip(". ")
+    if not clean or clean.startswith((".", "_")):
+        raise ValueError(f"not a usable folder name: {name!r}")
+    return clean
+
+
+def cmd_rename(a) -> dict:
+    """Rename the video folder (the app's New video left it empty: Claude names it after the client and product)."""
+    folder = Path(a.folder)
+    js.load(folder)  # fail loudly when there is no job
+    target = folder.parent / _folder_name(a.name)
+    if target.resolve() == folder.resolve():
+        return {"folder": folder.as_posix()}
+    if target.exists():
+        raise ValueError(f"{target.as_posix()} already exists")
+    with js.lock(folder):  # wait for any writer to finish; the lock file is inside the folder, so rename after
+        pass
+    for attempt in range(200):  # Windows: a file inside may be open for a moment (the app reading job.json)
+        try:
+            folder.rename(target)
+            break
+        except PermissionError:
+            if attempt == 199:
+                raise
+            time.sleep(0.025)
+    with js.lock(target):
+        job = js.load(target)
+        job["folder"] = job["card"]["folder"] = target.as_posix()
+        job["renamed_from"] = folder.as_posix()  # an app tab still on the old folder follows it
+        job.pop("folder_auto", None)
+        js.save(target, job)
+    if js.get_current() in (folder.as_posix(), str(folder)):
+        js.set_current(target)
+    return {"folder": target.as_posix()}
+
+
 def cmd_open(a) -> dict:
     js.load(Path(a.folder))  # fail loudly when there is no job
     js.set_current(Path(a.folder))
@@ -135,19 +196,68 @@ def cmd_card(a) -> dict:
     return {"card": job["card"]}
 
 
+WORK_TIMES_KEEP = 20  # past working stretches kept per step, for the loading card's "about N min left"
+
+
+def _work_time(step: str, since: str, until: str) -> None:
+    """Remember how long a stretch of work on this step took ({tmp}/gui/work-times.json, this computer only)."""
+    try:
+        secs = (datetime.fromisoformat(until) - datetime.fromisoformat(since)).total_seconds()
+    except (TypeError, ValueError):
+        return
+    if not 5 <= secs <= 4 * 3600:  # a blip or a forgotten state is no measure
+        return
+    path = js.gui_dir() / "work-times.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    data[step] = ((data.get(step) or []) + [round(secs)])[-WORK_TIMES_KEEP:]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    js._write_atomic(path, json.dumps(data))
+
+
+TODO_MAX = 8  # a checklist longer than this is a plan, not something to watch tick off
+
+
 @_locked
 def cmd_step(a) -> dict:
     folder = Path(a.folder)
     job = js.load(folder)
     step = job["steps"].setdefault(_step(a.step), {"state": "pending", "note": ""})
+    now = js._now()
+    if a.state == "working" and step.get("state") != "working":  # a stretch of work starts: the card's clock
+        step["since"] = now
+        step.pop("eta", None)
+    elif a.state != "working" and step.get("state") == "working" and step.get("since"):
+        _work_time(a.step, step.pop("since"), now)
     step["state"] = a.state
     if a.note is not None:
         step["note"] = a.note
+    if a.todo is not None:
+        items = [t.strip() for t in a.todo.split("|") if t.strip()][:TODO_MAX]
+        step["todo"] = [{"text": t, "done": False} for t in items]
+        step["todo_at"] = now
+    for n in a.tick or []:
+        todo = step.get("todo") or []
+        if not 1 <= n <= len(todo):
+            raise ValueError(f"--tick {n}: the {a.step} checklist has {len(todo)} items")
+        if not todo[n - 1]["done"]:
+            todo[n - 1].update(done=True, at=now)
+    if a.eta is not None:
+        if not 0 < a.eta <= 4 * 3600:
+            raise ValueError("--eta is seconds, more than 0 and at most 4 hours")
+        step["eta"] = {"at": now, "s": a.eta}
+    if a.state == "done":
+        for item in step.get("todo") or []:
+            item["done"] = True
     if a.step == "export" and a.state == "done":   # the video is finished: its end time and the week % now
         job["finished"] = js._now()
         _usage_mark(job, "finish")
     js.save(folder, job)  # validate() rejects a state outside STATES
-    return {"step": a.step, "state": a.state}
+    return {"step": a.step, "state": a.state, "todo": step.get("todo", [])}
 
 
 def _gate_from(spec: dict, gate_id: str, step: str) -> dict:
@@ -256,6 +366,39 @@ def cmd_log(a) -> dict:
     return {}
 
 
+def cmd_stop_wait(a) -> dict:
+    """Stop the wait.py listening on this video (its pid from a fresh listening.json heartbeat) and clear the file.
+    On Windows stopping Claude's background task doesn't reach the Python under it, so this is how a wait ends."""
+    folder = Path(a.folder)
+    info = js.listening(folder)  # only a live heartbeat (under 10 s old) names a waiter to stop
+    pid = info.get("pid") if isinstance(info, dict) else None
+    if not isinstance(pid, int) or pid == os.getpid() or not js.pid_alive(pid):
+        if info is None:
+            js.clear_listening(folder)  # a stale file from a waiter that was killed (it shows nothing, but tidy)
+        return {"stopped": None}
+    os.kill(pid, signal.SIGTERM)  # Windows: TerminateProcess; POSIX: wait.py exits 130 and clears its own file
+    for _ in range(100):
+        if not js.pid_alive(pid):
+            break
+        time.sleep(0.02)
+    js.clear_listening(folder)
+    return {"stopped": pid}
+
+
+def cmd_say(a) -> dict:
+    """Claude's chat reply, word for word, for the app's Claude panel (job.json "messages", last SAY_KEEP).
+    The text comes from stdin (any quotes, tables or Taglish arrive as they are), read before the folder lock."""
+    text = sys.stdin.read().strip()
+    if not text:
+        raise ValueError("say needs the message text on stdin")
+    folder = Path(a.folder)
+    with js.lock(folder):
+        job = js.load(folder)
+        job["messages"] = ((job.get("messages") or []) + [{"at": js._now(), "text": text}])[-SAY_KEEP:]
+        js.save(folder, job)
+    return {"messages": len(job["messages"])}
+
+
 @_locked
 def cmd_handled(a) -> dict:
     folder = Path(a.folder)
@@ -268,6 +411,13 @@ def cmd_handled(a) -> dict:
 def cmd_lang(a) -> dict:
     """Not tied to a job: the per-computer prefs, through jobstate's known-keys rule and prefs lock."""
     return {"ui_lang_detected": js.update_prefs(js.gui_dir(), {"ui_lang_detected": a.lang})["ui_lang_detected"]}
+
+
+def cmd_models(a) -> dict:
+    """Not tied to a job: the Claude model for each part of the work (Settings' "Claude models"), every role filled in:
+    "default" = the main session's own model (pass no `model` to the Agent tool)."""
+    picked = js.read_prefs(js.gui_dir() / "prefs.json").get("claude_models") or {}
+    return {"models": {r: picked.get(r, "default") for r in js.CLAUDE_ROLES}}
 
 
 @_locked
@@ -315,20 +465,25 @@ def build_parser() -> argparse.ArgumentParser:
         sp.set_defaults(fn=fn)
         return sp
 
-    add("init", cmd_init, (["--client"], {"required": True}), (["--product"], {"required": True}),
+    add("init", cmd_init, (["--client"], {"default": ""}), (["--product"], {"default": ""}),
         (["--resume"], {"action": "store_true"}))
     add("open", cmd_open)
+    add("rename", cmd_rename, (["name"], {}))
     add("card", cmd_card, (["pairs"], {"nargs": "+"}))
-    add("step", cmd_step, (["step"], {}), (["state"], {"choices": js.STATES}), (["--note"], {}))
+    add("step", cmd_step, (["step"], {}), (["state"], {"choices": js.STATES}), (["--note"], {}),
+        (["--todo"], {}), (["--tick"], {"type": int, "nargs": "+"}), (["--eta"], {"type": int}))
     add("gate", cmd_gate, (["step"], {}), (["--file"], {"required": True}))
     add("close-gate", cmd_close_gate)
     add("output", cmd_output, (["step"], {}), (["kind"], {}), (["--file"], {}),
         (["--from"], {"dest": "source", "nargs": 2, "metavar": ("ADAPTER", "PATH")}))
     add("log", cmd_log, (["text"], {}))
+    add("say", cmd_say)
+    add("stop-wait", cmd_stop_wait)
     add("handled", cmd_handled, (["seqs"], {"nargs": "+", "type": int}))
     add("inbox", cmd_inbox, (["--unhandled"], {"action": "store_true"}),
         (["--after"], {"type": int, "default": 0}))
     add("lang", cmd_lang, (["lang"], {"choices": ("en", "tl")}), folder=False)
+    add("models", cmd_models, folder=False)
     add("usage-mark", cmd_usage_mark, (["which"], {"choices": ("start", "finish")}))
     add("can-generate", cmd_can_generate, folder=False)
     return p

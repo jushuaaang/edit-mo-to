@@ -2,5 +2,8 @@
   "name": "edit-mo-to-motion",
   "private": true,
   "description": "HyperFrames overlay templates for edit-mo-to",
-  "dependencies": { "hyperframes": "0.8.162" }
+  "dependencies": {
+    "hyperframes": "0.8.162",
+    "lottie-web": "5.12.2"
+  }
 }

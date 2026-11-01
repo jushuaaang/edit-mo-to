@@ -28,9 +28,10 @@ name>/), of which only the numbers and timestamps are kept, never the text. POST
 the editor typed from /usage (the manual fallback) into prefs usage_readings, then answers like GET.
 
 POST /api/practice is the one route that starts a program (spec "Try a practice video"): on the editor's click it opens
-a visible Terminal (macOS) or command window (Windows) in {root} running `claude /practice-muna`, so the editor's own
-Claude starts the practice run. The command and the folder are fixed here (practice_argv); nothing in the request is
-read. At most one launch per PRACTICE_GAP seconds, and none while one is still starting.
+a visible Terminal (macOS) or command window (Windows) in {root} running `claude /practice-muna-app`, or `claude /edit-mo-to-app`
+for a real video (body {"command": "edit-mo-to"}: the Brief page's Submit to Claude when no Claude is listening), so the
+editor's own Claude starts on the current video. The commands and the folder are fixed here (COMMANDS, practice_argv);
+the request only picks one of the two commands by name. At most one launch per PRACTICE_GAP seconds, and none while one is still starting.
 
 Generate for me (spec "Generate for me (Joshua only)"): GET /api/job carries "generate": true|false from
 account.generate_allowed() (never the account email), and only when true "clip_files" (video files in the job's clips
@@ -272,7 +273,10 @@ def r_jobs(h, q):
 
 
 def r_current(h, q):
-    return {"folder": js.get_current()}
+    folder = js.get_current()
+    if folder and not (js.state_dir(Path(folder)) / "job.json").is_file():
+        folder = None  # the editor deleted that video: no stale "current video" in the sidebar
+    return {"folder": folder}
 
 
 def _generators(tmp: Path) -> "dict | None":
@@ -299,11 +303,27 @@ def r_generators(h, q):
     return _generators(h.server.tmp)
 
 
+def _work_times() -> dict:
+    """{step: median seconds} of Claude's past working stretches on this computer (job.py keeps them), for the loading
+    card's "about N min left" before Claude's checklist has a tick."""
+    try:
+        data = json.loads((js.gui_dir() / "work-times.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    out = {}
+    for step, secs in (data.items() if isinstance(data, dict) else []):
+        vals = sorted(x for x in secs if isinstance(x, (int, float))) if isinstance(secs, list) else []
+        if len(vals) >= 2:  # one run is no "usual"
+            out[step] = vals[len(vals) // 2]
+    return out
+
+
 def r_job(h, q):
     folder = h.job_folder(q.get("folder"))
     job = js.load(folder)
     sd, sb = js.state_dir(folder), folder / "storyboard"
     (keyframes, keyframe_mtimes), listening = _keyframes(folder), js.listening(folder)
+    window = window_state()
     vo = _voice_files(folder)
     outputs = _output_paths(folder, job, [h.server.root, h.server.tmp])
     generate = account.generate_allowed()   # fails closed; the email never leaves account.py
@@ -312,12 +332,12 @@ def r_job(h, q):
                                                       sb, sb / "storyboard.json")),
              *(_stamp(Path(p)) for p in keyframes.values()), _stamp(folder / "vo"), *(_stamp(Path(p)) for p in vo),
              *(_stamp(p) for kinds in outputs.values() for p in kinds.values() if p is not None),
-             _stamp(generators.FILE), _stamp(_gui_dir(h) / "prefs.json"), _listening_key(listening)]
+             _stamp(generators.FILE), _stamp(_gui_dir(h) / "prefs.json"), _listening_key(listening), window]
     etag = '"' + hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()[:20] + '"'
     if h.headers.get("If-None-Match") == etag:
         h.reply(304, b"", None, {"ETag": etag})
         return None
-    body = {"job": job, "listening": listening,
+    body = {"job": job, "listening": listening, "claude_window": window,
             "pending": [e for e in js.unhandled(folder) if e.get("type") in PENDING_TYPES],
             "events": js.read_events(folder)[-RECENT_EVENTS:],  # step messages, answers already sent
             "keyframes": keyframes, "keyframe_mtimes": keyframe_mtimes, "vo": vo,
@@ -326,7 +346,7 @@ def r_job(h, q):
             "gui": _read_json(sd / "gui.json", {}), "early": js.EARLY, "generators": _generators(h.server.tmp),
             "outputs": {s: {k: None if p is None else _read_json(p) for k, p in kinds.items()}
                         for s, kinds in outputs.items()},
-            "generate": generate}
+            "generate": generate, "work_times": _work_times()}
     if generate:
         body["clip_files"] = _clip_files(clips)
         body["clip_mtimes"] = _mtimes((n, clips / n) for n in body["clip_files"])
@@ -371,8 +391,15 @@ def r_gui(h, q):
 
 def r_new(h, q):
     body = h.json_body()
-    client, product, raw = _need_str(body, "client"), _need_str(body, "product"), _need_str(body, "folder")
+    raw = _need_str(body, "folder")
+    # optional: the app leaves them to Claude, who reads them from the brief
+    client, product = (str(body.get(k) or "").strip() for k in ("client", "product"))
     root = h.server.root
+    practice = body.get("practice") is True  # Start practice: a plain name, made in <root>/_practice/
+    if practice:
+        _check_name(raw)
+        (Path(root) / "_practice").mkdir(exist_ok=True)  # the one parent the app may create
+        raw = str(Path(root) / "_practice" / raw)
     folder = h.video_folder(str(Path(raw) if Path(raw).is_absolute() else Path(root) / raw))
     if not folder.parent.is_dir():
         raise HttpError(400, f"{folder.parent.name} does not exist yet; only the video folder itself is created")
@@ -381,6 +408,8 @@ def r_new(h, q):
             raise HttpError(409, "this folder already has a job")
         folder.mkdir(exist_ok=True)  # the video folder only, never its parents
         job = js.new_job(folder, client, product)
+        if body.get("auto_folder") is True:  # the editor left the folder empty: Claude renames it from the brief
+            job["folder_auto"] = True
         js.save(folder, job)
     js.set_current(folder)
     return {"folder": folder.as_posix(), "job": job}
@@ -440,12 +469,50 @@ def r_upload(h, q):
     return {"path": saved, "event": event}
 
 
+def r_upload_remove(h, q):
+    """The x on a dropped file: {"folder", "path"}. Only a file the app itself uploaded to this video (an `upload` event's
+    path) and not removed yet; it is moved into <folder>/.edit-mo-to/removed/ (never deleted, so a wrong click is not a
+    loss) and an `edit` event `upload:removed` tells Claude not to use it."""
+    body = h.json_body()
+    folder = h.job_folder(body.get("folder"))
+    path = str(body.get("path") or "")
+    events = js.read_events(folder)
+    up = next((e for e in reversed(events) if e.get("type") == "upload" and e.get("value") == path), None)
+    if up is None or any(e.get("type") == "edit" and e.get("target") == "upload:removed" and e.get("value") == path
+                         for e in events):
+        raise HttpError(404, "That file isn't one of this video's uploads (or it was already removed).")
+    src = folders.safe_path(Path(path), [folder])
+    if src.is_file():
+        bin_dir = js.state_dir(folder) / "removed"
+        bin_dir.mkdir(parents=True, exist_ok=True)
+        with _upload_lock:
+            os.replace(src, _free_name(bin_dir, src.name))
+    event = js.append_event(folder, {"type": "edit", "step": up.get("step"), "target": "upload:removed", "value": path})
+    return {"ok": True, "event": event}
+
+
+TEMPLATE_NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,60}")
+PREVIEWS = Path(__file__).resolve().parents[1] / "motion" / "previews"
+
+
+def r_template_preview(h, q):
+    """A motion template's preview still (motion/previews/<name>.jpg), for "Pick the graphics" cards; 404 if none."""
+    name = q.get("name", "")
+    if not TEMPLATE_NAME.fullmatch(name):
+        raise HttpError(400, "not a template name")
+    path = PREVIEWS / f"{name}.jpg"
+    if not path.is_file():
+        raise HttpError(404, "no preview for that template")
+    h.send_file(path, keep=True)
+    return None
+
+
 def r_file(h, q):
     path = h.safe(q.get("path"), [h.server.root, h.server.tmp])
     if not path.is_file():
         raise HttpError(404, "file not found")
     # sandbox: an HTML or SVG file from a video folder runs in an opaque origin, never with the API token
-    h.send_file(path, {"Content-Security-Policy": "sandbox allow-scripts"})
+    h.send_file(path, {"Content-Security-Policy": "sandbox allow-scripts"}, keep=q.get("v") not in (None, "", "0"))
     return None
 
 
@@ -527,7 +594,8 @@ def r_usage_save(h, q):
     return usage.report(h.server.root, _gui_dir(h))
 
 
-PRACTICE = "/practice-muna"
+PRACTICE = "/practice-muna-app"   # the app mode of /practice-muna (the plain commands are chat only)
+COMMANDS = {"practice-muna": PRACTICE, "edit-mo-to": "/edit-mo-to-app"}  # the only commands /api/practice starts
 PRACTICE_GAP = 10.0      # seconds: a second click within this gets "busy", so a double click opens one window
 PRACTICE_TIMEOUT = 120   # seconds osascript may take (the first time macOS may ask to let it control Terminal)
 CREATE_NEW_CONSOLE = 0x10  # Windows creation flag (subprocess.CREATE_NEW_CONSOLE exists only on Windows)
@@ -547,18 +615,92 @@ def _applescript_text(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def practice_argv(root: Path, platform: str) -> "list[str] | None":
+def practice_argv(root: Path, platform: str, command: str = PRACTICE, model: "str | None" = None) -> "list[str] | None":
     """The fixed launch command for this system, or None where the app can't open a window (Linux, ...).
-    macOS: the shell line `cd <root> && claude '/practice-muna'` (root shlex-quoted) in a new Terminal window, inside
+    macOS: the shell line `cd <root> && claude '/practice-muna-app'` (root shlex-quoted) in a new Terminal window, inside
     an AppleScript string (escaped for it), then Terminal comes to the front. Windows: a new console (CREATE_NEW_CONSOLE)
-    running `claude /practice-muna`; the root is its working directory (cwd), never text on the command line."""
+    running `claude /practice-muna-app`; the root is its working directory (cwd), never text on the command line.
+    model: Settings' main Claude model (one of jobstate.CLAUDE_MODELS, never free text), as `--model <name>`."""
+    flag = f"--model {model} " if model in js.CLAUDE_MODELS and model != "default" else ""
     if platform == "darwin":
-        line = f"cd {shlex.quote(str(root))} && claude '{PRACTICE}'"
+        line = f"cd {shlex.quote(str(root))} && claude {flag}'{command}'"
         return ["osascript", "-e", f'tell application "Terminal" to do script "{_applescript_text(line)}"',
                 "-e", 'tell application "Terminal" to activate']
     if platform == "win32":
-        return ["cmd", "/k", f"claude {PRACTICE}"]
+        return ["cmd", "/k", f"claude {flag}{command}"]
     return None
+
+
+def _fresh_path() -> "str | None":
+    """Windows: PATH as it is now in the registry (system + user), so Claude Code installed after this server started
+    is found, and the window it opens finds it too. None elsewhere, or when the registry can't be read."""
+    if sys.platform != "win32":
+        return None
+    try:
+        import winreg
+        parts = []
+        for hive, key in ((winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"),
+                          (winreg.HKEY_CURRENT_USER, "Environment")):
+            try:
+                with winreg.OpenKey(hive, key) as k:
+                    parts.append(os.path.expandvars(winreg.QueryValueEx(k, "Path")[0]))
+            except OSError:
+                pass
+        return ";".join(p for p in parts if p) or None
+    except Exception:  # noqa: BLE001 - fall back to this process's PATH
+        return None
+
+
+def _window_file() -> Path:
+    """{tmp}/gui/window.json: the Claude window the app opened last (Windows; macOS can't tell its Terminal's pid),
+    kept on disk so a restarted server still knows it."""
+    return js.gui_dir() / "window.json"
+
+
+def _children_alive(pid: int) -> bool:
+    """Windows: a live process whose parent is pid (the claude inside the cmd window), from a Toolhelp snapshot."""
+    import ctypes
+    from ctypes import wintypes
+
+    class PE(ctypes.Structure):
+        _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD), ("th32ProcessID", wintypes.DWORD),
+                    ("th32DefaultHeapID", ctypes.c_size_t), ("th32ModuleID", wintypes.DWORD),
+                    ("cntThreads", wintypes.DWORD), ("th32ParentProcessID", wintypes.DWORD),
+                    ("pcPriClassBase", ctypes.c_long), ("dwFlags", wintypes.DWORD), ("szExeFile", ctypes.c_wchar * 260)]
+
+    k32 = ctypes.windll.kernel32
+    k32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    snap = k32.CreateToolhelp32Snapshot(0x2, 0)  # TH32CS_SNAPPROCESS
+    if not snap or snap == wintypes.HANDLE(-1).value:
+        return True  # can't look: assume Claude is still there (never offer a second window by mistake)
+    try:
+        pe = PE()
+        pe.dwSize = ctypes.sizeof(PE)
+        ok = k32.Process32FirstW(snap, ctypes.byref(pe))
+        while ok:
+            if pe.th32ParentProcessID == pid and pe.th32ProcessID != pid and js.pid_alive(pe.th32ProcessID):
+                return True
+            ok = k32.Process32NextW(snap, ctypes.byref(pe))
+    finally:
+        k32.CloseHandle(snap)
+    return False
+
+
+def window_state() -> str:
+    """"open" while the Claude window this server opened still runs Claude, "closed" once the window is gone or Claude
+    has exited in it, "unknown" when the app opened none (Claude started by hand) or can't tell (macOS)."""
+    if sys.platform != "win32":
+        return "unknown"
+    try:
+        pid = json.loads(_window_file().read_text(encoding="utf-8")).get("pid")
+    except (OSError, ValueError, AttributeError):
+        return "unknown"
+    if not isinstance(pid, int):
+        return "unknown"
+    try:
+        return "open" if js.pid_alive(pid) and _children_alive(pid) else "closed"
+    except Exception:  # noqa: BLE001 - no reading: say nothing rather than guess
+        return "unknown"
 
 
 def _launch(argv: "list[str]", root: Path, platform: str) -> str:
@@ -568,7 +710,16 @@ def _launch(argv: "list[str]", root: Path, platform: str) -> str:
     that would keep the request open until the editor closed Claude."""
     try:
         if platform == "win32":
-            subprocess.Popen(argv, cwd=str(root), creationflags=CREATE_NEW_CONSOLE)
+            # a clean Claude: none of the CLAUDE* settings this server may have inherited from the Claude session that
+            # started it (session id, messaging link, "child session"), which would make the window a sub-session
+            env = {k: v for k, v in os.environ.items() if not k.upper().startswith("CLAUDE")}
+            env["PATH"] = _fresh_path() or env.get("PATH", "")
+            proc = subprocess.Popen(argv, cwd=str(root), creationflags=CREATE_NEW_CONSOLE, env=env)
+            if isinstance(getattr(proc, "pid", None), int):  # Resume with Claude shows once this window is gone
+                try:
+                    js.write_json_atomic(_window_file(), {"pid": proc.pid, "at": js._now()})
+                except OSError:
+                    pass
             return "ok"
         done = subprocess.run(argv, cwd=str(root), timeout=PRACTICE_TIMEOUT, capture_output=True,
                               stdin=subprocess.DEVNULL)
@@ -578,9 +729,29 @@ def _launch(argv: "list[str]", root: Path, platform: str) -> str:
 
 
 def r_practice(h, q):
-    h.discard_body()  # the request carries nothing this route uses
+    # {"command": "practice-muna" | "edit-mo-to"} (default practice-muna): a key of COMMANDS, never text for the line
+    body = h.json_body() if h.headers.get("Content-Length", "0").strip() not in ("", "0") else {}
+    key = body.get("command", "practice-muna") if isinstance(body, dict) else None
+    if key not in COMMANDS:
+        raise HttpError(400, f"command must be one of {', '.join(COMMANDS)}")
+    # Resume with Claude: {"folder"} makes that video the current job first, so the new Claude picks it up
+    folder = h.job_folder(body.get("folder")) if isinstance(body, dict) and body.get("folder") is not None else None
+    if folder is not None:
+        if js.listening(folder):   # a Claude already listens on this video: it has the editor's answers
+            return {"ok": False, "reason": "listening"}
+        recent = js.worked_on(folder)
+        if recent is not None and not body.get("force"):   # a Claude may still be working on it (agents, a build)
+            return {"ok": False, "reason": "recent", "minutes": recent}
+        js.set_current(folder)
+    # a Claude that opened the app before any video listens on the app (wait.py --app): hand the video to it, never
+    # a second window (Submit's brief:submit wakes it; a Resume adds app:resume)
+    if js.attached() is not None:
+        if folder is not None:
+            js.append_event(folder, {"type": "action", "step": None, "target": "app:resume"})
+        return {"ok": True, "attached": True}
     root, platform = Path(h.server.root), _platform()
-    argv = practice_argv(root, platform)
+    main = js.read_prefs(_gui_dir(h) / "prefs.json").get("claude_models", {}).get("main")  # Settings' Claude models
+    argv = practice_argv(root, platform, COMMANDS[key], main)
     if argv is None:
         return {"ok": False, "reason": "unsupported"}
     if any(ord(c) < 32 for c in str(root)):  # a control character can't go on a command line safely
@@ -590,7 +761,7 @@ def r_practice(h, q):
         last = getattr(h.server, "practice_at", None)
         if getattr(h.server, "practice_running", False) or (last is not None and now - last < PRACTICE_GAP):
             return {"ok": False, "reason": "busy"}
-        if not shutil.which("claude"):
+        if not shutil.which("claude", path=_fresh_path()):
             return {"ok": False, "reason": "no-claude"}
         h.server.practice_at, h.server.practice_running = now, True
     outcome = "failed"
@@ -644,7 +815,9 @@ ROUTES = {  # (method, path): (handler, needs token)
     ("POST", "/api/gui"): (r_gui, True),
     ("POST", "/api/new"): (r_new, True),
     ("PUT", "/api/upload"): (r_upload, True),
+    ("POST", "/api/upload-remove"): (r_upload_remove, True),
     ("GET", "/api/file"): (r_file, True),
+    ("GET", "/api/template-preview"): (r_template_preview, True),
     ("GET", "/api/settings"): (r_settings, True),
     ("POST", "/api/settings"): (r_settings_save, True),
     ("GET", "/api/prefs"): (r_prefs, True),
@@ -758,13 +931,26 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(status, json.dumps(obj, ensure_ascii=False).encode("utf-8"),
                    "application/json; charset=utf-8", extra)
 
-    def send_file(self, path: Path, extra: "dict | None" = None) -> None:
+    def send_file(self, path: Path, extra: "dict | None" = None, keep: bool = False) -> None:
+        """A file with an ETag from its time and size: the browser keeps a copy and asks "still this one?" (a 304, no
+        download) on each redraw, so pictures don't load again and flash. keep: a URL that changes with the file
+        (a preview, a `&v=` keyframe), kept a day without asking."""
         with path.open("rb") as f:
-            size = os.fstat(f.fileno()).st_size
+            st = os.fstat(f.fileno())
+            size, etag = st.st_size, f'"{st.st_mtime_ns:x}-{st.st_size:x}"'
+            cache = "private, max-age=86400" if keep else "private, no-cache"
+            if self.headers.get("If-None-Match") == etag:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", cache)
+                self.end_headers()
+                self._sent = True
+                return
             self.send_response(200)
             self.send_header("Content-Type", _content_type(path))
             self.send_header("Content-Length", str(size))
-            self.send_header("Cache-Control", "no-store")
+            self.send_header("Cache-Control", cache)
+            self.send_header("ETag", etag)
             self.send_header("X-Content-Type-Options", "nosniff")
             for k, v in (extra or {}).items():
                 self.send_header(k, v)

@@ -30,10 +30,12 @@ export const WORDS = {
     "set": ["path_root", "path_python", "path_tmp", "path_mcp", "path_drafts", "found", "missing", "port", "paths_h",
       "th_path", "th_value", "th_found"],
     "help": ["row"],
+    "work": ["title", "step"],
+    "resume": ["button", "title", "go"],
     "label": ["shot", "character", "clip", "prompt", "ai", "client"],
     "now": ["you", "claude", "none"],
     "alert": ["title_count"],
-    "settings": ["alerts_h", "notify", "sound", "lang_h", "lang_auto", "lang_en", "lang_tl", "models_h", "avoid",
+    "settings": ["cm_h", "cm_main", "cm_motion-designer", "cm_style", "cm_editor", "cm_qa", "alerts_h", "notify", "sound", "lang_h", "lang_auto", "lang_en", "lang_tl", "models_h", "avoid",
       "default_model", "no_default", "th_model", "gen_h", "el_key", "key_set", "key_not_set", "el_voice", "el_model"],
     "flag": ["button", "note_label"],
     "gen": ["picture", "clip", "voiceover", "continue", "h", "picture_saved", "clip_saved", "vo_saved"],
@@ -46,11 +48,10 @@ export const WORDS = {
       "rail_close", "job_card", "activity", "tell"],
     "app": ["coming_title", "waits_for", "sr_done", "coming_h", "cant_open", "page_error"],
     "upload": ["add_files", "drop_files"],
-    "gate": ["waiting", "waiting_title", "send_again", "drop_file"],
-    "ask": ["history", "claude_says", "you_at", "title", "label"],
+    "gate": ["proceed", "change", "back", "next", "step_of", "waiting", "waiting_title", "send_again", "drop_file"],
     "sp": ["saved_for_later", "already_answered", "capcut_closed", "change_cancelled", "early_h", "not_started"],
     "dash": ["in_progress", "temp_on", "timelines_one", "timelines", "step_now", "all_done", "progress",
-      "older_check", "new_video", "recent", "none_h", "practice_h", "older", "practice_tag"],
+      "older_check", "new_video", "auto_name", "practice_name", "recent", "none_h", "practice_h", "older", "practice_tag"],
     "usage": ["title", "update", "update_old", "details", "today", "week_l", "th_video", "th_tokens", "th_claude",
       "th_helpers", "th_pct", "pct_label"],
     "fb": ["type", "bug", "suggest", "what", "no_step", "saved_h", "bug_chip", "suggestion_chip", "open_issue", "h",
@@ -65,24 +66,23 @@ export const WORDS = {
       "visual", "kf_prompt", "request", "approve_shot", "shot", "choose_file"],
     "prompts": ["src_client", "src_ai", "src_both", "broll_source", "answered_storyboard", "generator", "site_model",
       "model", "other", "broll_h", "prompts_h", "default_chip"],
-    "brief": ["link", "paste", "instructions", "refs", "style_h", "style", "script_lang", "not_set", "checklist_h",
+    "brief": ["link", "paste", "instructions", "refs", "submit", "see", "back", "style_h", "style", "script_lang", "not_set", "checklist_h",
       "th_rule", "th_source", "send_answers", "questions_h", "the_brief"],
     "build": ["sent", "choose", "st_working", "st_done", "st_error", "st_waiting", "st_skipped", "h", "project",
       "fix", "qa_h"],
     "captions": ["me", "claude", "auto_done", "timelines", "add", "tl_sent", "who"],
     "clips": ["folder", "pass", "flag", "contact", "check", "check_h"],
-    "export": ["settings_h", "done_h", "learn", "review_learned"],
+    "export": ["settings_h", "done_h", "learn", "review_learned", "skip_learn", "learned_h", "save_this", "save_this_short", "select_all"],
     "music": ["suno", "own", "source", "file", "suno_h"],
-    "review": ["inplace", "new", "which", "all", "add", "send", "h", "item", "tl_unknown", "mode_new", "mode_inplace",
+    "review": ["watch_h", "opt_changes", "opt_good", "what_change", "done", "inplace", "new", "which", "all", "add", "send", "h", "item", "tl_unknown", "mode_new", "mode_inplace",
       "remove_label", "remove", "new_change", "timeline", "mode_label", "list_h", "done_h", "done"],
     "script": ["yours", "save", "line_label", "send", "lang", "temp_on", "th_id", "th_line", "th_en", "mine", "write"],
     "timing": ["keep", "rerecord", "w_cut", "w_review", "cut_label", "cut", "apply", "cuts_sent", "h"],
-    "vo": ["lang_h", "files", "file_h", "reuse", "make_it", "dont_make"],
-    "dlg": ["link_ph", "will_create", "has_job", "found", "brief_link", "create", "cancel_change", "quit_check",
-      "capcut_title", "project_word", "name_label", "later", "use_name", "name_title", "frames_of", "regen",
-      "use_anyway", "choose_file", "transcribe", "timeline_pick", "use", "use_id", "older_vo", "use_sentences",
-      "backup_where", "make_new", "change_inplace", "inplace_title", "where_keep", "general", "client_note",
-      "saved_waiting", "declined", "decline", "learn_title"]
+    "vo": ["hooks", "hook_n", "body", "body_lines", "copy_all", "lang_h", "files", "file_h", "reuse", "make_it", "dont_make"],
+    "dlg": ["cancel_change", "quit_check", "capcut_title", "project_word", "name_label", "later", "use_name",
+      "name_title", "frames_of", "regen", "use_anyway", "choose_file", "transcribe", "timeline_pick", "use", "use_id",
+      "older_vo", "use_sentences", "backup_where", "make_new", "change_inplace", "inplace_title", "where_keep",
+      "general", "client_note", "saved_waiting", "declined", "decline", "learn_title"]
   },
   "en": {
     "step": {
@@ -115,6 +115,7 @@ export const WORDS = {
     "help": {
       "button": "What does {word} mean?", "row": "Words on this page:",
       "temp_en": "A temporary English track so you can follow a video in another language. Delete it before export.",
+      "listening": "Your message is saved; Claude picks it up when it next checks, or type 'go' in its window. If Claude asked for permission, answer it in its window.",
       "a_roll": "The main footage: the person talking to the camera.",
       "b_roll": "Extra shots that play over the voice, like the product or a close-up.",
       "keyframe": "A still picture of one shot. The video clip is made from it.",
@@ -129,7 +130,7 @@ export const WORDS = {
       "time_range": "{from} to {to}", "fps": "(30 frames = 1 second)"
     },
     "word": {
-      "temp_en": "TEMP_EN", "a_roll": "A-roll", "b_roll": "B-roll", "keyframe": "keyframe", "timeline": "timeline",
+      "listening": "Claude isn't listening", "temp_en": "TEMP_EN", "a_roll": "A-roll", "b_roll": "B-roll", "keyframe": "keyframe", "timeline": "timeline",
       "vo": "voiceover", "character_sheet": "character sheet", "question": "Claude's question", "time": "the times",
       "model": "model", "prompt": "prompt"
     },
@@ -140,7 +141,7 @@ export const WORDS = {
     },
     "now": {
       "you": "You", "claude": "Claude", "none": "Status",
-      "capcut": "Your turn: quit CapCut completely, then press “CapCut is closed” on the {step} page.",
+      "capcut": "Your turn: quit CapCut completely, then answer and press Proceed on the {step} page.",
       "pictures": "Your turn: make the pictures for {shots}, then drop each one on its card.",
       "pictures_question": "Your turn: make the pictures for {shots} and drop each one on its card, or answer Claude's question on the {step} page.",
       "voiceover": "Your turn: drop the voiceover file on the Voiceover page.",
@@ -158,6 +159,14 @@ export const WORDS = {
       "notify_title": "Claude needs you: {step}", "title_count": "({n}) {title}"
     },
     "settings": {
+      "cm_h": "Claude models", "cm_p": "Which Claude does each part of the work. Opus gives the best results and uses the most of your Claude plan; Sonnet is lighter. Saved on this computer only.",
+      "cm_default": "Same as main Claude", "cm_opus": "Opus · best quality, uses the most",
+      "cm_sonnet": "Sonnet · lighter, uses less", "cm_haiku": "Haiku · lightest, simple jobs only",
+      "cm_main": "Main Claude", "cm_main_hint": "Talks to you and runs the steps. Used the next time the app opens a Claude window.",
+      "cm_motion-designer": "Motion designer", "cm_motion-designer_hint": "Builds new graphic looks, e.g. from your Prompt Motion links. Opus recommended: this is where the look comes from.",
+      "cm_style": "Style agents", "cm_style_hint": "Plan the shots and write the video prompts.",
+      "cm_editor": "Editor", "cm_editor_hint": "Builds the CapCut project from the plan. Sonnet is enough.",
+      "cm_qa": "QA", "cm_qa_hint": "Checks the work against the brief. Sonnet is enough.",
       "alerts_h": "Tell me when Claude needs me",
       "alerts_p": "When Claude asks you something new, this computer can let you know. Saved on this computer only.",
       "notify": "Pop-up when Claude needs me",
@@ -169,7 +178,7 @@ export const WORDS = {
       "lang_auto": "Auto", "lang_en": "English", "lang_tl": "Taglish",
       "lang_auto_hint": "Auto follows the language you use with Claude. Now showing: {lang}.",
       "lang_manual_hint": "Claude's guess is not used while you pick a language here. Pick Auto to use it again.",
-      "models_h": "Models Claude picks", "avoid": "When Claude picks, never use", "default_model": "Claude's default model",
+      "models_h": "Video models Claude picks", "avoid": "When Claude picks, never use", "default_model": "Claude's default model",
       "no_default": "No default", "th_model": "Model",
       "models_p": "When Claude picks a model for you, it starts with its default and never uses a ticked model. You can still choose any model yourself. Saved on this computer only.",
       "default_hint": "Claude suggests this model first. A model Claude never uses can't be the default.",
@@ -197,9 +206,10 @@ export const WORDS = {
     },
     "practice": {
       "title": "New here? Try a practice video first.",
-      "what": "A 10-second practice video made from a clip of you talking. Same 12 steps as a real job, about 15 to 25 minutes, and no client sees it.",
+      "what": "A 10-second practice video from any brief: a clip of you talking, an explainer, an ad, or none at all. Same 12 steps as a real job, just faster, and no client sees it.",
       "type": "In Claude, type:", "copy": "Copy", "start": "Start practice", "starting": "Opening…",
-      "opened": "Claude is opening in a new window. Send it your clip there.",
+      "opened": "Claude is opening in a new window and starts on this video. Answer every stop here in the app; you can leave that window in the background.",
+      "attached": "Sent to the Claude that already has the app open (in Claude Code). It starts on this video now; no new window.",
       "no_claude": "Claude isn't installed as a terminal command on this computer. Copy this and paste it into Claude instead.",
       "failed": "The window didn't open. Copy this and paste it into Claude instead.",
       "unsupported": "This computer can't open Claude from the app. Copy this and paste it into Claude instead.",
@@ -224,6 +234,21 @@ export const WORDS = {
       "pending": "Not started", "working": "Claude working", "waiting": "Waiting on you", "done": "Done",
       "skipped": "Skipped", "error": "Error"
     },
+    "resume": {
+      "button": "Resume with Claude", "title": "Resume with Claude", "go": "Open Claude",
+      "why": "Claude isn't running for this video (its window may have been closed).",
+      "confirm_p": "Is the Claude window for this video closed? This opens a new one that picks the video up where it stopped. If Claude is still running, cancel: two would clash.",
+      "listening": "A Claude is already listening on this video. Answer its question here; no new window needed.",
+      "recent_title": "Claude may still be working", "anyway": "Open another Claude anyway",
+      "recent_p": "Claude changed this video {n} min ago. It may still be working in another window or in the Claude Code app (agents and builds can run for several minutes without an update). A second Claude would redo the same work and use your plan twice. Open another only if you're sure no Claude is working on it."
+    },
+    "work": {
+      "title": "Claude is working", "busy": "On it…", "step": "Step {n} of {total} · {step}",
+      "got_it": "Claude got it and is reading what you sent…",
+      "todo_h": "This step", "todo_count": "{done} of {total}", "todo_done": "Done:", "todo_now": "Working on:",
+      "left_min": "About {n} min left", "left_soon": "Less than a minute left",
+      "left_over": "Taking a bit longer than usual", "so_far": "{n} min so far"
+    },
     "tag": {
       "you": "You", "working": "Working", "error": "Error", "skipped": "Skipped", "optional": "Optional",
       "open": "Open now"
@@ -243,11 +268,12 @@ export const WORDS = {
       "checking_listening": "Checking whether Claude is listening…", "whole_job": "Whole job · Ctrl+Enter"
     },
     "app": {
+      "msg_reading": "Claude is reading it…", "msg_read": "✓ Claude read it", "msg_waiting": "Waiting for Claude to pick it up…",
       "no_server": "The GUI server isn't answering. Is it still running?", "server_said": "The server said {status}.",
       "upload_refused": "The upload was refused ({status}).",
       "upload_stopped": "The upload stopped. Check the file type and size, then try again.",
       "open_first": "Open a video first.",
-      "dialog_new_coming": "The New video form arrives in a later build. For now, start a new video with /edit-mo-to in Claude Code.",
+      "dialog_new_coming": "The New video form arrives in a later build. For now, start a new video with /edit-mo-to-app in Claude Code.",
       "dialog_coming": "This dialog arrives in a later build.", "coming_title": "Coming",
       "connected": "Connected · {host}", "not_connected": "Not connected · retrying",
       "key_h": "This page needs its key.",
@@ -256,9 +282,11 @@ export const WORDS = {
       "open_to_see": "Open a video to see what Claude is doing.",
       "no_video_talk": "No video open. Open one on the Dashboard to talk to Claude about it.",
       "listening": "Claude is listening · {step}", "this_job": "this job",
+      "listening_off_short": "Claude isn't listening",
+      "video_finished": "Video finished. Back on the Dashboard.",
       "listening_off": "Claude isn't listening. Your message is saved; it's picked up when Claude next checks, or type 'go' in chat. If Claude asked for permission, answer it in chat.",
       "open_on_dash": "Open a video on the Dashboard.",
-      "err_404": "This folder has no job yet. It appears once /edit-mo-to starts it.",
+      "err_404": "This folder has no job yet. It appears once /edit-mo-to-app starts it.",
       "err_403": "That folder isn't a video folder (a direct subfolder of the root).",
       "err_load": "This video could not be loaded.", "coming_h": "This page is coming",
       "coming_p": "The full {step} page arrives in a later build. Claude's questions for this step show above when it asks, and you can write to Claude below.",
@@ -269,11 +297,13 @@ export const WORDS = {
       "job": "Job", "client": "Client", "product": "Product", "style": "Style", "language": "Language",
       "temp_en": "TEMP_EN", "folder": "Folder", "vo": "VO", "generator": "Generator", "timelines": "Timelines",
       "project": "Project", "clips_folder": "Clips folder", "broll_source": "B-roll source",
+      "show_empty": "Show empty fields ({n})", "hide_empty": "Hide empty fields",
       "temp_on": "On · delete before export",
       "temp_partial": "On for {names} · delete before export", "temp_removed": "Removed", "temp_off": "Off",
       "not_set": "Not set", "not_yet": "Not yet"
     },
     "upload": {
+      "remove": "Remove {name}", "removed": "Removed {name}. Claude won't use it (it's kept in .edit-mo-to/removed/).",
       "kind": "This kind of file can't be added here.", "type": "{name}: that file type can't go here. Use {types}.",
       "big": "{name} is too big. The limit here is {limit}.", "empty": "{name} is empty.",
       "zone_label": "{label}: drop here or press Enter to choose", "add_files": "Add files",
@@ -284,13 +314,18 @@ export const WORDS = {
     "gate": {
       "waiting": "Waiting on you", "waiting_title": "Waiting on you: {title}",
       "stale": "That question closed; Claude asked something new", "not_counted": "Not counted: {answer}",
-      "your_answer": "Your answer: {answer}", "send_again": "Send again", "drop_file": "Drop the file here"
-    },
-    "ask": {
-      "history": "Earlier messages about this step", "claude_says": "Claude · {text}", "you_at": "You · {when}",
-      "placeholder": "Anything about {step}…", "title": "Tell Claude about this step",
-      "sub": "{step} · goes with your answers on this page", "label": "Message about {step}",
-      "ctrl_enter": "Ctrl+Enter to send"
+      "your_answer": "Your answer: {answer}", "send_again": "Send again", "drop_file": "Drop the file here",
+      "notes": "Anything to add or change? (optional)",
+      "notes_ph": "Something missing, wrong, or to add about what Claude gave you…", "proceed": "Proceed",
+      "sent": "Sent. Claude is on it.", "answer_first": "Answer this first: {question}",
+      "change": "Change my answer", "back": "Back", "next": "Next", "step_of": "Question {n} of {total}",
+      "too_late": "Claude already has these answers. To change something, tell Claude in the right panel.",
+      "gfx_suggested": "Suggested", "gfx_suggested_why": "Popular in motion videos right now (Prompt Motion)",
+      "file_skip": "I don't have a file for this (skip it)",
+      "capcut_running": "CapCut is still running. Quit it fully, then press Proceed.",
+      "gfx_many": "Pick one or more. Several picks = different styles to compare.",
+      "gfx_link": "Or a look from Prompt Motion (paste its link)",
+      "gfx_link_hint": "Open the video you like on prompt-motion.com and copy the address. Claude builds it as a new template for this moment."
     },
     "checks": {
       "ok": "OK", "missing": "Missing", "title": "Setup check", "again": "Check again"
@@ -304,7 +339,7 @@ export const WORDS = {
       "saved_for_later": "Saved for later", "answer_above": "Answer it in Claude's question above.",
       "already_answered": "already answered", "capcut_closed": "CapCut is closed",
       "capcut_running": "CapCut is still running.", "capcut_check_failed": "Could not check CapCut. Try again.",
-      "capcut_quit": "Quit CapCut completely before Claude writes", "change_cancelled": "Change cancelled",
+      "capcut_quit": "Quit CapCut completely before Claude writes", "capcut_remind": "Claude writes to your CapCut project next. Quit CapCut fully (not just minimized), then press Proceed. Your unsaved CapCut changes would be lost.", "change_cancelled": "Change cancelled",
       "output_unreadable": "Claude's {kind} output could not be read.", "early_h": "You can do this now",
       "early_p": "Claude hasn't reached this step yet. What you save here waits for it; when Claude gets here it asks you to confirm it instead of asking again.",
       "not_started": "Not started",
@@ -316,10 +351,11 @@ export const WORDS = {
       "timelines": "{n} timelines", "meta_none": "Style and language come from the brief",
       "step_now": "Step {n} · {what}", "all_done": "All steps done", "progress": "Progress",
       "older_check": "Older folders (no GUI history)", "looking": "Looking for your videos…",
-      "new_video": "New video", "recent": "Recent activity",
+      "new_video": "New video", "auto_name": "Video {date}", "practice_name": "Practice {date}", "create_failed": "The video could not be created.",
+      "recent": "Recent activity",
       "sub_one": "1 video in progress · {waiting} waiting on you",
       "sub": "{active} videos in progress · {waiting} waiting on you", "none_h": "No videos in the GUI yet",
-      "none_p": "Start one with /edit-mo-to in Claude Code. It shows here as soon as Claude creates the job.",
+      "none_p": "Start one with New video above, or /edit-mo-to-app in Claude Code. It shows here as soon as Claude creates the job.",
       "practice_h": "Practice", "older": "Started before the GUI ({n})", "practice_tag": " · practice"
     },
     "usage": {
@@ -365,7 +401,7 @@ export const WORDS = {
       "path_mcp": "MCP servers folder", "path_drafts": "CapCut drafts folder",
       "saved_to": "Saved to {file} on this computer only.", "found": "found", "missing": "missing",
       "port": "GUI port",
-      "running": "This server is running with root {root} on port {port}. Changed paths and the port apply the next time Claude opens the GUI (/edit-mo-to restarts this server with them).",
+      "running": "This server is running with root {root} on port {port}. Changed paths and the port apply the next time Claude opens the GUI (/edit-mo-to-app restarts this server with them).",
       "paths_h": "Paths", "th_path": "Path", "th_value": "Value", "th_found": "Found",
       "sub": "The paths this computer uses, the setup check, and a place to report bugs."
     },
@@ -435,7 +471,10 @@ export const WORDS = {
       "style": "Style", "style_none": "Claude picks it from the brief", "script_lang": "Script language",
       "not_set": "Not set yet", "checklist_h": "Brief checklist", "th_rule": "Rule", "th_source": "Source",
       "checklist_empty": "Claude writes the checklist after reading the brief.", "send_answers": "Send answers",
-      "questions_h": "Claude's questions about the brief", "the_brief": "The brief"
+      "questions_h": "Claude's questions about the brief", "the_brief": "The brief", "submit": "Submit to Claude",
+      "submitted": "Sent to Claude.", "see": "See or edit your brief", "back": "Back to Claude's checklist",
+      "waiting_claude": "Your brief is with Claude. Its checklist and questions appear here when it has read it.",
+      "need_something": "Tell Claude what video to make first: paste a brief, add a link or instructions, or drop a file."
     },
     "build": {
       "name_taken": "That project name is already taken in CapCut.", "sent": "Sent: {value}",
@@ -472,8 +511,13 @@ export const WORDS = {
       "unknown": "unknown error", "settings_h": "Export settings from the brief",
       "default": "Default: 9:16, 1080×1920, 30 fps.",
       "you": "Export each timeline in CapCut yourself, with the settings below.", "done_h": "Done exporting?",
-      "done_p": "Claude then runs the learning step: it proposes preferences from this video, and you save or decline each.",
-      "learn": "I've exported, run the learning step", "review_learned": "Review what Claude learned ({n})"
+      "done_p": "Claude then runs the learning step: it proposes preferences from this video, and you save or decline each. Or skip it: the video is finished and nothing is learned.",
+      "learn": "I've exported, run the learning step", "review_learned": "Review what Claude learned ({n})",
+      "skip_learn": "I've exported, skip the learning step",
+      "learned_h": "What Claude learned ({n})",
+      "learned_asking": "Tick the rules to save (and where to keep each), then press Proceed in Claude's question below.",
+      "save_this": "Save rule {id}", "save_this_short": "Save this rule", "select_all": "Select all / none",
+      "save_ticked": "Proceed saves only the rules ticked above. Untick any you don't want; with none ticked, nothing is saved."
     },
     "music": {
       "suno": "Suno prompt from Claude", "own": "My own no-copyright track", "source": "Music source",
@@ -493,7 +537,12 @@ export const WORDS = {
       "you": "Review the project in CapCut yourself. Edit it there, or list the changes here and Claude makes them.",
       "list_h": "Change list", "list_p": "Changes Claude is making show here.", "done_h": "All good?",
       "done_p": "When you're happy with every timeline, Claude moves on to captions.",
-      "done": "I'm happy, go to captions"
+      "done": "Go to captions",
+      "watch_h": "Watch it in CapCut", "project_word": "the project",
+      "watch_p": "Open {project} in CapCut and watch it ({timelines}). Then tell Claude what's next.",
+      "opt_changes": "I want changes", "opt_changes_p": "Say what to change; Claude makes it in CapCut.",
+      "opt_good": "It looks good", "opt_good_p": "Every timeline is right: go on to captions.",
+      "what_change": "What should change?"
     },
     "script": {
       "yours": "Your script", "ph": "Paste your script here, one line per row (hooks first, then the body).",
@@ -508,6 +557,9 @@ export const WORDS = {
       "h": "Line timings", "empty": "Claude times the voiceover after it's in."
     },
     "vo": {
+      "script_h": "Script for the voiceover", "script_p": "Copy it into ElevenLabs exactly as written.",
+      "hooks": "Hooks", "hook_n": "Hook {n} ({id})", "body": "Body", "body_lines": "Body ({n} lines)",
+      "copy_all": "Copy hook 1 + body", "copy_all_hint": "For one voiceover file with everything in it.",
       "lang_h": "Script language", "times_with": " · Claude times the VO with", "set_at_brief": "Set at the brief.",
       "you": "Make the voiceover yourself (ElevenLabs), as one file or one per hook/body, then drop it here. It's copied to the {where} folder in this video's folder.",
       "you_ask": "Claude is asking before it makes the voiceover with ElevenLabs, because it uses your credits. Answer Make it or Don't make it below.",
@@ -516,12 +568,7 @@ export const WORDS = {
       "reuse_hint": "Saves credits: Claude transcribes an older VO and you pick the sentences."
     },
     "dlg": {
-      "link_ph": "https://… (optional)", "goes_in": "Goes in {root}/", "will_create": "will be created",
-      "has_job": "already has a job", "found": "found",
-      "plain_name": "Use a plain folder name (no slashes, not starting with . or _). It goes directly in the video folders root.",
-      "creating": "Creating…", "create_failed": "The video could not be created.",
-      "new_p": "Claude starts the brief when you run /edit-mo-to on this folder in Claude Code.",
-      "brief_link": "Brief link", "create": "Create video", "recheck": "Checking again every 2 seconds…",
+      "recheck": "Checking again every 2 seconds…",
       "still_running": "Still running (checked {time}). Checking again every 2 seconds…",
       "capcut_failed": "Could not check CapCut.",
       "capcut_p": "CapCut rewrites its projects when it closes, so a change written now would be lost. Quit CapCut completely (not just the window), then Claude writes.",
@@ -574,6 +621,7 @@ export const WORDS = {
       "export": "Mga 5 minuto."
     },
     "help": {
+      "listening": "Naka-save ang message mo; babasahin ito ni Claude sa susunod na check, o i-type ang 'go' sa window niya. Kung humingi si Claude ng permission, sagutin ito sa window niya.",
       "button": "Ano ang ibig sabihin ng {word}?",
       "temp_en": "Pansamantalang English track para masundan mo ang video na nasa ibang language. Burahin ito bago mag-export.",
       "a_roll": "Ang main footage: ang taong nagsasalita sa camera.",
@@ -593,7 +641,7 @@ export const WORDS = {
       "two": "{a} at {b}", "many": "{rest} at {last}", "more": "{n} pa"
     },
     "now": {
-      "capcut": "Ikaw na: i-quit nang buo ang CapCut, tapos pindutin ang “CapCut is closed” sa {step} page.",
+      "capcut": "Ikaw na: i-quit nang buo ang CapCut, tapos sumagot at pindutin ang Proceed sa {step} page.",
       "pictures": "Ikaw na: gawin ang pictures ng {shots}, tapos i-drop ang bawat isa sa card nito.",
       "pictures_question": "Ikaw na: gawin ang pictures ng {shots} at i-drop ang bawat isa sa card nito, o sagutin ang tanong ni Claude sa {step} page.",
       "voiceover": "Ikaw na: i-drop ang voiceover file sa Voiceover page.",
@@ -611,6 +659,14 @@ export const WORDS = {
       "notify_title": "Kailangan ka ni Claude: {step}"
     },
     "settings": {
+      "cm_p": "Aling Claude ang gagawa ng bawat bahagi ng trabaho. Opus ang pinakamaganda ang resulta at pinakamalaki ang bawas sa Claude plan mo; mas magaan ang Sonnet. Naka-save sa computer na ito lang.",
+      "cm_default": "Kapareho ng main Claude", "cm_opus": "Opus · pinakamaganda, pinakamalaki ang bawas",
+      "cm_sonnet": "Sonnet · mas magaan, mas maliit ang bawas", "cm_haiku": "Haiku · pinakamagaan, simpleng trabaho lang",
+      "cm_main_hint": "Kausap mo at nagpapatakbo ng mga step. Gagamitin sa susunod na magbukas ang app ng Claude window.",
+      "cm_motion-designer_hint": "Gumagawa ng bagong graphic looks, hal. mula sa Prompt Motion links mo. Opus ang payo: dito galing ang itsura.",
+      "cm_style_hint": "Nagpaplano ng shots at nagsusulat ng video prompts.",
+      "cm_editor_hint": "Bumubuo ng CapCut project mula sa plan. Sapat na ang Sonnet.",
+      "cm_qa_hint": "Chine-check ang trabaho laban sa brief. Sapat na ang Sonnet.",
       "alerts_p": "Kapag may bagong tanong si Claude, sasabihan ka ng computer na ito. Naka-save sa computer na ito lang.",
       "notify_hint": "Isang beses magtatanong ang browser mo kung pwedeng mag-pop-up, sa unang click mo pagkatapos magtanong ni Claude.",
       "notify_blocked": "Naka-block ang pop-ups sa page na ito. I-allow sila sa site settings ng browser mo.",
@@ -639,9 +695,10 @@ export const WORDS = {
       "note_ph": "Halimbawa: \"This prompt may violate our policies\""
     },
     "practice": {
-      "what": "Isang 10-second practice video mula sa clip mo habang nagsasalita. Parehong 12 steps ng totoong job, mga 15 hanggang 25 minuto, at walang client na makakakita.",
+      "what": "Isang 10-second practice video mula sa kahit anong brief: clip mo habang nagsasalita, explainer, ad, o wala. Parehong 12 steps ng totoong job, mas mabilis lang, at walang client na makakakita.",
       "type": "Sa Claude, i-type:", "starting": "Binubuksan…",
-      "opened": "Bubukas si Claude sa bagong window. Doon mo i-send ang clip mo.",
+      "opened": "Bubukas si Claude sa bagong window at sisimulan niya ang video na ito. Dito sa app sagutin ang bawat stop; puwedeng nasa likod lang ang window na iyon.",
+      "attached": "Ipinasa sa Claude na may hawak na ng app (sa Claude Code). Sisimulan na niya ang video na ito; walang bagong window.",
       "no_claude": "Hindi naka-install si Claude bilang terminal command sa computer na ito. I-copy na lang ito at i-paste kay Claude.",
       "failed": "Hindi bumukas ang window. I-copy na lang ito at i-paste kay Claude.",
       "unsupported": "Hindi kayang buksan si Claude mula sa app sa computer na ito. I-copy na lang ito at i-paste kay Claude.",
@@ -664,27 +721,45 @@ export const WORDS = {
       "tell_ph": "Sabihin kay Claude kahit ano, tungkol sa kahit anong step o sa buong job…",
       "checking_listening": "Chine-check kung nakikinig si Claude…", "whole_job": "Buong job · Ctrl+Enter"
     },
+    "resume": {
+      "why": "Hindi tumatakbo si Claude para sa video na ito (baka nasara ang window niya).",
+      "listening": "May Claude nang nakikinig sa video na ito. Sagutin ang tanong niya rito; hindi kailangan ng bagong window.",
+      "recent_title": "Baka gumagawa pa si Claude", "anyway": "Magbukas pa rin ng isa pang Claude",
+      "recent_p": "Binago ni Claude ang video na ito {n} min na ang nakaraan. Baka gumagawa pa siya sa ibang window o sa Claude Code app (puwedeng ilang minuto ang agents at builds nang walang update). Uulitin ng pangalawang Claude ang parehong trabaho at doble ang bawas sa plan mo. Magbukas lang kung sigurado kang walang Claude na gumagawa nito.",
+      "confirm_p": "Sarado na ba ang Claude window para sa video na ito? Magbubukas ito ng bago na itutuloy ang video kung saan ito huminto. Kung tumatakbo pa si Claude, i-cancel: magbabanggaan ang dalawa."
+    },
+    "work": {
+      "busy": "Ginagawa na…",
+      "got_it": "Natanggap ni Claude, binabasa na niya ang pinadala mo…",
+      "todo_h": "Sa step na ito", "todo_count": "{done} sa {total}", "todo_done": "Tapos:", "todo_now": "Ginagawa:",
+      "left_min": "Mga {n} min pa", "left_soon": "Wala nang isang minuto",
+      "left_over": "Medyo natatagalan kaysa karaniwan", "so_far": "{n} min na"
+    },
     "app": {
+      "msg_reading": "Binabasa na ni Claude…", "msg_read": "✓ Nabasa na ni Claude", "msg_waiting": "Hinihintay na makuha ni Claude…",
       "no_server": "Hindi sumasagot ang server ng app. Tumatakbo pa ba ito?",
       "server_said": "Sabi ng server: {status}.", "upload_refused": "Hindi tinanggap ang upload ({status}).",
       "upload_stopped": "Huminto ang upload. I-check ang file type at size, tapos subukan ulit.",
       "open_first": "Magbukas muna ng video.",
-      "dialog_new_coming": "Darating ang New video form sa susunod na build. Sa ngayon, magsimula ng bagong video gamit ang /edit-mo-to sa Claude Code.",
+      "dialog_new_coming": "Darating ang New video form sa susunod na build. Sa ngayon, magsimula ng bagong video gamit ang /edit-mo-to-app sa Claude Code.",
       "dialog_coming": "Darating ang dialog na ito sa susunod na build.", "connected": "Connected · {host}",
       "not_connected": "Hindi connected · sinusubukan ulit", "key_h": "Kailangan ng page na ito ang key nito.",
       "key_p": "Buksan ang link na ni-print ng server (nagtatapos sa ?k=…), o simulan ulit ang app mula sa Claude Code.",
       "open_to_see": "Magbukas ng video para makita ang ginagawa ni Claude.",
       "no_video_talk": "Walang nakabukas na video. Magbukas sa Dashboard para makausap si Claude tungkol dito.",
       "listening": "Nakikinig si Claude · {step}", "this_job": "ang job na ito",
+      "listening_off_short": "Hindi nakikinig si Claude",
+      "video_finished": "Tapos na ang video. Balik sa Dashboard.",
       "listening_off": "Hindi nakikinig si Claude. Naka-save ang message mo; babasahin ito sa susunod na check ni Claude, o i-type ang 'go' sa chat. Kung humingi si Claude ng permission, sagutin ito sa chat.",
       "open_on_dash": "Magbukas ng video sa Dashboard.",
-      "err_404": "Wala pang job ang folder na ito. Lalabas ito kapag sinimulan na ng /edit-mo-to.",
+      "err_404": "Wala pang job ang folder na ito. Lalabas ito kapag sinimulan na ng /edit-mo-to-app.",
       "err_403": "Hindi video folder iyan (dapat direktang subfolder ng root).",
       "err_load": "Hindi ma-load ang video na ito.",
       "coming_p": "Darating ang buong {step} page sa susunod na build. Lalabas sa itaas ang mga tanong ni Claude para sa step na ito, at pwede kang sumulat kay Claude sa ibaba.",
       "coming_later": "Darating ito sa susunod na build."
     },
     "upload": {
+      "remove": "Alisin ang {name}", "removed": "Inalis ang {name}. Hindi ito gagamitin ni Claude (nakatabi sa .edit-mo-to/removed/).",
       "kind": "Hindi pwedeng idagdag dito ang ganitong file.",
       "type": "{name}: hindi pwede rito ang file type na iyan. Gamitin ang {types}.",
       "big": "Masyadong malaki ang {name}. Ang limit dito ay {limit}.", "empty": "Walang laman ang {name}.",
@@ -695,18 +770,24 @@ export const WORDS = {
     },
     "gate": {
       "stale": "Sarado na ang tanong na iyan; may bagong tanong si Claude", "not_counted": "Hindi binilang: {answer}",
-      "your_answer": "Sagot mo: {answer}"
-    },
-    "ask": {
-      "placeholder": "Kahit ano tungkol sa {step}…", "sub": "{step} · kasama ng mga sagot mo sa page na ito",
-      "ctrl_enter": "Ctrl+Enter para i-send"
+      "your_answer": "Sagot mo: {answer}",
+      "notes": "May idadagdag o babaguhin? (optional)",
+      "notes_ph": "May kulang, mali, o gustong idagdag sa binigay ni Claude…",
+      "sent": "Naipadala na. Ginagawa na ni Claude.", "answer_first": "Sagutin muna ito: {question}",
+      "too_late": "Nasa kay Claude na ang mga sagot na ito. Para may baguhin, sabihin kay Claude sa kanang panel.",
+      "gfx_suggested": "Suggested", "gfx_suggested_why": "Sikat ngayon sa mga motion video (Prompt Motion)",
+      "file_skip": "Wala akong file para dito (laktawan)",
+      "capcut_running": "Bukas pa ang CapCut. I-quit nang buo, saka pindutin ang Proceed.",
+      "gfx_many": "Pumili ng isa o higit pa. Kapag marami = iba't ibang style na ikukumpara.",
+      "gfx_link": "O isang look mula sa Prompt Motion (i-paste ang link)",
+      "gfx_link_hint": "Buksan ang video na gusto mo sa prompt-motion.com at kopyahin ang address. Gagawin ito ni Claude na bagong template para sa bahaging ito."
     },
     "sp": {
       "not_listening": "Hindi nakikinig si Claude. Naka-save ang sagot mo; babasahin ito sa susunod na check ni Claude, o i-type ang 'go' sa chat.",
       "saved_early": "Naka-save para mamaya. Ipapa-confirm ito sa iyo ni Claude pagdating sa step na ito.",
       "answer_above": "Sagutin ito sa tanong ni Claude sa itaas.", "capcut_running": "Bukas pa ang CapCut.",
       "capcut_check_failed": "Hindi ma-check ang CapCut. Subukan ulit.",
-      "capcut_quit": "I-quit nang buo ang CapCut bago magsulat si Claude",
+      "capcut_quit": "I-quit nang buo ang CapCut bago magsulat si Claude", "capcut_remind": "Susunod, magsusulat si Claude sa CapCut project mo. I-quit nang buo ang CapCut (hindi lang i-minimize), saka pindutin ang Proceed. Mawawala ang hindi na-save sa CapCut.",
       "output_unreadable": "Hindi mabasa ang {kind} output ni Claude.",
       "early_p": "Hindi pa umaabot si Claude sa step na ito. Maghihintay dito ang ise-save mo; pagdating ni Claude, ipapa-confirm na lang niya ito sa iyo imbes na magtanong ulit.",
       "not_started_p": "Bubuksan ni Claude ang {step} pagdating dito. Pwede ka pa ring sumulat kay Claude tungkol dito sa ibaba."
@@ -714,9 +795,10 @@ export const WORDS = {
     "dash": {
       "morning": "Magandang umaga", "afternoon": "Magandang hapon", "evening": "Magandang gabi",
       "meta_none": "Sa brief manggagaling ang style at language", "looking": "Hinahanap ang videos mo…",
+      "create_failed": "Hindi nagawa ang video.",
       "sub_one": "1 video ang ginagawa · {waiting} ang naghihintay sa iyo",
       "sub": "{active} videos ang ginagawa · {waiting} ang naghihintay sa iyo",
-      "none_p": "Magsimula gamit ang /edit-mo-to sa Claude Code. Lalabas ito rito pagkagawa ni Claude ng job."
+      "none_p": "Magsimula gamit ang New video sa itaas, o /edit-mo-to-app sa Claude Code. Lalabas ito rito pagkagawa ni Claude ng job."
     },
     "usage": {
       "week": "{pct}% na ng week ang nagamit (magre-reset {when})",
@@ -746,7 +828,7 @@ export const WORDS = {
     },
     "set": {
       "saved_to": "Naka-save sa {file} sa computer na ito lang.",
-      "running": "Tumatakbo ang server na ito sa root {root}, port {port}. Ang binagong paths at port ay gagana sa susunod na buksan ni Claude ang app (ire-restart ng /edit-mo-to ang server gamit ang mga ito).",
+      "running": "Tumatakbo ang server na ito sa root {root}, port {port}. Ang binagong paths at port ay gagana sa susunod na buksan ni Claude ang app (ire-restart ng /edit-mo-to-app ang server gamit ang mga ito).",
       "sub": "Ang paths na gamit ng computer na ito, ang setup check, at lugar para mag-report ng bugs."
     },
     "fb": {
@@ -787,7 +869,10 @@ export const WORDS = {
       "paste_ph": "I-paste dito ang text ng brief",
       "instructions_ph": "Kahit anong wala sa brief: dapat meron, dapat iwasan, gusto ng client…",
       "style_none": "Pipiliin ni Claude mula sa brief",
-      "checklist_empty": "Isusulat ni Claude ang checklist pagkabasa ng brief."
+      "checklist_empty": "Isusulat ni Claude ang checklist pagkabasa ng brief.",
+      "submitted": "Naipadala na kay Claude.",
+      "waiting_claude": "Nasa kay Claude na ang brief mo. Lalabas dito ang checklist at mga tanong niya pagkabasa niya.",
+      "need_something": "Sabihin muna kay Claude kung anong video ang gagawin: mag-paste ng brief, maglagay ng link o instructions, o mag-drop ng file."
     },
     "build": {
       "name_taken": "May project na sa CapCut na ganyan ang pangalan.",
@@ -817,7 +902,9 @@ export const WORDS = {
       "no_drafts": "wala pang CapCut drafts folder sa Settings", "no_answer": "walang sagot",
       "unknown": "hindi alam na error", "default": "Default: 9:16, 1080×1920, 30 fps.",
       "you": "Ikaw ang mag-e-export ng bawat timeline sa CapCut, gamit ang settings sa ibaba.",
-      "done_p": "Susunod, gagawin ni Claude ang learning step: magmumungkahi siya ng preferences mula sa video na ito, at ise-save o ide-decline mo ang bawat isa."
+      "done_p": "Susunod, gagawin ni Claude ang learning step: magmumungkahi siya ng preferences mula sa video na ito, at ise-save o ide-decline mo ang bawat isa. O i-skip ito: tapos na ang video at walang matututunan.",
+      "learned_asking": "I-tick ang mga rule na ise-save (at kung saan itatabi ang bawat isa), tapos pindutin ang Proceed sa tanong ni Claude sa ibaba.",
+      "save_ticked": "Ang mga naka-tick lang sa itaas ang ise-save ng Proceed. I-untick ang ayaw mo; kapag walang naka-tick, walang mase-save."
     },
     "music": {
       "suno_p": "Mga part na hanggang 18 s bawat isa; gawin nang sunod-sunod at i-crossfade ayon sa notes.",
@@ -829,7 +916,11 @@ export const WORDS = {
       "none": "Wala pang nakalistang changes.",
       "you": "I-review mo ang project sa CapCut. I-edit doon, o ilista dito ang changes at si Claude ang gagawa.",
       "list_p": "Lalabas dito ang changes na ginagawa ni Claude.",
-      "done_p": "Kapag okay ka na sa bawat timeline, lilipat si Claude sa captions."
+      "done_p": "Kapag okay ka na sa bawat timeline, lilipat si Claude sa captions.",
+      "project_word": "ang project",
+      "watch_p": "Buksan ang {project} sa CapCut at panoorin ({timelines}). Tapos sabihin kay Claude ang susunod.",
+      "opt_changes_p": "Sabihin ang babaguhin; si Claude ang gagawa nito sa CapCut.",
+      "opt_good_p": "Ayos na ang bawat timeline: tuloy sa captions."
     },
     "script": {
       "ph": "I-paste dito ang script mo, isang line bawat row (hooks muna, tapos ang body).",
@@ -840,6 +931,8 @@ export const WORDS = {
       "empty": "Ita-time ni Claude ang voiceover pagdating nito."
     },
     "vo": {
+      "script_h": "Script para sa voiceover", "script_p": "I-copy ito sa ElevenLabs nang eksakto.",
+      "copy_all_hint": "Para sa iisang voiceover file na nandoon na lahat.",
       "times_with": " · Ita-time ni Claude ang VO gamit ang", "set_at_brief": "Nase-set sa brief.",
       "you": "Ikaw ang gagawa ng voiceover (ElevenLabs), isang file o isa bawat hook/body, tapos i-drop dito. Kokopyahin ito sa {where} folder ng video na ito.",
       "you_ask": "Nagtatanong muna si Claude bago gawin ang voiceover sa ElevenLabs, kasi gagamit ito ng credits mo. Sagutin ang Make it o Don't make it sa ibaba.",
@@ -847,10 +940,6 @@ export const WORDS = {
       "reuse_hint": "Tipid sa credits: ita-transcribe ni Claude ang lumang VO at ikaw ang pipili ng sentences."
     },
     "dlg": {
-      "goes_in": "Mapupunta sa {root}/",
-      "plain_name": "Gumamit ng simpleng folder name (walang slash, hindi nagsisimula sa . o _). Diretso ito sa video folders root.",
-      "creating": "Ginagawa…", "create_failed": "Hindi nagawa ang video.",
-      "new_p": "Sisimulan ni Claude ang brief kapag pinatakbo mo ang /edit-mo-to sa folder na ito sa Claude Code.",
       "recheck": "Chine-check ulit kada 2 segundo…",
       "still_running": "Bukas pa (na-check {time}). Chine-check ulit kada 2 segundo…",
       "capcut_failed": "Hindi ma-check ang CapCut.",

@@ -602,6 +602,10 @@ def add_tracks(project: Path, name: str, draft: Path, track_type: str = "audio",
     if not peek:
         raise ValueError(f"draft {draft} has no {track_type} tracks with segments")
     if track_type == "text":
+        # an emptied track of the same name (all its segments removed by patch) is dropped, not a clash
+        new_names = {t.get("name") for t in peek}
+        timeline["tracks"] = [t for t in timeline.get("tracks", [])
+                              if t.get("segments") or t.get("type") != "text" or t.get("name") not in new_names]
         have_names = {t.get("name") for t in timeline.get("tracks", []) if t.get("name")}
         for t in peek:
             if t.get("name") in have_names:

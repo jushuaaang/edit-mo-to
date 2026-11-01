@@ -31,6 +31,54 @@ def init(tmp_path):
     return folder
 
 
+def test_init_without_client_then_card_fills_it(tmp_path):
+    folder = tmp_path / "vid"
+    run("init", folder)  # the app's New video never asks; Claude reads them from the brief
+    assert js.load(folder)["card"]["client"] == "" and js.load(folder)["card"]["product"] == ""
+    run("card", folder, "client=Uvola", "product=Cereza")
+    assert js.load(folder)["card"]["client"] == "Uvola" and js.load(folder)["card"]["product"] == "Cereza"
+
+
+def test_rename_moves_the_folder_and_updates_the_job(tmp_path):
+    folder = tmp_path / "Video 2026-10-31"
+    run("init", folder)
+    job = js.load(folder)
+    job["folder_auto"] = True
+    js.save(folder, job)
+    (folder / "refs").mkdir()
+    out = run("rename", folder, 'Glowra: Vitamin C/Serum')
+    target = tmp_path / "Glowra Vitamin C Serum"
+    assert out["folder"] == target.as_posix() and not folder.exists() and (target / "refs").is_dir()
+    job = js.load(target)
+    assert job["folder"] == job["card"]["folder"] == target.as_posix() and "folder_auto" not in job
+    assert job["renamed_from"] == folder.as_posix()  # an app tab on the old folder follows it
+    assert js.get_current() == target.as_posix()
+    (tmp_path / "Taken").mkdir()
+    run("rename", target, "Taken", ok=False)  # never merges into an existing folder
+    run("rename", target, "_x", ok=False)
+
+
+def run_in(stdin, *args, ok=True):
+    p = subprocess.run([sys.executable, str(JOB), *map(str, args)], input=stdin, capture_output=True, text=True,
+                       encoding="utf-8")
+    out = json.loads(p.stdout.strip().splitlines()[-1])
+    assert (p.returncode == 0) == ok, p.stdout + p.stderr
+    return out
+
+
+def test_say_keeps_claudes_reply_word_for_word(tmp_path):
+    folder = init(tmp_path)
+    text = 'Here\'s the checklist.\n| # | Rule |\n|---|---|\n| 1 | "about 10 s" |\nAnything missing? Ayos ba?'
+    run_in(text, "say", folder)
+    assert js.load(folder)["messages"][-1]["text"] == text
+    run_in("", "say", folder, ok=False)  # nothing to say
+
+
+def test_stop_wait_with_no_waiter_is_quiet(tmp_path):
+    folder = init(tmp_path)
+    assert run("stop-wait", folder)["stopped"] is None
+
+
 def test_init_then_step_and_card(tmp_path):
     folder = init(tmp_path)
     run("step", folder, "storyboard", "waiting", "--note", "hi")
@@ -323,7 +371,7 @@ def test_lang_sets_the_detected_language_for_this_computer(tmp_path):
     assert _prefs(tmp_path)["ui_lang_detected"] == "en"
     assert js.read_prefs(gui / "prefs.json") == {"notify": True, "sound": False, "ui_lang": "en", "ui_lang_detected": "en",
                                                  "avoid_models": [], "default_model": None, "generate_warned_at": None, "elevenlabs_voice": None, "elevenlabs_model": None,
-                                                 "usage_readings": []}
+                                                 "usage_readings": [], "claude_models": {}}
 
 
 def test_lang_waits_for_the_prefs_lock(tmp_path):
@@ -339,3 +387,44 @@ def test_lang_waits_for_the_prefs_lock(tmp_path):
     out, err = p.communicate(timeout=30)
     assert p.returncode == 0, out + err
     assert _prefs(tmp_path) == {"notify": False, "ui_lang_detected": "tl"}
+
+
+def test_step_checklist_ticks_off(tmp_path):
+    folder = init(tmp_path)
+    out = run("step", folder, "script", "working", "--note", "Reading", "--todo", "Read answers| Pick graphics |Ask next")
+    assert [x["text"] for x in out["todo"]] == ["Read answers", "Pick graphics", "Ask next"]
+    assert not any(x["done"] for x in out["todo"])
+    out = run("step", folder, "script", "working", "--tick", "1", "2")
+    assert [x["done"] for x in out["todo"]] == [True, True, False]
+    run("step", folder, "script", "working", "--tick", "4", ok=False)  # no 4th item
+    assert all(x["done"] for x in run("step", folder, "script", "done")["todo"])  # done ticks the rest
+
+
+def test_step_times_its_work(tmp_path):
+    folder = init(tmp_path)
+    run("step", folder, "script", "working", "--todo", "a|b", "--eta", "120")
+    job = json.loads((folder / ".edit-mo-to" / "job.json").read_text(encoding="utf-8"))
+    st = job["steps"]["script"]
+    assert st["since"] and st["todo_at"] and st["eta"]["s"] == 120  # the card's clock and Claude's guess
+    run("step", folder, "script", "working", "--tick", "1")
+    job = json.loads((folder / ".edit-mo-to" / "job.json").read_text(encoding="utf-8"))
+    assert job["steps"]["script"]["todo"][0]["at"]  # when it ticked: the pace of the rest
+    run("step", folder, "script", "working", "--eta", "0", ok=False)
+    run("step", folder, "script", "waiting")
+    job = json.loads((folder / ".edit-mo-to" / "job.json").read_text(encoding="utf-8"))
+    assert "since" not in job["steps"]["script"]  # the stretch ended (too short to count as a usual time)
+
+
+def test_models_fills_every_part(tmp_path):
+    out = run("models")
+    assert out["models"] == {"main": "default", "motion-designer": "default", "style": "default", "editor": "default",
+                             "qa": "default"}
+
+
+def test_close_window_only_closes_its_own_window():
+    sys.path.insert(0, str(JOB.parent))
+    import close_window
+    parents = {50: 40, 40: 30, 30: 0, 99: 30}
+    assert close_window.is_ancestor(40, 50, parents)  # the window this Claude runs in
+    assert not close_window.is_ancestor(99, 50, parents)  # another session's window: never
+    assert not close_window.is_ancestor(7, 50, {50: 51, 51: 50})  # a parent loop ends the walk

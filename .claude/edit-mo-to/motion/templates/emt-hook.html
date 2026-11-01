@@ -1,0 +1,199 @@
+<!--defaults {"question": "Nahihirapan ka ba mag-edit at maging *^creative sa mga tasks na binigay ni CEO?", "q_times": "", "t_q": 0.3, "q_step": 0.2, "t_q_out": 3.7, "card_tag": "CLAUDE", "card_title": "I-type mo lang", "placeholder": "Type a command", "command": "/edit-mo-to", "t_card": 3.8, "t_type": 4.5, "cps": 14, "t_send": 5.8, "reply_tag": "CLAUDE", "reply": "Gagabayan ka ni Claude sa bawat step.", "t_reply": 6.4, "try_text": "Try ^edit-mo-to", "t_try": 8.2, "hud": "1", "hud_label": "EDIT-MO-TO · EXPLAINER", "section": "01 · HOOK", "tc_offset": "0", "bg": "#F3EEE6", "ink": "#111111", "muted": "#8A847C", "card": "#FFFFFF", "accent": "#E8481C", "blob": "0.55", "font": "Inter Tight", "serif": "Instrument Serif", "mono": "JetBrains Mono", "size": 104, "try_size": 210, "duration": 10} -->
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500;600;700;800;900&family={{serif}}:ital@0;1&family={{mono}}:wght@400;500;600&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "{{font}}", sans-serif; color: {{ink}}; }
+  #scene { position: absolute; inset: 0; background: {{bg}}; overflow: hidden; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(90px); opacity: {{blob}}; }
+  #b1 { left: -260px; top: -320px; width: 980px; height: 760px; background: radial-gradient(closest-side, {{accent}}38, {{accent}}00); }
+  #b2 { right: -300px; bottom: -380px; width: 1100px; height: 820px; background: radial-gradient(closest-side, {{accent}}2a, {{accent}}00); }
+  #cam { position: absolute; inset: 0; transform-origin: 960px 540px; }
+  .mono { font-family: "{{mono}}", monospace; }
+  /* question: words reveal in place, so the layout never shifts */
+  #q { position: absolute; left: 210px; width: 1500px; top: 540px; text-align: center; font-weight: 800; font-size: {{size}}px;
+       line-height: 1.12; letter-spacing: -.035em; }
+  .w { display: inline-block; white-space: nowrap; }
+  .w.s { font-family: "{{serif}}", serif; font-style: italic; font-weight: 400; letter-spacing: -.01em; font-size: 1.12em; line-height: .9; }
+  .w.a { color: {{accent}}; }
+  /* chat card */
+  #card { position: absolute; left: 340px; top: 220px; width: 1240px; height: 640px; background: {{card}}; border-radius: 30px;
+          box-shadow: 0 1px 2px rgba(40,30,20,.06), 0 30px 80px rgba(60,40,20,.12), 0 0 0 1px rgba(40,30,20,.05); overflow: hidden; }
+  #bar { position: absolute; left: 0; right: 0; top: 0; height: 66px; border-bottom: 1px solid rgba(17,17,17,.07); }
+  .dot3 { position: absolute; top: 26px; width: 14px; height: 14px; border-radius: 50%; background: #E4DDD2; }
+  #ctag { position: absolute; left: 0; right: 0; top: 20px; text-align: center; font-size: 22px; font-weight: 500; letter-spacing: .2em; color: {{ink}}; }
+  #ctitle { position: absolute; left: 64px; top: 104px; font-size: 52px; font-weight: 800; letter-spacing: -.03em; white-space: nowrap; }
+  #sent { position: absolute; right: 64px; top: 210px; background: {{ink}}; color: #fff; border-radius: 999px; padding: 18px 34px;
+          font-size: 40px; font-weight: 500; white-space: nowrap; }
+  #reply { position: absolute; left: 64px; top: 312px; width: 1110px; display: flex; align-items: baseline; gap: 22px; }
+  #rtag { flex: none; font-size: 22px; font-weight: 600; letter-spacing: .2em; color: {{ink}}; transform: translateY(-6px); }
+  #rtag::before { content: ""; display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: {{accent}}; margin-right: 12px; vertical-align: 1px; }
+  #rtext { font-size: 44px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
+  #field { position: absolute; left: 64px; right: 64px; top: 452px; height: 124px; border-radius: 26px; border: 3px solid #E6E0D6; background: #FFFFFF; }
+  #fring { position: absolute; inset: -3px; border-radius: 26px; border: 3px solid {{accent}}; opacity: 0; }
+  #ph { position: absolute; left: 40px; top: 36px; font-size: 40px; font-weight: 400; color: {{muted}}; white-space: nowrap; }
+  #typed { position: absolute; left: 40px; top: 32px; font-size: 46px; font-weight: 500; white-space: pre; color: {{ink}}; }
+  #caret { display: inline-block; width: 4px; height: 50px; margin-left: 4px; background: {{ink}}; vertical-align: -9px; }
+  #send { position: absolute; right: 18px; top: 18px; width: 82px; height: 82px; border-radius: 50%; background: {{ink}}; }
+  #send svg { position: absolute; inset: 0; }
+  #ring { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; border: 3px solid {{ink}}; opacity: 0; }
+  /* end title */
+  #try { position: absolute; left: 160px; width: 1600px; top: 540px; text-align: center; white-space: nowrap; font-weight: 900; font-size: {{try_size}}px;
+         letter-spacing: -.05em; line-height: 1.1; }
+  #try .w.s { font-size: 1.1em; }
+  #cur { position: absolute; left: 0; top: 0; width: 46px; height: 46px; }
+  /* shared explainer HUD */
+  .br { position: absolute; width: 34px; height: 34px; border-color: {{ink}}; border-style: solid; border-width: 0; opacity: .75; }
+  .hud { position: absolute; font-family: "{{mono}}", monospace; font-weight: 700; font-size: 18px; letter-spacing: .18em; text-transform: uppercase; white-space: pre; color: {{ink}}; }
+  #h-tl { left: 92px; top: 48px; } #h-tr { right: 92px; top: 48px; } #h-br { right: 92px; bottom: 48px; }
+  #h-br b { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: {{accent}}; margin-right: 12px; vertical-align: 1px; }
+  #src { display: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1920" data-height="1080">
+  <div id="scene" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0" data-layout-allow-overflow>
+    <div id="b1" class="blob" data-layout-ignore></div><div id="b2" class="blob" data-layout-ignore></div>
+    <div id="cam">
+      <div id="q" data-layout-allow-overlap></div>
+      <div id="cardwrap" data-layout-allow-overlap><div id="card">
+        <div id="bar"><span class="dot3" style="left:28px"></span><span class="dot3" style="left:52px"></span><span class="dot3" style="left:76px"></span>
+          <div id="ctag" class="mono">{{card_tag}}</div></div>
+        <div id="ctitle">{{card_title}}</div>
+        <div id="sent" class="mono" data-layout-allow-overlap></div>
+        <div id="reply" data-layout-allow-overlap><span id="rtag" class="mono">{{reply_tag}}</span><span id="rtext"></span></div>
+        <div id="field"><div id="fring"></div>
+          <div id="ph" data-layout-allow-overlap>{{placeholder}}</div>
+          <div id="typed" class="mono" data-layout-allow-overlap><span id="tt"></span><span id="caret"></span></div>
+          <div id="send"><svg viewBox="0 0 82 82"><path d="M41 58 L41 25 M27 38 L41 24 L55 38" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div id="ring" data-layout-ignore></div></div>
+        </div>
+      </div></div>
+      <div id="try" data-layout-allow-overlap></div>
+    </div>
+    <svg id="cur" viewBox="0 0 64 64" data-layout-ignore><path d="M10 6 L10 50 L21 39 L29 57 L37 53.5 L29 36 L45 36 Z" fill="{{ink}}" stroke="#fff" stroke-width="3.5" stroke-linejoin="round"/></svg>
+    <div id="hudwrap">
+      <div class="br" style="left:40px;top:40px;border-left-width:2px;border-top-width:2px"></div>
+      <div class="br" style="right:40px;top:40px;border-right-width:2px;border-top-width:2px"></div>
+      <div class="br" style="left:40px;bottom:40px;border-left-width:2px;border-bottom-width:2px"></div>
+      <div class="br" style="right:40px;bottom:40px;border-right-width:2px;border-bottom-width:2px"></div>
+      <div id="h-tl" class="hud">{{hud_label}}</div><div id="h-tr" class="hud">{{section}}</div><div id="h-br" class="hud"><b></b><span id="tcv"></span></div>
+    </div>
+  </div>
+  <div id="src"><span id="s-q">{{question}}</span><span id="s-cmd">{{command}}</span><span id="s-reply">{{reply}}</span><span id="s-try">{{try_text}}</span><span id="s-qt">{{q_times}}</span></div>
+</div>
+<script>
+  const D = {{duration}}, N = s => Number(s);
+  const T_Q = N("{{t_q}}"), Q_STEP = N("{{q_step}}"), T_QOUT = N("{{t_q_out}}"), T_CARD = N("{{t_card}}"), T_TYPE = N("{{t_type}}"),
+        CPS = Math.max(1, N("{{cps}}")), T_SEND = N("{{t_send}}"), T_REPLY = N("{{t_reply}}"), T_TRY = N("{{t_try}}"), TC0 = N("{{tc_offset}}");
+  const $ = id => document.getElementById(id), txt = id => $(id).textContent.trim();
+  // "*word" = serif italic, "^word" = accent colour (both may combine)
+  function words(el, text) {
+    el.textContent = "";
+    text.split(/\s+/).filter(Boolean).forEach((tok, i) => {
+      let w = tok, s = false, a = false;
+      while (/^[*^]/.test(w)) { if (w[0] === "*") s = true; else a = true; w = w.slice(1); }
+      if (i) el.appendChild(document.createTextNode(" "));
+      const sp = document.createElement("span"); sp.className = "w" + (s ? " s" : "") + (a ? " a" : ""); sp.textContent = w;
+      el.appendChild(sp);
+    });
+    return [...el.querySelectorAll(".w")];
+  }
+  const qW = words($("q"), txt("s-q")), tW = words($("try"), txt("s-try")), rW = words($("rtext"), txt("s-reply"));
+  const CMD = txt("s-cmd");
+  $("sent").textContent = CMD;
+  if (!rW.length) $("reply").style.display = "none";
+  const qt = txt("s-qt").split(",").map(Number).filter(x => !isNaN(x) && txt("s-qt") !== "");
+  const qTime = i => (qt.length > i ? qt[i] : T_Q + i * Q_STEP);
+
+  function fitW(el, maxW) {
+    el.style.fontSize = "";
+    const w = el.scrollWidth;
+    if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
+  }
+  function fitH(el, maxH) {
+    el.style.fontSize = "";
+    let fs = parseFloat(getComputedStyle(el).fontSize), n = 0;
+    while (el.getBoundingClientRect().height > maxH && n++ < 40) { fs *= 0.95; el.style.fontSize = fs + "px"; }
+  }
+  function layout() {
+    fitH($("q"), 420); $("q").style.top = (540 - $("q").getBoundingClientRect().height / 2) + "px";
+    fitW($("try"), 1600); $("try").style.top = (540 - $("try").getBoundingClientRect().height / 2) + "px";
+    fitW($("ctitle"), 1110); fitW($("rtext"), 1110 - $("rtag").getBoundingClientRect().width - 22);
+    $("typed").style.fontSize = ""; $("tt").textContent = CMD; fitW($("typed"), 960); $("tt").textContent = "";
+    fitW($("sent"), 1110); fitW($("ph"), 960);
+  }
+  layout();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { layout(); paint(clock.t); });
+
+  // pure function of time: typing, caret, placeholder, timecode
+  const clock = { t: 0 }, p2 = n => String(n).padStart(2, "0");
+  function paint(t) {
+    const typing = t >= T_TYPE && t < T_SEND;
+    const n = typing ? Math.min(CMD.length, Math.floor((t - T_TYPE) * CPS + 1e-6) + 1) : 0;
+    $("tt").textContent = CMD.slice(0, n);
+    $("ph").style.opacity = n === 0 ? 1 : 0;
+    const done = typing && n >= CMD.length;
+    $("caret").style.opacity = (t >= T_CARD + 0.3 && t < T_SEND) && (!done || Math.floor((t - T_TYPE) * 2.4) % 2 === 0) ? 1 : 0;
+    const f = Math.round((TC0 + t) * 30);
+    $("tcv").textContent = `TC ${p2(Math.floor(f / 108000))}:${p2(Math.floor(f / 1800) % 60)}:${p2(Math.floor(f / 30) % 60)}:${p2(f % 30)}`;
+  }
+  const tl = gsap.timeline({ paused: true });
+  tl.to(clock, { t: D, duration: D, ease: "none", onUpdate: () => paint(clock.t) }, 0);
+  if ("{{hud}}" !== "1") $("hudwrap").style.display = "none";
+  else tl.from("#hudwrap > *", { opacity: 0, duration: 0.3, stagger: 0.03 }, 0);
+  tl.fromTo(".blob", { scale: 0.9 }, { scale: 1.12, duration: D, ease: "none" }, 0);
+
+  // 1. the question lands word by word, blur to sharp
+  qW.forEach((w, i) => tl.fromTo(w, { opacity: 0, y: 34, filter: "blur(16px)" },
+    { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.45, ease: "power3.out" }, qTime(i)));
+  tl.to("#q", { y: -70, opacity: 0, filter: "blur(18px)", duration: 0.45, ease: "power2.in" }, T_QOUT);
+
+  // 2. the input card rises in, the camera pushes onto the field while the command types itself
+  gsap.set("#cardwrap", { opacity: 0 });
+  tl.fromTo("#cardwrap", { opacity: 0, y: 90, scale: 0.94, filter: "blur(18px)" },
+    { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.6, ease: "power3.out", immediateRender: false }, T_CARD);
+  tl.to("#fring", { opacity: 1, duration: 0.25 }, T_CARD + 0.35);
+  tl.to("#cam", { scale: 1.16, transformOrigin: "960px 734px", duration: 0.9, ease: "power3.inOut" }, T_TYPE - 0.3);
+  // cursor glides to send and clicks
+  const SX = 1533, SY = 734; // send-button centre in canvas space at the pushed-in camera
+  tl.fromTo("#cur", { x: 1700, y: 1000, opacity: 0 }, { x: SX - 7, y: SY - 4, opacity: 1, duration: 0.55, ease: "power3.inOut", immediateRender: false }, T_SEND - 0.6);
+  gsap.set("#cur", { opacity: 0 });
+  tl.to("#cur", { scale: 0.85, transformOrigin: "8px 5px", duration: 0.07 }, T_SEND);
+  tl.to("#cur", { scale: 1, duration: 0.18 }, T_SEND + 0.08);
+  tl.to("#cur", { x: SX + 120, y: SY + 160, opacity: 0, duration: 0.5, ease: "power2.in" }, T_SEND + 0.4);
+  tl.to("#send", { scale: 0.88, duration: 0.07 }, T_SEND);
+  tl.to("#send", { scale: 1, duration: 0.3, ease: "back.out(1.4)" }, T_SEND + 0.08);
+  tl.to("#send", { backgroundColor: "{{accent}}", duration: 0.15 }, T_SEND + 0.02);
+  tl.to("#send", { backgroundColor: "{{ink}}", duration: 0.3 }, T_SEND + 0.5);
+  tl.fromTo("#ring", { scale: 0.6, opacity: 0.25 }, { scale: 2.2, opacity: 0, duration: 0.5, ease: "power2.out", immediateRender: false }, T_SEND + 0.02);
+  tl.to("#fring", { opacity: 0, duration: 0.3 }, T_SEND + 0.1);
+  // the command leaves the field and settles as a sent message; camera eases back out
+  gsap.set("#sent", { opacity: 0 });
+  tl.fromTo("#sent", { opacity: 0, y: 230, scale: 0.9, filter: "blur(10px)" },
+    { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.5, ease: "power3.out", immediateRender: false }, T_SEND + 0.06);
+  tl.to("#cam", { scale: 1.04, transformOrigin: "960px 540px", duration: 0.8, ease: "power3.inOut" }, T_SEND + 0.1);
+  // Claude's reply, word by word
+  gsap.set("#rtag", { opacity: 0 });
+  tl.fromTo("#rtag", { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.3, immediateRender: false }, T_REPLY);
+  rW.forEach((w, i) => tl.fromTo(w, { opacity: 0, y: 14, filter: "blur(8px)" },
+    { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.32, ease: "power3.out" }, T_REPLY + 0.08 + i * 0.09));
+
+  // 3. the card falls away into depth, the end title lands word by word
+  tl.to("#cardwrap", { scale: 1.18, opacity: 0, filter: "blur(22px)", duration: 0.5, ease: "power2.in" }, T_TRY - 0.15);
+  tl.to("#cam", { scale: 1, duration: 0.6, ease: "power3.out" }, T_TRY);
+  tW.forEach((w, i) => tl.fromTo(w, { opacity: 0, y: 50, filter: "blur(20px)" },
+    { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.55, ease: "power3.out" }, T_TRY + 0.12 + i * 0.16));
+  tl.to("#try", { scale: 1.04, duration: Math.max(0.3, D - T_TRY - 0.4), ease: "none" }, T_TRY + 0.4);
+  tl.set({}, {}, D);
+  window.__timelines["main"] = tl;
+  paint(0);
+  tl.seek(0);
+</script>
+</body>
+</html>

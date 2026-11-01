@@ -16,75 +16,6 @@ function fieldRow(label, id, input, extra) {
   return h("div", { class: "field" }, h("label", { class: "lbl", for: id }, label), input, extra || null);
 }
 
-// ---------- New video ----------
-
-function newVideo(args, ctx) {
-  const client = h("input", { class: "f", id: "nv-client", autocomplete: "off" });
-  const product = h("input", { class: "f", id: "nv-product", autocomplete: "off" });
-  const folder = h("input", { class: "f mono", id: "nv-folder", autocomplete: "off", spellcheck: "false" });
-  const link = h("input", { class: "f mono", id: "nv-link", autocomplete: "off", spellcheck: "false", placeholder: t("dlg.link_ph") });
-  const where = h("div", { class: "hint", role: "status" });
-  const msg = h("div", { class: "msg", role: "status" });
-  let root = "", known = new Map(), touched = false;
-
-  const check = () => {
-    const name = folder.value.trim();
-    if (!name) { where.textContent = root ? t("dlg.goes_in", { root }) : ""; return; }
-    const found = known.get(name);
-    where.replaceChildren(root ? h("span", { class: "mono" }, `${root}/${name}`) : name, " ",
-      found === undefined ? chip(t("dlg.will_create"), "wait") : found.has_job ? chip(t("dlg.has_job"), "err") : chip(t("dlg.found"), "ok"));
-  };
-  const suggest = () => {
-    if (touched) return;
-    folder.value = [client.value.trim(), product.value.trim()].filter(Boolean).join(" ");
-    check();
-  };
-  client.addEventListener("input", suggest);
-  product.addEventListener("input", suggest);
-  folder.addEventListener("input", () => { touched = true; check(); });
-  (async () => {
-    try {
-      const [s, jobs] = await Promise.all([ctx.api("/api/settings"), ctx.api("/api/jobs")]);
-      root = String(s?.running?.root || "").replace(/\\/g, "/").replace(/\/+$/, "");
-      known = new Map((jobs || []).filter((j) => !j.practice).map((j) => [j.name, j]));
-    } catch { /* the server checks again on Create */ }
-    check();
-  })();
-
-  const create = async (close) => {
-    const body = { client: client.value.trim(), product: product.value.trim(), folder: folder.value.trim() };
-    if (!body.client) { client.focus(); return; }
-    if (!body.product) { product.focus(); return; }
-    if (!body.folder) { folder.focus(); return; }
-    if (/[\\/]/.test(body.folder) || /^[._]/.test(body.folder)) {
-      msg.className = "msg err";
-      msg.textContent = t("dlg.plain_name");
-      return;
-    }
-    msg.className = "msg";
-    msg.textContent = t("dlg.creating");
-    try {
-      const res = await ctx.api("/api/new", { body });
-      const url = link.value.trim();
-      if (url) {
-        await ctx.api("/api/inbox", { body: { folder: res.folder, event: {
-          type: "answer", step: "brief", gate: null, target: "brief:link", value: url, early: true } } });
-      }
-      close();
-      ctx.go(`#/job/${encodeURIComponent(res.folder)}/brief`);
-    } catch (e) {
-      msg.className = "msg err";
-      msg.textContent = e.message || t("dlg.create_failed");
-    }
-  };
-
-  return dialog("new", h("div", { class: "stack" },
-    p(t("dlg.new_p")),
-    fieldRow(t("card.client"), "nv-client", client), fieldRow(t("card.product"), "nv-product", product),
-    fieldRow(t("card.folder"), "nv-folder", folder, where), fieldRow(t("dlg.brief_link"), "nv-link", link), msg),
-  [{ label: t("common.cancel") }, { label: t("dlg.create"), primary: true, keepOpen: true, onClick: create }], { title: t("dash.new_video") });
-}
-
 // ---------- CapCut is still running ----------
 
 function capcut(args, ctx) {
@@ -406,7 +337,7 @@ function shot(args, ctx) {
   return d;
 }
 
-const DIALOGS = { new: newVideo, capcut, name: projectName, contact, oldvo: oldVo, inplace: inPlace, learn, shot };
+const DIALOGS = { capcut, name: projectName, contact, oldvo: oldVo, inplace: inPlace, learn, shot };
 
 /** Open a dialog by name: new, capcut, name, contact, oldvo, inplace, learn, shot. */
 export function open(name, args, ctx) {

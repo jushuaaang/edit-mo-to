@@ -1,0 +1,189 @@
+<!--defaults {"line1": "New to edit-mo-to?", "line2": "Practice muna.", "key": "Practice muna", "tag": "PRACTICE", "top_label": "START HERE", "top_num": "01", "sticky": "where do I start?", "sticky_note": "stuck to the brief", "card1_label": "brief.md", "card1_title": "Client brief", "card2_label": "script.md", "card2_title": "Script, v1", "card3_label": "voiceover.wav", "card3_time": "0:10", "rail": "01 BRIEF|02 SCRIPT|03 BUILD|04 EXPORT", "bg": "#F2F0EB", "fg": "#141414", "accent": "#E4501C", "muted": "#66635D", "sticky_bg": "#EEE29B", "c2": "#7B4FE0", "c3": "#2F5BEA", "c4": "#1FA463", "font": "Inter Tight", "mono": "JetBrains Mono", "size": 112, "y": 900, "t_swap": 1.05, "fade_out": "0", "duration": 2.5} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500;700;800&family={{mono}}:wght@500;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "{{font}}", sans-serif; color: {{fg}}; }
+  #scene { position: absolute; inset: 0; }
+  #bg { position: absolute; inset: 0; background-color: {{bg}};
+        background-image: linear-gradient(rgba(0,0,0,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,.035) 1px, transparent 1px);
+        background-size: 54px 54px; background-position: 0 0; }
+  #cam { position: absolute; inset: 0; transform-origin: 540px 900px; }
+  .mono { font-family: "{{mono}}", monospace; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; }
+  #tag { position: absolute; left: 64px; top: 92px; background: {{accent}}; color: #fff; font-size: 24px; font-weight: 700; padding: 8px 14px 7px; border-radius: 6px; }
+  #top { position: absolute; left: 0; right: 0; top: 96px; text-align: center; font-size: 26px; color: {{muted}}; }
+  #top b { font-weight: 700; color: {{fg}}; font-size: 40px; letter-spacing: .02em; margin-left: 10px; vertical-align: -4px; }
+  .card { position: absolute; background: #FBFAF7; border: 1px solid rgba(0,0,0,.07); border-radius: 14px;
+          box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 14px 34px rgba(0,0,0,.08); padding: 24px 28px; }
+  .lab { font-size: 22px; color: {{muted}}; display: flex; align-items: center; gap: 12px; letter-spacing: .06em; text-transform: none; }
+  .sq { width: 13px; height: 13px; border-radius: 2px; flex: none; }
+  .ttl { font-size: 40px; font-weight: 700; letter-spacing: -.02em; margin-top: 14px; white-space: nowrap; }
+  .bar { height: 12px; border-radius: 6px; background: rgba(0,0,0,.08); margin-top: 14px; }
+  #sticky { left: 120px; top: 300px; width: 320px; height: 280px; background: {{sticky_bg}}; border: 0; border-radius: 6px; transform: rotate(-5deg);
+            box-shadow: 0 2px 3px rgba(0,0,0,.08), 0 18px 34px rgba(0,0,0,.12); padding: 30px 30px; }
+  #sticky .ttl { font-size: 44px; line-height: 1.05; white-space: normal; margin: 0; }
+  #sticky .lab { position: absolute; left: 30px; bottom: 26px; font-size: 19px; color: #4d4a2c; }
+  #c1 { left: 560px; top: 330px; width: 400px; }
+  #c2 { left: 90px; top: 1190px; width: 430px; }
+  #c3 { left: 560px; top: 1300px; width: 420px; }
+  .wave { display: flex; align-items: center; gap: 6px; margin-top: 18px; height: 54px; }
+  .play { width: 50px; height: 50px; border-radius: 50%; background: {{fg}}; flex: none; position: relative; margin-right: 10px; }
+  .play:after { content: ""; position: absolute; left: 19px; top: 15px; border-left: 17px solid #fff; border-top: 10px solid transparent; border-bottom: 10px solid transparent; }
+  .wave i { display: block; width: 6px; border-radius: 3px; background: {{c3}}; }
+  .wave .tm { font-size: 22px; margin-left: 12px; color: {{muted}}; letter-spacing: .04em; }
+  #links { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; overflow: visible; }
+  #head { position: absolute; left: 0; right: 0; top: {{y}}px; height: 0; }
+  .line { position: absolute; left: 50%; top: 0; transform: translate(-50%, -50%); white-space: nowrap; font-weight: 800;
+          font-size: {{size}}px; letter-spacing: -.035em; line-height: 1.12; }
+  .w { display: inline-block; overflow: hidden; padding: 0 .02em .1em; margin-bottom: -.1em; vertical-align: top; }
+  .wi { display: inline-block; }
+  .k { color: {{accent}}; }
+  #rail { position: absolute; left: 90px; right: 90px; top: 1720px; height: 80px; }
+  #track { position: absolute; left: 0; right: 0; top: 13px; height: 2px; background: rgba(0,0,0,.14); }
+  #fillr { position: absolute; left: 0; top: 13px; height: 2px; width: 100%; background: {{accent}}; transform-origin: 0 50%; }
+  .stop { position: absolute; top: 0; }
+  .stop .sq { width: 28px; height: 28px; border-radius: 4px; }
+  .stop .mono { position: absolute; left: 0; top: 46px; font-size: 20px; white-space: nowrap; color: {{muted}}; letter-spacing: .14em; }
+  .stop.on .mono { color: {{fg}}; font-weight: 700; }
+  #logo { position: absolute; left: 0; top: 0; }
+  .lg { position: absolute; width: 28px; height: 28px; border-radius: 4px; }
+  #src { display: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="scene" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0" data-layout-allow-overflow>
+    <div id="bg"></div>
+    <div id="cam">
+      <div id="tag" class="mono">{{tag}}</div>
+      <div id="top" class="mono">{{top_label}}<b>{{top_num}}</b></div>
+      <svg id="links" viewBox="0 0 1080 1920" data-layout-ignore></svg>
+      <div id="sticky" class="card"><div class="ttl">{{sticky}}</div><div class="lab mono"><span class="sq" style="background:{{c2}}"></span>{{sticky_note}}</div></div>
+      <div id="c1" class="card"><div class="lab mono"><span class="sq" style="background:{{accent}}"></span>{{card1_label}}</div><div class="ttl">{{card1_title}}</div><div class="bar" style="width:88%"></div><div class="bar" style="width:62%"></div></div>
+      <div id="c2" class="card"><div class="lab mono"><span class="sq" style="background:{{c4}}"></span>{{card2_label}}</div><div class="ttl">{{card2_title}}</div><div class="bar" style="width:90%"></div><div class="bar" style="width:70%"></div></div>
+      <div id="c3" class="card"><div class="lab mono"><span class="sq" style="background:{{c3}}"></span>{{card3_label}}</div><div class="wave" id="wave"><span class="play"></span></div></div>
+      <div id="head"><div class="line" id="l1" data-layout-allow-overlap></div><div class="line" id="l2" data-layout-allow-overlap></div></div>
+      <div id="rail"><div id="track"></div><div id="fillr"></div></div>
+      <div id="logo"></div>
+    </div>
+  </div>
+  <div id="src"><span id="s1">{{line1}}</span><span id="s2">{{line2}}</span><span id="sk">{{key}}</span><span id="sr">{{rail}}</span><span id="st">{{card3_time}}</span></div>
+</div>
+<script>
+  const D = {{duration}}, TS = Number("{{t_swap}}");
+  const COLORS = ["{{accent}}", "{{c2}}", "{{c3}}", "{{c4}}"];
+  const txt = id => document.getElementById(id).textContent;
+  function words(el, text, key) {
+    // split into word spans; words inside `key` get the accent colour
+    const ki = key ? text.indexOf(key) : -1;
+    let pos = 0;
+    text.split(/\s+/).filter(Boolean).forEach((w, i) => {
+      const at = text.indexOf(w, pos); pos = at + w.length;
+      const o = document.createElement("span"); o.className = "w";
+      const n = document.createElement("span"); n.className = "wi";
+      const a = Math.max(0, ki - at), b = Math.min(w.length, ki + (key || "").length - at);
+      if (ki >= 0 && a < b) {  // colour only the part of the word inside the key (punctuation stays fg)
+        if (a) n.appendChild(document.createTextNode(w.slice(0, a)));
+        const k = document.createElement("span"); k.className = "k"; k.textContent = w.slice(a, b); n.appendChild(k);
+        if (b < w.length) n.appendChild(document.createTextNode(w.slice(b)));
+      } else n.textContent = w;
+      o.appendChild(n);
+      if (i) el.appendChild(document.createTextNode(" "));
+      el.appendChild(o);
+    });
+  }
+  words(document.getElementById("l1"), txt("s1"), "");
+  words(document.getElementById("l2"), txt("s2"), txt("sk"));
+  // waveform
+  const wave = document.getElementById("wave");
+  [18,30,44,26,52,36,20,40,54,30,22,46,34,18,28].forEach(h => { const i = document.createElement("i"); i.style.height = h + "px"; wave.appendChild(i); });
+  const tm = document.createElement("span"); tm.className = "tm mono"; tm.textContent = txt("st"); wave.appendChild(tm);
+  // rail stops + logo squares (the squares open the scene, then fly down to become the rail stops)
+  const rail = document.getElementById("rail"), logo = document.getElementById("logo");
+  const labels = txt("sr").split("|").map(s => s.trim()).filter(Boolean).slice(0, 4);
+  const RW = 900, stops = [];
+  labels.forEach((l, i) => {
+    const x = labels.length > 1 ? i * (RW - 28) / (labels.length - 1) : 0;
+    const s = document.createElement("div"); s.className = "stop" + (i === 0 ? " on" : ""); s.style.left = x + "px";
+    const m = document.createElement("div"); m.className = "mono"; m.textContent = l;
+    if (i === labels.length - 1 && labels.length > 1) { m.style.left = "auto"; m.style.right = "0"; }
+    s.appendChild(m); rail.appendChild(s);
+    const q = document.createElement("div"); q.className = "lg"; q.style.background = COLORS[i % 4];
+    q.style.left = (90 + x) + "px"; q.style.top = "1720px"; logo.appendChild(q);
+    stops.push({ q, x, label: m });
+  });
+  function fitW(el, maxW) {
+    el.style.fontSize = "";
+    const w = el.getBoundingClientRect().width / (gsap.getProperty(el, "scaleX") || 1);
+    if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
+  }
+  function fitAll() { fitW(document.getElementById("l1"), 960); fitW(document.getElementById("l2"), 960); }
+  fitAll();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
+
+  // orange link lines: card anchors -> hub nodes above / below the headline
+  const Y = Number("{{y}}");
+  const hubs = [[540, Y - 170], [540, Y + 190]];
+  const links = [[[280, 585], 0], [[760, 545], 0], [[300, 1190], 1], [[770, 1300], 1]];
+  const svg = document.getElementById("links"), NS = "http://www.w3.org/2000/svg";
+  const paths = links.map(([[x, y], h]) => {
+    const p = document.createElementNS(NS, "path");
+    const [hx, hy] = hubs[h];
+    p.setAttribute("d", `M${x},${y} L${(x + hx) / 2},${(y + hy) / 2 + (h ? 30 : -30)} L${hx},${hy}`);
+    p.setAttribute("fill", "none"); p.setAttribute("stroke", "{{accent}}"); p.setAttribute("stroke-width", "3");
+    p.setAttribute("stroke-linejoin", "round"); svg.appendChild(p);
+    const L = p.getTotalLength(); p.style.strokeDasharray = L; p.style.strokeDashoffset = L; return p;
+  });
+  const nodes = hubs.map(([x, y]) => {
+    const g = document.createElementNS(NS, "g"); g.setAttribute("transform", `translate(${x},${y})`);
+    const inner = document.createElementNS(NS, "g");
+    const c = document.createElementNS(NS, "circle"); c.setAttribute("r", "17"); c.setAttribute("fill", "{{accent}}");
+    const d = document.createElementNS(NS, "circle"); d.setAttribute("r", "6"); d.setAttribute("fill", "#fff");
+    inner.appendChild(c); inner.appendChild(d); g.appendChild(inner); svg.appendChild(g); return inner;
+  });
+  const ends = links.map(([[x, y]]) => {
+    const c = document.createElementNS(NS, "circle"); c.setAttribute("cx", x); c.setAttribute("cy", y); c.setAttribute("r", "7");
+    c.setAttribute("fill", "{{accent}}"); svg.appendChild(c); return c;
+  });
+
+  const tl = gsap.timeline({ paused: true });
+  // 1. logo squares: a centred row, then each one drops onto its rail stop
+  const n = stops.length;
+  stops.forEach((s, i) => {
+    const cx = 540 - (n * 40) / 2 + i * 40 + 6, cy = Y - 330;
+    gsap.set(s.q, { x: cx - (90 + s.x), y: cy - 1720, scale: 0 });
+    tl.to(s.q, { scale: 1, duration: 0.18, ease: "back.out(1.6)" }, 0.02 + i * 0.03);
+    tl.to(s.q, { x: 0, y: 0, duration: 0.42, ease: "power3.inOut" }, 0.34 + i * 0.04);
+  });
+  tl.from(".stop .mono", { opacity: 0, y: 8, duration: 0.25, stagger: 0.04, ease: "power2.out" }, 0.62);
+  tl.from("#track", { scaleX: 0, transformOrigin: "0 50%", duration: 0.45, ease: "power2.inOut" }, 0.3);
+  gsap.set("#fillr", { scaleX: 0 });
+  tl.to("#fillr", { scaleX: 0.08, duration: 0.4, ease: "power2.out" }, 0.75);
+  tl.to("#fillr", { scaleX: 0.3, duration: Math.max(0.3, D - 1.25), ease: "none" }, 1.15);
+  tl.from("#tag, #top", { opacity: 0, y: -14, duration: 0.3, stagger: 0.05, ease: "power2.out" }, 0.08);
+  // 2. cards drift in, then keep floating
+  [["#sticky", -9], ["#c1", 3], ["#c2", -3], ["#c3", 4]].forEach(([sel, r], i) => {
+    tl.from(sel, { opacity: 0, y: 60, rotation: `+=${r}`, scale: 0.94, duration: 0.55, ease: "power3.out" }, 0.08 + i * 0.07);
+    tl.to(sel, { y: i % 2 ? 10 : -12, x: i % 2 ? -6 : 6, duration: D, ease: "sine.inOut" }, 0.6);
+  });
+  // 3. headline line 1 rolls up word by word, then swaps for line 2 (the key phrase lands in orange)
+  tl.from("#l1 .wi", { yPercent: 110, duration: 0.42, stagger: 0.06, ease: "power3.out" }, 0.16);
+  tl.to("#l1 .wi", { yPercent: -110, duration: 0.3, stagger: 0.04, ease: "power3.in" }, TS);
+  tl.from("#l2 .wi", { yPercent: 110, duration: 0.42, stagger: 0.07, ease: "power3.out" }, TS + 0.16);
+  // 4. links draw from the cards to the hubs as the key phrase lands
+  paths.forEach((p, i) => tl.to(p, { strokeDashoffset: 0, duration: 0.45, ease: "power2.inOut" }, TS + 0.2 + i * 0.06));
+  tl.from(ends, { attr: { r: 0 }, duration: 0.2, stagger: 0.06, ease: "back.out(1.6)" }, TS + 0.12);
+  tl.from(nodes, { scale: 0, transformOrigin: "50% 50%", duration: 0.28, stagger: 0.05, ease: "back.out(1.4)" }, TS + 0.5);
+  // 5. slow camera push toward the headline
+  tl.fromTo("#cam", { scale: 1 }, { scale: 1.04, duration: D, ease: "none" }, 0);
+  if ("{{fade_out}}" === "1") tl.to("#cam", { opacity: 0, duration: 0.18, ease: "power2.in" }, D - 0.2);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

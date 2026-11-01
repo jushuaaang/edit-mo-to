@@ -113,22 +113,21 @@ def test_no_external_network_at_runtime():
 def test_shell_contract():
     app = _x((STATIC / "app.js").read_text(encoding="utf-8") + (STATIC / "index.html").read_text(encoding="utf-8"))
     for needle in ("#/settings", "/api/job", "If-None-Match", "1500", "This page is coming",
-                   "Claude is listening", "Claude isn't listening. Your message is saved; it's picked up when "
-                   "Claude next checks, or type 'go' in chat. If Claude asked for permission, answer it in chat.",
+                   "Claude is listening", "Claude isn't listening",  # the long explanation is behind its ⓘ
                    "Tell Claude anything"):
         assert needle in app, needle
     ui = _x((STATIC / "ui.js").read_text(encoding="utf-8"))
-    for name in ("chip", "gateBar", "askBox", "table", "dropZone", "copyButton", "pendingChip", "dialog"):
+    for name in ("chip", "gateBar", "table", "dropZone", "copyButton", "pendingChip", "dialog"):
         assert f"export function {name}(" in ui, name
-    assert "Sent · waiting for Claude" in ui
-    assert "Tell Claude about this step" in ui
+    assert "Sent. Claude is on it." in ui  # one Proceed sends the whole question bar
+    assert "Tell Claude about this step" not in ui and "askBox" not in ui  # one message box: the right panel's
     settings = _x((STATIC / "pages" / "settings.js").read_text(encoding="utf-8"))
     for needle in ("Report a bug", "Suggest an improvement", "Send to Joshua", "/api/feedback", "issue_url"):
         assert needle in settings, needle
 
 
 def test_job_reply_has_recent_events(tmp_path):
-    """askBox shows a step's messages and gateBar knows an answer was sent: both read `events`."""
+    """gateBar knows an answer was sent: it reads `events`."""
     import json
     root, tmp = tmp_path / "root", tmp_path / "tmp"
     folder = root / "Uvola Cereza Ácida"
@@ -174,12 +173,130 @@ def test_brief_page_has_one_instructions_box():
 
 def test_dialogs_cover_the_spec_list():
     text = _x((STATIC / "dialogs.js").read_text(encoding="utf-8"))
-    assert "export function open(" in text and "/api/new" in text
-    for name in ("new", "capcut", "name", "contact", "oldvo", "inplace", "learn"):
+    assert "export function open(" in text
+    for name in ("capcut", "name", "contact", "oldvo", "inplace", "learn"):
         assert f'{name}:' in text or f'"{name}"' in text, name
     for needle in ("I quit it, check again", "Cancel this change", "Use anyway", "Mark for regenerate", "Copy prompt"):
         assert needle in text, needle
     assert ".innerHTML" not in text and "html:" not in text  # data reaches the DOM as text only
+
+
+def test_new_video_is_one_click_to_the_brief_page():
+    dash = _x((STATIC / "pages" / "dashboard.js").read_text(encoding="utf-8"))
+    assert "/api/new" in dash and "auto_folder: true" in dash and "/brief`" in dash
+    assert 'openDialog("new")' not in dash  # no form: the brief goes on the Brief page only
+    assert "new: newVideo" not in (STATIC / "dialogs.js").read_text(encoding="utf-8")
+
+
+def test_brief_page_has_one_submit_and_no_save_buttons():
+    brief = (STATIC / "pages" / "brief.js").read_text(encoding="utf-8")
+    assert "textInput(" not in brief  # textInput brings a Save button per box
+    assert '"brief.submit"' in brief and 'target: "brief:submit"' in brief
+
+
+def test_brief_step_has_a_brief_view_and_a_claude_view():
+    brief = (STATIC / "pages" / "brief.js").read_text(encoding="utf-8")
+    assert "function switchView(" in brief and '"brief.see"' in brief and '"brief.back"' in brief
+    claude_view = brief[brief.index("const see = "):]
+    assert "inputs(ctx, data)" not in claude_view  # after Submit the brief boxes are not on Claude's view
+
+
+def test_question_bar_is_one_form_with_proceed():
+    ui = (STATIC / "ui.js").read_text(encoding="utf-8")
+    bar = ui[ui.index("export function gateBar("):]
+    assert '"gate.proceed"' in bar and 'send("notes"' in bar and "extra.target" in bar
+    assert "const isYesNo" in ui and 'APPROVALS = new Set(["checklist", "approve"' in ui  # approvals: Proceed + note box
+    assert 'type: "radio"' in ui and 'if (q.kind === "choice") return radios(' in ui  # one of many: radio buttons
+    assert 'type: "checkbox"' in ui  # many: checkboxes
+    assert "questionControls" not in ui  # no per-question Send / Yes / No any more
+    app = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert "function autoFollow(" in app and "state.sentAt = Date.now()" in app
+    assert 'busy("working") || busy("waiting")' in app  # follows Export's "waiting on you" too, not only questions
+    assert 'if (finished && prev !== undefined && prev !== "finished")' in app and 'location.hash = "#/"' in app  # done: Dashboard
+
+
+def test_script_edits_go_with_proceed():
+    script = (STATIC / "pages" / "script.js").read_text(encoding="utf-8")
+    assert "gateExtra: () => ({ before: async () =>" in script and "changedLines(edits.cells)" in script
+    assert "const btn = asking ? null :" in script  # no Send edits while Claude asks: Proceed sends them
+    assert "written ? null :" in script  # "Use my script / Write one" only before there is a script
+    assert "if (extra?.before) await extra.before();" in (STATIC / "ui.js").read_text(encoding="utf-8")
+
+
+def test_resume_button_only_when_the_terminal_is_gone():
+    app = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert "function needsResume(job, lis, win)" in app and 'win === "open"' in app and 'if (win === "closed") return true;' in app
+    assert 'body: { command, folder, ...(force ? { force: true } : {}) }' in app and '"resume.recent_p"' in app and '"resume.confirm_p"' in app  # asks first, then opens on this video
+
+
+def test_right_panel_job_card_folds_up():
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    assert '<details class="sec jcwrap" id="jobcard-wrap">' in html and 'id="jobcard-sum"' in html
+    app = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert "showEmptyCard" in app and '"card.show_empty"' in app and 'helpTip("listening")' in app
+    assert 'data.claude_window === "closed") return null' in app  # no "working" card once Claude's window is gone
+
+
+def test_change_my_answer_until_claude_has_it():
+    ui = (STATIC / "ui.js").read_text(encoding="utf-8")
+    assert "const changing = new Set();" in ui and '"gate.change"' in ui and '"gate.too_late"' in ui
+    assert "answered(ctx, gate, q)?.value ?? q.default" in ui  # reopened with the previous answers
+    assert '!String(q.text || "").includes("?")' in ui  # "…made? (Recommended…)" is still a Yes / No question
+    w = _words()["gate"]
+    assert w["change"] == "Change my answer"
+    app = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert "reopenGate(state.folder, gate.id);" in app and "now.canChange ?" in app  # also on the loading card
+    assert ".working .working-change { pointer-events: auto;" in (STATIC / "app.css").read_text(encoding="utf-8")
+
+
+def test_review_is_one_choice_then_one_bar():
+    rv = (STATIC / "pages" / "review.js").read_text(encoding="utf-8")
+    assert 'opt("changes", t("review.opt_changes")' in rv and 'opt("good", t("review.opt_good")' in rv
+    assert 'hideGate: picked !== "changes"' in rv and "notesRequired: true" in rv  # one place to say what to change
+    assert 'picked === "changes" && !asking ? draftsCard' in rv  # the change list form only when Claude isn't asking
+    assert "notesFirst: true" in rv  # "What should change?" is question 1
+    ui = (STATIC / "ui.js").read_text(encoding="utf-8")
+    assert "const wizard = !locked && parts.length >= 3;" in ui and '"gate.step_of"' in ui  # 3+ parts: one at a time
+
+
+def test_export_skip_learning_and_rules_on_the_page():
+    ex = (STATIC / "pages" / "export.js").read_text(encoding="utf-8")
+    assert '"export:skip-learn"' in ex and '"export.skip_learn"' in ex
+    assert "function learnCard(" in ex and 'openDialog("learn"' not in ex  # the rules are on the page, not a pop-up
+    assert 'decision: box.checked ? "save" : "decline"' in ex and '"export.select_all"' in ex  # pick rules, or all
+    assert 'chosen ? null : h("section", { class: "card" }, h("h3", {}, t("export.done_h"))' in ex  # gone once answered
+
+
+def test_pick_the_graphics_cards():
+    ui = (STATIC / "ui.js").read_text(encoding="utf-8")
+    assert 'if (q.kind === "cards") return templateCards(name, q);' in ui
+    assert "/api/template-preview?name=" in ui and 'o.value === "auto"' in ui  # a preview each, and Let Claude choose
+    assert 'type: "checkbox", name' in ui and '(auto || opts[i].value === "auto")' in ui  # several picks, or Claude's
+    assert 'h("span", { class: "tbadge" }' in ui and "o.suggested" in ui  # Suggested badge with its reason
+    assert 'placeholder: "https://prompt-motion.com/…"' in ui and "v.push(url)" in ui  # a look from a link, in the list
+
+
+def test_trends_name_real_templates():
+    import json
+    motion = STATIC.parents[1] / "motion"
+    trends = json.loads((motion / "trends.json").read_text(encoding="utf-8"))
+    names = {p.stem for p in (motion / "templates").glob("*.html")}
+    for cat in trends["categories"]:
+        assert isinstance(cat["count"], int) and cat["templates"]
+        assert set(cat["templates"]) <= names, cat["name"]
+
+
+def test_working_card_shows_claudes_current_note():
+    app = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert "function workingNow(" in app and "renderWorking();" in app
+    assert 'state === "working"' in app and "job.gate" in app  # hidden while it's the editor's turn
+    assert "followRename(folder)" in app and "renamed_from" in app  # a tab on a renamed folder follows it
+    assert '"work.step"' in app and 'class: "working-done"' in app  # which step, and what it just did
+    assert "(job.gate ? e.gate === job.gate.id : true)" in app and "return fresh || justSent ?" in app  # stays up
+    css = (STATIC / "app.css").read_text(encoding="utf-8")
+    assert ".working[hidden]" in css and "body.is-working::before" in css  # the page dims behind the card
+    assert "body.is-working .rail { z-index: 41; }" in css  # the right panel stays above, clickable
+    assert ".inert = Boolean(now)" in app  # the page and left sidebar take no clicks or keys meanwhile
 
 
 def test_carry_overs_in_shell():
@@ -397,8 +514,7 @@ def test_alerts_fire_on_a_new_question_only_and_ask_permission_on_a_click():
 
 def test_practice_card_on_the_dashboard():
     dash = _page("dashboard.js")
-    assert '"/practice-muna"' in dash and "copyButton(PRACTICE" in dash
-    assert "practice.title" in dash and "practice.what" in dash
+    assert "practice.title" in dash and "practice.what" in dash and "practice.start" in dash
 
 
 VISIBLE_CODE_ALLOWED = (  # where "SB-" / "CHAR-" may stay: ids, file names, regexes, comments
@@ -662,14 +778,20 @@ def test_language_switch_in_settings_and_auto():
     assert "loadPrefs(api)" in app[app.index("async function refreshCurrent"):app.index("function setFolder")]
 
 
-def test_start_practice_button_and_copy_fallback():
+def test_start_practice_makes_a_practice_video_like_new_video():
     dash = _page("dashboard.js")
-    assert '"/api/practice"' in dash and "practice.start" in dash
+    assert "practice.start" in dash and "newVideo(ctx, btn, true)" in dash and "practice: true" in dash
+    assert '"/api/practice"' not in dash  # the launch moved to the Brief page's Submit to Claude
+
+
+def test_submit_opens_claude_with_copy_fallback():
+    brief = _page("brief.js")
+    assert '"/api/practice"' in brief and '"practice-muna" : "edit-mo-to"' in brief
     for reason in ("no-claude", "failed", "unsupported", "busy"):
-        assert f'"{reason}"' in dash, reason
-    assert "copyButton(PRACTICE" in dash
-    assert 'reply.hint === "automation"' in dash and "practice.mac_automation" in dash  # where to allow Terminal on a Mac
-    fallback = dash[dash.index("const FALLBACK"):].split("\n", 1)[0]
+        assert f'"{reason}"' in brief, reason
+    assert "copyButton(st.typed" in brief and "submitted.set(" in brief  # the outcome survives the refresh
+    assert 'reply.hint === "automation"' in brief and "practice.mac_automation" in brief  # where to allow Terminal on a Mac
+    fallback = brief[brief.index("const LAUNCH_FALLBACK"):].split("\n", 1)[0]
     assert '"busy"' not in fallback and all(r in fallback for r in ('"no-claude"', '"failed"', '"unsupported"'))
     w = _words()["practice"]
     assert w["no_claude"] == ("Claude isn't installed as a terminal command on this computer. "
@@ -994,3 +1116,63 @@ def test_favicon_is_served(base):
     status, ctype, _ = _get(base + "/favicon.ico")
     assert status == 200 and ctype.startswith("image/svg+xml")
     assert 'rel="icon" href="/static/favicon.svg"' in (STATIC / "index.html").read_text(encoding="utf-8")
+
+
+def test_steps_only_show_on_a_video():
+    app = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert 'const onVideo = route.page === "job";' in app and "steps.hidden = !onVideo;" in app  # none on the Dashboard
+    assert ".side .nav[hidden], .side .navsec[hidden] { display: none; }" in (STATIC / "app.css").read_text(encoding="utf-8")
+
+
+def test_loading_card_shows_claudes_checklist():
+    app = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert "function todoList(items)" in app and "now.todo?.length ? todoList(now.todo) : null" in app
+    assert 'i === now ? "now"' in app  # the first open item is what Claude is on
+
+
+def test_file_questions_can_be_skipped():
+    ui = (STATIC / "ui.js").read_text(encoding="utf-8")
+    assert 'value: () => (skip.checked ? "skip" : saved)' in ui  # e.g. a video with no voiceover
+    assert 'String(q.skip || t("gate.file_skip"))' in ui
+
+
+def test_loading_card_estimates_time_left():
+    app = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert "function timeLeft(step, usual)" in app and "data.work_times?.[step]" in app
+    assert '"work.left_min"' in app and '"work.left_over"' in app  # About N min left / longer than usual
+
+
+def test_no_loading_card_while_part_of_the_question_is_unanswered():
+    app = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert "if (job.gate && !(job.gate.questions || []).every((q) => got.has(q.id))) return null;" in app
+
+
+def test_quit_capcut_is_a_reminder_and_proceed_answers_it():
+    sp = (STATIC / "steppage.js").read_text(encoding="utf-8")
+    ui = (STATIC / "ui.js").read_text(encoding="utf-8")
+    assert '"sp.capcut_closed"' not in sp and '"sp.capcut_remind"' in sp  # no button, a strong reminder
+    assert 'if (q.id === "capcut_closed") return { q, f: { node: null, value: () => true' in ui  # Proceed sends it
+    assert 'ctx.api("/api/capcut")' in ui and '"gate.capcut_running"' in ui  # only once CapCut is really closed
+
+
+def test_settings_has_claude_models():
+    st = (STATIC / "pages" / "settings.js").read_text(encoding="utf-8")
+    assert "function claudeModelsCard(ctx)" in st and "claudeModelsCard(ctx), modelsCard(ctx)" in st
+    assert 'savePrefs(ctx.api, { claude_models: want })' in st
+
+
+def test_learning_ticks_survive_a_redraw_and_decide_alone():
+    ex = (STATIC / "pages" / "export.js").read_text(encoding="utf-8")
+    assert "checked: was ? was.on : true" in ex  # an untick stays unticked when the page redraws
+    assert 'labels: { save: { no: null, text: t("export.save_ticked") } }' in ex  # no Yes / No over the ticks
+
+
+def test_app_fixes_messages_spotlight_vo_script_and_file_x():
+    app = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert 'h("li", { class: "you" }' in app and '"app.msg_reading"' in app  # your message, and whether Claude read it
+    ui = (STATIC / "ui.js").read_text(encoding="utf-8")
+    assert 'bar.classList.add("attention")' in ui and "spotlit.has(key)" in ui  # the editor's turn glows, scrolls once
+    vo = (STATIC / "pages" / "voiceover.js").read_text(encoding="utf-8")
+    assert "function scriptCard(data)" in vo and '"vo.copy_all"' in vo  # hooks and body to copy
+    sp = (STATIC / "steppage.js").read_text(encoding="utf-8")
+    assert "removeButton(ctx, e.value)" in sp and "/api/upload-remove" in sp and "!gone.has(e.value)" in sp

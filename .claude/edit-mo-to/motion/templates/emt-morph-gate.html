@@ -1,0 +1,237 @@
+<!--defaults {"who": "Claude", "doing": "pagbasa|pagsulat|timing|pag-build", "t_in": 0.15, "t_words": "0.8,1.5,2.2,2.9", "left": "Claude", "right": "Ikaw", "decide": "^Ikaw ang *nagde-decide", "t_toggle": 3.9, "t_ikaw": 5.2, "t_spin": 6.8, "gate_label": "GATE", "gate_words": "Titigil|Magtatanong|Maghihintay", "t_gate": 7.6, "gate_times": "8.2,8.9,9.6", "go": "Go", "t_go": 10.6, "hud": "1", "hud_label": "EDIT-MO-TO · EXPLAINER", "section": "03 · CLAUDE + IKAW", "tc_offset": "0", "bg": "#F3EEE6", "ink": "#111111", "muted": "#8A847C", "card": "#FFFFFF", "accent": "#E8481C", "font": "Inter Tight", "serif": "Instrument Serif", "mono": "JetBrains Mono", "cy": 500, "duration": 12.5} -->
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500;600;700;800;900&family={{serif}}:ital@0;1&family={{mono}}:wght@500;600&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "{{font}}", sans-serif; color: {{ink}}; }
+  #scene { position: absolute; inset: 0; background: {{bg}}; overflow: hidden; }
+  #vig { position: absolute; inset: 0; background: radial-gradient(70% 70% at 50% 45%, rgba(255,255,255,.5) 0%, rgba(255,255,255,0) 60%, rgba(80,60,40,.07) 100%); }
+  #cam { position: absolute; inset: 0; transform-origin: 960px {{cy}}px; }
+  .mono { font-family: "{{mono}}", monospace; }
+  /* the one shape that morphs through every state */
+  #shape { position: absolute; left: 960px; top: {{cy}}px; width: 160px; height: 160px; border-radius: 80px; background: {{ink}}; overflow: hidden;
+           box-shadow: 0 2px 6px rgba(20,15,10,.10), 0 26px 60px rgba(20,15,10,.16); }
+  .layer { position: absolute; left: 50%; top: 50%; }
+  /* pill */
+  #L-pill { height: 160px; display: flex; align-items: center; gap: 30px; white-space: nowrap; color: #fff; }
+  #pdot { width: 20px; height: 20px; border-radius: 50%; background: {{accent}}; flex: none; }
+  #pwho { font-weight: 800; font-size: 62px; letter-spacing: -.03em; }
+  #psep { width: 3px; height: 62px; background: rgba(255,255,255,.28); flex: none; }
+  #pslot { position: relative; display: inline-grid; }
+  #pslot span { grid-area: 1 / 1; font-family: "{{serif}}", serif; font-style: italic; font-size: 76px; letter-spacing: -.01em; line-height: 1; padding-bottom: 6px; }
+  /* toggle */
+  #L-tog { width: 1000px; height: 172px; }
+  #knob { position: absolute; top: 14px; bottom: 14px; left: 14px; width: 472px; border-radius: 80px; background: #fff; }
+  .seg { position: absolute; top: 0; height: 172px; width: 500px; display: flex; align-items: center; justify-content: center;
+         font-weight: 800; font-size: 64px; letter-spacing: -.03em; white-space: nowrap; }
+  #segL { left: 0; color: {{ink}}; } #segR { left: 500px; color: #fff; }
+  #decide { position: absolute; left: 160px; width: 1600px; text-align: center; white-space: nowrap; font-weight: 800; font-size: 88px; letter-spacing: -.035em; }
+  /* spinner + check */
+  #L-spin, #L-ok { width: 160px; height: 160px; }
+  #L-spin svg, #L-ok svg { position: absolute; inset: 0; }
+  /* gate card */
+  #L-gate { width: 1100px; height: 600px; }
+  #ghead { position: absolute; left: 72px; top: 62px; display: flex; align-items: center; gap: 22px; }
+  #stop { position: relative; width: 58px; height: 58px; flex: none; }
+  #stop svg { position: absolute; inset: 0; }
+  #sring { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; border: 3px solid {{accent}}; opacity: 0; }
+  #glabel { font-size: 26px; font-weight: 600; letter-spacing: .24em; color: {{ink}}; white-space: nowrap; }
+  #grows { position: absolute; left: 72px; top: 158px; width: 940px; }
+  .grow { display: flex; align-items: baseline; gap: 34px; height: 102px; white-space: nowrap; }
+  .gi { font-family: "{{mono}}", monospace; font-size: 26px; font-weight: 600; color: {{muted}}; letter-spacing: .1em; width: 46px; flex: none; }
+  .gw { font-weight: 800; font-size: 80px; letter-spacing: -.035em; color: {{ink}}; }
+  #gobtn { position: absolute; right: 60px; bottom: 60px; height: 104px; padding: 0 46px 0 52px; border-radius: 52px; background: {{ink}}; color: #fff;
+           display: flex; align-items: center; gap: 18px; font-weight: 800; font-size: 50px; letter-spacing: -.02em; white-space: nowrap; }
+  #gobtn svg { width: 40px; height: 40px; }
+  #goring { position: absolute; left: 50%; top: 50%; width: 140px; height: 140px; margin: -70px 0 0 -70px; border-radius: 50%; border: 3px solid {{ink}}; opacity: 0; }
+  .w { display: inline-block; white-space: nowrap; }
+  .w.s { font-family: "{{serif}}", serif; font-style: italic; font-weight: 400; letter-spacing: -.01em; font-size: 1.14em; line-height: .9; }
+  .w.a { color: {{accent}}; }
+  #cur { position: absolute; left: 0; top: 0; width: 50px; height: 50px; }
+  /* shared explainer HUD */
+  .br { position: absolute; width: 34px; height: 34px; border-color: {{ink}}; border-style: solid; border-width: 0; opacity: .75; }
+  .hud { position: absolute; font-family: "{{mono}}", monospace; font-weight: 700; font-size: 18px; letter-spacing: .18em; text-transform: uppercase; white-space: pre; color: {{ink}}; }
+  #h-tl { left: 92px; top: 48px; } #h-tr { right: 92px; top: 48px; } #h-br { right: 92px; bottom: 48px; }
+  #h-br b { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: {{accent}}; margin-right: 12px; vertical-align: 1px; }
+  #src { display: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1920" data-height="1080">
+  <div id="scene" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0" data-layout-allow-overflow>
+    <div id="vig"></div>
+    <div id="cam">
+      <div id="shapewrap"><div id="shape" data-layout-allow-overflow>
+        <div id="L-pill" class="layer" data-layout-allow-overlap><span id="pdot"></span><span id="pwho">{{who}}</span><span id="psep"></span><span id="pslot"></span></div>
+        <div id="L-tog" class="layer" data-layout-allow-overlap><div id="knob"></div><div id="segL" class="seg">{{left}}</div><div id="segR" class="seg">{{right}}</div></div>
+        <div id="L-spin" class="layer" data-layout-allow-overlap><svg viewBox="0 0 160 160"><g id="arc"><circle cx="80" cy="80" r="34" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="8"/>
+          <circle cx="80" cy="80" r="34" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-dasharray="60 400" transform="rotate(-90 80 80)"/></g></svg></div>
+        <div id="L-gate" class="layer" data-layout-allow-overlap>
+          <div id="ghead"><div id="stop"><svg viewBox="0 0 58 58"><path d="M17 2 H41 L56 17 V41 L41 56 H17 L2 41 V17 Z" fill="{{accent}}"/><rect x="15" y="26" width="28" height="6" rx="3" fill="#fff"/></svg><div id="sring"></div></div>
+            <div id="glabel" class="mono">{{gate_label}}</div></div>
+          <div id="grows"></div>
+          <div id="gobtn"><span id="gotext">{{go}}</span><svg viewBox="0 0 40 40"><path d="M8 20 H31 M22 11 L31 20 L22 29" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg><div id="goring" data-layout-ignore></div></div>
+        </div>
+        <div id="L-ok" class="layer" data-layout-allow-overlap><svg viewBox="0 0 160 160"><path id="okp" d="M56 82 L72 98 L105 64" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div></div>
+      <div id="decide" data-layout-allow-overlap></div>
+    </div>
+    <svg id="cur" viewBox="0 0 64 64" data-layout-ignore><path d="M10 6 L10 50 L21 39 L29 57 L37 53.5 L29 36 L45 36 Z" fill="{{ink}}" stroke="#fff" stroke-width="3.5" stroke-linejoin="round"/></svg>
+    <div id="hudwrap">
+      <div class="br" style="left:40px;top:40px;border-left-width:2px;border-top-width:2px"></div>
+      <div class="br" style="right:40px;top:40px;border-right-width:2px;border-top-width:2px"></div>
+      <div class="br" style="left:40px;bottom:40px;border-left-width:2px;border-bottom-width:2px"></div>
+      <div class="br" style="right:40px;bottom:40px;border-right-width:2px;border-bottom-width:2px"></div>
+      <div id="h-tl" class="hud">{{hud_label}}</div><div id="h-tr" class="hud">{{section}}</div><div id="h-br" class="hud"><b></b><span id="tcv"></span></div>
+    </div>
+  </div>
+  <div id="src"><span id="s-doing">{{doing}}</span><span id="s-tw">{{t_words}}</span><span id="s-decide">{{decide}}</span><span id="s-gw">{{gate_words}}</span><span id="s-gt">{{gate_times}}</span></div>
+</div>
+<script>
+  const D = {{duration}}, N = s => Number(s), CY = N("{{cy}}");
+  const T_IN = N("{{t_in}}"), T_TOG = N("{{t_toggle}}"), T_IKAW = N("{{t_ikaw}}"), T_SPIN = N("{{t_spin}}"), T_GATE = N("{{t_gate}}"),
+        T_GO = N("{{t_go}}"), TC0 = N("{{tc_offset}}");
+  const $ = id => document.getElementById(id), txt = id => $(id).textContent.trim();
+  const list = (s, sep) => s.split(sep).map(x => x.trim()).filter(Boolean);
+  const times = (s, n, t0, step) => { const a = list(s, ",").map(Number).filter(x => !isNaN(x)); return [...Array(n)].map((_, i) => a.length > i ? a[i] : t0 + i * step); };
+  function words(el, text) {
+    el.textContent = "";
+    text.split(/\s+/).filter(Boolean).forEach((tok, i) => {
+      let w = tok, s = false, a = false;
+      while (/^[*^]/.test(w)) { if (w[0] === "*") s = true; else a = true; w = w.slice(1); }
+      if (i) el.appendChild(document.createTextNode(" "));
+      const sp = document.createElement("span"); sp.className = "w" + (s ? " s" : "") + (a ? " a" : ""); sp.textContent = w; el.appendChild(sp);
+    });
+    return [...el.querySelectorAll(".w")];
+  }
+  // build content from vars
+  const DOING = list(txt("s-doing"), "|"), TW = times(txt("s-tw"), DOING.length, T_IN + 0.6, 0.8);
+  const slotW = DOING.map(w => { const s = document.createElement("span"); s.textContent = w; $("pslot").appendChild(s); return s; });
+  const decW = words($("decide"), txt("s-decide"));
+  const GW = list(txt("s-gw"), "|"), GT = times(txt("s-gt"), GW.length, T_GATE + 0.5, 0.7);
+  const rows = GW.map((w, i) => { const r = document.createElement("div"); r.className = "grow";
+    r.innerHTML = `<span class="gi">${String(i + 1).padStart(2, "0")}</span><span class="gw"></span>`; r.querySelector(".gw").textContent = w; $("grows").appendChild(r); return r; });
+
+  function fitW(el, maxW) {
+    el.style.fontSize = "";
+    const w = el.scrollWidth;
+    if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
+  }
+  let PW = 1000;
+  function layout() {
+    // pill: wide enough for the longest word, capped at 1500
+    $("pslot").style.fontSize = ""; $("pwho").style.fontSize = "";
+    const pill = $("L-pill"); const w = pill.scrollWidth;
+    if (w > 1400) { const k = 1400 / w; $("pwho").style.fontSize = 62 * k + "px"; slotW.forEach(s => s.style.fontSize = 76 * k + "px"); }
+    PW = Math.max(560, pill.scrollWidth + 150);
+    pill.style.marginLeft = -pill.scrollWidth / 2 + "px"; pill.style.marginTop = "-80px";
+    document.querySelectorAll(".seg").forEach(s => fitW(s, 440));
+    fitW($("decide"), 1600); $("decide").style.top = (CY + 86 + 60) + "px";
+    document.querySelectorAll(".gw").forEach(s => fitW(s, 860));
+    fitW($("glabel"), 900);
+    // gate rows: shrink row height when there are many
+    const rh = Math.min(102, 300 / Math.max(1, rows.length)); rows.forEach(r => r.style.height = rh + "px");
+    [["L-tog", 1000, 172], ["L-spin", 160, 160], ["L-gate", 1100, 600], ["L-ok", 160, 160]].forEach(([id, w2, h]) => {
+      $(id).style.marginLeft = -w2 / 2 + "px"; $(id).style.marginTop = -h / 2 + "px"; });
+  }
+  layout();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { layout(); });
+
+  const clock = { t: 0 }, p2 = n => String(n).padStart(2, "0");
+  function paint(t) {
+    const f = Math.round((TC0 + t) * 30);
+    $("tcv").textContent = `TC ${p2(Math.floor(f / 108000))}:${p2(Math.floor(f / 1800) % 60)}:${p2(Math.floor(f / 30) % 60)}:${p2(f % 30)}`;
+  }
+  const tl = gsap.timeline({ paused: true });
+  tl.to(clock, { t: D, duration: D, ease: "none", onUpdate: () => paint(clock.t) }, 0);
+  if ("{{hud}}" !== "1") $("hudwrap").style.display = "none";
+  else tl.from("#hudwrap > *", { opacity: 0, duration: 0.3, stagger: 0.03 }, 0);
+
+  const S = $("shape");
+  gsap.set(S, { xPercent: -50, yPercent: -50 });
+  gsap.set(["#L-tog", "#L-spin", "#L-gate", "#L-ok"], { opacity: 0 });
+  gsap.set(slotW, { opacity: 0 });
+  const SPR = "back.out(1.15)"; // spring with a tiny overshoot
+  const morph = (t, w, h, r, bg) => { tl.to(S, { width: w, height: h, borderRadius: r, duration: 0.6, ease: SPR }, t); tl.to(S, { backgroundColor: bg, duration: 0.28, ease: "power1.inOut" }, t + 0.12); };
+  const swap = (t, out, inn) => {
+    tl.to(out, { opacity: 0, filter: "blur(10px)", scale: 0.94, duration: 0.18, ease: "power2.in" }, t);
+    tl.fromTo(inn, { opacity: 0, filter: "blur(10px)", scale: 1.05 }, { opacity: 1, filter: "blur(0px)", scale: 1, duration: 0.32, ease: "power3.out", immediateRender: false }, t + 0.16);
+  };
+
+  // 0. a black dot springs into the pill: "Claude · <word>", each word swaps under a short blur on its beat
+  tl.fromTo(S, { width: 160, height: 160, borderRadius: 80, scale: 0.4, opacity: 0, filter: "blur(12px)" },
+    { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.45, ease: SPR }, T_IN);
+  tl.to(S, { width: () => PW, duration: 0.6, ease: SPR }, T_IN + 0.3);
+  tl.fromTo("#L-pill", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.35 }, T_IN + 0.45);
+  slotW.forEach((s, i) => {
+    tl.fromTo(s, { opacity: 0, y: 26, filter: "blur(10px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.32, ease: "power3.out", immediateRender: false }, TW[i]);
+    if (i < slotW.length - 1) tl.to(s, { opacity: 0, y: -26, filter: "blur(10px)", duration: 0.22, ease: "power2.in" }, TW[i + 1] - 0.1);
+  });
+
+  // 1. the pill becomes a segmented toggle; the cursor clicks "Ikaw", the knob stretches across (two edges, two springs)
+  gsap.set("#cam", { scale: 1.25 });
+  tl.to("#cam", { scale: 1, duration: 0.6, ease: "power3.inOut" }, T_TOG);
+  morph(T_TOG, 1000, 172, 86, "{{ink}}");
+  swap(T_TOG, "#L-pill", "#L-tog");
+  const K = $("knob");
+  tl.to(K, { width: 600, duration: 0.2, ease: "power2.in" }, T_IKAW);
+  tl.to(K, { x: 500, width: 472, duration: 0.42, ease: SPR }, T_IKAW + 0.16);
+  tl.to("#segL", { color: "#ffffff", duration: 0.25 }, T_IKAW + 0.12);
+  tl.to("#segR", { color: "{{ink}}", duration: 0.25 }, T_IKAW + 0.12);
+  tl.to(S, { scale: 0.97, duration: 0.07 }, T_IKAW);
+  tl.to(S, { scale: 1, duration: 0.3, ease: SPR }, T_IKAW + 0.08);
+  decW.forEach((w, i) => tl.fromTo(w, { opacity: 0, y: 30, filter: "blur(14px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.42, ease: "power3.out" }, T_IKAW + 0.2 + i * 0.12));
+  tl.to("#decide", { opacity: 0, y: 30, filter: "blur(12px)", duration: 0.3, ease: "power2.in" }, T_SPIN - 0.05);
+
+  // 2. collapse into a spinner (Claude at work), the camera pushes in so the small state fills its space
+  morph(T_SPIN, 160, 160, 80, "{{ink}}");
+  swap(T_SPIN, "#L-tog", "#L-spin");
+  tl.to("#cam", { scale: 1.5, duration: 0.7, ease: "power3.inOut" }, T_SPIN);
+  tl.fromTo("#arc", { rotation: 0, svgOrigin: "80 80" }, { rotation: 360 * Math.max(1, Math.round((T_GATE - T_SPIN) * 1.6)), svgOrigin: "80 80", duration: Math.max(0.3, T_GATE - T_SPIN + 0.2), ease: "none", immediateRender: false }, T_SPIN);
+
+  // 3. GATE: the circle opens into a white question card with a red stop sign; each word lands on its beat
+  tl.to("#cam", { scale: 1, duration: 0.7, ease: "power3.inOut" }, T_GATE - 0.1);
+  morph(T_GATE, 1100, 600, 48, "{{card}}");
+  swap(T_GATE, "#L-spin", "#L-gate");
+  tl.fromTo("#stop", { scale: 0.3, rotation: -40 }, { scale: 1, rotation: 0, duration: 0.5, ease: SPR, immediateRender: false }, T_GATE + 0.25);
+  tl.fromTo("#sring", { scale: 1, opacity: 0.6 }, { scale: 2.4, opacity: 0, duration: 0.7, ease: "power2.out", immediateRender: false }, T_GATE + 0.45);
+  gsap.set(rows, { opacity: 0 });
+  rows.forEach((r, i) => tl.fromTo(r, { opacity: 0, x: -30, filter: "blur(10px)" }, { opacity: 1, x: 0, filter: "blur(0px)", duration: 0.4, ease: "power3.out", immediateRender: false }, GT[i]));
+  gsap.set("#gobtn", { opacity: 0 });
+  tl.fromTo("#gobtn", { opacity: 0, y: 20, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.4, ease: SPR, immediateRender: false }, Math.min(GT[GT.length - 1] + 0.3, T_GO - 0.7));
+
+  // 4. the cursor clicks Go: the card folds back into a black circle and a check draws
+  tl.to("#gobtn", { scale: 0.92, duration: 0.07 }, T_GO);
+  tl.to("#gobtn", { scale: 1, backgroundColor: "{{accent}}", duration: 0.22, ease: SPR }, T_GO + 0.07);
+  tl.fromTo("#goring", { scale: 0.6, opacity: 0.3 }, { scale: 2.2, opacity: 0, duration: 0.5, ease: "power2.out", immediateRender: false }, T_GO + 0.02);
+  const T_OK = T_GO + 0.32;
+  morph(T_OK, 160, 160, 80, "{{ink}}");
+  swap(T_OK, "#L-gate", "#L-ok");
+  tl.to("#cam", { scale: 1.5, duration: 0.7, ease: "power3.inOut" }, T_OK);
+  tl.fromTo("#okp", { strokeDasharray: 80, strokeDashoffset: 80 }, { strokeDashoffset: 0, duration: 0.35, ease: "power2.out", immediateRender: false }, T_OK + 0.3);
+  gsap.set("#okp", { strokeDasharray: 80, strokeDashoffset: 80 });
+
+  // cursor: drives the toggle click and the Go click (positions in canvas space, camera at 1)
+  const C = $("cur"); gsap.set(C, { opacity: 0 });
+  const tip = (x, y) => ({ x: x - 8, y: y - 5 });
+  const ik = tip(960 + 250, CY + 10), go = tip(960 + 550 - 60 - 110, CY + 300 - 60 - 52);
+  tl.fromTo(C, { x: 1500, y: 980, opacity: 0 }, { ...ik, opacity: 1, duration: 0.6, ease: "power3.inOut", immediateRender: false }, T_IKAW - 0.65);
+  tl.to(C, { scale: 0.85, transformOrigin: "8px 5px", duration: 0.07 }, T_IKAW);
+  tl.to(C, { scale: 1, duration: 0.18 }, T_IKAW + 0.08);
+  tl.to(C, { x: ik.x + 160, y: ik.y + 240, opacity: 0, duration: 0.5, ease: "power2.in" }, T_IKAW + 0.45);
+  tl.fromTo(C, { x: go.x + 260, y: go.y + 260, opacity: 0 }, { ...go, opacity: 1, duration: 0.6, ease: "power3.inOut", immediateRender: false }, T_GO - 0.65);
+  tl.to(C, { scale: 0.85, duration: 0.07 }, T_GO);
+  tl.to(C, { scale: 1, duration: 0.18 }, T_GO + 0.08);
+  tl.to(C, { x: go.x + 200, y: go.y + 220, opacity: 0, duration: 0.5, ease: "power2.in" }, T_GO + 0.4);
+  tl.set({}, {}, D);
+  window.__timelines["main"] = tl;
+  paint(0);
+  tl.seek(0);
+</script>
+</body>
+</html>

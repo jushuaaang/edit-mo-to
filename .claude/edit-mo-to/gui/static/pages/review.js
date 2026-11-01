@@ -5,7 +5,8 @@
 // "review:changes"); a change in place first shows the `inplace` dialog (where the backup goes).
 import { h, pendingChip, toast, helpTip } from "../ui.js";
 import { t } from "../words.js";
-import { stepPage, outputsOf, outputTables, isTable, actionButton, pendingFor, sendEdit, timelines, card, waitingText } from "../steppage.js";
+import { stepPage, outputsOf, outputTables, actionButton, pendingFor, sendEdit, timelines, card, waitingText, openGate }
+  from "../steppage.js";
 
 const MODES = [["inplace", "review.inplace"], ["new", "review.new"]];  // value, word
 
@@ -56,18 +57,42 @@ function draftsCard(ctx, data) {
       pendingFor(data, "review:changes").length ? pendingChip() : null, note));
 }
 
+/** The editor's choice after watching: "changes" or "good" (per video; nothing picked yet = both offered). */
+const choice = new Map();
+
+function choiceCard(root, data, ctx, picked) {
+  const key = String(data?.job?.folder || ctx.folder || "");
+  const c = card(data);
+  const tls = timelines(data);
+  const pick = (v) => { choice.set(key, v); root.replaceChildren(); render(root, data, ctx); };
+  const opt = (v, title, sub) => h("label", { class: `card choice${picked === v ? " picked" : ""}` },
+    h("input", { type: "radio", name: "rv-choice", value: v, checked: picked === v, onchange: () => pick(v) }),
+    h("div", {}, h("b", {}, title), h("p", { class: "hint" }, sub)));
+  return h("section", { class: "card" }, h("h3", {}, t("review.watch_h")),
+    h("p", {}, t("review.watch_p", { project: c.project || t("review.project_word"), timelines: tls.length ? tls.join(", ") : "" })),
+    h("div", { class: "grid2 review-choice", role: "radiogroup", style: "margin-top:14px" },
+      opt("changes", t("review.opt_changes"), t("review.opt_changes_p")),
+      opt("good", t("review.opt_good"), t("review.opt_good_p"))));
+}
+
 export function render(root, data, ctx) {
   const out = outputsOf(data, "review");
+  const key = String(data?.job?.folder || ctx.folder || "");
+  const picked = choice.get(key) || null;
+  const asking = Boolean(openGate(data, "review"));
   stepPage(root, "review", data, ctx, {
-    you: t("review.you"),
+    // one place to answer: after "I want changes", Claude's bar asks what to change, which timeline and how; nothing
+    // else on the page asks it again
+    hideGate: picked !== "changes",
+    gateExtra: () => ({ notesLabel: t("review.what_change"), notesPh: t("review.ph"), notesRequired: true, notesFirst: true }),
     body: () => [
-      isTable(out.changes) ? null : h("section", { class: "card" }, h("h3", {}, t("review.list_h")), h("p", { class: "hint" }, t("review.list_p"))),
-      ...outputTables(ctx, data, "review", { only: (k) => k === "changes" }),
-      draftsCard(ctx, data),
+      choiceCard(root, data, ctx, picked),
+      picked === "good" ? h("section", { class: "card" }, h("div", { class: "row spread" },
+        h("p", { class: "hint", style: "margin:0" }, t("review.done_p")),
+        actionButton(ctx, data, "review", "review:done", t("review.done"), { primary: true }))) : null,
+      picked === "changes" && !asking ? draftsCard(ctx, data) : null,  // Claude isn't asking yet: list them for later
+      ...outputTables(ctx, data, "review", { only: (k) => k === "changes" }),  // what Claude is changing, once it does
       ...outputTables(ctx, data, "review", { skip: ["changes"] }),  // e.g. "edits": your own CapCut edits (edit_diff)
-      h("section", { class: "card" }, h("div", { class: "row spread" }, h("div", {}, h("h3", { style: "margin:0" }, t("review.done_h")),
-        h("p", { class: "hint" }, t("review.done_p"))),
-      actionButton(ctx, data, "review", "review:done", t("review.done"), { primary: true }))),
-    ],
+    ].filter(Boolean),
   });
 }

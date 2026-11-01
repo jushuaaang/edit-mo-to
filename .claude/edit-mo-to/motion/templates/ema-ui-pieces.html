@@ -1,0 +1,219 @@
+<!--defaults {"pieces": "setup|models|never|language|toggles", "times": "0,2.6,5.4,9,11.4", "labels": "Setup check|Claude models|Video models Claude picks|Language|Tell me when Claude needs me", "index_start": 1, "title": "Settings", "button": "Setup check", "done": "OK", "models": "Opus|Sonnet|Haiku", "model_seq": "0,1", "never_title": "When Claude picks, never use", "never": "Seedance 2.0|Kling 3.0|Veo 3.1 Fast|Veo 3.1 Lite", "never_on": "1,3", "langs": "Auto|English|Taglish", "lang_seq": "2,0", "toggles": "Pop-up when Claude needs me|Sound", "toggles_on": "0,1", "bg": "#0C0B0A", "panel": "#151311", "line": "#2A2622", "fg": "#F3EFE8", "muted": "#A69D91", "accent": "#D4AF6A", "ok": "#7DCB9C", "font": "Space Grotesk", "font_text": "Inter", "mono": "JetBrains Mono", "glow": "0.08", "intro": "1", "cursor": "1", "fade_out": "0", "duration": 14} -->
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500;600;700&family={{font_text}}:wght@400;500;600&family={{mono}}:wght@500;700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "{{font}}", sans-serif; color: {{fg}}; }
+  #scene { position: absolute; inset: 0; background: {{bg}}; overflow: hidden; }
+  #all { position: absolute; inset: 0; }
+  #glow { position: absolute; left: 50%; top: 0; width: 1700px; height: 900px; margin-left: -850px; margin-top: -420px; border-radius: 50%;
+          background: radial-gradient(closest-side, {{accent}}, transparent); opacity: {{glow}}; }
+  .mono { font-family: "{{mono}}", monospace; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; }
+  #title { position: absolute; left: 72px; top: 64px; font-size: 24px; color: {{muted}}; display: flex; align-items: center; gap: 14px; }
+  #title i { width: 12px; height: 12px; border-radius: 3px; background: {{accent}}; display: block; }
+  .lab { position: absolute; left: 0; right: 0; top: 146px; text-align: center; font-size: 30px; color: {{muted}}; white-space: nowrap; }
+  .lab b { color: {{accent}}; font-weight: 700; margin-right: 18px; }
+  #cam { position: absolute; inset: 0; transform-origin: 960px 580px; }
+  #shape { position: absolute; left: 960px; top: 580px; width: 160px; height: 160px; border-radius: 80px; background: {{panel}}; border: 1.5px solid {{line}};
+           box-shadow: 0 2px 4px rgba(0,0,0,.35), 0 24px 60px rgba(0,0,0,.45); }
+  .layer { position: absolute; }
+  .btxt { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 50px; letter-spacing: -.02em; color: {{bg}}; white-space: nowrap; }
+  .done { position: absolute; left: 0; right: 0; top: 196px; text-align: center; font-family: "{{font_text}}", sans-serif; font-weight: 600; font-size: 40px; color: {{ok}}; white-space: nowrap; }
+  .seg { position: absolute; top: 0; height: 100%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 44px; letter-spacing: -.02em; color: {{muted}}; white-space: nowrap; }
+  .ind { position: absolute; top: 12px; bottom: 12px; border-radius: 60px; background: {{fg}}; }
+  .ctitle { position: absolute; left: 44px; top: 40px; font-weight: 600; font-size: 38px; letter-spacing: -.02em; white-space: nowrap; }
+  .row { position: absolute; left: 44px; right: 44px; height: 100px; border-top: 1px solid {{line}}; }
+  .row .nm { position: absolute; left: 0; top: 50%; transform: translateY(-50%); font-family: "{{font_text}}", sans-serif; font-weight: 500; font-size: 36px; white-space: nowrap; }
+  .sw { position: absolute; right: 0; top: 50%; width: 104px; height: 60px; margin-top: -30px; border-radius: 30px; background: {{line}}; }
+  .kn { position: absolute; left: 6px; top: 6px; width: 48px; height: 48px; border-radius: 24px; background: {{muted}}; }
+  #cur { position: absolute; left: 0; top: 0; width: 44px; height: 60px; transform-origin: 0 0; }
+  #src { display: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1920" data-height="1080">
+  <div id="scene" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0" data-layout-allow-overflow>
+    <div id="all">
+      <div id="glow"></div>
+      <div id="title" class="mono"><i></i><span id="titlet">{{title}}</span></div>
+      <div id="labs"></div>
+      <div id="cam">
+        <div id="shape"></div>
+        <div id="layers"></div>
+        <svg id="cur" viewBox="0 0 44 60"><path d="M3 3 L3 47 L14 37 L22 56 L30 52 L22 34 L37 34 Z" fill="{{fg}}" stroke="{{bg}}" stroke-width="3" stroke-linejoin="round"/></svg>
+      </div>
+    </div>
+  </div>
+  <div id="src"><span id="s_pieces">{{pieces}}</span><span id="s_times">{{times}}</span><span id="s_labels">{{labels}}</span><span id="s_button">{{button}}</span><span id="s_done">{{done}}</span>
+    <span id="s_models">{{models}}</span><span id="s_mseq">{{model_seq}}</span><span id="s_ntitle">{{never_title}}</span><span id="s_never">{{never}}</span><span id="s_non">{{never_on}}</span>
+    <span id="s_langs">{{langs}}</span><span id="s_lseq">{{lang_seq}}</span><span id="s_tog">{{toggles}}</span><span id="s_ton">{{toggles_on}}</span></div>
+</div>
+<script>
+  const D = {{duration}}, CX = 960, CY = 580;
+  const C = { bg: "{{bg}}", panel: "{{panel}}", line: "{{line}}", fg: "{{fg}}", muted: "{{muted}}", accent: "{{accent}}", ok: "{{ok}}" };
+  const $ = id => document.getElementById(id);
+  const txt = id => $(id).textContent.trim();
+  const list = id => txt(id).split("|").map(s => s.trim()).filter(Boolean);
+  const nums = id => txt(id).split(",").map(s => s.trim()).filter(s => s !== "").map(Number).filter(n => !isNaN(n));
+  const el = (tag, cls, parent, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; parent.appendChild(e); return e; };
+  function fitW(e, maxW, base) { e.style.fontSize = base + "px"; const w = e.scrollWidth; if (w > maxW) e.style.fontSize = (base * maxW / w) + "px"; }
+  const fits = [];
+
+  const KNOWN = ["setup", "models", "never", "language", "toggles"];
+  const pieces = list("s_pieces").filter(p => KNOWN.includes(p));
+  const tms = nums("s_times");
+  const labels = list("s_labels");
+  const starts = pieces.map((p, i) => tms[i] != null ? tms[i] : (i ? null : 0));
+  for (let i = 0; i < starts.length; i++) if (starts[i] == null) starts[i] = (starts[i - 1] || 0) + (D - (starts[i - 1] || 0)) / (pieces.length - i + 1);
+  const IDX0 = Number("{{index_start}}") || 1;
+  const pad = n => String(n).padStart(2, "0");
+
+  const layersEl = $("layers"), labsEl = $("labs");
+  // build each piece's layer: fixed size, centred on the shape; geometry known from fixed coordinates (no measuring)
+  function segmented(names) {
+    const n = Math.max(1, names.length), W = Math.min(1100, 220 + n * 230), H = 140, sw = (W - 24) / n;
+    const L = el("div", "layer", layersEl); Object.assign(L.style, { left: CX - W / 2 + "px", top: CY - H / 2 + "px", width: W + "px", height: H + "px" });
+    const ind = el("div", "ind", L);
+    const segs = names.map((nm, i) => { const s = el("div", "seg", L, nm); s.style.left = 12 + i * sw + "px"; s.style.width = sw + "px"; fits.push([s, sw - 30, 44]); return s; });
+    return { L, W, H, R: 70, bg: C.panel, border: C.line, ind, segs, sw, cam: 1.2,
+             pt: i => [CX - W / 2 + 12 + (i + 0.5) * sw + 18, CY + 16] };
+  }
+  function switches(names, title) {
+    const head = title ? 120 : 30, rowH = 100, W = 900, H = head + names.length * rowH + 24;
+    const L = el("div", "layer", layersEl); Object.assign(L.style, { left: CX - W / 2 + "px", top: CY - H / 2 + "px", width: W + "px", height: H + "px" });
+    if (title) { const t = el("div", "ctitle", L, title); fits.push([t, W - 88, 38]); }
+    const rows = names.map((nm, i) => {
+      const r = el("div", "row", L); r.style.top = head + i * rowH + "px"; if (!title && i === 0) r.style.borderTop = "0";
+      const t = el("div", "nm", r, nm); fits.push([t, W - 88 - 140, 36]);
+      const sw = el("div", "sw", r), kn = el("div", "kn", sw); return { sw, kn };
+    });
+    return { L, W, H, R: 34, bg: C.panel, border: C.line, rows, cam: names.length > 3 ? 1.0 : 1.1,
+             pt: i => [CX + W / 2 - 44 - 52 + 14, CY - H / 2 + head + i * rowH + 50 + 14] };
+  }
+  const specs = pieces.map(p => {
+    if (p === "setup") {
+      const W = 560, H = 150;
+      const L = el("div", "layer", layersEl); Object.assign(L.style, { left: CX - W / 2 + "px", top: CY - H / 2 + "px", width: W + "px", height: H + "px" });
+      const b = el("div", "btxt", L, txt("s_button")); fits.push([b, W - 80, 50]);
+      const S = el("div", "layer", layersEl); Object.assign(S.style, { left: CX - 75 + "px", top: CY - 75 + "px", width: "150px", height: "150px" });
+      S.innerHTML = `<svg width="150" height="150" viewBox="0 0 150 150"><g class="spin" style="transform-origin:75px 75px"><circle cx="75" cy="75" r="30" fill="none" stroke="${C.line}" stroke-width="7"/><path d="M75 45 A30 30 0 0 1 105 75" fill="none" stroke="${C.fg}" stroke-width="7" stroke-linecap="round"/></g></svg>`;
+      const K = el("div", "layer", layersEl); Object.assign(K.style, { left: CX - 75 + "px", top: CY - 75 + "px", width: "150px", height: "150px" });
+      K.innerHTML = `<svg width="150" height="150" viewBox="0 0 150 150"><path class="chk" d="M50 77 L67 94 L101 58" fill="none" stroke="${C.bg}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="80" stroke-dashoffset="80"/></svg>`;
+      const dn = txt("s_done") ? el("div", "done", K, txt("s_done")) : null;
+      if (dn) { dn.style.left = "-300px"; dn.style.right = "-300px"; }
+      return { kind: p, L, W, H, R: 75, bg: C.fg, border: C.fg, S, K, dn, cam: 1.45, pt: () => [CX + 120, CY + 28] };
+    }
+    if (p === "models" || p === "language") {
+      const s = segmented(list(p === "models" ? "s_models" : "s_langs"));
+      return { kind: p, ...s, seq: nums(p === "models" ? "s_mseq" : "s_lseq").filter(i => i >= 0 && i < s.segs.length) };
+    }
+    if (p === "never") { const s = switches(list("s_never"), txt("s_ntitle")); return { kind: p, ...s, on: nums("s_non").filter(i => i >= 0 && i < s.rows.length) }; }
+    const s = switches(list("s_tog"), ""); return { kind: p, ...s, on: nums("s_ton").filter(i => i >= 0 && i < s.rows.length) };
+  });
+  const labEls = pieces.map((p, i) => {
+    const t = labels[i] || ""; if (!t) return null;
+    const l = el("div", "lab mono", labsEl); const b = el("b", "", l, pad(IDX0 + i)); l.append(t); fits.push([l, 1600, 30]); return l;
+  });
+  function fitAll() { fits.forEach(([e, w, b]) => fitW(e, w, b)); }
+  fitAll();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
+
+  // ---- timeline
+  const tl = gsap.timeline({ paused: true });
+  tl.to({}, { duration: D }, 0);
+  const shape = $("shape"), cur = $("cur");
+  gsap.set(shape, { xPercent: -50, yPercent: -50 });
+  specs.forEach(s => { gsap.set([s.L, s.S, s.K].filter(Boolean), { opacity: 0 }); });
+  labEls.forEach(l => l && gsap.set(l, { opacity: 0 }));
+  const blurIn = (t, targets, d = 0.32) => tl.fromTo(targets, { opacity: 0, scale: 1.04, filter: "blur(8px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: d, ease: "power2.out" }, t);
+  const blurOut = (t, targets, d = 0.2) => tl.to(targets, { opacity: 0, scale: 0.96, filter: "blur(8px)", duration: d, ease: "power2.in" }, t);
+  const SPRING = "back.out(1.15)";
+  const morph = (t, W, H, R, bg, border, d = 0.5) => { tl.to(shape, { width: W, height: H, borderRadius: R, duration: d, ease: SPRING }, t); tl.to(shape, { backgroundColor: bg, borderColor: border, duration: 0.2, ease: "power1.out" }, t); };
+  let camS = 1;
+  const camTo = (t, s) => { tl.to("#cam", { scale: s, duration: 0.6, ease: "power3.inOut" }, t); tl.to(cur, { scale: 1 / s, duration: 0.6, ease: "power3.inOut" }, t); camS = s; };
+  // cursor: tip at a point in cam coordinates
+  const showCur = "{{cursor}}" !== "0";
+  gsap.set(cur, { x: CX + 520, y: CY + 380, opacity: showCur ? 1 : 0 });
+  const move = (t, [x, y], d = 0.5) => tl.to(cur, { x, y, duration: d, ease: "power3.inOut" }, t);
+  const press = (t, target) => {
+    tl.to(cur, { scale: 0.84 / camS, duration: 0.08, ease: "power2.out" }, t).to(cur, { scale: 1 / camS, duration: 0.22, ease: "back.out(1.2)" }, t + 0.08);
+    if (target) tl.to(target, { scale: 0.95, duration: 0.08, ease: "power2.out" }, t).to(target, { scale: 1, duration: 0.3, ease: "back.out(1.3)" }, t + 0.08);
+  };
+  const flip = (t, row) => {  // switch on: knob slides with a stretch (leading edge first), track takes the accent
+    tl.to(row.kn, { width: 64, duration: 0.12, ease: "power2.out" }, t)
+      .to(row.kn, { left: 50, width: 48, duration: 0.32, ease: SPRING }, t + 0.08)
+      .to(row.kn, { backgroundColor: C.fg, duration: 0.2 }, t)
+      .to(row.sw, { backgroundColor: C.accent, duration: 0.22, ease: "power1.out" }, t);
+  };
+  const setInd = (s, i) => gsap.set(s.ind, { left: 12 + i * s.sw, width: s.sw });
+  const slideInd = (t, s, from, to) => {  // two edges on different springs: the leading edge stretches ahead
+    const L0 = 12 + from * s.sw, L1 = 12 + to * s.sw, right = to > from;
+    if (right) { tl.to(s.ind, { width: (L1 + s.sw) - L0, duration: 0.2, ease: "power2.out" }, t).to(s.ind, { left: L1, width: s.sw, duration: 0.36, ease: SPRING }, t + 0.12); }
+    else { tl.to(s.ind, { left: L1, width: (L0 + s.sw) - L1, duration: 0.2, ease: "power2.out" }, t).to(s.ind, { width: s.sw, duration: 0.36, ease: SPRING }, t + 0.12); }
+    tl.to(s.segs[from], { color: C.muted, duration: 0.18 }, t + 0.05).to(s.segs[to], { color: C.bg, duration: 0.18 }, t + 0.08);
+    // segments the indicator sweeps over turn dark while it passes, so they stay readable on it
+    for (let m = Math.min(from, to) + 1; m < Math.max(from, to); m++)
+      tl.to(s.segs[m], { color: C.bg, duration: 0.08 }, t + 0.02).to(s.segs[m], { color: C.muted, duration: 0.12 }, t + 0.36);
+  };
+
+  specs.forEach((s, i) => {
+    const S = starts[i], E = i + 1 < starts.length ? starts[i + 1] : D;
+    const first = i === 0;
+    const nat = s.kind === "setup" ? 2.5 : (s.kind === "models" || s.kind === "language") ? 1.0 + Math.max(1, s.seq.length - 1) * 0.9 + 0.4 : 1.0 + s.on.length * 0.7 + 0.4;
+    const k = Math.max(0.5, Math.min(1, (E - S) / nat));
+    const at = x => S + x * k;
+    // shape morphs into this piece (the previous content left under a blur at the same moment)
+    if (first) {
+      gsap.set(shape, { width: s.W, height: s.H, borderRadius: s.R, backgroundColor: s.bg, borderColor: s.border });
+      gsap.set("#cam", { scale: s.cam }); gsap.set(cur, { scale: 1 / s.cam }); camS = s.cam;
+      if ("{{intro}}" !== "0") { tl.fromTo(shape, { scale: 0.86, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, ease: SPRING }, S); tl.fromTo("#title", { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 0.35 }, S); }
+    } else { morph(S, s.W, s.H, s.R, s.bg, s.border); camTo(S, s.cam); }
+    blurIn(first ? S + 0.08 : S + 0.18, s.L);
+    if (labEls[i]) blurIn(first ? S + 0.05 : S + 0.1, labEls[i]);
+    if (E < D) { blurOut(E, [s.L, s.K].filter(Boolean), 0.14); if (labEls[i]) blurOut(E, labEls[i]); }
+    if (s.kind === "setup") {
+      const btn = s.L.firstChild, p = s.pt();
+      move(at(0.3), p, 0.55); press(at(0.95), btn);
+      // button -> spinner circle -> green check
+      const t1 = at(1.08);
+      blurOut(t1, s.L, 0.16);
+      morph(t1, 150, 150, 75, C.panel, C.line, 0.45);
+      tl.to("#cam", { scale: s.cam * 1.15, duration: 0.6, ease: "power3.inOut" }, t1);
+      move(t1 + 0.1, [CX + 210, CY + 150], 0.6);
+      blurIn(t1 + 0.12, s.S, 0.25);
+      tl.fromTo(s.S.querySelector(".spin"), { rotation: 0 }, { rotation: 540, duration: at(2.0) - t1, ease: "none" }, t1);
+      const t2 = at(2.0);
+      blurOut(t2, s.S, 0.14);
+      tl.to(shape, { backgroundColor: C.ok, borderColor: C.ok, duration: 0.25, ease: "power1.out" }, t2);
+      tl.to(shape, { scale: 1.06, duration: 0.12, ease: "power2.out" }, t2).to(shape, { scale: 1, duration: 0.3, ease: SPRING }, t2 + 0.12);
+      tl.set(s.K, { opacity: 1 }, t2);
+      tl.to(s.K.querySelector(".chk"), { strokeDashoffset: 0, duration: 0.3, ease: "power2.out" }, t2 + 0.06);
+      if (s.dn) tl.from(s.dn, { opacity: 0, y: 16, filter: "blur(6px)", duration: 0.3, ease: "power2.out" }, t2 + 0.16);
+    } else if (s.kind === "models" || s.kind === "language") {
+      const seq = s.seq.length ? s.seq : [0];
+      setInd(s, seq[0]); s.segs.forEach((g, j) => gsap.set(g, { color: j === seq[0] ? C.bg : C.muted }));
+      if (seq.length < 2) move(at(0.4), s.pt(seq[0]), 0.5);
+      for (let j = 1; j < seq.length; j++) {
+        const t = at(1.0 + (j - 1) * 0.9);
+        move(t - 0.5 * Math.max(k, 0.7), s.pt(seq[j]), 0.5 * Math.max(k, 0.7));
+        press(t, s.segs[seq[j]]); slideInd(t + 0.03, s, seq[j - 1], seq[j]);
+      }
+    } else {
+      s.on.forEach((r, j) => {
+        const t = at(1.0 + j * 0.7);
+        move(t - 0.45 * Math.max(k, 0.7), s.pt(r), 0.45 * Math.max(k, 0.7));
+        press(t, s.rows[r].sw); flip(t + 0.02, s.rows[r]);
+      });
+    }
+  });
+  if ("{{fade_out}}" === "1") tl.to("#all", { opacity: 0, duration: 0.18, ease: "power2.in" }, D - 0.2);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

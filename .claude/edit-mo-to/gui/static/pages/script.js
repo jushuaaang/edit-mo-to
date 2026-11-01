@@ -3,12 +3,18 @@
 // Cell edits are `edit` events (target "script:<line id>") and show "pending" until Claude applies them.
 import { h, chip, pendingChip, toast, helpTip } from "../ui.js";
 import { t } from "../words.js";
-import { stepPage, textInput, choiceInput, outputsOf, outputTables, pendingFor, sendEdit, lastInput, waitingText } from "../steppage.js";
+import { stepPage, textInput, choiceInput, outputsOf, outputTables, pendingFor, sendEdit, lastInput, waitingText, openGate }
+  from "../steppage.js";
 
 const ownScript = (ctx, data) => textInput(ctx, data, "script", "own_script", t("script.yours"), { rows: 8,
   placeholder: t("script.ph"), hint: t("script.hint"), button: t("script.save") });
 
-function scriptTable(ctx, data, script) {
+/** The line edits not sent yet: [[line id, text]]. */
+const changedLines = (cells) => [...cells].filter(([, ta]) => ta.value.trim() && ta.value !== ta.defaultValue);
+
+/** The script, editable. While Claude asks on this page, the edits go with the question bar's Proceed (`edits.send`);
+ *  only with no question open does the table have its own Send. */
+function scriptTable(ctx, data, script, edits) {
   const lines = script?.lines || [];
   if (!lines.length) return h("section", { class: "card" }, h("h3", {}, t("step.script")), h("p", { class: "hint" }, t("script.empty")));
   const temp = Boolean(script.temp_en);
@@ -19,13 +25,15 @@ function scriptTable(ctx, data, script) {
     const text = pend && typeof pend.value === "string" ? pend.value : String(ln.text ?? "");
     const ta = h("textarea", { class: "f cell", rows: "2", "data-key": `script:${id}`, "aria-label": t("script.line_label", { id }) }, text);
     cells.set(id, ta);
+    edits.cells = cells;
     return h("tr", { "data-id": id }, h("td", { class: "mono" }, id, pend ? h("div", {}, pendingChip()) : null), h("td", {}, ta),
       temp ? h("td", { class: "hint" }, String(ln.en ?? "")) : null);
   });
   const note = h("span", { class: "hint", role: "status" });
-  const btn = h("button", { class: "btn pri", type: "button" }, t("script.send"));
-  btn.addEventListener("click", async () => {
-    const changed = [...cells].filter(([, ta]) => ta.value.trim() && ta.value !== ta.defaultValue);
+  const asking = Boolean(openGate(data, "script"));
+  const btn = asking ? null : h("button", { class: "btn pri", type: "button" }, t("script.send"));
+  btn?.addEventListener("click", async () => {
+    const changed = changedLines(cells);
     if (!changed.length) { note.textContent = t("common.nothing_changed"); return; }
     btn.disabled = true;
     try {
@@ -41,22 +49,29 @@ function scriptTable(ctx, data, script) {
     h("div", { class: "row" }, chip(t("script.lang", { lang: script.lang || "?" }), "mute"), temp ? chip(t("script.temp_on"), "err") : null, temp ? helpTip("temp_en") : null)),
   h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", { scope: "col" }, t("script.th_id")),
     h("th", { scope: "col" }, t("script.th_line")), temp ? h("th", { scope: "col" }, t("script.th_en")) : null)), h("tbody", {}, rows))),
-  h("div", { class: "row", style: "margin-top:10px" }, btn, note));
+  btn ? h("div", { class: "row", style: "margin-top:10px" }, btn, note) : null);
 }
 
 export function render(root, data, ctx) {
   const out = outputsOf(data, "script");
+  const edits = { cells: new Map() };
+  const written = (out.script?.lines || []).length > 0;
   stepPage(root, "script", data, ctx, {
     early: () => [ownScript(ctx, data)],
+    // Proceed sends the changed lines first, then the answers
+    gateExtra: () => ({ before: async () => {
+      for (const [id, ta] of changedLines(edits.cells)) await sendEdit(ctx, "script", `script:${id}`, ta.value.trim());
+    } }),
     body: () => {
       const mode = lastInput(data, "script:mode")?.value;
       return [
-        h("section", { class: "card" }, h("div", { class: "stack" },
+        // "Use my script / Write one" is for before there is a script; once Claude has one, it's the table
+        written ? null : h("section", { class: "card" }, h("div", { class: "stack" },
           choiceInput(ctx, data, "script", "mode", t("step.script"), [["mine", t("script.mine")], ["write", t("script.write")]]),
           mode === "mine" || lastInput(data, "script:own_script") ? ownScript(ctx, data) : null)),
-        scriptTable(ctx, data, out.script),
+        scriptTable(ctx, data, out.script, edits),
         ...outputTables(ctx, data, "script", { skip: ["script"] }),
-      ];
+      ].filter(Boolean);
     },
   });
 }

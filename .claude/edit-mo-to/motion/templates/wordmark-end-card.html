@@ -1,0 +1,137 @@
+<!--defaults {"wordmark": "Practice muna", "tagline": "Press Start practice, and you're", "key": "ready", "tagline_end": ".", "button": "Start practice", "button_done": "", "hud_tl": "EDIT-MO-TO  /  PRACTICE RUN", "hud_tr": "", "hud_bl": "PRACTICE MUNA", "hud_br": "SC 03 / 03", "tc_start": "7.5", "bg": "#F2EFEA", "fg": "#121212", "accent": "#E5231B", "muted": "#5E4B47", "button_bg": "#141414", "button_fg": "#FFFFFF", "font": "Inter Tight", "serif": "Instrument Serif", "mono": "JetBrains Mono", "size": 196, "y": 860, "t_press": 1.45, "cursor": "1", "duration": 2.5} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;700;800;900&family={{serif}}:ital@0;1&family={{mono}}:wght@500&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: "{{font}}", sans-serif; color: {{fg}}; }
+  #scene { position: absolute; inset: 0; background: {{bg}}; }
+  #vig { position: absolute; inset: 0; background: radial-gradient(90% 60% at 50% 46%, rgba(255,255,255,.55) 0%, rgba(255,255,255,0) 60%, rgba(70,50,30,.10) 100%); }
+  #cam { position: absolute; inset: 0; transform-origin: 540px {{y}}px; }
+  .mono { font-family: "{{mono}}", monospace; font-weight: 500; font-size: 21px; letter-spacing: .16em; text-transform: uppercase; white-space: pre; color: {{fg}}; }
+  .hud { position: absolute; }
+  .br { position: absolute; width: 42px; height: 42px; border-color: {{fg}}; border-style: solid; border-width: 0; opacity: .7; }
+  #h-tl { left: 72px; top: 92px; } #h-tr { right: 72px; top: 92px; } #h-bl { left: 72px; bottom: 96px; } #h-br { right: 72px; bottom: 96px; }
+  #hline { position: absolute; left: 72px; right: 72px; bottom: 82px; height: 2px; background: {{fg}}; opacity: .45; }
+  #mark { position: absolute; left: 0; right: 0; top: {{y}}px; height: 0; }
+  #wm { position: absolute; left: 50%; top: 0; transform: translate(-50%, -50%); white-space: nowrap; font-weight: 900; font-size: {{size}}px;
+        letter-spacing: -.055em; line-height: 1.1; }
+  .c { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: .08em; margin-bottom: -.08em; }
+  .ci { display: inline-block; }
+  #ul { position: absolute; left: 50%; top: 0; height: 11px; border-radius: 6px; background: {{accent}}; }
+  #tag { position: absolute; left: 50%; top: 0; transform: translateX(-50%); white-space: nowrap; font-weight: 600; font-size: 58px; letter-spacing: -.025em; color: {{muted}}; }
+  #tag .k { font-family: "{{serif}}", serif; font-style: italic; font-weight: 400; font-size: 1.22em; letter-spacing: -.01em; color: {{accent}}; display: inline-block; }
+  #btnwrap { position: absolute; left: 50%; top: 0; transform: translateX(-50%); }
+  #btn { position: relative; display: flex; align-items: center; gap: 20px; background: {{button_bg}}; color: {{button_fg}};
+         border-radius: 999px; padding: 26px 46px 26px 36px; font-weight: 700; font-size: 46px; letter-spacing: -.02em; white-space: nowrap;
+         box-shadow: 0 2px 4px rgba(0,0,0,.12), 0 18px 40px rgba(0,0,0,.18); }
+  #dot { position: relative; width: 22px; height: 22px; flex: none; }
+  #dot .r { position: absolute; inset: 0; border-radius: 50%; background: {{accent}}; }
+  #dot svg { position: absolute; left: -9px; top: -9px; width: 40px; height: 40px; overflow: visible; }
+  #bl { position: relative; display: inline-grid; }
+  #bl span { grid-area: 1 / 1; }
+  #ring { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; border: 3px solid {{fg}}; opacity: 0; }
+  #cur { position: absolute; left: 0; top: 0; width: 64px; height: 64px; }
+  #src { display: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="scene" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0" data-layout-allow-overflow>
+    <div id="vig"></div>
+    <div id="cam">
+      <div id="mark">
+        <div id="wm"></div>
+        <div id="ul"></div>
+        <div id="tag"><span id="tp">{{tagline}}</span> <span class="k" id="tk">{{key}}{{tagline_end}}</span></div>
+        <div id="btnwrap"><div id="btn" data-layout-allow-overlap><span id="dot"><span class="r"></span>
+          <svg viewBox="0 0 40 40"><circle id="okc" cx="20" cy="20" r="0" fill="rgba(255,255,255,.22)"/><path id="okp" d="M12 20.5 L17.5 26 L28 15" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span id="bl"><span id="b1" data-layout-allow-overlap>{{button}}</span><span id="b2" data-layout-allow-overlap>{{button_done}}</span></span></div>
+          <div id="ring" data-layout-ignore></div></div>
+      </div>
+      <svg id="cur" viewBox="0 0 64 64" data-layout-ignore><path d="M10 6 L10 50 L21 39 L29 57 L37 53.5 L29 36 L45 36 Z" fill="{{fg}}" stroke="#fff" stroke-width="3.5" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="br" style="left:40px;top:40px;border-left-width:2px;border-top-width:2px"></div>
+    <div class="br" style="right:40px;top:40px;border-right-width:2px;border-top-width:2px"></div>
+    <div class="br" style="left:40px;bottom:40px;border-left-width:2px;border-bottom-width:2px"></div>
+    <div class="br" style="right:40px;bottom:40px;border-right-width:2px;border-bottom-width:2px"></div>
+    <div id="h-tl" class="hud mono">{{hud_tl}}</div><div id="h-tr" class="hud mono">{{hud_tr}}</div>
+    <div id="h-bl" class="hud mono">{{hud_bl}}</div><div id="h-br" class="hud mono">{{hud_br}}</div>
+    <div id="hline"></div>
+  </div>
+  <div id="src"><span id="s-wm">{{wordmark}}</span></div>
+</div>
+<script>
+  const D = {{duration}}, TPR = Math.min(Number("{{t_press}}"), D - 0.6), Y = Number("{{y}}");
+  const wm = document.getElementById("wm");
+  [...document.getElementById("s-wm").textContent].forEach(ch => {
+    const o = document.createElement("span"); o.className = "c";
+    const n = document.createElement("span"); n.className = "ci"; n.textContent = ch === " " ? " " : ch;
+    o.appendChild(n); wm.appendChild(o);
+  });
+  const b2 = document.getElementById("b2"), done = b2.textContent.trim() !== "";
+  if (!done) b2.remove();
+  // empty top-right HUD = a live timecode
+  const tcEl = document.getElementById("h-tr"), liveTC = tcEl.textContent.trim() === "", TC0 = Number("{{tc_start}}");
+  function fitW(el, maxW) {
+    el.style.fontSize = "";
+    const w = el.getBoundingClientRect().width / (gsap.getProperty(el, "scaleX") || 1);
+    if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
+  }
+  function layout() {
+    fitW(wm, 960); fitW(document.getElementById("tag"), 960); fitW(document.getElementById("btn"), 900);
+    const h = wm.getBoundingClientRect().height, w = wm.getBoundingClientRect().width / (gsap.getProperty(wm, "scaleX") || 1);
+    const ul = document.getElementById("ul"); const uw = Math.min(960, w * 0.78);
+    ul.style.width = uw + "px"; ul.style.marginLeft = (-uw / 2) + "px"; ul.style.top = (h * 0.5 + 14) + "px";
+    const tag = document.getElementById("tag"); tag.style.top = (h * 0.5 + 66) + "px";
+    const th = tag.getBoundingClientRect().height;
+    document.getElementById("btnwrap").style.top = (h * 0.5 + 66 + th + 64) + "px";
+  }
+  layout();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
+
+  const tl = gsap.timeline({ paused: true });
+  if (liveTC) {
+    const clock = { t: 0 }, p = n => String(n).padStart(2, "0");
+    const tc = () => { const f = Math.round((TC0 + clock.t) * 30); tcEl.textContent = `TC 00:00:${p(Math.floor(f / 30))}:${p(f % 30)}`; };
+    tl.to(clock, { t: D, duration: D, ease: "none", onUpdate: tc }, 0); tc();
+  }
+  tl.from(".br, .hud, #hline", { opacity: 0, duration: 0.25, stagger: 0.02 }, 0);
+  // wordmark letters rise out of a mask, the red rule draws from the centre
+  tl.from("#wm .ci", { yPercent: 105, duration: 0.5, stagger: 0.025, ease: "power3.out" }, 0.05);
+  tl.from("#ul", { scaleX: 0, transformOrigin: "50% 50%", duration: 0.45, ease: "power3.inOut" }, 0.38);
+  tl.from("#tp", { opacity: 0, y: 22, duration: 0.4, ease: "power3.out" }, 0.55);
+  tl.from("#tk", { opacity: 0, y: 26, rotation: -4, duration: 0.45, ease: "back.out(1.4)" }, 0.72);
+  tl.from("#btn", { opacity: 0, y: 30, scale: 0.9, duration: 0.42, ease: "back.out(1.3)" }, 0.85);
+  // cursor glides in, presses (soft), the button confirms
+  const C = document.getElementById("cur");
+  if ("{{cursor}}" === "1") {
+    const bw = document.getElementById("btnwrap");
+    const tx = () => 540 + 40, ty = () => Y + parseFloat(bw.style.top) + 52;
+    tl.fromTo(C, { x: 930, y: 1640, opacity: 0 }, { x: () => tx(), y: () => ty(), opacity: 1, duration: 0.5, ease: "power3.inOut" }, TPR - 0.55);
+    tl.to(C, { scale: 0.86, transformOrigin: "10px 6px", duration: 0.08, ease: "power2.out" }, TPR);
+    tl.to(C, { scale: 1, duration: 0.2, ease: "power2.out" }, TPR + 0.1);
+    tl.to(C, { x: () => tx() + 110, y: () => ty() + 120, opacity: 0, duration: 0.5, ease: "power2.in" }, TPR + 0.45);
+  } else gsap.set(C, { opacity: 0 });
+  tl.to("#btn", { scale: 0.95, duration: 0.08, ease: "power2.out" }, TPR);
+  tl.to("#btn", { scale: 1, duration: 0.32, ease: "back.out(1.2)" }, TPR + 0.09);
+  tl.fromTo("#ring", { scale: 0.6, opacity: 0.18 }, { scale: 2.6, opacity: 0, duration: 0.55, ease: "power2.out", immediateRender: false }, TPR + 0.02);
+  tl.to("#btn", { backgroundColor: "{{accent}}", duration: 0.2, ease: "power1.out" }, TPR + 0.06);
+  tl.to("#dot .r", { scale: 0, duration: 0.12 }, TPR + 0.06);
+  tl.to("#okc", { attr: { r: 20 }, duration: 0.22, ease: "back.out(1.3)" }, TPR + 0.08);
+  tl.fromTo("#okp", { strokeDasharray: 30, strokeDashoffset: 30 }, { strokeDashoffset: 0, duration: 0.28, ease: "power2.out" }, TPR + 0.14);
+  if (done) {
+    gsap.set("#b2", { opacity: 0 });
+    tl.to("#b1", { opacity: 0, filter: "blur(8px)", y: -10, duration: 0.18 }, TPR + 0.08);
+    tl.fromTo("#b2", { opacity: 0, filter: "blur(8px)", y: 10 }, { opacity: 1, filter: "blur(0px)", y: 0, duration: 0.22 }, TPR + 0.14);
+  }
+  tl.fromTo("#cam", { scale: 1 }, { scale: 1.03, duration: D, ease: "none" }, 0);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

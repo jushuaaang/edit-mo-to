@@ -39,10 +39,10 @@
 
   <aside class="rail" id="rail" aria-label="Job and Claude" data-w-label="shell.rail">
     <button class="close" id="rail-close" type="button" aria-label="Close the job panel" data-w-label="shell.rail_close"></button>
-    <section class="sec">
-      <h2 data-w="shell.job_card">Job card</h2>
+    <details class="sec jcwrap" id="jobcard-wrap">
+      <summary><h2 data-w="shell.job_card">Job card</h2><span class="jcsum" id="jobcard-sum"></span></summary>
       <dl class="jc" id="jobcard"><dt data-w="card.job">Job</dt><dd class="none" data-w="shell.no_video">No video open</dd></dl>
-    </section>
+    </details>
     <section class="feed" aria-label="Claude's activity" data-w-label="shell.activity">
       <h2>Claude</h2>
       <ol id="activity"></ol>

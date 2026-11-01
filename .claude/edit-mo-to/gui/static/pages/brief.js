@@ -1,19 +1,97 @@
 // Brief (steps 1-2): brief link, paste box, one "Additional instructions" box, reference files (refs/),
 // the picked style and script language, the brief checklist, and Claude's questions about the brief.
 // Gate on the page: confirm the checklist and style.
-import { h, chip, toast, staleText } from "../ui.js";
+import { h, chip, toast, staleText, copyButton } from "../ui.js";
 import { t } from "../words.js";
-import { stepPage, textInput, uploadInput, outputsOf, openGate, card, sendInput, answerGate } from "../steppage.js";
+import { stepPage, uploadInput, outputsOf, openGate, card, sendInput, answerGate, field, lastInput, savedChip, uploads }
+  from "../steppage.js";
 
 const STATUS = { confirmed: "ok", open: "you", question: "you", missing: "err", conflict: "err" };
+const LAUNCH_FALLBACK = new Set(["no-claude", "failed", "unsupported"]);  // these replies show the Copy fallback
+const LAUNCH_WHY = { "no-claude": "practice.no_claude", failed: "practice.failed", unsupported: "practice.unsupported",
+  busy: "practice.busy" };
+const BOXES = [["link", "brief.link", { placeholder: "https://…", mono: true }],
+  ["paste", "brief.paste", { rows: 5, placeholder: "brief.paste_ph" }],
+  ["instructions", "brief.instructions", { rows: 3, placeholder: "brief.instructions_ph" }]];
 
+/** The brief: link, pasted text and instructions (no Save per box), the reference files (copied as they drop), and one
+ *  Submit to Claude: it sends each box whose text changed as a `brief:<id>` answer, then the `brief:submit` action that
+ *  tells Claude the brief is complete (it wakes a listening Claude; otherwise Claude reads it when it next checks). */
 function inputs(ctx, data) {
-  return [
-    textInput(ctx, data, "brief", "link", t("brief.link"), { placeholder: "https://…", mono: true }),
-    textInput(ctx, data, "brief", "paste", t("brief.paste"), { rows: 5, placeholder: t("brief.paste_ph") }),
-    textInput(ctx, data, "brief", "instructions", t("brief.instructions"), { rows: 3, placeholder: t("brief.instructions_ph") }),
-    uploadInput(ctx, data, "brief", "refs", t("brief.refs")),
-  ];
+  const boxes = BOXES.map(([id, label, o]) => {
+    const ev = lastInput(data, `brief:${id}`);
+    const value = typeof ev?.value === "string" ? ev.value : "";
+    const attrs = { class: `f${o.mono ? " mono" : ""}`, id: `in-brief-${id}`, "data-key": `in:brief:${id}`,
+      placeholder: o.placeholder.startsWith("brief.") ? t(o.placeholder) : o.placeholder };
+    const box = o.rows ? h("textarea", { ...attrs, rows: String(o.rows) }, value) : h("input", { ...attrs, value, spellcheck: "false" });
+    return { id, box, sent: value, node: field(t(label), attrs.id, savedChip(data, ev), box) };
+  });
+  const note = h("div", { class: "msg", role: "status" });
+  const fallback = h("div", { class: "row fallback", hidden: true });
+  const key = String(data?.job?.folder || ctx.folder || "");
+  live.set(key, { note, fallback });  // the message line on screen now (a refresh replaces it)
+  const show = (st) => { submitted.set(key, st); const on = live.get(key); paint(on.note, on.fallback, st); };
+  paint(note, fallback, submitted.get(key));  // the page refreshes after a send: the outcome stays on screen
+  const btn = h("button", { class: "btn pri", type: "button" }, t("brief.submit"));
+  btn.addEventListener("click", async () => {
+    // every box is optional, but Claude needs something to work on: text, a link, instructions or a file
+    if (!boxes.some((b) => b.box.value.trim()) && !uploads(data, "brief").length) {
+      show({ cls: "msg err", text: t("brief.need_something") });
+      boxes[1].box.focus();
+      return;
+    }
+    btn.disabled = true;
+    try {
+      for (const b of boxes) {
+        const v = b.box.value.trim();
+        if (v && v !== b.sent) { await sendInput(ctx, data, "brief", b.id, v); b.sent = v; }
+      }
+      await ctx.send({ type: "action", step: "brief", target: "brief:submit" });
+      editing.delete(key);  // sent: the boxes give way to the summary on the next refresh
+      show({ cls: "msg ok", text: t("brief.submitted") });
+      if (!data?.listening) await openClaude(ctx, data, show);
+    } catch (e) {
+      show({ cls: "msg err", text: e.message || t("common.not_sent") });
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  return [...boxes.map((b) => b.node), uploadInput(ctx, data, "brief", "refs", t("brief.refs")),
+    h("div", { class: "row", style: "margin-top:8px" }, btn), note, fallback];
+}
+
+/** No Claude is listening: open the editor's own Claude in a window on this video (POST /api/practice, a fixed command:
+ *  /practice-muna-app for a practice video, /edit-mo-to-app for a real one; it finds the video as the app's current job).
+ *  When it can't (no `claude` command, the launch failed, or this system can't open a window) say why in plain words
+ *  and show "In Claude, type: <command> [Copy]". */
+async function openClaude(ctx, data, show) {
+  const practice = /[\\/]_practice[\\/]/.test(String(data?.job?.folder || ctx.folder || ""));
+  const command = practice ? "practice-muna" : "edit-mo-to";
+  show({ cls: "hint", text: t("practice.starting") });
+  let reply;
+  try {
+    reply = await ctx.api("/api/practice", { body: { command } });
+  } catch {
+    reply = { ok: false, reason: "failed" };
+  }
+  if (!reply?.ok && !LAUNCH_WHY[reply?.reason]) reply = { ok: false, reason: "failed" };
+  show({ cls: reply.ok || reply.reason === "busy" ? "msg ok" : "msg err",
+    text: reply.ok ? t(reply.attached ? "practice.attached" : "practice.opened")
+      : [t(LAUNCH_WHY[reply.reason]), reply.hint === "automation" ? t("practice.mac_automation") : ""].filter(Boolean).join(" "),
+    typed: reply.ok || !LAUNCH_FALLBACK.has(reply.reason) ? null : `/${command}-app` });
+}
+
+/** The last Submit outcome per video ({cls, text, typed}): kept here because sending refreshes the page. */
+const submitted = new Map();
+/** The message line and Copy fallback on screen per video: a launch reply that lands after a refresh goes there. */
+const live = new Map();
+
+function paint(note, fallback, st) {
+  note.className = st?.cls || "msg";
+  note.textContent = st?.text || "";
+  fallback.hidden = !st?.typed;
+  fallback.replaceChildren(...(st?.typed ? [h("span", {}, t("practice.type")), h("code", { class: "mono cmd" }, st.typed),
+    copyButton(st.typed, t("practice.copy"))] : []));
 }
 
 function styleLine(data, checklist) {
@@ -70,13 +148,53 @@ function questionsCard(ctx, data, checklist) {
   h("div", { class: "row", style: "margin-top:10px" }, btn), note);
 }
 
+/** Step 1 has two views. Before Submit: "Your brief" (the boxes). After Submit: Claude's side only (its question, the
+ *  checklist, its questions about the brief), with a "See or edit your brief" button that switches back to the boxes;
+ *  "Back to Claude's checklist" (or the next Submit) returns. */
+const editing = new Set();  // videos showing the brief boxes again after Submit
+const wasSubmitted = (data) => (data?.events || []).some((e) => e.type === "action" && e.target === "brief:submit" && !e.stale);
+const keyOf = (ctx, data) => String(data?.job?.folder || ctx.folder || "");
+
+/** The Submit outcome (Sent / Claude is opening / why not + Copy), kept across refreshes. */
+function outcome(ctx, data) {
+  const key = keyOf(ctx, data);
+  const note = h("div", { class: "msg", role: "status" });
+  const fallback = h("div", { class: "row fallback", hidden: true });
+  live.set(key, { note, fallback });
+  paint(note, fallback, submitted.get(key));
+  return [note, fallback];
+}
+
+function switchView(root, data, ctx, toBoxes) {
+  if (toBoxes) editing.add(keyOf(ctx, data)); else editing.delete(keyOf(ctx, data));
+  root.replaceChildren();
+  render(root, data, ctx);
+}
+
 export function render(root, data, ctx) {
   const checklist = outputsOf(data, "brief").checklist;
+  const sent = wasSubmitted(data) && !editing.has(keyOf(ctx, data));
+  if (!sent) {
+    const back = wasSubmitted(data)
+      ? h("button", { class: "btn sm", type: "button", onclick: () => switchView(root, data, ctx, false) }, t("brief.back"))
+      : null;
+    const boxes = [back ? h("div", { class: "row" }, back) : null, ...inputs(ctx, data)].filter(Boolean);
+    stepPage(root, "brief", data, ctx, {
+      early: () => boxes,
+      body: () => [h("section", { class: "card" }, h("h3", {}, t("brief.the_brief")), h("div", { class: "stack" }, boxes))],
+    });
+    return;
+  }
+  const see = h("div", { class: "row" },
+    h("button", { class: "btn sm", type: "button", onclick: () => switchView(root, data, ctx, true) }, t("brief.see")));
+  const asking = Boolean(openGate(data, "brief"));
+  const qs = (checklist?.questions || []).slice(0, 6);
   stepPage(root, "brief", data, ctx, {
-    early: () => inputs(ctx, data),
-    body: () => [
-      h("section", { class: "card" }, h("h3", {}, t("brief.the_brief")), h("div", { class: "stack" }, inputs(ctx, data))),
-      styleLine(data, checklist), checklistCard(checklist), questionsCard(ctx, data, checklist),
-    ],
+    early: () => [h("p", {}, t("brief.waiting_claude")), ...outcome(ctx, data), see],
+    // while Claude asks, its questions about the brief are in the question bar and go with Proceed (one answer, target
+    // "questions"); the card with its own Send shows only when no question is open
+    gateExtra: () => (qs.length ? { target: "questions", questions: qs } : null),
+    body: () => [...outcome(ctx, data), checklistCard(checklist), asking ? null : questionsCard(ctx, data, checklist),
+      styleLine(data, checklist), see].filter(Boolean),
   });
 }

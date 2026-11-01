@@ -154,6 +154,16 @@ def _stop(pid: int, port: int) -> None:
         raise RuntimeError(f"the old GUI server (pid {pid}) did not release port {port}" + (f" ({note})" if note else ""))
 
 
+def _windowless_python() -> str:
+    """pythonw.exe next to this Python on Windows: a venv's python.exe re-launches the real Python, which opens its
+    own console window even under CREATE_NO_WINDOW. Elsewhere (or no pythonw) this Python."""
+    if sys.platform == "win32":
+        w = Path(sys.executable).with_name("pythonw.exe")
+        if w.is_file():
+            return str(w)
+    return sys.executable
+
+
 def _start(port: int, tmp: Path, root: "Path | None" = None) -> "dict | None":
     """Spawn server.py detached on `port`; return its server.json once it answers /api/ping, else None."""
     info = _read_info(tmp)
@@ -167,7 +177,7 @@ def _start(port: int, tmp: Path, root: "Path | None" = None) -> "dict | None":
     else:
         kwargs["start_new_session"] = True
     root = root or _root()
-    proc = subprocess.Popen([sys.executable, str(GUI / "server.py"), "--port", str(port), "--root", str(root),
+    proc = subprocess.Popen([_windowless_python(), str(GUI / "server.py"), "--port", str(port), "--root", str(root),
                              "--tmp", str(tmp)], **kwargs)
     deadline, grace = time.time() + 10, None
     while time.time() < deadline:
