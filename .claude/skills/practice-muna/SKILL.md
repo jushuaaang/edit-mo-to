@@ -17,7 +17,7 @@ A practice run ("practice muna": practise first) is a **real `/edit-mo-to` job, 
 **Speed:** a practice works exactly like a real job, only faster, because the output is about 10 s: keep agent jobs small, run independent agents in parallel, and skip nothing. A practice takes about 15–25 minutes.
 
 ## Before step 1
-Ask for the brief in chat: ⛔ "Send me a brief (any kind: a clip of you talking, an explainer, an ad), or say 'surprise me'. Everything is optional." Make the practice folder `{root}/_practice/Practice <date>/` (with a clip, copy it into its `refs/`).
+Ask for the brief in chat: ⛔ "Send me a brief (any kind: a clip of you talking, an explainer, an ad), or say 'surprise me'. Everything is optional." Make the practice folder `{root}/_practice/Practice <date>/` (with a clip, copy it into its `refs/`). Once you know what the practice is about, name the session `Practice – <gist> · <date>` (CLAUDE.md).
 
 Then pick the kind of practice from what the brief holds:
 - **Talking clip, no written brief** (a video of someone talking in `refs/`, nothing pasted): the **clip practice** in the table below. Run `.claude/edit-mo-to/run tools/rehearse.py prepare "<clip>" --out "<practice folder>"` (about 1 minute the first time): it adds `brief.md`, `script.txt`, `keep.json`, `broll/`, `music.wav` and `prepare.json` (palette, the speaker's face box, word frames, beats) to the folder. Say: "I made a practice job from your clip. Now we do exactly what we'd do for a client."
