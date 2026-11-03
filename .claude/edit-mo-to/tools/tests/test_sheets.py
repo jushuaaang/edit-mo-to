@@ -93,3 +93,44 @@ def test_inventory_reuses_cached_strips_and_runs_in_parallel(tmp_path, src, monk
     assert len(grabs) == 18   # (path, size, mtime) unchanged: no ffmpeg run at all
     assert [Path(c["strip"]).read_bytes() for c in r2["clips"]] == [Path(c["strip"]).read_bytes() for c in r1["clips"]]
     assert all(Path(c["strip"]).parent == tmp_path / "out2" / "strips" for c in r2["clips"])
+
+
+@pytest.fixture(scope="module")
+def three_shots(tmp_path_factory):
+    """2 s test pattern, 1.5 s red, 2 s mandelbrot: hard cuts at 2.0 and 3.5."""
+    p = tmp_path_factory.mktemp("shots") / "three.mp4"
+    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y",
+                    "-f", "lavfi", "-i", "testsrc2=size=576x1024:rate=30:duration=2",
+                    "-f", "lavfi", "-i", "color=c=red:size=576x1024:rate=30:duration=1.5",
+                    "-f", "lavfi", "-i", "mandelbrot=size=576x1024:rate=30",
+                    "-filter_complex", "[2]trim=duration=2,setpts=PTS-STARTPTS[m];[0][1][m]concat=n=3:v=1[v]",
+                    "-map", "[v]", "-pix_fmt", "yuv420p", str(p)], check=True)
+    return p
+
+
+def test_shots_finds_hard_cuts(three_shots):
+    s = sheets.shots(three_shots, 5.5)
+    assert len(s) == 3
+    assert s[0][0] == 0.0 and s[-1][1] == 5.5
+    assert s[1][0] == pytest.approx(2.0, abs=0.05) and s[2][0] == pytest.approx(3.5, abs=0.05)
+    assert all(a[1] == b[0] for a, b in zip(s, s[1:]))   # shots touch, no gaps
+
+
+def test_shots_single_shot_clip(src):
+    assert sheets.shots(Path(src), 4.0) == [[0.0, 4.0]]
+
+
+def test_shots_drops_cuts_too_close(three_shots, monkeypatch, tmp_path):
+    monkeypatch.setattr(sheets, "STRIP_CACHE", tmp_path)   # not the cached result of the test above
+    monkeypatch.setattr(sheets, "MIN_SHOT", 1.6)          # the 1.5 s red shot is now too short to count
+    assert len(sheets.shots(three_shots, 5.5)) == 2
+
+
+def test_inventory_lists_shots_and_labels_multi_shot_clips(tmp_path, src, three_shots):
+    folder = tmp_path / "raw"; folder.mkdir()
+    (folder / "a_one.mp4").write_bytes(Path(src).read_bytes())
+    (folder / "b_three.mp4").write_bytes(three_shots.read_bytes())
+    r = sheets.inventory(folder, tmp_path / "out")
+    assert [len(c["shots"]) for c in r["clips"]] == [1, 3]
+    assert r["sheets"][0]["items"] == ["1 a_one.mp4", "2 b_three.mp4 · 3 shots"]
+    assert "shots" not in sheets.inventory(folder, tmp_path / "out2", find_shots=False)["clips"][0]

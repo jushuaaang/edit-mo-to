@@ -832,3 +832,33 @@ def test_capcut_running_mac(monkeypatch):
 
     monkeypatch.setattr(subprocess, "run", boom)
     assert cp._capcut_running() is False
+
+
+def test_wait_closed_returns_once_capcut_quits(tmp_path, drafts, monkeypatch):
+    target = _composed(tmp_path, drafts)
+    running = iter([True, True, False])
+    monkeypatch.setattr(cp, "_capcut_running", lambda: next(running))
+    sleeps = []
+    monkeypatch.setattr(cp.time, "sleep", sleeps.append)
+    assert cp.wait_closed(target, timeout_s=60)["closed"] is True
+    assert len(sleeps) == 2
+
+
+def test_wait_closed_waits_for_capcut_to_finish_writing(tmp_path, drafts, monkeypatch):
+    target = _composed(tmp_path, drafts)
+    tid = cp.list_timelines(target)[1]["id"]
+    f = target / "Timelines" / tid / "draft_info.json"
+    _just_edited(f)   # CapCut is gone but saved the project on its way out
+    monkeypatch.setattr(cp.time, "sleep", lambda s: _old(f))
+    r = cp.wait_closed(target, timeout_s=60)
+    assert r["closed"] is True
+
+
+def test_wait_closed_times_out(tmp_path, drafts, monkeypatch):
+    target = _composed(tmp_path, drafts)
+    monkeypatch.setattr(cp, "_capcut_running", lambda: True)
+    clock = iter(range(0, 1000, 5))
+    monkeypatch.setattr(cp.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(cp.time, "sleep", lambda s: None)
+    r = cp.wait_closed(target, timeout_s=20)
+    assert r["closed"] is False and r["waited_s"] >= 20 and "CapCut is running" in r["reason"]

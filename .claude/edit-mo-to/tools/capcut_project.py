@@ -35,6 +35,8 @@ CLI (prints JSON):
     backup <project> <name>                      back up a timeline
     list <project>
     wait <draft_dir> [timeout_s]                 wait for an async VectCutAPI save
+    wait-closed <project> [timeout_s]            wait (default 540 s) until CapCut has quit and stopped writing the
+                                                 project: {"closed": true|false, "waited_s", "reason"?}
 """
 import copy
 import hashlib
@@ -54,13 +56,14 @@ CONTENT_FILES = ("draft_info.json", "draft_content.json")
 TIMELINE_EXTRAS = ("template-2.tmp", "attachment_editing.json", "attachment_pc_common.json")
 BACKUP_DIR = "edit-mo-to-backups"
 BUSY_WINDOW_S = 10
+WAIT_CLOSED_S = 540  # under the agent shell's 10-minute limit, so wait-closed always reports back
 STAMP_FILE = ".edit-mo-to-last-write"
 # CapCut 9.6 rewrites media inside the project folder as <placeholder>/assets/... when it saves.
 PLACEHOLDER_RE = re.compile(r"##_draftpath_placeholder_[0-9A-Fa-f-]+_##")
 FULL_FRAME_CROP = {"upper_left_x": 0.0, "upper_left_y": 0.0, "upper_right_x": 1.0, "upper_right_y": 0.0,
                    "lower_left_x": 0.0, "lower_left_y": 1.0, "lower_right_x": 1.0, "lower_right_y": 1.0}
 MIN_ARGS = {"import": 2, "link-originals": 1, "compose": 2, "add-timeline": 3, "duplicate": 3, "replace": 3, "add-tracks": 3, "raise-text": 3, "add-overlay": 3,
-            "patch": 3, "segments": 2, "backup": 2, "list": 1, "wait": 1}
+            "patch": 3, "segments": 2, "backup": 2, "list": 1, "wait": 1, "wait-closed": 1}
 PHOTO_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 PHOTO_DURATION_US = 10_800_000_000  # what CapCut stores as a still's material duration (3 h)
 # Per-segment helper materials CapCut gives every video segment (extra_material_refs). add-overlay clones
@@ -263,6 +266,22 @@ def _check_not_busy(project: Path) -> None:
     ours = float(stamp.read_text(encoding="utf-8")) if stamp.exists() else -1
     if newest > ours and time.time() - newest < BUSY_WINDOW_S:
         raise ProjectBusy(f"{project.name} was modified in the last {BUSY_WINDOW_S}s; close it in CapCut first")
+
+
+def wait_closed(project: Path, timeout_s: float = WAIT_CLOSED_S, poll_s: float = 2) -> dict:
+    """Wait until CapCut has quit and finished writing `project` (the same check every write makes), so the
+    editor never has to say "I quit CapCut". {"closed": true, "waited_s"}, or after `timeout_s`
+    {"closed": false, "waited_s", "reason"}."""
+    start = time.monotonic()
+    while True:
+        try:
+            _check_not_busy(project)
+            return {"closed": True, "waited_s": round(time.monotonic() - start, 1)}
+        except ProjectBusy as e:
+            waited = time.monotonic() - start
+            if waited >= timeout_s:
+                return {"closed": False, "waited_s": round(waited, 1), "reason": str(e)}
+        time.sleep(poll_s)
 
 
 def _write_timeline(project: Path, content: dict, extras_from: Path) -> Path:
@@ -1419,6 +1438,8 @@ def main(argv: list[str]) -> None:
         out = list_timelines(Path(args[0]))
     elif cmd == "wait":
         out = {"draft": str(wait_for_draft(Path(args[0]), float(args[1]) if len(args) > 1 else 30))}
+    elif cmd == "wait-closed":
+        out = wait_closed(Path(args[0]), float(args[1]) if len(args) > 1 else WAIT_CLOSED_S)
     else:
         raise SystemExit(__doc__)
     _emit(out, dest, indent=2)

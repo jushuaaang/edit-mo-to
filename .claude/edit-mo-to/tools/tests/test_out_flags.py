@@ -68,7 +68,7 @@ def test_qa_check_captions_out(tmp_path, monkeypatch, capsys):
 def test_sheets_inventory_out_creates_the_folder(tmp_path, monkeypatch, capsys):
     seen = {}
 
-    def fake(folder, out_dir, mx):
+    def fake(folder, out_dir, mx, find_shots=True):
         seen["args"] = (folder, out_dir, mx)
         return {"clips": [{"n": 1}], "skipped": [], "sheets": []}
     monkeypatch.setattr(sheets, "inventory", fake)
@@ -81,7 +81,7 @@ def test_sheets_inventory_out_creates_the_folder(tmp_path, monkeypatch, capsys):
 
 
 def test_sheets_inventory_without_out_prints(tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(sheets, "inventory", lambda f, o, m: {"clips": [], "skipped": [], "sheets": []})
+    monkeypatch.setattr(sheets, "inventory", lambda f, o, m, **kw: {"clips": [], "skipped": [], "sheets": []})
     sheets.main(["inventory", str(tmp_path), str(tmp_path / "inv")])
     assert _out(capsys) == {"clips": [], "skipped": [], "sheets": []}
 

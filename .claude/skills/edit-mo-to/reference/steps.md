@@ -83,8 +83,8 @@ scope: full | delta   changed: <clip #s per timeline, ovN / prompt ids / ops sin
 - Generator: "Where will you generate: Higgsfield or Google Flow?" Then, for either site: "Which Higgsfield model?" or "Which Google Flow model?"
 - Clips ready: "Tell me when all the clips are generated and in <folder>."
 - Review: "Which timeline is this change for? And should I make a new timeline for it, or work directly in that timeline (I'll back it up first)?"
-- Quit CapCut: "Please quit CapCut completely before I write to the project, and tell me when it's closed."
-- Captions: "Captions: will you run CapCut auto-caption yourself, or should I add them? (Mine are simple text captions with the script's exact words and a pop-in; no word-by-word animation. For an animated look, use CapCut's caption presets.)" If they run it: "Run auto-caption in CapCut and tell me when it's done." If I add them: "Which timeline(s)? And please quit CapCut completely before I write to the project, and tell me when it's closed."
+- Quit CapCut: "Please quit CapCut completely (check the system tray too). I'll carry on as soon as it's closed." (Then `wait-closed`, SKILL step 9; don't wait for a reply.)
+- Captions: "Captions: will you run CapCut auto-caption yourself, or should I add them? (Mine are simple text captions with the script's exact words and a pop-in; no word-by-word animation. For an animated look, use CapCut's caption presets.)" If they run it: "Run auto-caption in CapCut and tell me when it's done." If I add them: "Which timeline(s)? And please quit CapCut completely; I'll carry on as soon as it's closed."
 - Music: "Do you want a Suno prompt from me, or will you find no-copyright YouTube music?"
 
 ## Revision requests

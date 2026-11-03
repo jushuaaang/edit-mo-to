@@ -1,10 +1,12 @@
 """Tiled, labelled frame sheets: one image to look at instead of dozens of single frames.
 clip_sheets / overlay_sheets for a plan timeline, inventory for a folder of raw clips.
 CLI: clips <plan.json> "<timeline>" <out_dir> [--ai] | overlays <plan.json> "<timeline>" <out_dir>
-     | inventory <folder> <out_dir> [--max N]
+     | inventory <folder> <out_dir> [--max N] [--no-shots]
+inventory also lists each clip's shots (hard cuts inside the file) as `shots`: [[start, end], ...] seconds.
 Each takes --out <file.json>: the JSON goes to that file (its folder created) instead of stdout."""
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -20,6 +22,8 @@ CELL_W, CELL_H = 270, 480
 STRIP_W, ROW_H = 1080, 340   # inventory: one 6-frame strip per row, 6 rows per sheet
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
 STRIP_CACHE = TMP / "strips"   # inventory strips by (path, size, mtime): a re-run of an unchanged folder is free
+SCENE_THRESHOLD = 0.3   # ffmpeg scene score of a hard cut
+MIN_SHOT = 0.5          # seconds; a shorter "shot" is a flash or fast motion, not a cut
 
 
 def grab(video: str, t: float, out: Path, w: int = CELL_W) -> Path:
@@ -130,11 +134,36 @@ def _strip_sheets(strips: list[tuple[str, Path]], out_dir: Path, per: int = 6) -
     return res
 
 
+def _key(p: Path) -> str:
+    st = p.stat()
+    return hashlib.sha1(f"{p.resolve()}|{st.st_size}|{st.st_mtime_ns}|{STRIP_W}".encode()).hexdigest()
+
+
+def shots(p: Path, duration: float) -> list[list[float]]:
+    """The shots inside one clip as [start, end] seconds, from ffmpeg's scene score (a hard cut scores above
+    SCENE_THRESHOLD). Cuts closer than MIN_SHOT to the previous cut or the clip's end are dropped (flashes, fast
+    motion). Cached per (path, size, mtime) like the strips."""
+    cached = Path(STRIP_CACHE) / f"{_key(p)}_shots.json"
+    if cached.exists():
+        return json.loads(cached.read_text(encoding="utf-8"))
+    r = subprocess.run(["ffmpeg", "-nostdin", "-hide_banner", "-i", str(p), "-an", "-vf",
+                        f"scale=160:-2,select='gt(scene,{SCENE_THRESHOLD})',showinfo", "-f", "null", "-"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    cuts = []
+    for t in (float(m) for m in re.findall(r"pts_time:([0-9.]+)", r.stderr)):
+        if t - (cuts[-1] if cuts else 0) >= MIN_SHOT and duration - t >= MIN_SHOT:
+            cuts.append(t)
+    edges = [0.0, *cuts, duration]
+    out = [[round(a, 3), round(b, 3)] for a, b in zip(edges, edges[1:])]
+    cached.parent.mkdir(parents=True, exist_ok=True)
+    cached.write_text(json.dumps(out), encoding="utf-8")
+    return out
+
+
 def _strip(p: Path) -> tuple[dict, Path]:
     """(probe, cached 6-frame strip) of one clip; the strip is made once per (path, size, mtime)."""
     info = pt.probe_media(str(p))
-    st = p.stat()
-    key = hashlib.sha1(f"{p.resolve()}|{st.st_size}|{st.st_mtime_ns}|{STRIP_W}".encode()).hexdigest()
+    key = _key(p)
     cached = Path(STRIP_CACHE) / f"{key}.png"
     if cached.exists():
         return info, cached
@@ -156,11 +185,13 @@ def _strip(p: Path) -> tuple[dict, Path]:
     return info, cached
 
 
-def inventory(folder: Path, out_dir: Path, max_clips: int | None = None, workers: int | None = None) -> dict:
+def inventory(folder: Path, out_dir: Path, max_clips: int | None = None, workers: int | None = None,
+              find_shots: bool = True) -> dict:
     """Probe every video under `folder` (subfolders too, any extension case), make a 6-frame strip per clip,
     tile the strips 6 per sheet. Clips are labelled by path relative to `folder`; unreadable files go in `skipped`.
-    Clips run `workers` at a time (default machine.json render_concurrency); strips are cached by
-    (path, size, mtime), so a re-run only does new or changed clips."""
+    Each clip also lists its `shots` (see shots(); a clip with several is labelled "· N shots"), unless
+    `find_shots` is off. Clips run `workers` at a time (default machine.json render_concurrency); strips and
+    shots are cached by (path, size, mtime), so a re-run only does new or changed clips."""
     out_dir, folder = Path(out_dir), Path(folder)
     files = sorted((p for p in folder.rglob("*") if p.is_file() and p.suffix.lower() in VIDEO_EXT),
                    key=lambda p: p.relative_to(folder).as_posix().lower())
@@ -169,7 +200,8 @@ def inventory(folder: Path, out_dir: Path, max_clips: int | None = None, workers
 
     def one(p):
         try:
-            return _strip(p)
+            info, strip = _strip(p)
+            return info, strip, (shots(p, info["duration"] or 0) if find_shots else None)
         except Exception as e:  # ffprobe/ffmpeg failure: report, keep going
             return e
 
@@ -181,14 +213,18 @@ def inventory(folder: Path, out_dir: Path, max_clips: int | None = None, workers
         if isinstance(res, Exception):
             skipped.append({"rel": rel, "path": str(p), "error": str(res)[:200]})
             continue
-        info, cached = res
+        info, cached, clip_shots = res
         i = len(clips) + 1
         sp = out_dir / "strips" / f"{i:04d}.png"
         sp.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(cached, sp)
-        clips.append({"path": str(p), "rel": rel, **{k: info[k] for k in ("duration", "fps", "width", "height", "rotation")},
-                      "strip": str(sp)})
-        strips.append((f"{i} {rel}", sp))
+        clip = {"path": str(p), "rel": rel, **{k: info[k] for k in ("duration", "fps", "width", "height", "rotation")},
+                "strip": str(sp)}
+        if clip_shots is not None:
+            clip["shots"] = clip_shots
+        clips.append(clip)
+        many = f" · {len(clip_shots)} shots" if clip_shots and len(clip_shots) > 1 else ""
+        strips.append((f"{i} {rel}{many}", sp))
     return {"clips": clips, "skipped": skipped, "sheets": _strip_sheets(strips, out_dir)}
 
 
@@ -232,12 +268,14 @@ def main(argv: list[str]) -> None:
         del rest[i:i + 2]
     ai = "--ai" in rest
     args = [a for a in rest if a != "--ai"]
+    no_shots = "--no-shots" in args
+    args = [a for a in args if a != "--no-shots"]
     if cmd == "clips":
         r = clip_sheets(json.loads(Path(args[0]).read_text(encoding="utf-8")), args[1], Path(args[2]), ai)
     elif cmd == "overlays":
         r = overlay_sheets(json.loads(Path(args[0]).read_text(encoding="utf-8")), args[1], Path(args[2]))
     elif cmd == "inventory":
-        r = inventory(Path(args[0]), Path(args[1]), mx)
+        r = inventory(Path(args[0]), Path(args[1]), mx, find_shots=not no_shots)
     else:
         sys.exit(__doc__)
     _emit(r, out, indent=2)

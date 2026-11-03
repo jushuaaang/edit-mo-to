@@ -96,7 +96,7 @@ Type **`/practice-muna`** and send the clip. Every stop shows a suggested answer
 3. Type **`/edit-mo-to`** and paste or attach the brief. Say which folder you made.
 4. Answer each stop. Tip: put what you already know in your first message (B-roll source, AI tool, voiceover file), and Claude skips those questions.
 5. When the script is ready, Claude asks **"Storyboard first?"** Say yes for a new client or an AI-heavy ad: you see every shot and graphic before any video is generated.
-6. When the project is built, **quit CapCut completely** before asking for changes (CapCut overwrites projects when it closes). Then review it, and ask for changes or edit it yourself.
+6. When the project is built, review it, and ask for changes or edit it yourself. When Claude asks you to **quit CapCut completely** (CapCut overwrites projects when it closes), just quit it: no need to tell Claude. It notices when CapCut has closed and carries on.
 7. Captions: run CapCut's auto-caption yourself, or let Claude add simple text captions (the script's exact words, a pop-in; for an animated look use CapCut's caption presets). Then pick the music, and export. A script that is not English or Filipino carries a temporary English track, `TEMP_EN_delete_me`, so you can follow it while reviewing: delete it before export.
 
 ### What a stop looks like
@@ -154,7 +154,7 @@ Claude plans have a usage limit that resets every 5 hours. One measured example 
 
 | Problem | Fix |
 |---|---|
-| Claude says CapCut is open | Quit CapCut completely (check the system tray), then tell Claude to continue |
+| Claude says CapCut is still open | Quit CapCut completely (check the system tray); Claude carries on by itself once it's closed, or tell Claude to continue if it stopped waiting |
 | "Backend is down" or port 9001 errors | Tell Claude "start the CapCut backend"; it knows how |
 | `/edit-mo-to` or `/practice-muna` doesn't show up | Start the Claude Code session in your video folder, not somewhere else |
 | Graphics fail to render | Check your internet connection (graphics load their fonts online), then retry |
