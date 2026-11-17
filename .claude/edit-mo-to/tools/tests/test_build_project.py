@@ -683,3 +683,25 @@ def test_add_captions_reports_dropped_chunks(monkeypatch):
     monkeypatch.setattr(bp, "captions_draft", lambda chunks, plan, post=None: "/d")
     out = bp.add_captions(PLAN, "Timeline 01", Path("/p"), "/s.txt", "/vo.json")
     assert out["chunks"] == 1 and [c["text"] for c in out["dropped_chunks"]] == ["a"]
+
+
+@pytest.mark.parametrize("w,h,ratio", [(1080, 1350, "4:5"), (1080, 1920, "9:16"), (1920, 1080, "16:9"),
+                                       (1080, 1080, "1:1"), (1000, 1333, "original")])
+def test_canvas_ratio(w, h, ratio):
+    assert bp.canvas_ratio(w, h) == ratio
+
+
+def test_set_draft_canvas_writes_ratio_and_fps(tmp_path):
+    for name in ("draft_info.json", "draft_content.json"):
+        (tmp_path / name).write_text(json.dumps({"canvas_config": {"width": 1080, "height": 1350, "ratio": "9:16",
+                                                                    "background": None}, "fps": 30.0, "tracks": []}))
+    out = bp.set_draft_canvas(tmp_path, {"width": 1080, "height": 1350, "fps": 60})
+    assert out == {"ratio": "4:5", "fps": 60.0}
+    for name in ("draft_info.json", "draft_content.json"):
+        d = json.loads((tmp_path / name).read_text())
+        assert d["canvas_config"] == {"width": 1080, "height": 1350, "ratio": "4:5", "background": None}
+        assert d["fps"] == 60.0 and d["tracks"] == []
+
+
+def test_set_draft_canvas_skips_missing_files(tmp_path):
+    assert bp.set_draft_canvas(tmp_path, {"width": 1080, "height": 1920}) == {"ratio": "9:16", "fps": 30.0}
