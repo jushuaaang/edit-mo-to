@@ -552,11 +552,9 @@ def duplicate_timeline(project: Path, source_name: str, new_name: str) -> dict:
     new_id = _new_id()
     dst = project / "Timelines" / new_id
     shutil.copytree(src, dst)
-    for name in CONTENT_FILES:
-        if (dst / name).exists():
-            content = _read(dst / name)
-            content["id"] = new_id
-            _write(dst / name, content)
+    content = _read(_content_file(src))  # the newest one: draft_info.json may be the hand-edited one
+    content["id"] = new_id
+    _write_newest_content(dst, content)
     pj = _project_json(project)
     pj["timelines"].append(_timeline_entry(new_name, new_id))
     _save_project_json(project, pj)
@@ -1194,8 +1192,10 @@ def patch_timeline(project: Path, name: str, ops, dry_run: bool = False) -> dict
         except (KeyError, ValueError, FileNotFoundError) as e:
             raise ValueError(f"op {i} ({op.get('op')}): {e}; nothing was written") from e
     p.validate()
+    rot_fixed, rot_unchecked = _fix_rotated_sizes(content)  # inserted phone clips must be stored upright
     result = {"name": name, "id": tl["id"], "ops_applied": len(done), "duration_before": before / 1e6,
-              "duration": content["duration"] / 1e6, "dry_run": dry_run, "results": done}
+              "duration": content["duration"] / 1e6, "dry_run": dry_run, "results": done,
+              "rotation_fixed": rot_fixed, "rotation_unchecked": rot_unchecked}
     if dry_run:
         return result
     backup = backup_timeline(project, name)

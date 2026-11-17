@@ -1,4 +1,4 @@
-<!--defaults {"text": "SHOP NOW", "arrow": "›", "bg": "#e53935", "fg": "#ffffff", "ring": "#ffffff", "font": "Montserrat", "size": 70, "bottom": 330, "duration": 4} -->
+<!--defaults {"text": "SHOP NOW", "arrow": "›", "bg": "#e53935", "fg": "#ffffff", "ring": "#ffffff", "font": "Montserrat", "size": 70, "bottom": 330, "x": "", "outro": "fade", "duration": 4} -->
 <!doctype html>
 <html lang="en" data-resolution="portrait">
 <head>
@@ -10,7 +10,7 @@
   html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
   #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; font-weight: 900; }
   #c { position: absolute; bottom: {{bottom}}px; left: 50%; background: {{bg}}; color: {{fg}}; font-size: {{size}}px;
-       padding: 30px 90px; border-radius: 999px; white-space: nowrap;
+       padding: 0.428571em 1.285714em; border-radius: 999px; white-space: nowrap;
        box-shadow: 0 0 0 8px {{ring}}, 0 18px 40px rgba(0,0,0,.5); }
   #tap { position: absolute; bottom: {{bottom}}px; left: 62%; width: 90px; height: 90px; border-radius: 50%;
          background: rgba(255,255,255,.85); opacity: 0; }
@@ -29,7 +29,14 @@
     const w = el.getBoundingClientRect().width / (gsap.getProperty(el, "scaleX") || 1);
     if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
   }
-  function fitAll() { fitW(document.getElementById("c"), 980); }
+  // optional x = button centre px (default: centred). Off-centre buttons fit inside 40 px margins (incl. ring + pulse).
+  const PX = "{{x}}".trim(), CX = PX === "" ? null : Number(PX);
+  if (CX !== null) {
+    document.getElementById("c").style.left = CX + "px";
+    document.getElementById("tap").style.left = (CX + 70) + "px";
+  }
+  const MAXW = CX === null ? 980 : Math.min(980, (2 * (Math.min(CX, 1080 - CX) - 40) - 16) / 1.08);
+  function fitAll() { fitW(document.getElementById("c"), MAXW); }
   fitAll();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
   const tl = gsap.timeline({ paused: true });
@@ -37,7 +44,7 @@
   tl.fromTo("#c", { y: 260, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, 0.05);
   tl.to("#c", { scale: 1.08, duration: 0.35, yoyo: true, repeat: Math.max(1, Math.floor((D - 1) / 0.35) - 1), ease: "sine.inOut" }, 0.6);
   tl.fromTo("#tap", { scale: 0.3, opacity: 0.9 }, { scale: 1.8, opacity: 0, duration: 0.6, ease: "power2.out" }, 0.9);
-  tl.to("#c", { opacity: 0, duration: 0.25 }, D - 0.3);
+  if ("{{outro}}".trim() !== "none") tl.to("#c", { opacity: 0, duration: 0.25 }, D - 0.3);
   window.__timelines["main"] = tl;
   tl.seek(0);
 </script>

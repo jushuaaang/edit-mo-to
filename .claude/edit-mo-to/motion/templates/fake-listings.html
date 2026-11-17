@@ -1,0 +1,295 @@
+<!--defaults {"image": "", "query": "zapply t1", "banner": "DON'T GET SCAMMED", "stamp": "FAKE", "prices": "$9.99|$12.49|$7.99|$14.99|$8.49|$11.99|$6.99|$13.49|$9.49|$10.99|$7.49|$12.99", "deals": "-70%||-65%|||-80%||-72%||||-60%", "chips": "Sort|Price|Rating 4+|Free shipping", "cols": 3, "rows": 4, "marks": "0,5,4", "ring": "card", "t_marks": "1.2,1.8,2.4", "focus": "", "t_push": 3.0, "push_dur": 0.7, "zoom": 2.2, "push_y": 980, "knockoff": 1, "frame": "phone", "phone_y": 250, "banner_y": 92, "intro": "rise", "outro": "none", "bg": "#F3EFE6", "screen": "#FFFFFF", "card": "#FFFFFF", "ink": "#0F1B33", "muted": "#C9CDD5", "red": "#E3262F", "accent": "#38C8F0", "star": "#F5A623", "bezel": "#11151F", "font": "Anton", "font_wght": "400", "font_ui": "Inter", "height": 1920, "duration": 4.5} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@{{font_wght}}&family={{font_ui}}:wght@500;600;700;800;900&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font_ui}}", sans-serif; color: {{ink}}; }
+  #bgfill { position: absolute; inset: 0; background: {{bg}}; }
+  #stage { position: absolute; inset: 0; perspective: 2200px; }
+  #shake { position: absolute; inset: 0; transform-style: preserve-3d; }
+  #cam { position: absolute; left: 0; top: 0; width: 1080px; height: {{height}}px; transform-origin: 0 0; }
+  #phone { position: absolute; left: 70px; top: {{phone_y}}px; width: 940px; height: 1820px; border-radius: 124px;
+           background: {{bezel}}; padding: 18px; box-shadow: 0 40px 90px rgba(15,27,51,.22), 0 10px 26px rgba(15,27,51,.14);
+           transform-origin: 50% 30%; }
+  #screen { position: relative; width: 100%; height: 100%; border-radius: 106px; background: {{screen}}; overflow: hidden; }
+  #island { position: absolute; left: 50%; top: 22px; width: 200px; height: 56px; margin-left: -100px; border-radius: 30px; background: {{bezel}}; z-index: 5; }
+  /* full-frame UI: no phone, the screen fills the canvas */
+  #root.full #phone { left: 0; top: 0; width: 1080px; height: {{height}}px; border-radius: 0; padding: 0; box-shadow: none; background: transparent; }
+  #root.full #screen { border-radius: 0; }
+  #root.full #island { display: none; }
+  #ui { position: absolute; left: 0; top: 0; right: 0; padding-top: 0; }
+  #status { height: 92px; display: flex; align-items: center; justify-content: space-between; padding: 14px 70px 0 76px; font-weight: 700; font-size: 30px; }
+  #sicons { display: flex; align-items: center; gap: 12px; }
+  .sig { display: flex; align-items: flex-end; gap: 4px; height: 22px; }
+  .sig i { display: block; width: 6px; background: {{ink}}; border-radius: 2px; }
+  .batt { width: 46px; height: 22px; border: 3px solid {{ink}}; border-radius: 7px; padding: 2px; position: relative; }
+  .batt i { display: block; width: 70%; height: 100%; background: {{ink}}; border-radius: 3px; }
+  #search { height: 108px; display: flex; align-items: center; gap: 18px; padding: 0 30px; }
+  #back { width: 28px; height: 28px; border-left: 5px solid {{ink}}; border-bottom: 5px solid {{ink}}; transform: rotate(45deg); margin-left: 12px; flex: none; }
+  #pill { flex: 1; min-width: 0; height: 84px; border-radius: 999px; background: #F1F2F4; display: flex; align-items: center; gap: 16px; padding: 0 28px; }
+  #pill svg { flex: none; }
+  #q { flex: 1; font-size: 34px; font-weight: 600; white-space: nowrap; overflow: hidden; display: flex; align-items: center; min-width: 0; }
+  #q.tail { justify-content: flex-end; }
+  #qt { white-space: pre; }
+  #caret { display: inline-block; width: 3px; height: 40px; background: {{accent}}; margin-left: 3px; flex: none; }
+  #chips { height: 78px; display: flex; align-items: center; gap: 14px; padding: 0 30px; white-space: nowrap; overflow: hidden; }
+  .chip { flex: none; height: 54px; border-radius: 999px; border: 2px solid #E3E5EA; padding: 0 24px; display: flex; align-items: center; font-size: 24px; font-weight: 600; }
+  .chip.on { background: {{ink}}; border-color: {{ink}}; color: #fff; }
+  #meta { height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 32px; }
+  .bar { display: block; height: 14px; border-radius: 7px; background: {{muted}}; filter: blur(1.1px); }
+  #feedwrap { position: absolute; left: 0; right: 0; bottom: 0; overflow: visible; }
+  #feed { position: relative; padding: 0 28px; display: grid; gap: 20px 18px; }
+  .card { position: relative; background: {{card}}; border: 2px solid #ECEDF0; border-radius: 22px; overflow: hidden; }
+  .img { position: relative; width: 100%; aspect-ratio: 1 / 1; background: #FFFFFF; overflow: hidden; }
+  .img img, .img .ph { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: contain; mix-blend-mode: multiply; }
+  .deal { position: absolute; left: 10px; top: 10px; background: {{red}}; color: #fff; font-weight: 800; font-size: 21px; padding: 5px 11px 6px; border-radius: 9px; line-height: 1; }
+  .heart { position: absolute; right: 12px; top: 12px; width: 38px; height: 38px; border-radius: 50%; background: rgba(255,255,255,.92); display: flex; align-items: center; justify-content: center; }
+  .body { padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 9px; }
+  .stars { display: flex; align-items: center; gap: 3px; height: 22px; }
+  .stars .bar { width: 46px; height: 10px; margin-left: 8px; }
+  .price { font-size: 38px; font-weight: 800; letter-spacing: -0.01em; line-height: 1; display: flex; align-items: baseline; gap: 10px; white-space: nowrap; }
+  .old { display: block; width: 58px; height: 10px; border-radius: 5px; background: {{muted}}; position: relative; top: -6px; }
+  .card .dim { position: absolute; inset: 0; background: {{screen}}; opacity: 0; pointer-events: none; }
+  #marks { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+  .ring { position: absolute; overflow: visible; }
+  .ring path { fill: none; stroke: {{red}}; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; }
+  .stamp { position: absolute; left: 0; top: 0; font-family: "{{font}}", "Anton", sans-serif; font-weight: {{font_wght}}; color: {{red}};
+           border: 8px solid {{red}}; border-radius: 14px; padding: 4px 18px 4px; line-height: 1.02; letter-spacing: .05em; white-space: nowrap;
+           text-transform: uppercase; background: rgba(255,255,255,.18); opacity: 0;
+           -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' seed='7'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -4 0 0 0 3.1'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+           -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
+  #banner { position: absolute; left: 50%; top: {{banner_y}}px; display: flex; align-items: center; gap: 18px; background: {{red}}; color: #fff;
+            border-radius: 18px; padding: 14px 30px 12px; white-space: nowrap; box-shadow: 0 12px 30px rgba(227,38,47,.28); }
+  #btxt { font-family: "{{font}}", "Anton", sans-serif; font-weight: {{font_wght}}; font-size: 66px; line-height: 1.05; letter-spacing: .03em; text-transform: uppercase; }
+  #banner svg { flex: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="bgfill" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0"></div>
+  <div id="stage" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="1">
+    <div id="shake"><div id="cam"><div id="phone" data-layout-allow-overflow><div id="screen" data-layout-allow-overflow>
+      <div id="island"></div>
+      <div id="ui">
+        <div id="status"><span>9:41</span><span id="sicons"><span class="sig"><i style="height:8px"></i><i style="height:12px"></i><i style="height:17px"></i><i style="height:22px"></i></span><span class="batt"><i></i></span></span></div>
+        <div id="search"><span id="back"></span><div id="pill">
+          <svg width="34" height="34" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="{{ink}}" stroke-width="2.6"/><path d="M15.5 15.5L21 21" stroke="{{ink}}" stroke-width="2.6" stroke-linecap="round"/></svg>
+          <div id="q"><span id="qt"></span><span id="caret"></span></div>
+        </div></div>
+        <div id="chips" data-layout-allow-overflow></div>
+        <div id="meta"><span class="bar" style="width:150px"></span><span class="bar" style="width:90px"></span></div>
+      </div>
+      <div id="feedwrap" data-layout-allow-overflow><div id="feed" data-layout-allow-overflow></div><div id="marks"></div></div>
+    </div></div></div></div>
+  </div>
+  <div id="top" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="2">
+    <div id="banner"><svg width="54" height="50" viewBox="0 0 24 22"><path d="M12 1.5L23 20.5H1z" fill="#fff" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/><rect x="10.8" y="7.6" width="2.4" height="7" rx="1.1" fill="{{red}}"/><circle cx="12" cy="17.3" r="1.35" fill="{{red}}"/></svg><span id="btxt">{{banner}}</span><svg width="54" height="50" viewBox="0 0 24 22"><path d="M12 1.5L23 20.5H1z" fill="#fff" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/><rect x="10.8" y="7.6" width="2.4" height="7" rx="1.1" fill="{{red}}"/><circle cx="12" cy="17.3" r="1.35" fill="{{red}}"/></svg></div>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), H = Number("{{height}}");
+  const COLS = Math.max(2, Math.min(4, Number("{{cols}}") || 3)), ROWS = Math.max(1, Math.min(6, Number("{{rows}}") || 4));
+  const N = COLS * ROWS, KO = Math.max(0, Math.min(1.5, Number("{{knockoff}}")));
+  const IMAGE = "{{image}}".trim(), QUERY = "{{query}}", BANNER = "{{banner}}".trim(), STAMP = "{{stamp}}".trim();
+  const RING = "{{ring}}".trim(), FULL = "{{frame}}" === "full", HAS_BG = "{{bg}}".trim() !== "";
+  const T_PUSH = Number("{{t_push}}"), PUSH_DUR = Number("{{push_dur}}"), ZOOM = Number("{{zoom}}"), PUSH_Y = Number("{{push_y}}");
+  const list = s => s.split("|").map(x => x.trim());
+  const nums = s => s.split(",").map(x => x.trim()).filter(x => x !== "").map(Number).filter(x => isFinite(x));
+  const PRICES = list("{{prices}}").filter(Boolean), DEALS = list("{{deals}}"), CHIPS = list("{{chips}}").filter(Boolean);
+  const TM = nums("{{t_marks}}");
+  let MK = nums("{{marks}}").map(i => Math.round(i)).filter(i => i >= 0 && i < N);
+  const AUTO = [0, 5, 4, 7, 2, 9, 3, 8, 1, 6, 10, 11];
+  while (MK.length < TM.length) { const n = AUTO.find(i => i < N && !MK.includes(i)); if (n === undefined) break; MK.push(n); }
+  MK = MK.slice(0, TM.length);
+  const FOCUS = "{{focus}}".trim() !== "" ? Math.max(0, Math.min(N - 1, Math.round(Number("{{focus}}")))) : (MK.length ? MK[MK.length - 1] : Math.floor(N / 2));
+  const root = document.getElementById("root");
+  if (FULL) root.classList.add("full");
+  if (!HAS_BG) document.getElementById("bgfill").remove();
+  if (!BANNER) document.getElementById("banner").remove();
+
+  function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+  function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+  // chips row
+  document.getElementById("chips").innerHTML = CHIPS.map((c, i) => '<span class="chip' + (i === 0 ? " on" : "") + '">' + esc(c) + "</span>").join("");
+
+  // placeholder product (a generic pouch) when no image is given
+  const PH = '<svg class="ph" viewBox="0 0 100 100"><path d="M30 18h40l3 6v62a4 4 0 0 1-4 4H31a4 4 0 0 1-4-4V24z" fill="#23272f"/><rect x="27" y="23" width="46" height="3" fill="#3a404b"/>'
+    + '<path d="M53 36l-12 17h8l-4 14 13-19h-8l3-12z" fill="{{accent}}"/><rect x="40" y="74" width="20" height="3" rx="1.5" fill="#596070"/></svg>';
+  const STAR = '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3 6.1 20.6l1.3-6.6L2.5 9.4l6.6-.8z" fill="{{star}}"/></svg>';
+  const HEART = '<svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="none" stroke="{{ink}}" stroke-width="2.2"/></svg>';
+
+  // the feed: every card is the same product, each a little off (hue, mirror, crop, blur) so they read as knock-offs
+  const feed = document.getElementById("feed");
+  feed.style.gridTemplateColumns = "repeat(" + COLS + ", 1fr)";
+  let html = "";
+  for (let i = 0; i < N; i++) {
+    const r = rng(i * 977 + 13);
+    const hue = (r() * 2 - 1) * 46 * KO, sat = 1 + (r() * 2 - 1) * 0.45 * KO, bri = 1 + (r() * 2 - 1) * 0.12 * KO;
+    const sep = r() < 0.3 ? 0.35 * KO : 0, blur = r() * 1.3 * KO, flip = r() < 0.4 && KO > 0 ? -1 : 1;
+    const z = 1 + r() * 0.28 * KO, ox = (r() * 2 - 1) * 7 * KO, oy = (r() * 2 - 1) * 6 * KO, rot = (r() * 2 - 1) * 5 * KO;
+    const f = "sepia(" + sep.toFixed(2) + ") hue-rotate(" + hue.toFixed(0) + "deg) saturate(" + sat.toFixed(2) + ") brightness(" + bri.toFixed(2) + ") blur(" + blur.toFixed(2) + "px)";
+    const tf = "translate(" + ox.toFixed(1) + "%," + oy.toFixed(1) + "%) rotate(" + rot.toFixed(1) + "deg) scale(" + (z * flip).toFixed(3) + "," + z.toFixed(3) + ")";
+    const media = IMAGE ? '<img src="' + IMAGE + '" alt="" style="filter:' + f + ";transform:" + tf + '" />' : PH.replace('class="ph"', 'class="ph" style="filter:' + f + ";transform:" + tf + '"');
+    const deal = DEALS.length ? DEALS[i % DEALS.length] : "";
+    const w1 = 70 + r() * 26, w2 = 40 + r() * 34, nst = r() < 0.7 ? 5 : 4;
+    html += '<div class="card" data-i="' + i + '"><div class="img">' + media
+      + (deal ? '<span class="deal">' + esc(deal) + "</span>" : "") + '<span class="heart">' + HEART + "</span></div>"
+      + '<div class="body"><span class="bar" style="width:' + w1.toFixed(0) + '%"></span><span class="bar" style="width:' + w2.toFixed(0) + '%"></span>'
+      + '<div class="stars">' + STAR.repeat(nst) + '<span class="bar"></span></div>'
+      + '<div class="price"><span>' + esc(PRICES.length ? PRICES[i % PRICES.length] : "") + '</span><span class="old"></span></div></div>'
+      + '<div class="dim"></div></div>';
+  }
+  feed.innerHTML = html;
+  const cards = Array.from(feed.querySelectorAll(".card"));
+
+  // hand-drawn ring: an ellipse that overshoots its start, with a slight wobble and spiral
+  function ringPath(w, h, seed, n) {
+    const r = rng(seed), cx = w / 2, cy = h / 2, rx = w / 2, ry = h / 2, e = 2 / n;
+    const sx = v => Math.sign(v) * Math.pow(Math.abs(v), e);
+    const a0 = -2.3 + r() * 0.5, sweep = Math.PI * 2 + 0.55, ph = r() * 6.28, steps = 120;
+    let d = "";
+    for (let k = 0; k <= steps; k++) {
+      const u = k / steps, a = a0 + sweep * u;
+      const wob = 1 + 0.025 * Math.sin(3 * a + ph) + 0.015 * Math.sin(5 * a + ph * 2);
+      const sp = 1.04 - 0.08 * u;
+      const x = cx + sx(Math.cos(a)) * rx * wob * sp, y = cy + sx(Math.sin(a)) * ry * wob * sp;
+      d += (k ? "L" : "M") + x.toFixed(1) + " " + y.toFixed(1);
+    }
+    return d;
+  }
+
+  const marksEl = document.getElementById("marks");
+  const mk = MK.map((ci, j) => {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "ring");
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    svg.appendChild(p); marksEl.appendChild(svg);
+    if (RING === "none") svg.style.display = "none";
+    let st = null;
+    if (STAMP) { st = document.createElement("div"); st.className = "stamp"; st.textContent = STAMP;
+      st.setAttribute("data-layout-allow-overlap", ""); st.setAttribute("data-layout-allow-occlusion", ""); st.setAttribute("data-layout-allow-overflow", "");
+      marksEl.appendChild(st); }
+    const r = rng(ci * 131 + j * 17 + 5);
+    return { ci, svg, p, st, rot: (r() < 0.5 ? -1 : 1) * (7 + r() * 7), seed: ci * 53 + j };
+  });
+
+  function fitW(el, maxW) {
+    el.style.fontSize = "";
+    const w = el.getBoundingClientRect().width / (gsap.getProperty(el, "scaleX") || 1);
+    if (w > maxW) el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * maxW / w) + "px";
+  }
+
+  // layout: feed under the header; rings and stamps placed from each card's box
+  const feedwrap = document.getElementById("feedwrap"), ui = document.getElementById("ui");
+  const banner = document.getElementById("banner");
+  function layout() {
+    if (FULL) ui.style.paddingTop = (BANNER ? Math.max(0, Number("{{banner_y}}") + 130) : 30) + "px";
+    feedwrap.style.top = ui.offsetHeight + "px";
+    if (banner) { const t = document.getElementById("btxt"); t.style.fontSize = ""; banner.style.transform = "translateX(-50%)";
+      const bw = banner.offsetWidth; if (bw > 980) t.style.fontSize = (66 * (980 - (bw - t.offsetWidth)) / t.offsetWidth) + "px"; }
+    // a long query shrinks a little, then scrolls like a real search field (the caret end stays in view)
+    const q = document.getElementById("q"), qtx = document.getElementById("qt");
+    const shown = qtx.textContent;
+    qtx.textContent = QUERY; q.style.fontSize = ""; q.classList.remove("tail");
+    const avail = q.clientWidth - 8, need = qtx.offsetWidth;
+    if (need > avail) { q.style.fontSize = (34 * Math.max(0.74, avail / need)) + "px"; if (qtx.offsetWidth > avail) q.classList.add("tail"); }
+    qtx.textContent = shown;
+    const cw = cards[0].offsetWidth;
+    mk.forEach(m => {
+      const c = cards[m.ci];
+      let x, y, w, h, n = 5;
+      if (RING === "price") {   // a loose ellipse around the price, like a marker on a screenshot
+        const pr = c.querySelector(".price span");
+        w = pr.offsetWidth + 56; h = pr.offsetHeight + 40; n = 2;
+        let px = pr.offsetLeft, py = pr.offsetTop, el = pr.offsetParent;
+        while (el && el !== c) { px += el.offsetLeft; py += el.offsetTop; el = el.offsetParent; }
+        x = c.offsetLeft + px - 28; y = c.offsetTop + py - 20;
+      } else {                  // a hand-drawn rounded loop hugging the whole card
+        const pad = 14; x = c.offsetLeft - pad; y = c.offsetTop - pad; w = c.offsetWidth + pad * 2; h = c.offsetHeight + pad * 2;
+      }
+      Object.assign(m.svg.style, { left: x + "px", top: y + "px", width: w + "px", height: h + "px" });
+      m.svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+      m.p.setAttribute("d", ringPath(w - 12, h - 12, m.seed, n));
+      m.p.setAttribute("transform", "translate(6 6)");
+      m.len = m.p.getTotalLength();
+      if (m.st) {
+        m.st.style.fontSize = Math.round(cw * 0.33) + "px";
+        const sw = m.st.offsetWidth; if (sw > cw * 0.9) m.st.style.fontSize = (parseFloat(m.st.style.fontSize) * cw * 0.9 / sw) + "px";
+        const img = c.querySelector(".img");
+        m.st.style.left = (c.offsetLeft + c.offsetWidth / 2 - m.st.offsetWidth / 2) + "px";
+        m.st.style.top = (c.offsetTop + img.offsetHeight * 0.52 - m.st.offsetHeight / 2) + "px";
+      }
+    });
+  }
+  layout();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { const tt = tl.time(); layout(); tl.seek(tt, false); });
+
+  // camera push target: the focus card's centre at rest, in canvas px
+  const cam = document.getElementById("cam"), phone = document.getElementById("phone");
+  const push = { x: 0, y: 0 };
+  function place() {
+    const c = cards[FOCUS];
+    let x = c.offsetWidth / 2, y = c.offsetHeight / 2, el = c;
+    while (el && el !== cam) { x += el.offsetLeft + (el.clientLeft || 0); y += el.offsetTop + (el.clientTop || 0); el = el.offsetParent; }
+    push.x = 540 - x * ZOOM; push.y = PUSH_Y - y * ZOOM;
+  }
+  place();
+
+  const tl = gsap.timeline({ paused: true });
+  // 1. phone rises in (or the full UI settles), the query types, the results fling up and land
+  if ("{{intro}}" === "rise") {
+    if (FULL) tl.fromTo("#screen", { scale: 1.06, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, ease: "power3.out" }, 0);
+    else tl.fromTo(phone, { y: 320, rotationX: 16, scale: 0.92 }, { y: 0, rotationX: 0, scale: 1, duration: 0.6, ease: "power3.out" }, 0);
+  }
+  const qt = document.getElementById("qt"), caret = document.getElementById("caret");
+  const qo = { n: 0 }, tq0 = 0.12, tq1 = tq0 + Math.min(0.5, QUERY.length * 0.035);
+  qt.textContent = "";
+  tl.to(qo, { n: QUERY.length, duration: Math.max(0.01, tq1 - tq0), ease: "none", onUpdate: () => { qt.textContent = QUERY.slice(0, Math.round(qo.n)); } }, tq0);
+  for (let t = 0; t < D; t += 0.5) tl.set(caret, { opacity: (t > tq1 + 0.1 && Math.round(t * 2) % 2) ? 0 : 1 }, t);
+  const tf0 = tq1 + 0.02;
+  tl.fromTo("#feed", { y: 1100, filter: "blur(6px)" }, { y: 0, filter: "blur(0px)", duration: 0.85, ease: "expo.out" }, tf0);
+  tl.fromTo("#marks", { y: 1100 }, { y: 0, duration: 0.85, ease: "expo.out" }, tf0);
+  // 2. banner wipes open from its centre
+  if (banner) {
+    gsap.set(banner, { xPercent: -50 });
+    tl.fromTo(banner, { scaleX: 0.2, scaleY: 0.6, opacity: 0 }, { scaleX: 1, scaleY: 1, opacity: 1, duration: 0.28, ease: "back.out(1.3)" }, 0.18);
+    tl.fromTo("#btxt", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.22, ease: "power3.out" }, 0.28);
+  }
+  // 3. each beat: the ring draws, then the stamp slams ON the beat (the sound hit), the frame shakes
+  mk.forEach((m, j) => {
+    const t = Math.max(tf0 + 0.3, TM[j]);
+    m.p.style.strokeDasharray = m.len + " " + (m.len + 40);
+    tl.fromTo(m.p, { strokeDashoffset: m.len }, { strokeDashoffset: 0, duration: 0.3, ease: "power2.inOut" }, Math.max(0, t - 0.32));
+    tl.fromTo(m.svg, { opacity: 0 }, { opacity: 1, duration: 0.01 }, Math.max(0, t - 0.32));
+    if (m.st) {
+      tl.fromTo(m.st, { scale: 2.3, opacity: 0, rotation: m.rot - 9 }, { scale: 1, opacity: 1, rotation: m.rot, duration: 0.11, ease: "power4.in" }, t - 0.11);
+      tl.to(m.st, { scale: 1.04, duration: 0.07, ease: "power2.out", yoyo: true, repeat: 1 }, t);
+    }
+    tl.to(cards[m.ci].querySelector(".dim"), { opacity: 0.28, duration: 0.18 }, t);
+    const sh = [[9, -6], [-7, 5], [5, 3], [-3, -2], [0, 0]];
+    sh.forEach((s, k) => tl.to("#shake", { x: s[0], y: s[1], duration: 0.033, ease: "none" }, t + k * 0.033));
+  });
+  // 4. the camera pushes into one card; the rest fall out of focus
+  if (T_PUSH < D) {
+    tl.to(cam, { x: push.x, y: push.y, scale: ZOOM, duration: PUSH_DUR, ease: "power3.inOut", immediateRender: false }, T_PUSH);
+    tl.to(cards.filter((c, i) => i !== FOCUS), { filter: "blur(5px)", opacity: 0.6, duration: PUSH_DUR, ease: "power2.inOut" }, T_PUSH);
+    tl.to(cards[FOCUS].querySelector(".dim"), { opacity: 0.08, duration: PUSH_DUR, ease: "power2.inOut" }, T_PUSH);
+    tl.to(mk.filter(m => m.ci !== FOCUS).flatMap(m => m.st ? [m.svg, m.st] : [m.svg]), { opacity: 0.35, duration: PUSH_DUR }, T_PUSH);
+    const tEnd = T_PUSH + PUSH_DUR;
+    const FX = (540 - push.x) / ZOOM, FY = (PUSH_Y - push.y) / ZOOM, Z2 = ZOOM * 1.035;
+    if (tEnd < D) tl.to(cam, { scale: Z2, x: 540 - FX * Z2, y: PUSH_Y - FY * Z2, duration: D - tEnd, ease: "none" }, tEnd);
+  } else {
+    tl.to(cam, { scale: 1.025, x: -13, y: -24, duration: Math.max(0.3, D - 1), ease: "none" }, 1);
+  }
+  if ("{{outro}}" === "fade") tl.to(banner ? ["#shake", banner] : "#shake", { opacity: 0, duration: 0.18, ease: "power2.in" }, D - 0.2);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

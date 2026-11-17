@@ -1,0 +1,146 @@
+<!--defaults {"mode": "card", "name": "the Memory Verse Flashcards", "score": "4.9", "out_of": "10", "score_label": "Score", "score_style": "paren", "price": "", "price_label": "Price", "chip": "$80", "tail": "none", "count": "1", "stamp": "", "t_stamp": 1.2, "badge_label": "WINNER", "t_win": 0.5, "x": 42, "y": 900, "anchor": "tl", "scale": 1, "size": 54, "chip_size": 66, "max_width": 960, "radius": 34, "chip_radius": 12, "intro": "pop", "outro": "pop", "bg": "#ffffff", "ink": "#14244a", "accent": "#1d3a78", "gold": "#f5b800", "gold_ink": "#14244a", "stamp_color": "#d0202a", "font": "Montserrat", "weight": 600, "height": 1920, "duration": 3} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@500;600;700;800;900&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; }
+  #stage { position: absolute; inset: 0; }
+  #pos { position: absolute; left: {{x}}px; top: {{y}}px; }
+  #card { position: relative; background: {{bg}}; color: {{ink}}; border-radius: {{radius}}px;
+          padding: 24px 40px 26px 38px; font-weight: {{weight}}; line-height: 1.24; white-space: nowrap;
+          transform-origin: 0% 50%; }
+  #card.winner { box-shadow: 0 0 0 6px {{gold}}; }
+  .ln { display: block; width: max-content; }
+  .num { font-weight: 800; color: {{accent}}; font-variant-numeric: tabular-nums; }
+  #card.chip { border-radius: {{chip_radius}}px; padding: 14px 30px 16px; font-weight: 700; line-height: 1.1; }
+  #tail { position: absolute; width: 30px; height: 30px; background: {{bg}}; transform: rotate(45deg); border-radius: 4px; display: none; }
+  #stamp { position: absolute; left: 50%; top: 50%; padding: 6px 26px 8px; border: 7px solid {{stamp_color}}; border-radius: 14px;
+           color: {{stamp_color}}; background: rgba(255,255,255,.9); font-weight: 900; letter-spacing: .06em; text-transform: uppercase;
+           white-space: nowrap; opacity: 0; line-height: 1.1; }
+  #badge { position: absolute; right: -28px; bottom: calc(100% - 16px); background: {{gold}}; color: {{gold_ink}}; border-radius: 999px;
+           padding: 12px 34px 14px; text-align: center; box-shadow: 0 6px 18px rgba(0,0,0,.18); line-height: 1; opacity: 0; white-space: nowrap; }
+  #bl { display: block; font-size: 22px; font-weight: 800; letter-spacing: .2em; margin-bottom: 6px; }
+  #bv { display: block; font-size: 62px; font-weight: 900; font-variant-numeric: tabular-nums; }
+  #ring { position: absolute; inset: 0; border-radius: 999px; border: 5px solid {{gold}}; opacity: 0; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="stage" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="pos"><div id="card"><div id="tail"></div><div id="lines"></div>
+      <div id="stamp" data-layout-allow-overlap data-layout-allow-occlusion data-layout-allow-overflow>{{stamp}}</div>
+      <div id="badge" data-layout-allow-overlap data-layout-allow-occlusion data-layout-allow-overflow><span id="ring"></span><span id="bl">{{badge_label}}</span><span id="bv"></span></div>
+    </div></div>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), S = Number("{{scale}}"), SIZE = Number("{{size}}"), CHIP_SIZE = Number("{{chip_size}}");
+  const MODE = "{{mode}}", ANCHOR = "{{anchor}}", MAXW = Number("{{max_width}}");
+  const SCORE = "{{score}}", OUT = "{{out_of}}", COUNT = "{{count}}" === "1", STAMP = "{{stamp}}".trim();
+  const T_STAMP = Number("{{t_stamp}}"), T_WIN = Number("{{t_win}}"), TAIL = "{{tail}}";
+  const card = document.getElementById("card"), lines = document.getElementById("lines"), pos = document.getElementById("pos");
+  const badge = document.getElementById("badge"), stampEl = document.getElementById("stamp");
+
+  function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+  const dec = (SCORE.split(".")[1] || "").length;
+  const fmt = v => Number(v).toFixed(dec);
+  let numEls = [];
+  if (MODE === "chip") {
+    card.classList.add("chip");
+    lines.innerHTML = '<span class="ln" data-layout-allow-occlusion>' + esc("{{chip}}") + '</span>';
+  } else {
+    const out = [];
+    if ("{{name}}".trim()) out.push('<span class="ln" data-layout-allow-occlusion>' + esc("{{name}}") + '</span>');
+    if (SCORE.trim()) {
+      const L = esc("{{score_label}}"), n = '<span class="num" data-layout-allow-occlusion>' + esc(SCORE) + '</span>', o = esc(OUT), st = "{{score_style}}";
+      const s = st === "colon" ? L + ": " + n + " out of " + o : st === "slash" ? L + " " + n + "/" + o : L + " (" + n + " out of " + o + ")";
+      out.push('<span class="ln" data-layout-allow-occlusion>' + s + '</span>');
+    }
+    if ("{{price}}".trim()) out.push('<span class="ln" data-layout-allow-occlusion>' + esc(("{{price_label}}" + " {{price}}").trim()) + '</span>');
+    lines.innerHTML = out.join("");
+    numEls = Array.from(lines.querySelectorAll(".num"));
+    if (MODE === "winner") card.classList.add("winner");
+  }
+  if (MODE !== "winner") badge.remove();
+  if (!STAMP || MODE === "chip") stampEl.remove();
+  const bv = document.getElementById("bv");
+  if (bv) bv.textContent = fmt(SCORE || 0) + " / " + OUT;
+  const blEl = document.getElementById("bl");
+  if (blEl && !"{{badge_label}}".trim()) blEl.remove();
+  const n0 = numEls[0] || null;
+
+  // tail (speech-bubble pointer) for the chip
+  const tail = document.getElementById("tail");
+  if (MODE === "chip" && TAIL !== "none") {
+    tail.style.display = "block";
+    if (TAIL === "left") Object.assign(tail.style, { left: "-11px", top: "calc(50% - 15px)" });
+    if (TAIL === "right") Object.assign(tail.style, { right: "-11px", top: "calc(50% - 15px)" });
+    if (TAIL === "down") Object.assign(tail.style, { left: "calc(50% - 15px)", bottom: "-11px" });
+    if (TAIL === "up") Object.assign(tail.style, { left: "calc(50% - 15px)", top: "-11px" });
+  }
+
+  // one font size for the whole card; shrink so the widest line fits max_width
+  function layout() {
+    const base = (MODE === "chip" ? CHIP_SIZE : SIZE);
+    card.style.fontSize = base + "px";
+    const k = gsap.getProperty(card, "scaleX") || 1;
+    const w = card.getBoundingClientRect().width / k;
+    const maxW = MAXW / S;
+    if (w > maxW) card.style.fontSize = (base * (maxW - 80) / (w - 80)) + "px";
+    if (STAMP && stampEl.isConnected) {
+      const cw = card.offsetWidth;
+      stampEl.style.fontSize = Math.min(64, cw * 0.1) + "px";
+      const sw = stampEl.offsetWidth;
+      if (sw > cw * 0.92) stampEl.style.fontSize = (parseFloat(stampEl.style.fontSize) * cw * 0.92 / sw) + "px";
+    }
+    const ax = ANCHOR === "center" ? "c" : (ANCHOR[1] || "c"), ay = ANCHOR === "center" ? "c" : ANCHOR[0];
+    gsap.set(pos, { xPercent: { l: 0, c: -50, r: -100 }[ax] ?? 0, yPercent: { t: 0, c: -50, b: -100 }[ay] ?? 0, scale: S,
+                    transformOrigin: ({ l: "0%", c: "50%", r: "100%" }[ax] || "0%") + " " + ({ t: "0%", c: "50%", b: "100%" }[ay] || "0%") });
+    gsap.set(card, { transformOrigin: ({ l: "0%", c: "50%", r: "100%" }[ax] || "0%") + " 50%" });
+  }
+  layout();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
+
+  const tl = gsap.timeline({ paused: true });
+  gsap.set(stampEl, { xPercent: -50, yPercent: -50, rotation: -11 });
+  // entry: the reference hard-cuts; "pop" adds a short spring with a tiny overshoot
+  if ("{{intro}}" === "pop") tl.fromTo(card, { scale: 0.86, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.22, ease: "back.out(1.4)" }, 0);
+  else tl.set(card, { opacity: 1 }, 0);
+  // the score counts up as the card lands
+  if (COUNT && numEls.length && MODE !== "winner") {
+    const o = { v: 0 };
+    tl.to(o, { v: Number(SCORE), duration: 0.5, ease: "power2.out", onUpdate: () => { n0.textContent = o.v.toFixed(dec); } }, 0.05);
+  }
+  // slow push through the hold, so the frame is never dead
+  tl.to("#lines", { scale: 1.015, transformOrigin: "0% 50%", duration: Math.max(0.3, D - 0.5), ease: "none" }, 0.25);
+
+  if (MODE === "winner") {
+    const o = { v: 0 };
+    if (n0) n0.textContent = fmt(0);
+    tl.fromTo(badge, { scale: 0.3, opacity: 0, rotation: -14 }, { scale: 1, opacity: 1, rotation: 4, duration: 0.26, ease: "back.out(1.6)" }, T_WIN);
+    tl.to(o, { v: Number(SCORE), duration: 0.55, ease: "power3.out",
+               onUpdate: () => { bv.textContent = o.v.toFixed(dec) + " / " + OUT; if (n0) n0.textContent = o.v.toFixed(dec); } }, T_WIN + 0.05);
+    // lock: badge snaps square, one gold ring ripples out, card nudges
+    tl.to(badge, { rotation: 0, scale: 1.08, duration: 0.08, ease: "power2.out" }, T_WIN + 0.6);
+    tl.to(badge, { scale: 1, duration: 0.18, ease: "power2.out" }, T_WIN + 0.68);
+    tl.fromTo("#ring", { scale: 1, opacity: 0.9 }, { scale: 1.6, opacity: 0, duration: 0.45, ease: "power2.out" }, T_WIN + 0.6);
+    tl.fromTo(card, { y: 0 }, { y: 5, duration: 0.05, yoyo: true, repeat: 1, ease: "power1.inOut" }, T_WIN + 0.6);
+  }
+  if (STAMP && stampEl.isConnected) {
+    tl.fromTo(stampEl, { scale: 1.9, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.12, ease: "power4.in" }, T_STAMP);
+    tl.to(card, { x: -7, duration: 0.035, yoyo: true, repeat: 3, ease: "none" }, T_STAMP + 0.13);
+    tl.to("#lines", { opacity: 0.55, duration: 0.15 }, T_STAMP + 0.13);
+    tl.to(stampEl, { scale: 1.03, duration: Math.max(0.2, D - T_STAMP - 0.5), ease: "none" }, T_STAMP + 0.3);
+  }
+  if ("{{outro}}" === "pop") tl.to(card, { scale: 0.9, opacity: 0, duration: 0.15, ease: "power2.in" }, D - 0.2);
+  else tl.set(card, { opacity: 0 }, D - 0.01);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

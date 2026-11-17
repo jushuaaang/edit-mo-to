@@ -1,0 +1,160 @@
+<!--defaults {"items": "Valorrea Workbook|Sunday School Attendance|Illustrated Story Bibles|Memory Verse Flashcards|$120 Apologetics Curriculum", "scores": "9.7|6.3|5.5|4.9|4.1", "title": "", "show_scores": "1", "hide_winner": "0", "mystery": "???", "hidden_score": "?", "order": "up", "t_rows": 0.15, "row_step": 0.2, "fail_row": "0", "t_fail": 2.0, "fail_text": "FAILED", "renumber": "1", "win_row": "0", "t_win": 2.2, "float": 6, "top": 330, "x": 540, "width": 920, "row_h": 124, "gap": 20, "scale": 1, "size": 44, "radius": 30, "row_bg": "#ffffff", "ink": "#14244a", "rank_bg": "#1d3a78", "rank_fg": "#ffffff", "score_fg": "#1d3a78", "gold": "#f5b800", "gold_ink": "#14244a", "fail": "#d0202a", "fail_bg": "#ffe4e4", "title_fg": "#ffffff", "font": "Montserrat", "height": 1920, "duration": 4} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height={{height}}" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;700;800;900&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: {{height}}px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; }
+  #stage { position: absolute; inset: 0; }
+  #board { position: absolute; left: {{x}}px; top: {{top}}px; width: {{width}}px; transform-origin: 50% 0%; }
+  #title { position: absolute; left: 50%; bottom: calc(100% + 26px); white-space: nowrap; color: {{title_fg}}; font-weight: 900;
+           font-size: 60px; letter-spacing: .02em; text-transform: uppercase; text-shadow: 0 4px 0 rgba(0,0,0,.35), 0 8px 24px rgba(0,0,0,.35); }
+  .slot { position: absolute; left: 0; top: 0; width: 100%; height: {{row_h}}px; }
+  .float { width: 100%; height: 100%; }
+  .row { position: relative; width: 100%; height: 100%; background: {{row_bg}}; color: {{ink}}; border-radius: {{radius}}px;
+         display: flex; align-items: center; padding: 0 34px 0 20px; gap: 22px; box-shadow: 0 10px 26px rgba(0,0,0,.22); }
+  .rk { position: relative; flex: none; width: 84px; height: 84px; border-radius: 50%; background: {{rank_bg}}; color: {{rank_fg}};
+        font-weight: 900; font-size: 40px; overflow: hidden; }
+  .rk span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  .nm { position: relative; flex: 1 1 auto; min-width: 0; height: 100%; }
+  .nm span { position: absolute; left: 0; top: 50%; white-space: nowrap; font-weight: 700; font-size: {{size}}px; transform: translateY(-50%); }
+  .sc { flex: none; min-width: 110px; text-align: right; font-weight: 900; font-size: 52px; color: {{score_fg}}; font-variant-numeric: tabular-nums; }
+  .row.win { background: {{gold}}; color: {{gold_ink}}; }
+  .row.win .sc, .row.win .rk { color: {{gold_ink}}; }
+  .stamp { position: absolute; left: 50%; top: 50%; padding: 4px 26px 6px; border: 7px solid {{fail}}; border-radius: 14px; color: {{fail}};
+           background: rgba(255,255,255,.92); font-weight: 900; font-size: 58px; letter-spacing: .08em; text-transform: uppercase;
+           white-space: nowrap; opacity: 0; line-height: 1.1; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="{{height}}">
+  <div id="stage" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="board"><div id="title">{{title}}</div></div>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), S = Number("{{scale}}"), RH = Number("{{row_h}}"), GAP = Number("{{gap}}"), W = Number("{{width}}");
+  const ITEMS = "{{items}}".split("|").map(s => s.trim()), SCORES = "{{scores}}".split("|").map(s => s.trim());
+  const N = ITEMS.length, SHOW = "{{show_scores}}" === "1", HIDE_WIN = "{{hide_winner}}" === "1";
+  const FAIL = Math.min(N, Math.max(0, parseInt("{{fail_row}}", 10) || 0)) - 1, WIN = Math.min(N, Math.max(0, parseInt("{{win_row}}", 10) || 0)) - 1;
+  const T_ROWS = Number("{{t_rows}}"), STEP = Number("{{row_step}}"), T_FAIL = Number("{{t_fail}}"), T_WIN = Number("{{t_win}}");
+  const FL = Number("{{float}}"), RENUM = "{{renumber}}" === "1";
+  const board = document.getElementById("board"), title = document.getElementById("title");
+  if (!"{{title}}".trim()) title.remove();
+  const slotY = i => i * (RH + GAP);
+  function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+  const rows = ITEMS.map((name, i) => {
+    const hidden = HIDE_WIN && i === 0;
+    const sc = SCORES[i] || "";
+    const slot = document.createElement("div"); slot.className = "slot";
+    slot.innerHTML = '<div class="float"><div class="row">' +
+      '<div class="rk"><span class="r0" data-layout-allow-overlap data-layout-allow-overflow>' + (i + 1) + '</span><span class="r1" data-layout-allow-overlap data-layout-allow-overflow></span></div>' +
+      '<div class="nm"><span class="n0" data-layout-allow-occlusion data-layout-allow-overlap>' + esc(hidden ? "{{mystery}}" : name) + '</span>' +
+      '<span class="n1" data-layout-allow-occlusion data-layout-allow-overlap>' + esc(name) + '</span></div>' +
+      '<div class="sc" data-layout-allow-occlusion data-layout-allow-overlap>' + esc(SHOW && !hidden ? sc : "{{hidden_score}}") + '</div>' +
+      (i === FAIL ? '<div class="stamp" data-layout-allow-overlap data-layout-allow-occlusion data-layout-allow-overflow>' + esc("{{fail_text}}") + '</div>' : "") +
+      '</div></div>';
+    board.appendChild(slot);
+    return { slot, row: slot.querySelector(".row"), fl: slot.querySelector(".float"), r0: slot.querySelector(".r0"), r1: slot.querySelector(".r1"),
+             n0: slot.querySelector(".n0"), n1: slot.querySelector(".n1"), sc: slot.querySelector(".sc"), score: sc, hidden,
+             dec: (sc.split(".")[1] || "").length };
+  });
+  rows.forEach((r, i) => { gsap.set(r.slot, { y: slotY(i) }); if (!r.hidden) { r.n1.remove(); r.n1 = r.n0; } });
+  gsap.set(board, { xPercent: -50, scale: S });
+  rows.forEach(r => { if (r.hidden) gsap.set(r.n1, { opacity: 0 }); });
+  gsap.set(".r1", { opacity: 0 });
+  if (title) gsap.set(title, { xPercent: -50 });
+
+  // names stay on one line: shrink to the room left by the rank and score
+  function fit() {
+    rows.forEach(r => [...new Set([r.n0, r.n1])].forEach(el => {
+      el.style.fontSize = ""; el.style.whiteSpace = ""; el.style.width = ""; el.style.lineHeight = "";
+      const room = r.n0.parentNode.clientWidth - 4, w = el.scrollWidth, base = parseFloat(getComputedStyle(el).fontSize);
+      if (w > room) {
+        const k = room / w;
+        if (k >= 0.7) el.style.fontSize = (base * k) + "px";
+        else { // too long for one line: two balanced lines, shrinking further only if needed
+          el.style.whiteSpace = "normal"; el.style.width = room + "px"; el.style.lineHeight = "1.08"; el.style.textWrap = "balance";
+          let f = base * 0.78; el.style.fontSize = f + "px";
+          while ((el.scrollHeight > RH - 14 || el.scrollWidth > room) && f > 18) { f -= 1; el.style.fontSize = f + "px"; }
+        }
+      }
+    }));
+    if (title) { title.style.fontSize = ""; const w = title.scrollWidth; if (w > 980 / S) title.style.fontSize = (60 * (980 / S) / w) + "px"; }
+  }
+  fit();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+
+  const tl = gsap.timeline({ paused: true });
+  if (title) tl.fromTo(title, { y: -30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: "back.out(1.3)" }, Math.max(0, T_ROWS - 0.1));
+  // rows drop in one by one (bottom rank first for "up"), each score counts as it lands
+  const seq = rows.map((_, i) => i); if ("{{order}}" === "up") seq.reverse();
+  seq.forEach((i, k) => {
+    const r = rows[i], t = T_ROWS + k * STEP;
+    tl.fromTo(r.row, { y: -90, opacity: 0, scale: 0.94, filter: "blur(8px)" },
+              { y: 0, opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.34, ease: "back.out(1.3)" }, t);
+    if (SHOW && !r.hidden && r.score && !isNaN(Number(r.score))) {
+      const o = { v: 0 }, el = r.sc, dc = r.dec, target = Number(r.score);
+      tl.to(o, { v: target, duration: 0.45, ease: "power2.out", onUpdate: () => { el.textContent = o.v.toFixed(dc); } }, t + 0.08);
+    }
+  });
+  // floating: each row bobs gently, out of phase
+  rows.forEach((r, i) => {
+    const per = 1.5 + i * 0.13, n = Math.max(1, Math.ceil(D / per));
+    tl.fromTo(r.fl, { y: (i % 2 ? FL : -FL) }, { y: (i % 2 ? -FL : FL), duration: per, ease: "sine.inOut", yoyo: true, repeat: n }, 0);
+  });
+
+  // FAILED: stamp slams, row shakes and tints, then drops to the bottom while the rows below rise; ranks renumber
+  if (FAIL >= 0) {
+    const f = rows[FAIL], st = f.row.querySelector(".stamp");
+    gsap.set(st, { xPercent: -50, yPercent: -50, rotation: -9 });
+    tl.fromTo(st, { scale: 1.9, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.12, ease: "power4.in" }, T_FAIL);
+    tl.to(f.row, { x: -8, duration: 0.035, yoyo: true, repeat: 3, ease: "none" }, T_FAIL + 0.12);
+    tl.to(f.row, { backgroundColor: "{{fail_bg}}", duration: 0.15 }, T_FAIL + 0.12);
+    tl.to(f.row.querySelector(".rk"), { backgroundColor: "{{fail}}", duration: 0.15 }, T_FAIL + 0.12);
+    const tm = T_FAIL + 0.5;
+    if (FAIL < N - 1) {
+      tl.to(f.slot, { y: slotY(N - 1), duration: 0.55, ease: "power3.inOut" }, tm);
+      tl.to(f.row, { rotation: 3, duration: 0.25, ease: "power2.out", yoyo: true, repeat: 1 }, tm);
+      tl.set(f.slot, { zIndex: 5 }, tm);
+      for (let j = FAIL + 1; j < N; j++) {
+        const r = rows[j];
+        tl.to(r.slot, { y: slotY(j - 1), duration: 0.45, ease: "power3.inOut" }, tm + 0.05 + (j - FAIL - 1) * 0.04);
+        if (RENUM) {
+          r.r1.textContent = j; tl.to(r.r0, { y: -40, opacity: 0, duration: 0.2 }, tm + 0.25); tl.set(r.r0, { display: "none" }, tm + 0.46);
+          tl.fromTo(r.r1, { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.25, ease: "power2.out" }, tm + 0.25);
+        }
+      }
+      if (RENUM) {
+        f.r1.textContent = N; tl.to(f.r0, { y: -40, opacity: 0, duration: 0.2 }, tm + 0.35); tl.set(f.r0, { display: "none" }, tm + 0.56);
+        tl.fromTo(f.r1, { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.25, ease: "power2.out" }, tm + 0.35);
+      }
+    }
+  }
+  // winner: row turns gold and lifts; a hidden winner name and score are revealed here
+  if (WIN >= 0) {
+    const w = rows[WIN];
+    tl.to(w.row, { scale: 1.05, duration: 0.3, ease: "back.out(1.5)" }, T_WIN);
+    tl.fromTo(w.row, { backgroundColor: "{{row_bg}}" }, { backgroundColor: "{{gold}}", duration: 0.2, immediateRender: false }, T_WIN);
+    tl.fromTo(w.row.querySelector(".rk"), { backgroundColor: "{{rank_bg}}", color: "{{rank_fg}}" }, { backgroundColor: "{{gold_ink}}", color: "{{gold}}", duration: 0.2, immediateRender: false }, T_WIN);
+    tl.fromTo(w.row.querySelectorAll(".nm span, .sc"), { color: "{{ink}}" }, { color: "{{gold_ink}}", duration: 0.2, immediateRender: false }, T_WIN);
+    if (w.hidden) {
+      tl.to(w.n0, { opacity: 0, filter: "blur(10px)", duration: 0.2 }, T_WIN);
+      tl.fromTo(w.n1, { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.28 }, T_WIN + 0.1);
+    }
+    if ((w.hidden || !SHOW) && w.score && !isNaN(Number(w.score))) {
+      const o = { v: 0 }, el = w.sc, dc = w.dec, target = Number(w.score);
+      tl.to(o, { v: target, duration: 0.55, ease: "power3.out", onUpdate: () => { el.textContent = o.v.toFixed(dc); } }, T_WIN + 0.1);
+    }
+    tl.to(w.row, { scale: 1.035, duration: 0.25, ease: "power2.out" }, T_WIN + 0.7);
+  }
+  tl.to(board, { opacity: 0, y: -30, duration: 0.18, ease: "power2.in" }, D - 0.2);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>
