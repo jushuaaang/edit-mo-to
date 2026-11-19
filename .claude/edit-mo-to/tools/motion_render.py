@@ -16,7 +16,7 @@ CLI (prints JSON):
                                                  HyperFrames audit: lint, runtime errors, text overflow/overlap,
                                                  contrast. Held problems are errors/warnings; entrance blips are info
     preview <file.mov> <out.png> [seconds]       one frame composited over green (check transparency)
-    previews [--only a,b]                        a still per template in ..\motion\previews\<name>.jpg (the app's
+    previews [--only a,b]                        a still per template in ../motion/previews/<name>.jpg (the app's
                                                  "Pick the graphics" cards); render_concurrency at a time
     trace <logo.png> <out.svg> [--threshold 0-255] [--invert]
                                                  trace a PNG logo to a one-colour SVG outline (OpenCV
