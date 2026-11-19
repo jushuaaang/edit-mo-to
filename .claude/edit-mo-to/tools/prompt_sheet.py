@@ -168,16 +168,16 @@ def render(data: dict, title: str, job: str) -> str:
 
 
 TEMPLATE = r"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{TITLE}}</title>
 <style>
-:root{--bg:#f6f5f2;--card:#fff;--ink:#17171a;--mute:#6b6b73;--line:#e3e1dc;--acc:#2f5bea;--acc-ink:#fff;--chip:#efeee9;--ok:#1f8a4c;--warn:#b35c00;--pre:#f3f2ee}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121214;--card:#1c1c20;--ink:#ecebe8;--mute:#9a9aa3;--line:#2c2c32;--acc:#7c9bff;--acc-ink:#0d0d10;--chip:#26262c;--ok:#4cc27f;--warn:#f0a050;--pre:#16161a}}
-:root[data-theme="dark"]{--bg:#121214;--card:#1c1c20;--ink:#ecebe8;--mute:#9a9aa3;--line:#2c2c32;--acc:#7c9bff;--acc-ink:#0d0d10;--chip:#26262c;--ok:#4cc27f;--warn:#f0a050;--pre:#16161a}
+:root{--bg:#121214;--card:#1c1c20;--ink:#ecebe8;--mute:#9a9aa3;--line:#2c2c32;--acc:#7c9bff;--acc-ink:#0d0d10;--chip:#26262c;--ok:#4cc27f;--warn:#f0a050;--pre:#16161a;color-scheme:dark}
+:root[data-theme="light"]{--bg:#f6f5f2;--card:#fff;--ink:#17171a;--mute:#6b6b73;--line:#e3e1dc;--acc:#2f5bea;--acc-ink:#fff;--chip:#efeee9;--ok:#1f8a4c;--warn:#b35c00;--pre:#f3f2ee;color-scheme:light}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-header{padding:28px 16px 8px;max-width:880px;margin:0 auto}
-h1{font-size:22px;margin:0 0 4px;letter-spacing:-.01em}
+header{padding:28px 16px 8px;max-width:880px;margin:0 auto;position:relative}
+#theme{position:absolute;top:24px;right:16px;background:var(--chip);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font:13px/1 inherit;cursor:pointer}
+h1{font-size:22px;margin:0 0 4px;letter-spacing:-.01em;padding-right:96px}
 .sub{color:var(--mute);font-size:13px}
 nav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
 nav .in{max-width:880px;margin:0 auto;padding:8px 16px;display:flex;gap:6px;overflow-x:auto;align-items:center}
@@ -220,13 +220,18 @@ details.setup dl{margin-top:8px}
 #toast.show{opacity:1;transform:translateX(-50%)}
 </style></head>
 <body>
-<header><h1>{{TITLE}}</h1><div class="sub" id="sub"></div></header>
+<header><button id="theme" type="button" aria-label="Switch light or dark"></button><h1>{{TITLE}}</h1><div class="sub" id="sub"></div></header>
 <nav><div class="in" id="nav"></div></nav>
 <main id="main"></main>
 <div id="toast" role="status" aria-live="polite"></div>
 <script>
 const DATA = {{DATA}};
 const KEY = {{KEY}};
+const THEME_KEY = "promptsheet:theme";
+function setTheme(m){ document.documentElement.dataset.theme = m; const b=document.getElementById("theme"); if (b) b.textContent = m === "dark" ? "☀ Light" : "☾ Dark"; }
+let theme = "dark"; try { theme = localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark"; } catch (e) {}
+setTheme(theme);
+document.getElementById("theme").addEventListener("click", () => { theme = theme === "dark" ? "light" : "dark"; setTheme(theme); try { localStorage.setItem(THEME_KEY, theme); } catch (e) {} });
 const $ = (s, el=document) => el.querySelector(s);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 let done = {};

@@ -99,6 +99,14 @@ def test_setup_folded_and_copy_fallback(tmp_path):
     assert '<details class="setup">' in html   # closed by default: prompts come first on screen
 
 
+def test_dark_by_default_with_light_switch(tmp_path):
+    html = ps.render(ps.collect(tmp_path, [_spec(tmp_path, SPEC2)], SCRIPT, None), "S", "j")
+    assert '<html lang="en" data-theme="dark">' in html
+    assert ":root{--bg:#121214" in html and ':root[data-theme="light"]{--bg:#f6f5f2' in html
+    assert "prefers-color-scheme" not in html          # the system setting never turns it light
+    assert 'id="theme"' in html and '"promptsheet:theme"' in html
+
+
 def test_nothing_to_show_exits_2(tmp_path):
     r = subprocess.run([sys.executable, str(TOOL), str(tmp_path), "--out", str(tmp_path / "s.html")],
                        capture_output=True, text=True)
