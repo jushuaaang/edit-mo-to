@@ -17,6 +17,7 @@ A practice run ("practice muna": practise first) is a **real `/edit-mo-to` job, 
 **Speed:** a practice works exactly like a real job, only faster, because the output is about 10 s: keep agent jobs small, run independent agents in parallel, and skip nothing. A practice takes about 15–25 minutes.
 
 ## Chat or app
+**The app is turned off for now** (as in `/edit-mo-to`, `.claude/edit-mo-to/app.json`): run chat mode only and skip the app parts below; if the editor asks for the app, say it's turned off for now.
 Like `/edit-mo-to`, a practice runs in one of two modes (that skill's "Two modes"): **chat mode** (`/practice-muna`) or **app mode** (`/practice-muna-app`, or a session the app opened).
 - **Chat mode:** everything happens in this chat. Ask for the brief here: ⛔ "Send me a brief (any kind: a clip of you talking, an explainer, an ad), or say 'surprise me'. Everything is optional." Make the practice folder `{root}/_practice/Practice <date>/` (a plain folder; with a clip, copy it into its `refs/`), then go on at "pick the kind of practice" below. No `launch.py`, `job.py`, `wait.py` or `say`; skip the app parts of this file.
 - **App mode:** this section and the rest as written.

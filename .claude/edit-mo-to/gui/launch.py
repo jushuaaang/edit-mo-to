@@ -38,6 +38,18 @@ import server  # noqa: E402
 
 WAIT_LOCK, STALE_AFTER = 40, 120  # seconds: how long a launch waits for another, when a lock is abandoned
 PORT_TRIES = 11  # the first port and the next ten
+APP_SWITCH = GUI.parent / "app.json"   # {"enabled": false} turns the Edit Mo To app off for every editor
+
+
+def app_enabled(path: "Path | None" = None) -> bool:
+    """False when app.json says {"enabled": false} or can't be read; True when the file is missing (older installs)."""
+    f = path or Path(os.environ.get("EDIT_MO_TO_APP_SWITCH") or APP_SWITCH)   # the env var: tests only
+    if not f.exists():
+        return True
+    try:
+        return json.loads(f.read_text(encoding="utf-8")).get("enabled") is True
+    except (OSError, ValueError, AttributeError):
+        return False
 
 
 def _tmp() -> Path:
@@ -294,6 +306,11 @@ def main(argv: "list[str] | None" = None) -> None:
     p.add_argument("--open", action="store_true")
     p.add_argument("--port", type=int)
     a = p.parse_args(argv)
+    if not app_enabled():
+        print(json.dumps({"ok": False, "disabled": True,
+                          "error": "The Edit Mo To app is turned off (.claude/edit-mo-to/app.json). Use /edit-mo-to in the chat."}),
+              flush=True)
+        sys.exit(1)
     try:
         first = a.port or int(machine.PATHS.get("gui_port") or server.DEFAULT_PORT)
         info, reused = launch(first, _tmp())

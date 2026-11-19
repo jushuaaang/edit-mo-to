@@ -56,6 +56,7 @@ def env(tmp_path, monkeypatch):
     tmp = tmp_path / "tmp"
     tmp.mkdir()
     monkeypatch.setenv("EDIT_MO_TO_GUI_TMP", str(tmp))
+    monkeypatch.setenv("EDIT_MO_TO_APP_SWITCH", str(tmp_path / "app.json"))   # no file: the app is on
     yield tmp
     pid = info_pid(tmp)
     if pid:

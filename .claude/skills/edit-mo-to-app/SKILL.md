@@ -2,6 +2,7 @@
 name: edit-mo-to-app
 description: The edit-mo-to client video workflow WITH the Edit Mo To app (the editor's browser companion: steps, questions, job card, previews). Use only when the user types /edit-mo-to-app, or when the app's Start / Resume opened this session. For the chat-only workflow use /edit-mo-to.
 disable-model-invocation: true
+user-invocable: false
 ---
 
 # /edit-mo-to-app

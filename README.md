@@ -74,7 +74,7 @@ something needs me (a login, a restart, or installing CapCut).
 
 Afterwards, always start Claude Code **in your video folder** (for example `D:\Video Editing`).
 
-**Chat or app.** `/edit-mo-to` and `/practice-muna` run in the chat only. Add `-app` to work with **Edit Mo To**, a companion app in your default browser: `/edit-mo-to-app` and `/practice-muna-app`. The app shows each video's 12 steps, Claude's questions with buttons to answer them, the tables and prompts with Copy buttons, and the storyboard. The chat keeps working too: answer in whichever you like.
+**Chat only for now.** The Edit Mo To app is turned off (`.claude/edit-mo-to/app.json`), so use `/edit-mo-to` and `/practice-muna` in the chat; the app parts below come back when it is turned on again. `/edit-mo-to` and `/practice-muna` run in the chat only. Add `-app` to work with **Edit Mo To**, a companion app in your default browser: `/edit-mo-to-app` and `/practice-muna-app`. The app shows each video's 12 steps, Claude's questions with buttons to answer them, the tables and prompts with Copy buttons, and the storyboard. The chat keeps working too: answer in whichever you like.
 
 ## Step 2 · Practise first: `/practice-muna`
 
@@ -115,6 +115,8 @@ You:     Client B-roll.
 Lists and plans come as tables in the chat. Times are written `seconds:frames`: `7:12` means 7 seconds and 12 frames.
 
 ## The app (Edit Mo To)
+
+> **Turned off for now.** To turn it back on, set `.claude/edit-mo-to/app.json` to `{"enabled": true}` and remove `user-invocable: false` from `.claude/skills/edit-mo-to-app/SKILL.md` and `.claude/skills/practice-muna-app/SKILL.md`.
 
 Claude opens a small app in your browser next to the chat. You can answer every stop there instead of typing in the chat, and Claude carries on by itself.
 

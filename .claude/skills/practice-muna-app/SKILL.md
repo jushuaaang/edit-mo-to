@@ -2,6 +2,7 @@
 name: practice-muna-app
 description: A 10-second practice run of the edit-mo-to workflow WITH the Edit Mo To app (the editor's browser companion). Use only when the user types /practice-muna-app, or when the app's Start practice / Resume opened this session. For a chat-only practice use /practice-muna.
 disable-model-invocation: true
+user-invocable: false
 ---
 
 # /practice-muna-app
