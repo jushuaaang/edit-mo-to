@@ -83,6 +83,12 @@ def test_rewritten_note_chip(tmp_path):
     assert "rewritten after a flag" in _cards(data)[0]["chips"]
 
 
+def test_setup_folded_and_copy_fallback(tmp_path):
+    html = ps.render(ps.collect(tmp_path, [_spec(tmp_path, SPEC2)], SCRIPT, None), "S", "j")
+    assert 'execCommand("copy")' in html
+    assert '<details class="setup">' in html   # closed by default: prompts come first on screen
+
+
 def test_nothing_to_show_exits_2(tmp_path):
     r = subprocess.run([sys.executable, str(TOOL), str(tmp_path), "--out", str(tmp_path / "s.html")],
                        capture_output=True, text=True)

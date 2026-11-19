@@ -208,6 +208,7 @@ tr.client td{color:var(--mute)}
 a{color:var(--acc)}
 dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:0;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px}
 dt{color:var(--mute)}dd{margin:0;word-break:break-word}
+details.setup dl{margin-top:8px}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:14px;transition:.2s;pointer-events:none}
 #toast.show{opacity:1;transform:translateX(-50%)}
 </style></head>
@@ -227,7 +228,12 @@ function save(){ try { localStorage.setItem(KEY, JSON.stringify(done)); } catch 
 function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),1600); }
 async function copy(text, pre, btn){
   try { await navigator.clipboard.writeText(text); toast("Copied"); btn.classList.add("ok"); btn.textContent="Copied ✓"; setTimeout(()=>{btn.classList.remove("ok");btn.textContent="Copy prompt";},1500); }
-  catch (e) { const r=document.createRange(); r.selectNodeContents(pre); const s=getSelection(); s.removeAllRanges(); s.addRange(r); toast("Press Ctrl/Cmd+C to copy the selected prompt"); }
+  catch (e) {
+    const r=document.createRange(); r.selectNodeContents(pre); const s=getSelection(); s.removeAllRanges(); s.addRange(r);
+    let ok = false; try { ok = document.execCommand("copy"); } catch (e2) {}
+    if (ok) { s.removeAllRanges(); toast("Copied"); btn.classList.add("ok"); btn.textContent="Copied ✓"; setTimeout(()=>{btn.classList.remove("ok");btn.textContent="Copy prompt";},1500); }
+    else toast("Press Ctrl/Cmd+C to copy the selected prompt");
+  }
 }
 const all = [...DATA.characters, ...DATA.keyframes, ...DATA.groups.flatMap(g => g.cards)];
 function progress(){ const n = all.filter(c => done[c.kind+":"+c.id]).length; $("#prog").textContent = n + " / " + all.length + " done"; }
@@ -248,8 +254,9 @@ function card(c){
 }
 const main = $("#main"), nav = $("#nav"), links = [];
 function section(id, title, note){ const s=document.createElement("section"); s.id=id; s.innerHTML=`<h2>${esc(title)}</h2>${note?`<p class="note">${esc(note)}</p>`:""}`; main.appendChild(s); links.push([id,title]); return s; }
-if (DATA.setup.length){ const s=section("setup","Setup"); const dl=document.createElement("dl");
-  dl.innerHTML = DATA.setup.map(([k,v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join(""); s.appendChild(dl); }
+if (DATA.setup.length){ const s=section("setup","Setup"); const d=document.createElement("div");
+  d.innerHTML = `<details class="setup"><summary>Generator, attachments and notes (${DATA.setup.length})</summary><dl>${DATA.setup.map(([k,v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></details>`;
+  s.appendChild(d.firstChild); }
 if (DATA.characters.length){ const s=section("characters","Character sheets","Generate these first and save each as its Save-as name."); DATA.characters.forEach(c=>s.appendChild(card(c))); }
 if (DATA.keyframes.length || DATA.waiting_keyframes.length){
   const s=section("keyframes","Storyboard keyframes", DATA.waiting_keyframes.length && !DATA.keyframes.length ? "The keyframe prompts come after the character sheet is saved." : "");
