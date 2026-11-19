@@ -70,6 +70,16 @@ def test_two_specs_two_groups(tmp_path):
     assert [g["title"] for g in data["groups"]] == ["Nat_T01", "Nat_T02"]
 
 
+def test_same_ids_in_two_timelines_get_own_keys(tmp_path):
+    a = _spec(tmp_path, dict(SPEC2, job="Nat_T01"), "T01/prompts2.json")
+    b = _spec(tmp_path, dict(SPEC2, job="Nat_T02"), "T02/prompts2.json")
+    data = ps.collect(tmp_path, [a, b], SCRIPT, None)
+    keys = [c["key"] for c in _cards(data)]
+    assert len(keys) == len(set(keys)) == 4
+    ai1 = [r for r in data["order"] if r["id"] == "AI-1"]
+    assert ai1[0]["key"] != ai1[1]["key"] and {r["key"] for r in ai1} <= set(keys)
+
+
 def test_script_tag_escaped(tmp_path):
     _board(tmp_path, [{"id": "SB-1", "line": "x", "prompt": "evil </script><b>hi</b>", "status": "prompt"}])
     html = ps.render(ps.collect(tmp_path, [], [], None), "Sheet", "job")

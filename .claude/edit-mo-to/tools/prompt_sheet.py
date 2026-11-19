@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import html as _html
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -53,6 +54,11 @@ def _attach_chips(spec: dict, p: dict) -> list[str]:
     return [f"{a} = {Path(str(att[a])).name}" if a in att else a for a in p.get("attach", [])]
 
 
+def _key(scope: str, kind: str, pid) -> str:
+    """Done-tick key and DOM id of a card: unique per timeline group, safe in an id and a #link."""
+    return re.sub(r"[^A-Za-z0-9_-]", "_", f"{scope}-{kind}-{pid}")
+
+
 def _sb_card(item: dict, kind: str) -> dict:
     chips = [f"Save as {item['id']}.png"]
     if item.get("status") == "changed":
@@ -60,10 +66,10 @@ def _sb_card(item: dict, kind: str) -> dict:
     return {"id": item["id"], "title": pt._plain(item["id"]) if kind == "keyframe" else
             f"{pt._plain(item['id'])} · {item.get('name', '')}".rstrip(" ·"),
             "line": item.get("line") if isinstance(item.get("line"), str) else "", "en": item.get("en", ""),
-            "vo": "", "length": "", "chips": chips, "copy": item["prompt"], "kind": kind}
+            "vo": "", "length": "", "chips": chips, "copy": item["prompt"], "kind": kind, "key": _key("sb", kind, item["id"])}
 
 
-def _spec_card(spec: dict, p: dict, script_lines: list[str], gen_label: str) -> dict:
+def _spec_card(spec: dict, p: dict, script_lines: list[str], gen_label: str, scope: str) -> dict:
     kind = pt._kind(p)
     chips = _attach_chips(spec, p)
     chips.append(f"Save as {p['id']}.png" if kind in pt.IMAGE_KINDS else f"Save as {p['id']}….mp4")
@@ -75,7 +81,7 @@ def _spec_card(spec: dict, p: dict, script_lines: list[str], gen_label: str) -> 
         chips.append(str(p["note"]))
     return {"id": str(p["id"]), "title": pt._plain(p["id"]), "line": _line(script_lines, p), "en": "",
             "vo": _vo(p), "length": _length(p), "gen": gen_label if kind == "video" else "",
-            "chips": chips, "copy": pt._block(spec, p), "kind": kind}
+            "chips": chips, "copy": pt._block(spec, p), "kind": kind, "key": _key(scope, kind, p["id"])}
 
 
 def _sorted_rows(spec: dict) -> list[dict]:
@@ -109,14 +115,14 @@ def collect(folder: Path, specs: list[Path], script_lines: list[str], timings: d
                 board_ids.add(b["id"])
             elif (b.get("shot") or {}).get("type") != "client":
                 data["waiting_keyframes"].append(b.get("id"))
-    for path in specs:
+    for gi, path in enumerate(specs):
         spec = json.loads(Path(path).read_text(encoding="utf-8"))
         title = spec.get("job") or (Path(path).parent.name if len(specs) > 1 else "Clips")
         gen_label = gens.for_spec(spec)["label"] if spec.get("generator") else ""
         for p in spec.get("prompts", []):   # image prompts from the spec, unless the storyboard has that id
             if pt._kind(p) in pt.IMAGE_KINDS and str(p["id"]) not in board_ids:
                 dest = data["characters"] if pt._kind(p) == "character" else data["keyframes"]
-                dest.append(_spec_card(spec, p, script_lines, gen_label))
+                dest.append(_spec_card(spec, p, script_lines, gen_label, "sb"))
                 board_ids.add(str(p["id"]))
         cards = []
         for p in _sorted_rows(spec):
@@ -128,7 +134,8 @@ def collect(folder: Path, specs: list[Path], script_lines: list[str], timings: d
                        if isinstance(p.get("in_f"), int) and isinstance(p.get("out_f"), int) else "")
                 row["source"] = f"Client clip {Path(str(p.get('file', ''))).name}" + (f" · cut {cut}" if cut else "")
             else:
-                cards.append(_spec_card(spec, p, script_lines, gen_label))
+                cards.append(_spec_card(spec, p, script_lines, gen_label, f"g{gi}"))
+                row["key"] = cards[-1]["key"]
                 row["source"] = f"Generate · {gen_label}" if gen_label else "Generate"
             data["order"].append(row)
         if cards:
@@ -236,10 +243,10 @@ async function copy(text, pre, btn){
   }
 }
 const all = [...DATA.characters, ...DATA.keyframes, ...DATA.groups.flatMap(g => g.cards)];
-function progress(){ const n = all.filter(c => done[c.kind+":"+c.id]).length; $("#prog").textContent = n + " / " + all.length + " done"; }
+function progress(){ const n = all.filter(c => done[c.key]).length; $("#prog").textContent = n + " / " + all.length + " done"; }
 function card(c){
-  const el = document.createElement("article"); el.className = "card"; el.id = "p-" + c.kind + "-" + c.id;
-  const k = c.kind + ":" + c.id;
+  const el = document.createElement("article"); el.className = "card"; el.id = "p-" + c.key;
+  const k = c.key;
   const chips = (c.chips||[]).map(x => `<span class="chip${/flag|changed/.test(x)?" flag":""}">${esc(x)}</span>`).join("");
   const meta = [c.vo && ("VO " + c.vo), c.length, c.gen].filter(Boolean).map(esc).join(" · ");
   el.innerHTML = `<div class="head"><span class="cid">${esc(c.title)}</span>${meta?`<span class="meta">${meta}</span>`:""}<div class="chips">${chips}</div></div>
@@ -268,7 +275,7 @@ if (DATA.groups.length){ const s=section("clips","Clip prompts");
 if (DATA.order.length){ const s=section("order","Running order"); const multi = new Set(DATA.order.map(r=>r.group)).size>1;
   const w=document.createElement("div"); w.className="tablewrap";
   w.innerHTML = `<table><thead><tr><th>#</th><th>Clip</th>${multi?"<th>Timeline</th>":""}<th>VO</th><th>Script line</th><th>Source</th></tr></thead><tbody>${
-    DATA.order.map(r => `<tr class="${r.client?"client":""}"><td class="mono">${r.n}</td><td class="mono">${r.client?esc(r.id):`<a href="#p-video-${esc(r.id)}">${esc(r.id)}</a>`}</td>${multi?`<td>${esc(r.group)}</td>`:""}<td class="mono">${esc(r.vo)}</td><td>${esc(r.line)}</td><td>${esc(r.source)}</td></tr>`).join("")}</tbody></table>`;
+    DATA.order.map(r => `<tr class="${r.client?"client":""}"><td class="mono">${r.n}</td><td class="mono">${r.client?esc(r.id):`<a href="#p-${esc(r.key)}">${esc(r.id)}</a>`}</td>${multi?`<td>${esc(r.group)}</td>`:""}<td class="mono">${esc(r.vo)}</td><td>${esc(r.line)}</td><td>${esc(r.source)}</td></tr>`).join("")}</tbody></table>`;
   s.appendChild(w); }
 nav.innerHTML = links.map(([id,t]) => `<a href="#${id}">${esc(t)}</a>`).join("") + `<span class="prog" id="prog"></span>`;
 $("#sub").textContent = all.length + " prompts · Copy gives the exact prompt · Done ticks are saved in this browser only";
