@@ -1,0 +1,430 @@
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "gui"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import jobstate as js  # noqa: E402
+import pytest  # noqa: E402
+
+JOB = Path(__file__).resolve().parents[2] / "gui" / "job.py"
+
+
+@pytest.fixture(autouse=True)
+def _isolated_tmp(tmp_path, monkeypatch):
+    monkeypatch.setenv("EDIT_MO_TO_GUI_TMP", str(tmp_path / "guitmp"))  # subprocesses inherit it
+
+
+def run(*args, ok=True):
+    p = subprocess.run([sys.executable, str(JOB), *map(str, args)], capture_output=True, text=True,
+                       encoding="utf-8")
+    out = json.loads(p.stdout.strip().splitlines()[-1])
+    assert (p.returncode == 0) == ok, p.stdout + p.stderr
+    assert out["ok"] is ok
+    return out
+
+
+def init(tmp_path):
+    folder = tmp_path / "vid"
+    run("init", folder, "--client", "Uvola", "--product", "Cereza")
+    return folder
+
+
+def test_init_without_client_then_card_fills_it(tmp_path):
+    folder = tmp_path / "vid"
+    run("init", folder)  # the app's New video never asks; Claude reads them from the brief
+    assert js.load(folder)["card"]["client"] == "" and js.load(folder)["card"]["product"] == ""
+    run("card", folder, "client=Uvola", "product=Cereza")
+    assert js.load(folder)["card"]["client"] == "Uvola" and js.load(folder)["card"]["product"] == "Cereza"
+
+
+def test_rename_moves_the_folder_and_updates_the_job(tmp_path):
+    folder = tmp_path / "Video 2026-10-31"
+    run("init", folder)
+    job = js.load(folder)
+    job["folder_auto"] = True
+    js.save(folder, job)
+    (folder / "refs").mkdir()
+    out = run("rename", folder, 'Glowra: Vitamin C/Serum')
+    target = tmp_path / "Glowra Vitamin C Serum"
+    assert out["folder"] == target.as_posix() and not folder.exists() and (target / "refs").is_dir()
+    job = js.load(target)
+    assert job["folder"] == job["card"]["folder"] == target.as_posix() and "folder_auto" not in job
+    assert job["renamed_from"] == folder.as_posix()  # an app tab on the old folder follows it
+    assert js.get_current() == target.as_posix()
+    (tmp_path / "Taken").mkdir()
+    run("rename", target, "Taken", ok=False)  # never merges into an existing folder
+    run("rename", target, "_x", ok=False)
+
+
+def run_in(stdin, *args, ok=True):
+    p = subprocess.run([sys.executable, str(JOB), *map(str, args)], input=stdin, capture_output=True, text=True,
+                       encoding="utf-8")
+    out = json.loads(p.stdout.strip().splitlines()[-1])
+    assert (p.returncode == 0) == ok, p.stdout + p.stderr
+    return out
+
+
+def test_say_keeps_claudes_reply_word_for_word(tmp_path):
+    folder = init(tmp_path)
+    text = 'Here\'s the checklist.\n| # | Rule |\n|---|---|\n| 1 | "about 10 s" |\nAnything missing? Ayos ba?'
+    run_in(text, "say", folder)
+    assert js.load(folder)["messages"][-1]["text"] == text
+    run_in("", "say", folder, ok=False)  # nothing to say
+
+
+def test_stop_wait_with_no_waiter_is_quiet(tmp_path):
+    folder = init(tmp_path)
+    assert run("stop-wait", folder)["stopped"] is None
+
+
+def test_init_then_step_and_card(tmp_path):
+    folder = init(tmp_path)
+    run("step", folder, "storyboard", "waiting", "--note", "hi")
+    run("card", folder, "language=es", "timelines=Hook 1|Hook 2", "temp_en=on")
+    job = js.load(folder)
+    assert job["steps"]["storyboard"] == {"state": "waiting", "note": "hi"}
+    assert job["card"]["language"] == "es" and job["card"]["temp_en"] == "on"
+    assert job["card"]["timelines"] == ["Hook 1", "Hook 2"]
+    run("init", folder, "--client", "A", "--product", "B", ok=False)
+    run("init", folder, "--client", "A", "--product", "B", "--resume")
+
+
+def test_bad_step_state_and_card_fail(tmp_path):
+    folder = init(tmp_path)
+    run("step", folder, "storyboard", "bogus", ok=False)
+    run("step", folder, "storyboard", "done")
+    run("card", folder, "temp_en=maybe", ok=False)
+    run("card", folder, "noequals", ok=False)
+    run("card", folder, "temp_en=partial:Hook 1")
+
+
+def test_gate_sets_step_waiting_and_ids_increase(tmp_path):
+    folder = init(tmp_path)
+    g = tmp_path / "g.json"
+    g.write_text(json.dumps({"title": "Pick", "questions": [
+        {"id": "q1", "text": "Which?", "kind": "choice", "options": ["a", "b"]}]}), encoding="utf-8")
+    out = run("gate", folder, "script", "--file", g)
+    assert out["gate"] == "g-1"
+    job = js.load(folder)
+    assert job["steps"]["script"]["state"] == "waiting" and job["gate"]["id"] == "g-1"
+    out = run("gate", folder, "script", "--file", g)
+    assert out["gate"] == "g-2" and any("replac" in l["text"] for l in js.load(folder)["log"])
+    run("close-gate", folder)
+    assert js.load(folder)["gate"] is None
+    assert run("gate", folder, "script", "--file", g)["gate"] == "g-3"
+
+
+def test_bad_gate_file_fails_loudly(tmp_path):
+    folder = init(tmp_path)
+    g = tmp_path / "g.json"
+    g.write_text(json.dumps({"title": "Pick", "questions": [{"id": "q1", "text": "Which?"}]}), encoding="utf-8")
+    out = run("gate", folder, "script", "--file", g, ok=False)
+    assert "kind" in out["error"]
+
+
+def test_output_from_qa_adapter(tmp_path):
+    folder = init(tmp_path)
+    qa = tmp_path / "qa.json"
+    rows = [{"n": i, "check": "c", "status": s, "evidence": "e", "fix": "f", "timeline": "t"}
+            for i, s in enumerate(["PASS", "FAIL", "OPEN"], 1)]
+    qa.write_text(json.dumps({"rows": rows, "passed": 1, "verdict": "FAIL (1 issues)"}), encoding="utf-8")
+    run("output", folder, "build", "qa", "--from", "qa", qa)
+    rec = js.load(folder)["outputs"]["build"]["qa"]
+    stored = json.loads((folder / rec["path"]).read_text(encoding="utf-8"))
+    assert [r["status"] for r in stored["rows"]] == ["ok", "err", "you"]
+    assert rec["at"]
+    run("output", folder, "build", "qa", "--from", "nope", qa, ok=False)
+
+
+def _file(tmp_path, data, name="d.json"):
+    p = tmp_path / name
+    p.write_text(json.dumps(data), encoding="utf-8")
+    return p
+
+
+def test_output_file_shapes(tmp_path):
+    folder = init(tmp_path)
+    script = {"lang": "es", "temp_en": True, "lines": [{"id": "l1", "text": "Hola", "en": "Hi"}]}
+    run("output", folder, "script", "script", "--file", _file(tmp_path, script))
+    assert "script" in js.load(folder)["outputs"]["script"]
+    checklist = {"style": "ugc", "language": "en", "rules": [{"n": 1, "rule": "r", "source": "s", "status": "ok"}],
+                 "questions": []}
+    run("output", folder, "brief", "checklist", "--file", _file(tmp_path, checklist))
+    table = {"title": "T", "columns": ["A", "B"], "rows": [{"id": "1", "cells": ["x", "y"]}]}
+    run("output", folder, "build", "custom", "--file", _file(tmp_path, table))
+
+    bad = run("output", folder, "script", "script", "--file", _file(tmp_path, {**script, "temp_en": "yes"}), ok=False)
+    assert "temp_en" in bad["error"]
+    bad = run("output", folder, "brief", "checklist", "--file",
+              _file(tmp_path, {**checklist, "rules": [{"n": 1, "rule": "r"}]}), ok=False)
+    assert "source" in bad["error"]
+    bad = run("output", folder, "build", "custom", "--file",
+              _file(tmp_path, {**table, "rows": [{"id": "1", "cells": ["x"]}]}), ok=False)
+    assert "cells" in bad["error"]
+    bad = run("output", folder, "build", "custom", "--file", _file(tmp_path, {"columns": []}), ok=False)
+    assert "title" in bad["error"]
+
+
+def test_output_kind_is_sanitized(tmp_path):
+    folder = init(tmp_path)
+    table = {"title": "T", "columns": ["A"], "rows": []}
+    out = run("output", folder, "build", "../evil", "--file", _file(tmp_path, table), ok=False)
+    assert "kind" in out["error"]
+
+
+def test_malformed_input_prints_json_error(tmp_path):
+    folder = init(tmp_path)
+    run("gate", folder, "script", "--file", _file(tmp_path, ["not", "an", "object"]), ok=False)
+    run("gate", folder, "script", "--file", _file(tmp_path, {"title": "T", "questions": ["x"]}), ok=False)
+    run("gate", folder, "script", "--file", _file(tmp_path, {"title": "T", "questions": []}), ok=False)
+    run("output", folder, "build", "qa", "--from", "qa", _file(tmp_path, [1, 2]), ok=False)
+
+
+def test_mixed_kind_gate_accepted(tmp_path):
+    folder = init(tmp_path)
+    g = {"title": "Mixed", "questions": [{"id": "a", "text": "?", "kind": "choice"},
+                                         {"id": "b", "text": "?", "kind": "text"}]}
+    assert run("gate", folder, "script", "--file", _file(tmp_path, g))["gate"] == "g-1"
+
+
+def test_folder_is_resolved(tmp_path, monkeypatch):
+    (tmp_path / "sub").mkdir()
+    monkeypatch.chdir(tmp_path)
+    run("init", "sub/../vid", "--client", "A", "--product", "B")
+    assert js.load(tmp_path / "vid")["folder"] == (tmp_path / "vid").resolve().as_posix()
+
+
+def test_run_launcher_help():
+    import shutil
+    if not shutil.which("sh"):
+        pytest.skip("no sh")
+    root = Path(__file__).resolve().parents[4]
+    p = subprocess.run(["sh", ".claude/edit-mo-to/run", "gui/job.py", "--help"], cwd=root,
+                       capture_output=True, text=True)
+    assert p.returncode == 0 and "init" in p.stdout
+
+
+def test_init_and_open_set_current(tmp_path):
+    folder = init(tmp_path)
+    other = tmp_path / "other"
+    run("init", other, "--client", "A", "--product", "B")
+    run("open", folder)
+    cur = json.loads((tmp_path / "guitmp" / "gui" / "current.json").read_text(encoding="utf-8"))
+    assert cur == {"folder": folder.as_posix()}
+    run("open", tmp_path / "nojob", ok=False)
+
+
+def test_log_appends(tmp_path):
+    folder = init(tmp_path)
+    for i in range(3):
+        run("log", folder, f"line {i}")
+    assert [l["text"] for l in js.load(folder)["log"]] == ["line 0", "line 1", "line 2"]
+
+
+def test_inbox_unhandled(tmp_path):
+    folder = init(tmp_path)
+    js.append_event(folder, {"type": "comment", "text": "a"})
+    js.append_event(folder, {"type": "comment", "text": "b"})
+    run("handled", folder, 1)
+    out = run("inbox", folder, "--unhandled")
+    assert [e["seq"] for e in out["events"]] == [2]
+    assert [e["seq"] for e in run("inbox", folder, "--after", 1)["events"]] == [2]
+    assert len(run("inbox", folder)["events"]) == 2
+
+
+def test_current_job_roundtrip(tmp_path, monkeypatch):
+    import machine
+    monkeypatch.delenv("EDIT_MO_TO_GUI_TMP")
+    monkeypatch.setitem(machine.PATHS, "tmp", str(tmp_path / "t"))
+    folder = tmp_path / "vid"
+    folder.mkdir()
+    assert js.get_current() is None
+    js.set_current(folder)
+    assert js.get_current() == folder.as_posix()
+    cur = tmp_path / "t" / "gui" / "current.json"
+    assert json.loads(cur.read_text(encoding="utf-8")) == {"folder": folder.as_posix()}
+
+
+def test_parallel_outputs_all_land(tmp_path):
+    """Claude runs Bash calls in parallel: every job.py writer must load-modify-save under a cross-process lock."""
+    folder = init(tmp_path)
+    table = _file(tmp_path, {"title": "T", "columns": ["A"], "rows": [{"id": "1", "cells": ["x"]}]})
+    kinds = [f"prompts-{c}" for c in "abcdefghij"]
+    procs = [subprocess.Popen([sys.executable, str(JOB), "output", str(folder), "prompts", k, "--file", str(table)],
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
+             for k in kinds]
+    outs = [p.communicate(timeout=60) for p in procs]
+    assert [p.returncode for p in procs] == [0] * len(kinds), outs
+    assert sorted(js.load(folder)["outputs"]["prompts"]) == kinds
+
+
+def test_parallel_mixed_writers_all_land(tmp_path):
+    folder = init(tmp_path)
+    cmds = [["log", str(folder), f"line {i}"] for i in range(6)] + \
+           [["step", str(folder), s, "done"] for s in ("brief", "script", "voiceover", "timing")]
+    procs = [subprocess.Popen([sys.executable, str(JOB), *c], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              text=True, encoding="utf-8") for c in cmds]
+    outs = [p.communicate(timeout=60) for p in procs]
+    assert [p.returncode for p in procs] == [0] * len(cmds), outs
+    job = js.load(folder)
+    assert sorted(l["text"] for l in job["log"]) == [f"line {i}" for i in range(6)]
+    assert all(job["steps"][s]["state"] == "done" for s in ("brief", "script", "voiceover", "timing"))
+
+
+def test_lock_is_held_across_processes(tmp_path):
+    """While one process holds the folder lock, a writer in another process waits for it."""
+    import time
+    folder = init(tmp_path)
+    with js.lock(folder):
+        p = subprocess.Popen([sys.executable, str(JOB), "log", str(folder), "late"], stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, text=True, encoding="utf-8")
+        time.sleep(1.5)
+        assert p.poll() is None, "job.py wrote while another process held the lock"
+        job = js.load(folder)
+        job["log"].append({"at": "x", "text": "mine"})
+        js.save(folder, job)
+    p.communicate(timeout=30)
+    assert [l["text"] for l in js.load(folder)["log"]] == ["mine", "late"]
+
+
+def run_stdin(stdin, *args, ok=True):
+    p = subprocess.run([sys.executable, str(JOB), *map(str, args)], input=stdin, capture_output=True, text=True,
+                       encoding="utf-8")
+    out = json.loads(p.stdout.strip().splitlines()[-1])
+    assert (p.returncode == 0) == ok, p.stdout + p.stderr
+    return out
+
+
+def test_gate_and_output_read_stdin(tmp_path):
+    folder = init(tmp_path)
+    gate = {"title": "Pick", "questions": [{"id": "q1", "text": "Cuál?", "kind": "confirm"}]}
+    assert run_stdin(json.dumps(gate, ensure_ascii=False), "gate", folder, "script", "--file", "-")["gate"] == "g-1"
+    assert js.load(folder)["gate"]["questions"][0]["text"] == "Cuál?"
+    table = {"title": "T", "columns": ["A"], "rows": [{"id": "1", "cells": ["x"]}]}
+    run_stdin(json.dumps(table), "output", folder, "build", "custom", "--file", "-")
+    assert "custom" in js.load(folder)["outputs"]["build"]
+    qa = {"rows": [], "passed": 1, "verdict": "PASS"}
+    run_stdin(json.dumps(qa), "output", folder, "build", "qa", "--from", "qa", "-")
+    assert "qa" in js.load(folder)["outputs"]["build"]
+    assert run_stdin("not json", "gate", folder, "script", "--file", "-", ok=False)["ok"] is False
+
+
+def test_input_is_read_before_the_lock(tmp_path, monkeypatch):
+    """gate / output read their JSON (stdin or file) before taking the folder lock, so a slow stdin never holds it."""
+    import contextlib
+    import io
+    import job
+    folder = init(tmp_path)
+    state = {"locked": False, "read_while_locked": None}
+
+    @contextlib.contextmanager
+    def fake_lock(f):
+        state["locked"] = True
+        try:
+            yield
+        finally:
+            state["locked"] = False
+
+    class Stdin:
+        def __init__(self, data):
+            self.buffer = self
+            self.data = data
+
+        def read(self):
+            state["read_while_locked"] = state["locked"]
+            return self.data
+
+    monkeypatch.setattr(js, "lock", fake_lock)
+    gate = {"title": "T", "questions": [{"id": "q", "text": "?", "kind": "confirm"}]}
+    monkeypatch.setattr(sys, "stdin", Stdin(json.dumps(gate).encode()))
+    a = job.build_parser().parse_args(["gate", str(folder), "script", "--file", "-"])
+    a.folder = folder.resolve()
+    assert a.fn(a)["gate"] == "g-1" and state["read_while_locked"] is False
+    table = {"title": "T", "columns": ["A"], "rows": []}
+    state["read_while_locked"] = None
+    monkeypatch.setattr(sys, "stdin", Stdin(json.dumps(table).encode()))
+    a = job.build_parser().parse_args(["output", str(folder), "build", "custom", "--file", "-"])
+    a.folder = folder.resolve()
+    a.fn(a)
+    assert state["read_while_locked"] is False
+
+
+# --- Task B2: Claude sets the app's language for this computer (spec "Beginner friendly", Auto-detect) ---
+
+def _prefs(tmp_path):
+    p = tmp_path / "guitmp" / "gui" / "prefs.json"
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
+
+
+def test_lang_sets_the_detected_language_for_this_computer(tmp_path):
+    """`job.py lang tl|en` needs no job folder; it writes only ui_lang_detected into {tmp}/gui/prefs.json."""
+    assert run("lang", "tl") == {"ok": True, "ui_lang_detected": "tl"}
+    assert _prefs(tmp_path) == {"ui_lang_detected": "tl"}
+    gui = tmp_path / "guitmp" / "gui"
+    (gui / "prefs.json").write_text(json.dumps({"sound": False, "ui_lang": "en", "evil": 1}), encoding="utf-8")
+    run("lang", "en")
+    assert _prefs(tmp_path) == {"sound": False, "ui_lang": "en", "ui_lang_detected": "en"}  # known keys only
+    for bad in ("fr", "TL", "auto", ""):
+        run("lang", bad, ok=False)
+    assert _prefs(tmp_path)["ui_lang_detected"] == "en"
+    assert js.read_prefs(gui / "prefs.json") == {"notify": True, "sound": False, "ui_lang": "en", "ui_lang_detected": "en",
+                                                 "avoid_models": [], "default_model": None, "generate_warned_at": None, "elevenlabs_voice": None, "elevenlabs_model": None,
+                                                 "usage_readings": [], "claude_models": {}}
+
+
+def test_lang_waits_for_the_prefs_lock(tmp_path):
+    """The server's Settings save and job.py lang share one cross-process lock, so neither loses the other's key."""
+    import time
+    gui = tmp_path / "guitmp" / "gui"
+    with js.prefs_lock(gui):
+        p = subprocess.Popen([sys.executable, str(JOB), "lang", "tl"], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             text=True, encoding="utf-8")
+        time.sleep(1.5)
+        assert p.poll() is None, "job.py wrote prefs while another process held the lock"
+        js.write_json_atomic(gui / "prefs.json", {"notify": False})
+    out, err = p.communicate(timeout=30)
+    assert p.returncode == 0, out + err
+    assert _prefs(tmp_path) == {"notify": False, "ui_lang_detected": "tl"}
+
+
+def test_step_checklist_ticks_off(tmp_path):
+    folder = init(tmp_path)
+    out = run("step", folder, "script", "working", "--note", "Reading", "--todo", "Read answers| Pick graphics |Ask next")
+    assert [x["text"] for x in out["todo"]] == ["Read answers", "Pick graphics", "Ask next"]
+    assert not any(x["done"] for x in out["todo"])
+    out = run("step", folder, "script", "working", "--tick", "1", "2")
+    assert [x["done"] for x in out["todo"]] == [True, True, False]
+    run("step", folder, "script", "working", "--tick", "4", ok=False)  # no 4th item
+    assert all(x["done"] for x in run("step", folder, "script", "done")["todo"])  # done ticks the rest
+
+
+def test_step_times_its_work(tmp_path):
+    folder = init(tmp_path)
+    run("step", folder, "script", "working", "--todo", "a|b", "--eta", "120")
+    job = json.loads((folder / ".edit-mo-to" / "job.json").read_text(encoding="utf-8"))
+    st = job["steps"]["script"]
+    assert st["since"] and st["todo_at"] and st["eta"]["s"] == 120  # the card's clock and Claude's guess
+    run("step", folder, "script", "working", "--tick", "1")
+    job = json.loads((folder / ".edit-mo-to" / "job.json").read_text(encoding="utf-8"))
+    assert job["steps"]["script"]["todo"][0]["at"]  # when it ticked: the pace of the rest
+    run("step", folder, "script", "working", "--eta", "0", ok=False)
+    run("step", folder, "script", "waiting")
+    job = json.loads((folder / ".edit-mo-to" / "job.json").read_text(encoding="utf-8"))
+    assert "since" not in job["steps"]["script"]  # the stretch ended (too short to count as a usual time)
+
+
+def test_models_fills_every_part(tmp_path):
+    out = run("models")
+    assert out["models"] == {"main": "default", "motion-designer": "default", "style": "default", "editor": "default",
+                             "qa": "default"}
+
+
+def test_close_window_only_closes_its_own_window():
+    sys.path.insert(0, str(JOB.parent))
+    import close_window
+    parents = {50: 40, 40: 30, 30: 0, 99: 30}
+    assert close_window.is_ancestor(40, 50, parents)  # the window this Claude runs in
+    assert not close_window.is_ancestor(99, 50, parents)  # another session's window: never
+    assert not close_window.is_ancestor(7, 50, {50: 51, 51: 50})  # a parent loop ends the walk

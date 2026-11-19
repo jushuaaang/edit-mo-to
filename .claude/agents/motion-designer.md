@@ -65,7 +65,7 @@ You never make subtitles. Captions are step 10's choice (the user's CapCut auto-
   2. Render at 2–3 durations.
   3. Preview over green and over a real frame of the footage.
   4. Check spelling, clipping, transparency, the font loading, and legibility at phone size.
-- Then make its preview still for "Pick the graphics": `.claude/edit-mo-to/run tools/motion_render.py previews --only <name>` (writes `motion/previews/<name>.jpg`).
+- Then make its preview card for the app's "Pick the graphics" stop: `.claude/edit-mo-to/run tools/motion_render.py previews --only <name>` (writes `motion/previews/<name>.jpg`).
 - Then add a row to `CATALOGUE.md` and add a `motion_render` defaults check, by running `"{python}" -m pytest tools/tests/test_motion_render.py -q` (the test checks that every template fills).
 
 ## Never

@@ -74,6 +74,8 @@ something needs me (a login, a restart, or installing CapCut).
 
 Afterwards, always start Claude Code **in your video folder** (for example `D:\Video Editing`).
 
+**Chat only for now.** The Edit Mo To app is turned off (`.claude/edit-mo-to/app.json`), so use `/edit-mo-to` and `/practice-muna` in the chat; the app parts below come back when it is turned on again. `/edit-mo-to` and `/practice-muna` run in the chat only. Add `-app` to work with **Edit Mo To**, a companion app in your default browser: `/edit-mo-to-app` and `/practice-muna-app`. The app shows each video's 12 steps, Claude's questions with buttons to answer them, the tables and prompts with Copy buttons, and the storyboard. The chat keeps working too: answer in whichever you like.
+
 ## Step 2 · Practise first: `/practice-muna`
 
 "Practice muna" = practise first. Before your first client, do one practice run on a clip of yourself:
@@ -88,6 +90,8 @@ flowchart LR
 ```
 
 Type **`/practice-muna`** and send the clip. Every stop shows a suggested answer (just accept it) and a one-line tip on what happens in a real job. It takes about 15–25 minutes, and you finish knowing the whole workflow.
+
+Or do it all in the app: press **Start practice** on the dashboard, give it any brief on the Brief page (a clip of you talking, an explainer, an ad, or nothing), and press **Submit to Claude**. If no Claude is running, it opens Terminal (Mac) or a command window (Windows) with Claude already running `/practice-muna-app` on it; you answer every stop in the app. A real video works the same way with **+ New video**.
 
 ## Step 3 · Your first real video
 
@@ -109,6 +113,24 @@ You:     Client B-roll.
 ```
 
 Lists and plans come as tables in the chat. Times are written `seconds:frames`: `7:12` means 7 seconds and 12 frames.
+
+## The app (Edit Mo To)
+
+> **Turned off for now.** To turn it back on, set `.claude/edit-mo-to/app.json` to `{"enabled": true}` and remove `user-invocable: false` from `.claude/skills/edit-mo-to-app/SKILL.md` and `.claude/skills/practice-muna-app/SKILL.md`.
+
+Claude opens a small app in your browser next to the chat. You can answer every stop there instead of typing in the chat, and Claude carries on by itself.
+
+- **Dashboard:** all your videos, which step each one is on, and whether Claude is waiting on you. It also shows how much of your plan you've used this week and about how many more videos fit.
+- **One page per step:** Brief, Script, Storyboard, Voiceover, Timing, B-roll & prompts, Clips, Build & QA, Review, Captions, Music, Export. Each page shows **what to do now**, **why this step matters**, and Claude's question with buttons to answer.
+- **Work ahead:** some steps are **Open now** from the start: Brief, your own script, the voiceover file, the B-roll answers, the clips folder, captions and music. Everything else says **Waits for: (step)**. When Claude reaches a step you already did, it just asks "You chose X earlier. Still right?"
+- **Storyboard:** every shot as a card, with its prompt to copy and a box to drop the picture in. Shots are called "Shot 1", "Shot 2" and so on.
+- **Got flagged:** if an AI site blocks a prompt, tap **Got flagged** on that shot. Claude rewrites the prompt with safer wording.
+- **English or Taglish:** buttons and labels stay English; instructions can be in Taglish. Change it in **Settings**, or leave it on Auto.
+- **Word help:** each page lists its tricky words (like *B-roll* or *QA*) under "Words on this page"; tap one for a short explanation.
+- **Start practice:** a button on the dashboard makes a practice video and opens its Brief page, exactly like **+ New video**; **Submit to Claude** opens a Claude window on it when none is running.
+- **Report a bug / Suggest an improvement** (in Settings): saves your note on this computer; tell Claude "look at my feedback" to go through it.
+
+The app only runs on your own computer; nobody else can open it. If your settings file ever gets damaged, **Settings** shows a red warning and turns saving off, so your choices (like models Claude should never use) aren't wiped. Fix or delete the file it names, then reopen Settings.
 
 ## It learns how *you* edit
 
@@ -150,13 +172,16 @@ Claude plans have a usage limit that resets every 5 hours. One measured example 
 - answer several stops in one message;
 - skip the storyboard for repeat clients.
 
+The app's dashboard shows how much of your plan's week you have used, about how much one video uses, and about how many more videos fit this week. It reads these numbers through a status line: edit-mo-to's `.claude/settings.json` (shared, so it applies to every editor of this folder) sets Claude Code's status line to `.claude/edit-mo-to/run gui/statusline.py`, which shows `Week 41% · Now 23% · resets Fri 9 AM` under the chat box and saves those numbers for the app. It replaces your own status line only inside your Video Editing folder; everywhere else yours stays. The numbers appear after Claude's first reply in a session (Pro and Max plans). Under **Details** it also counts the tokens each video used, from Claude Code's own logs for this folder (`~/.claude/projects/`): it reads only the numbers and times there, never the chat. For the exact number, type `/usage` in Claude.
+
 ## If something goes wrong
 
 | Problem | Fix |
 |---|---|
 | Claude says CapCut is open | Quit CapCut completely (check the system tray), then tell Claude to continue |
 | "Backend is down" or port 9001 errors | Tell Claude "start the CapCut backend"; it knows how |
-| `/edit-mo-to` or `/practice-muna` doesn't show up | Start the Claude Code session in your video folder, not somewhere else |
+| `/edit-mo-to`, `/practice-muna` (or their `-app` versions) don't show up | Start the Claude Code session in your video folder, not somewhere else |
+| Submit to Claude says "Claude isn't installed as a terminal command" | The app opens Claude through the Claude Code command-line tool, which the desktop app doesn't include. Install it once: Windows `winget install Anthropic.ClaudeCode`, Mac `curl -fsSL https://claude.ai/install.sh \| bash`. The first window it opens may ask you to log in. |
 | Graphics fail to render | Check your internet connection (graphics load their fonts online), then retry |
 | Want the newest templates and fixes | Tell Claude "update edit-mo-to" (a safe `git pull`; your own rules and client notes are never touched) |
 
@@ -167,7 +192,7 @@ Claude plans have a usage limit that resets every 5 hours. One measured example 
 | Path | What |
 |---|---|
 | `CLAUDE.md` | house rules Claude reads in this folder |
-| `.claude/skills/edit-mo-to/` | the `/edit-mo-to` skill: 12 gated steps, plus step detail and the learning step |
+| `.claude/skills/edit-mo-to/` | the `/edit-mo-to` skill: 12 gated steps, plus step detail and the learning step (`edit-mo-to-app/` and `practice-muna-app/`: the same with the app) |
 | `.claude/agents/` | ugc, broll, claymation, pixar, product-ad (style), editor (CapCut builds), qa (checks), motion-designer (new looks and templates) |
 | `.claude/edit-mo-to/preferences.md` | shared starter rules everyone begins with |
 | `.claude/edit-mo-to/my-preferences.md` | your own learned rules (local only, gitignored; wins over the starter rules) |
@@ -177,7 +202,7 @@ Claude plans have a usage limit that resets every 5 hours. One measured example 
 | `.claude/edit-mo-to/motion/` | 40+ HyperFrames motion templates (incl. receipt printer, odometer, live markup, comment CTA, eyedropper palette, film strip), `CATALOGUE.md`, `sfx/` (19 Pixabay-licence sounds), `sfx_defaults.json` |
 | `.claude/edit-mo-to/tools/` (fast path) | `plan_tools.py` (compact plans and prompts: expand, check, prompt text, revision patch ops), `build_project.py` (whole CapCut project in one run, temporary English track, music drafts, step-10 captions), `captions.py` (caption chunks from the script and VO word timings, temporary English rows), `qa_check.py` (mechanical build, caption and prompt QA), `sheets.py` (tiled frame sheets, B-roll inventory), `context_pack.py` (only the rules one agent needs), `learn.py` (learning step: new rules only, declined ones remembered), `plan_common.py` (shared plan helpers) |
 | `.claude/edit-mo-to/tools/` | `capcut_project.py` (CapCut projects), `media_timing.py` (word timings, beats), `speech_cuts.py` (dead-air and mistake cuts, from Herk Edit Kit, MIT), `storyboard.py` (storyboard page), `qc_clips.py` (batch QC of generated clips), `motion_render.py` (motion graphics, speaker cutout), `plan_build.py` / `plan_preview.py` (frame plans, checks, preview), `edit_diff.py` (learns from hand edits), `rehearse.py` (`/practice-muna` jobs), `playbook_scan.py` (Playbook folder scans), `machine.py` (per-computer paths) + tests |
-| `.claude/edit-mo-to/run` | the launcher Claude runs every workflow script through |
+| `.claude/edit-mo-to/gui/`, `.claude/edit-mo-to/run` | the Edit Mo To companion app (local server and pages), and the launcher Claude runs every workflow script through |
 | `.claude/edit-mo-to/setup/capcut-start.mjs` | launcher that auto-starts the CapCut backend for the MCP server |
 | `docs/` | design doc and build plan |
 
@@ -258,6 +283,14 @@ Same steps as Windows, with these differences:
 
 ##### Machine paths
 Each computer has its own untracked `.claude/edit-mo-to/machine.json` (copy `machine.example.json`): `root`, `python`, `tmp`, `mcp_servers`, `capcut_drafts`, plus the optional speed keys `asr`, `asr_device`, `render_workers`, `render_concurrency` (see "Windows: speed settings"). The Python tools read it through `tools/machine.py`; the skill and agents write these as `{root}`, `{python}`, `{tmp}` and `{capcut_drafts}`. Keys you leave out fall back to the platform default.
+
+### The app (Edit Mo To)
+The app runs on this computer only (`127.0.0.1`, port 4810, or `gui_port` in `machine.json`). Claude starts it for you, and restarts it when the app's code was updated or you changed a path or the port in Settings. To open the dashboard without a session, run this in your Video Editing folder (`{root}`) (on Windows, in Git Bash):
+```
+.claude/edit-mo-to/run gui/launch.py --open
+```
+
+**What Claude may run without asking.** The workflow ships `.claude/settings.json`, which pre-approves one command pattern: `Bash(.claude/edit-mo-to/run *)`. `run` starts only the workflow's own Python scripts in `.claude/edit-mo-to/gui/` and `.claude/edit-mo-to/tools/`, with the tools' Python, and refuses anything else. Those scripts can do everything the workflow does with any arguments, including writing CapCut projects and `playbook_scan.py`'s reads of a shared Playbook folder over the network; no other shell command is pre-approved (no `rm`, no git, no curl). That is why an answer you give in the app carries on without a permission question in chat. Your own `.claude/settings.local.json` is never changed. The same file also blocks Claude from reading `.claude/edit-mo-to/secrets.json`, where an ElevenLabs key would be kept.
 
 ### Getting updates
 The repo holds the shared workflow only: tools, agents, templates and starter rules. Nothing personal is ever uploaded, and Claude never pulls or pushes on its own. To get the newest version, tell Claude "update edit-mo-to": it runs `git pull --ff-only`, which never touches your `my-preferences.md`, client notes or videos.

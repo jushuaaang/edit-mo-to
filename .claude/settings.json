@@ -6,5 +6,9 @@
     "deny": [
       "Read(.claude/edit-mo-to/secrets.json)"
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": ".claude/edit-mo-to/run gui/statusline.py"
   }
 }

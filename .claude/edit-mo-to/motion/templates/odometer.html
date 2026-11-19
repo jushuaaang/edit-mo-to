@@ -1,4 +1,4 @@
-<!--defaults {"value": "0:25", "from": "0:00", "label": "RAW TAKE", "x": 540, "y": 520, "size": 150, "bg": "#1b1d21", "fg": "#f4f2ec", "accent": "#e8c15a", "font": "Inter", "t_start": 0.25, "spin": 1.1, "stagger": 0.14, "height": 1920, "duration": 3} -->
+<!--defaults {"value": "0:25", "from": "0:00", "label": "RAW TAKE", "x": 540, "y": 520, "size": 150, "label_size": 26, "bg": "#1b1d21", "fg": "#f4f2ec", "accent": "#e8c15a", "font": "Inter", "t_start": 0.25, "spin": 1.1, "stagger": 0.14, "height": 1920, "duration": 3} -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -13,7 +13,7 @@
   /* (x, y) = centre of the panel */
   #panel { position: absolute; left: {{x}}px; top: {{y}}px; padding: 26px 40px 34px; border-radius: 22px; background: {{bg}};
            box-shadow: inset 0 0 0 1px rgba(255,255,255,.1), 0 16px 40px rgba(0,0,0,.4); text-align: center; width: max-content; max-width: 980px; }
-  #lab { font-weight: 800; font-size: 26px; letter-spacing: .5em; color: {{accent}}; margin-bottom: 14px; padding-left: .5em; }
+  #lab { font-weight: 800; font-size: {{label_size}}px; letter-spacing: .5em; color: {{accent}}; margin-bottom: 14px; padding-left: .5em; }
   #row { display: flex; justify-content: center; align-items: flex-start; color: {{fg}}; font-weight: 800; font-size: {{size}}px; line-height: 1.08; font-variant-numeric: tabular-nums; }
   .col { height: 1.08em; overflow: hidden; position: relative; padding: 0 .03em; }
   .col.d { min-width: .62em; background: linear-gradient(rgba(255,255,255,.06), rgba(255,255,255,.015) 50%, rgba(0,0,0,.18) 50%, rgba(0,0,0,.05)); border-radius: 10px; margin: 0 .03em; }

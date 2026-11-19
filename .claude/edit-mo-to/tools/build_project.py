@@ -90,6 +90,36 @@ def _canvas(plan: dict) -> tuple[int, int]:
     return int(plan.get("width", 1080)), int(plan.get("height", 1920))
 
 
+# CapCut's named canvas ratios; any other shape is stored as "original" with its exact width/height
+CANVAS_RATIOS = {(9, 16): "9:16", (16, 9): "16:9", (1, 1): "1:1", (4, 5): "4:5", (5, 4): "5:4", (3, 4): "3:4",
+                 (4, 3): "4:3", (2, 3): "2:3", (3, 2): "3:2", (21, 9): "21:9"}
+
+
+def canvas_ratio(width: int, height: int) -> str:
+    """The ratio label CapCut stores in canvas_config for a width x height canvas."""
+    from math import gcd
+    g = gcd(int(width), int(height)) or 1
+    return CANVAS_RATIOS.get((int(width) // g, int(height) // g), "original")
+
+
+def set_draft_canvas(draft: Path, plan: dict) -> dict:
+    """Write the plan's canvas ratio and fps into a saved VectCutAPI draft. VectCutAPI's create_draft takes
+    only width/height, labels every portrait canvas "9:16" (so 1080x1350 opened as 9:16) and leaves fps at 30;
+    every timeline (new project, add-timeline, replace) is imported from this draft, so fixing it here fixes them all."""
+    w, h = _canvas(plan)
+    ratio, fps = canvas_ratio(w, h), float(plan.get("fps", 30))
+    for name in ("draft_info.json", "draft_content.json"):
+        f = Path(draft) / name
+        if not f.exists():
+            continue
+        d = json.loads(f.read_text(encoding="utf-8"))
+        cc = d.get("canvas_config") if isinstance(d.get("canvas_config"), dict) else {}
+        d["canvas_config"] = {**cc, "width": w, "height": h, "ratio": ratio}
+        d["fps"] = fps
+        f.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+    return {"ratio": ratio, "fps": fps}
+
+
 def clip_frames(clip: dict) -> tuple[int, int]:
     """(at frame, timeline length in frames) of a clip; a sped clip keeps a whole-frame length."""
     return _f(clip["at"]), clip_len_f(clip)
@@ -378,6 +408,7 @@ def build_timeline(plan: dict, timeline: dict, post=post, render=True) -> dict:
         counts["sfx"] += 1
     _save(did, post, hint=KEYFRAME_HINT if counts["keyframes"] else "")
     draft = cp.wait_for_draft(Path(BUILD) / did)
+    set_draft_canvas(draft, plan)
     return {"draft": mr.plain_path(draft), "end_frame": end_f, "counts": counts}
 
 
@@ -538,9 +569,7 @@ def build(plan: dict, import_files=(), timelines=None, job=None, post=post, rend
             failures.append(f"sheets {tl['name']}: {e}")
     report = reports / "build_report.txt"
     report.write_text(report_table(tls), encoding="utf-8")
-    manual = [m for tl in tls for m in tl.get("manual", [])]
-    if plan.get("fps", 30) != 30:
-        manual.append(f"set project frame rate to {plan['fps']}")
+    manual = [m for tl in tls for m in tl.get("manual", [])]   # the plan's fps and ratio go into the draft (set_draft_canvas)
     manual += [f"check {f} isn't sideways" for f in comp.get("rotation_unchecked", [])]
     failures += [f"import: missing {f}" for f in imported["missing"]]
     counts = {k: sum(b["counts"][k] for _, b in built) for k in built[0][1]["counts"]} if built else {}

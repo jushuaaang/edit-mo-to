@@ -1,4 +1,4 @@
-<!--defaults {"title": "THE 24/7 EDITOR", "sub": "Build Your Personal AI Video Editor", "chip": "Comment EDIT to join the waitlist", "key": "EDIT", "t_chip": 0.6, "x": 540, "y": 220, "max_width": 980, "bg": "#161618", "fg": "#ffffff", "chip_bg": "#fcfcfd", "chip_fg": "#111111", "font": "Barlow Semi Condensed", "font2": "Inter", "scale": 1, "height": 1920, "duration": 3.5} -->
+<!--defaults {"title": "THE 24/7 EDITOR", "sub": "Build Your Personal AI Video Editor", "chip": "Comment EDIT to join the waitlist", "key": "EDIT", "t_chip": 0.6, "x": 540, "y": 220, "max_width": 980, "bg": "#161618", "fg": "#ffffff", "chip_bg": "#fcfcfd", "chip_fg": "#111111", "font": "Barlow Semi Condensed", "font2": "Inter", "scale": 1, "height": 1920, "outro": "fade", "duration": 3.5} -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -56,7 +56,7 @@
   tl.from("#tt", { y: 14, opacity: 0, duration: 0.4, ease: "expo.out" }, 0.08);
   tl.from("#st", { y: 10, opacity: 0, duration: 0.4, ease: "expo.out" }, 0.18);
   if (chipText.trim()) tl.fromTo(chip, { opacity: 0, y: 22, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.45, ease: "back.out(2)" }, TC);
-  tl.to(grp, { opacity: 0, y: -12, filter: "blur(6px)", duration: 0.24, ease: "power2.in" }, D - 0.26);
+  if ("{{outro}}".trim() !== "none") tl.to(grp, { opacity: 0, y: -12, filter: "blur(6px)", duration: 0.24, ease: "power2.in" }, D - 0.26);
   window.__timelines["main"] = tl;
   tl.seek(0);
 </script>

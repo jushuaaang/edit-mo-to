@@ -1,4 +1,4 @@
-<!--defaults {"layout": "float", "video1": "placeholder.mp4", "video2": "placeholder.mp4", "video3": "placeholder.mp4", "start1": 0, "start2": 0, "start3": 0, "label1": "BEFORE", "label2": "AFTER", "badge1": "", "badge2": "", "y": 330, "card_w": 250, "frame": "#121214", "chip_bg": "#161618", "chip_fg": "#ffffff", "font": "Inter", "scale": 1, "height": 1920, "duration": 3.5} -->
+<!--defaults {"layout": "float", "video1": "placeholder.mp4", "video2": "placeholder.mp4", "video3": "placeholder.mp4", "start1": 0, "start2": 0, "start3": 0, "label1": "BEFORE", "label2": "AFTER", "badge1": "", "badge2": "", "y": 330, "x": "", "rot": "", "outro": "fade", "card_w": 250, "frame": "#121214", "chip_bg": "#161618", "chip_fg": "#ffffff", "font": "Inter", "scale": 1, "height": 1920, "duration": 3.5} -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -72,6 +72,10 @@
     place();
   } else {
     const pos = [{ x: 60, y: Y + 300, r: -9 }, { x: 1080 - 60 - W, y: Y - 40, r: 8 }, { x: 1080 - 40 - W, y: Y + 360, r: 6 }];
+    // optional placement of the first (or only) card: x = card centre px, rot = tilt in degrees
+    const PX = "{{x}}".trim(), PR = "{{rot}}".trim();
+    if (PX !== "") pos[0].x = Number(PX) - W / 2;
+    if (PR !== "") pos[0].r = Number(PR);
     used.forEach((c, i) => {
       gsap.set(c, { left: pos[i].x, top: pos[i].y, rotation: pos[i].r });
       const t = 0.05 + i * 0.16;
@@ -82,7 +86,9 @@
                  repeat: bobs, yoyo: true }, t + 0.6);
     });
   }
-  tl.to("#stage", { opacity: 0, scale: 0.96, filter: "blur(8px)", duration: 0.24, ease: "power2.in" }, D - 0.26);
+  // outro: "fade" (default) blurs out at the end; "none" stays fully visible to the last frame
+  if ("{{outro}}".trim() !== "none")
+    tl.to("#stage", { opacity: 0, scale: 0.96, filter: "blur(8px)", duration: 0.24, ease: "power2.in" }, D - 0.26);
   window.__timelines["main"] = tl;
   tl.seek(0);
 </script>
