@@ -629,9 +629,24 @@ def captions_draft(chunks: list[dict], plan: dict, post=post) -> str:
     TEXT_STYLES["caption"] plus the plan's `captions_style`, for add-tracks ... text."""
     canvas = _canvas(plan)
     did = post("create_draft", {"width": canvas[0], "height": canvas[1]})["output"]["draft_id"]
+    import captions as cap
     for c, a, e in caption_frames(chunks):
-        post("add_text", text_body(did, {"text": c["text"], "at": a / 30, "duration": (e - a) / 30,
-                                         "style": "caption"}, plan, CAPTIONS_TRACK))
+        body = text_body(did, {"text": c["text"], "at": a / 30, "duration": (e - a) / 30,
+                               "style": "caption"}, plan, CAPTIONS_TRACK)
+        # captions_style extras (not VectCutAPI keys): "uppercase": true, "highlight": "#hex" (one key word in colour)
+        upper, hl = body.pop("uppercase", False), body.pop("highlight", None)
+        body.pop("max_chars", None)
+        body = {k: v for k, v in body.items() if v is not None}   # captions_style null = drop that key (e.g. no intro animation)
+        if upper:
+            body["text"] = body["text"].upper()
+        span = cap.keyword_span(body["text"]) if hl else None
+        if span:
+            body["text_styles"] = [{"start": span[0], "end": span[1],
+                                    "style": {"color": hl, "size": body.get("font_size", 12), "bold": body.get("bold", True)},
+                                    "border": {"width": body.get("border_width", 0), "color": body.get("border_color", "#000000"),
+                                               "alpha": 1.0},
+                                    "font": body.get("font")}]
+        post("add_text", body)
     _save(did, post)
     return str(cp.wait_for_draft(Path(BUILD) / did))
 
@@ -651,7 +666,8 @@ def add_captions(plan: dict, name: str, project: Path, script: str, timings: str
                          "(or use another timeline) before adding captions again")
     tl = next((t for t in plan.get("timelines", []) if t["name"] == name), {})
     kept, dropped = cap.to_timeline(words, dump, vo_in=tl.get("vo_in", 0.0), vo_track=vo_track)
-    chunks = cap.chunk(kept, max_words=max_words)
+    chunks = cap.chunk(kept, max_words=max_words,
+                       max_chars=int((plan.get("captions_style") or {}).get("max_chars") or 22))
     if not chunks:
         raise ValueError(f"no caption chunks for {name!r}: no script word lies in the timeline's VO")
     placed = {id(c) for c, _, _ in caption_frames(chunks)}

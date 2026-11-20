@@ -160,6 +160,25 @@ def script_words(words: list[dict], script_lines: list[str]) -> list[dict]:
     return [{k: r[k] for k in ("word", "start", "end", "line", "unmatched", "interpolated") if k in r} for r in out]
 
 
+STOP = set("a an the and or but so to of in on at by for from with as is are was be it it's its this that these those "
+           "i i'm i've you you're your we our us they them their he his she her my me no not don't do does did "
+           "if than then there here what which who how all any every one just get gets got".split())
+
+
+def keyword_span(text: str) -> tuple[int, int] | None:
+    """Character span of the word to highlight in a caption chunk (the reference look: one key word in colour):
+    a number if there is one, else the longest word that is not a stop word (ties: the later one)."""
+    words = [(m.start(), m.end(), m.group()) for m in re.finditer(r"[A-Za-z0-9][A-Za-z0-9'\-%]*", text)]
+    if not words:
+        return None
+    nums = [w for w in words if any(ch.isdigit() for ch in w[2])]
+    if nums:
+        return nums[0][0], nums[0][1]
+    content = [w for w in words if w[2].lower() not in STOP] or words
+    best = max(content, key=lambda w: (len(w[2]), w[0]))
+    return best[0], best[1]
+
+
 def _text(ws: list[dict]) -> str:
     return " ".join(w["word"] for w in ws)
 
@@ -276,6 +295,8 @@ def chunk(words: list[dict], max_words: int = 4, max_chars: int = 22, pause: flo
 def _vo_spans(dump: dict, vo_track: str | None) -> list[dict]:
     """The dump's VO segments as file->timeline spans; segments that continue each other both in the file
     and on the timeline (a plain split) become one span."""
+    if vo_track in ("none", "-"):   # no VO track: the timings are already in timeline time (e.g. clip-voice timelines)
+        return []
     audio = [s for s in (dump or {}).get("segments", []) if s.get("track_type") == "audio"]
     vo = [s for s in audio if (str(s.get("track") or "") == vo_track if vo_track else str(s.get("track") or "").startswith("vo"))]
     if audio and not vo:
