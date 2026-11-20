@@ -7,7 +7,8 @@ so the lips and the sound drift apart on the timeline (found on Uvola 125, 2026-
 
 What: a clean copy is the clip exactly as players show it (edit lists applied), re-encoded as H.264 without
 B-frames at a constant frame rate, with uncompressed PCM audio, in a .mov with no edit lists. Picture and sound
-both start at 0, so every program plays it the same. Copies are cached in `_clean/` next to the source and remade
+both start at 0, so every program plays it the same. Its sound is moved 2112 samples (47.9 ms) earlier to cancel
+the uncompensated AAC delay in CapCut's own exports (AUDIO_LEAD), so the exported video is in sync. Copies are cached in `_clean/` next to the source and remade
 when the source changes. Images, audio-only files and clips with transparency (overlays) are left alone; so are
 files that are already clean. If cleaning fails, the original path is returned (a build never breaks over it).
 
@@ -27,7 +28,11 @@ from pathlib import Path
 
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi", ".mts", ".m2ts", ".3gp"}
 CLEAN_DIR = "_clean"
-VERSION = 2          # bump when the clean recipe changes: older copies are remade
+VERSION = 3          # bump when the clean recipe changes: older copies are remade
+# CapCut exports AAC with the encoder's 2112-sample priming and no edit list to skip it (measured on an export,
+# Uvola 125, 2026-11-20: every shot's voice 47.9 ms late). Clean copies start their sound this much early so the
+# exported video lands the voice back on the lips. Set CLIP_CLEAN_AUDIO_LEAD=0 to turn it off.
+AUDIO_LEAD = float(os.environ.get("CLIP_CLEAN_AUDIO_LEAD", 2112 / 44100))
 STANDARD_RATES = [Fraction(24000, 1001), Fraction(24), Fraction(25), Fraction(30000, 1001), Fraction(30),
                   Fraction(50), Fraction(60000, 1001), Fraction(60)]
 
@@ -122,11 +127,11 @@ def make_clean(path: str, out: Path | None = None) -> Path:
     cmd = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", path, "-map", "0:v:0"] + (["-map", "0:a:0"] if has_audio else []) + [
         "-vf", f"fps={rate.numerator}/{rate.denominator}", "-c:v", "libx264", "-crf", "15", "-preset", "slow", "-bf", "0",
         "-pix_fmt", "yuv420p", "-video_track_timescale", str(ts)] + (["-frames:v", str(n)] if n else []) + (
-        ["-c:a", "pcm_s16le", "-ar", "48000"] + (["-af", f"apad=whole_dur={length:.6f},atrim=end={length:.6f}"] if length else []) if has_audio else []) + [
+        ["-c:a", "pcm_s16le", "-ar", "48000"] + (["-af", (f"atrim=start={AUDIO_LEAD:.6f},asetpts=PTS-STARTPTS," if AUDIO_LEAD > 0 else "") + f"apad=whole_dur={length:.6f},atrim=end={length:.6f}"] if length else []) if has_audio else []) + [
         "-use_editlist", "0", str(tmp)]
     subprocess.run(cmd, check=True, capture_output=True)
     tmp.replace(out)
-    out.with_suffix(".json").write_text(json.dumps({"source": str(path), "v": VERSION, **_stamp(path)}))
+    out.with_suffix(".json").write_text(json.dumps({"source": str(path), "v": VERSION, "audio_lead": AUDIO_LEAD, **_stamp(path)}))
     return out
 
 
@@ -139,7 +144,7 @@ def ensure_clean(path: str) -> str:
         if out.exists() and side.exists():
             try:
                 meta = json.loads(side.read_text())
-                if meta.get("v") == VERSION and meta.get("size") == _stamp(path)["size"] and meta.get("mtime") == _stamp(path)["mtime"]:
+                if meta.get("v") == VERSION and abs(meta.get("audio_lead", -1) - AUDIO_LEAD) < 1e-9 and meta.get("size") == _stamp(path)["size"] and meta.get("mtime") == _stamp(path)["mtime"]:
                     return str(out)
             except Exception:
                 pass
