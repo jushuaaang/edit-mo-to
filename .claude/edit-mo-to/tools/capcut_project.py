@@ -807,14 +807,14 @@ def add_overlay(project: Path, name: str, draft: Path, track_name: str = "video_
             **report}
 
 
-def _clean(path: str) -> str:
+def _clean(path: str, extra_lead: float = 0.0) -> str:
     """Video clips go on the timeline as clean copies (clip_clean.py): no hidden B-frame/edit-list or AAC delay,
     so CapCut plays picture and sound in sync like a normal player. Images, audio and overlays pass through."""
     try:
         import clip_clean
     except ImportError:
         return path
-    return clip_clean.ensure_clean(path)
+    return clip_clean.ensure_clean(path, extra_lead)
 
 
 def _probe_media(path: str) -> dict:
@@ -967,8 +967,8 @@ class _Patcher:
             if key in op:
                 seg[key] = int(op[key])
 
-    def _repoint(self, seg: dict, path: str) -> None:
-        path = _clean(path)
+    def _repoint(self, seg: dict, path: str, extra_lead: float = 0.0) -> None:
+        path = _clean(path, extra_lead)
         info = _probe_media(path)
         kind, m = self._by_id()[seg["material_id"]]
         if sum(1 for t in self.c["tracks"] for s in t.get("segments", []) if s.get("material_id") == m["id"]) > 1:
@@ -980,7 +980,7 @@ class _Patcher:
     def set(self, op: dict) -> dict:
         _, seg = self._locate(op["id"])
         if op.get("file"):
-            self._repoint(seg, op["file"])
+            self._repoint(seg, op["file"], op.get("audio_lead", 0.0))
         self._apply_fields(seg, op)
         return {"op": "set", "id": seg["id"]}
 
@@ -996,7 +996,7 @@ class _Patcher:
         return {"op": "remove", "id": seg["id"]}
 
     def insert(self, op: dict) -> dict:
-        op = {**op, "file": _clean(op["file"])}
+        op = {**op, "file": _clean(op["file"], op.get("audio_lead", 0.0))}
         info = _probe_media(op["file"])
         like_type = "audio" if info["kind"] == "audio" else "video"
         track = self._track(op["track"], like_type, op.get("track_before"))
@@ -1167,7 +1167,8 @@ def patch_timeline(project: Path, name: str, ops, dry_run: bool = False) -> dict
     """Edit a timeline in place op by op, keeping everything else (the user's hand edits, keyframes,
     captions) byte-for-byte. Ops (times in microseconds, segments by their CapCut id or an "@name"
     given to a segment made earlier in the same patch):
-        {"op": "set", "id", [file], [start, duration, src_start, src_duration, speed, scale, x, y, volume]}
+        {"op": "set", "id", [file, audio_lead], [start, duration, src_start, src_duration, speed, scale, x, y, volume]}
+         (a file goes on as its clip_clean copy; audio_lead = that clip's own voice-after-lips lag in seconds)
         {"op": "remove", "id"}
         {"op": "insert", "track", "file", "start", "duration", [src_start, src_duration, speed, scale, x, y,
          volume, like (segment id to copy the shape from), name, render_index, track_render_index,

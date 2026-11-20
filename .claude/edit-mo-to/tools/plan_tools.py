@@ -812,9 +812,12 @@ def _same_source(seg_source: str, plan_file: str) -> bool:
         return True
     try:
         import clip_clean
-        return _norm_path(seg_source) == _norm_path(str(clip_clean.clean_path(plan_file)))
     except ImportError:
         return False
+    from pathlib import Path
+    sp, pp = Path(seg_source), Path(plan_file)
+    return (sp.parent.name == clip_clean.CLEAN_DIR and _norm_path(str(sp.parent.parent)) == _norm_path(str(pp.parent))
+            and sp.stem.split("__lead")[0] == pp.stem)
 
 
 def _find_segment(row: dict, segs: list[dict], used: set) -> dict | None:

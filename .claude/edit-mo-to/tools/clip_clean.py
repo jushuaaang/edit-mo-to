@@ -15,7 +15,9 @@ files that are already clean. If cleaning fails, the original path is returned (
 CLI (prints JSON):
     check <file> [...]     which files need a clean copy and why
     make <file> [...]      make (or reuse) the clean copies; prints {source: clean path}
-Library: ensure_clean(path) -> path to use (the clean copy, or the original when it needs none).
+Library: ensure_clean(path, extra_lead=0) -> path to use (the clean copy, or the original when it needs none).
+extra_lead (seconds): a clip's own voice-after-lips lag, cancelled on top of the CapCut fix. Plans set it per clip as
+"audio_lead" (e.g. Omni Flash / Uvola talking clips: ~0.08 s, measured with mouth openness on Uvola 125).
 """
 from __future__ import annotations
 
@@ -93,9 +95,11 @@ def reasons(path: str) -> list[str]:
     return why
 
 
-def clean_path(path: str) -> Path:
+def clean_path(path: str, extra_lead: float = 0.0) -> Path:
+    """`_clean/<name>.mov`; with a clip-specific extra lead, `_clean/<name>__lead<ms>.mov` (each lead its own copy)."""
     p = Path(path)
-    return p.parent / CLEAN_DIR / (p.stem + ".mov")
+    tag = f"__lead{round(extra_lead * 1000)}" if extra_lead else ""
+    return p.parent / CLEAN_DIR / (p.stem + tag + ".mov")
 
 
 def _stamp(path: str) -> dict:
@@ -103,9 +107,10 @@ def _stamp(path: str) -> dict:
     return {"size": st.st_size, "mtime": int(st.st_mtime)}
 
 
-def make_clean(path: str, out: Path | None = None) -> Path:
+def make_clean(path: str, out: Path | None = None, extra_lead: float = 0.0) -> Path:
     """Write the clean copy (see the module doc); returns its path."""
-    out = Path(out) if out else clean_path(path)
+    out = Path(out) if out else clean_path(path, extra_lead)
+    lead = AUDIO_LEAD + max(0.0, extra_lead)
     out.parent.mkdir(parents=True, exist_ok=True)
     info = _probe(path).get("streams", [])
     v = next(s for s in info if s.get("codec_type") == "video")
@@ -127,28 +132,29 @@ def make_clean(path: str, out: Path | None = None) -> Path:
     cmd = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", path, "-map", "0:v:0"] + (["-map", "0:a:0"] if has_audio else []) + [
         "-vf", f"fps={rate.numerator}/{rate.denominator}", "-c:v", "libx264", "-crf", "15", "-preset", "slow", "-bf", "0",
         "-pix_fmt", "yuv420p", "-video_track_timescale", str(ts)] + (["-frames:v", str(n)] if n else []) + (
-        ["-c:a", "pcm_s16le", "-ar", "48000"] + (["-af", (f"atrim=start={AUDIO_LEAD:.6f},asetpts=PTS-STARTPTS," if AUDIO_LEAD > 0 else "") + f"apad=whole_dur={length:.6f},atrim=end={length:.6f}"] if length else []) if has_audio else []) + [
+        ["-c:a", "pcm_s16le", "-ar", "48000"] + (["-af", (f"atrim=start={lead:.6f},asetpts=PTS-STARTPTS," if lead > 0 else "") + f"apad=whole_dur={length:.6f},atrim=end={length:.6f}"] if length else []) if has_audio else []) + [
         "-use_editlist", "0", str(tmp)]
     subprocess.run(cmd, check=True, capture_output=True)
     tmp.replace(out)
-    out.with_suffix(".json").write_text(json.dumps({"source": str(path), "v": VERSION, "audio_lead": AUDIO_LEAD, **_stamp(path)}))
+    out.with_suffix(".json").write_text(json.dumps({"source": str(path), "v": VERSION, "audio_lead": lead, **_stamp(path)}))
     return out
 
 
-def ensure_clean(path: str) -> str:
+def ensure_clean(path: str, extra_lead: float = 0.0) -> str:
     """The path to put on a CapCut timeline: the (cached) clean copy, or the original when it needs none."""
     try:
         if not reasons(path):
             return path
-        out = clean_path(path); side = out.with_suffix(".json")
+        extra_lead = max(0.0, float(extra_lead or 0.0)); lead = AUDIO_LEAD + extra_lead
+        out = clean_path(path, extra_lead); side = out.with_suffix(".json")
         if out.exists() and side.exists():
             try:
                 meta = json.loads(side.read_text())
-                if meta.get("v") == VERSION and abs(meta.get("audio_lead", -1) - AUDIO_LEAD) < 1e-9 and meta.get("size") == _stamp(path)["size"] and meta.get("mtime") == _stamp(path)["mtime"]:
+                if meta.get("v") == VERSION and abs(meta.get("audio_lead", -1) - lead) < 1e-9 and meta.get("size") == _stamp(path)["size"] and meta.get("mtime") == _stamp(path)["mtime"]:
                     return str(out)
             except Exception:
                 pass
-        return str(make_clean(path, out))
+        return str(make_clean(path, out, extra_lead))
     except Exception as e:                                   # never break a build over this
         print(f"clip_clean: kept original for {path}: {e}", file=sys.stderr)
         return path
