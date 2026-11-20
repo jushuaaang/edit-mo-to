@@ -46,6 +46,7 @@ from pathlib import Path
 TOOLS = Path(__file__).resolve().parent
 sys.path.insert(0, str(TOOLS))
 import capcut_project as cp  # noqa: E402
+import clip_clean  # noqa: E402  (clips go on the timeline as clean copies, so CapCut keeps them in sync)
 import motion_render as mr  # noqa: E402
 from machine import BUILD, PATHS, TMP  # noqa: E402
 from media_timing import to_sf  # noqa: E402
@@ -160,7 +161,7 @@ def clip_body(draft_id: str, clip: dict, canvas: tuple[int, int]) -> dict:
     track = clip.get("track", "video_main")
     vol = clip_volume(clip)
     scale = clip.get("scale", 1.0)
-    b = {"draft_id": draft_id, "video_url": clip["file"], "start": _s(s_us), "end": _s(e_us),
+    b = {"draft_id": draft_id, "video_url": clip_clean.ensure_clean(clip["file"]), "start": _s(s_us), "end": _s(e_us),
          "target_start": _s(US(at_f)), "track_name": "video" if track == "video_main" else track,
          "relative_index": TRACK_INDEX.get(track, 1), "width": canvas[0], "height": canvas[1], "speed": speed,
          "transform_x": clip.get("x", 0), "transform_y": clip.get("y", 0), "scale_x": scale, "scale_y": scale,
@@ -443,7 +444,7 @@ def _pick(plan: dict, timelines) -> list[dict]:
 def _sources(timelines: list[dict]) -> list[str]:
     out = []
     for tl in timelines:
-        for f in [c["file"] for c in tl.get("clips", [])] + [tl.get("vo"), tl.get("music")]:
+        for f in [clip_clean.ensure_clean(c["file"]) for c in tl.get("clips", [])] + [tl.get("vo"), tl.get("music")]:
             if f and f not in out:
                 out.append(f)
     return out

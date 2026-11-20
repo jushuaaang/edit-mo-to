@@ -806,10 +806,21 @@ def _pair_rows(old: list[dict], new: list[dict]) -> tuple[list, list, list]:
     return pairs, gone, added
 
 
+def _same_source(seg_source: str, plan_file: str) -> bool:
+    """The segment plays this plan file, or its clean copy (builds put clips on as clip_clean copies)."""
+    if _norm_path(seg_source) == _norm_path(plan_file):
+        return True
+    try:
+        import clip_clean
+        return _norm_path(seg_source) == _norm_path(str(clip_clean.clean_path(plan_file)))
+    except ImportError:
+        return False
+
+
 def _find_segment(row: dict, segs: list[dict], used: set) -> dict | None:
     want = TRACKS_DUMP.get(row["track"], row["track"])
     best = [s for s in segs if s["id"] not in used and s.get("track") == want and s.get("source")
-            and _norm_path(s["source"]) == _norm_path(row["file"]) and s.get("src_in") is not None
+            and _same_source(s["source"], row["file"]) and s.get("src_in") is not None
             and abs(s["src_in"] * 30 - row["src_in_f"]) <= 1 + 1e-6]
     return min(best, key=lambda s: abs(s["at"] - row["at"]), default=None)
 

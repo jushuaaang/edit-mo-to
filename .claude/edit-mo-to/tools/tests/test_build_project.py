@@ -279,8 +279,9 @@ def test_build_two_timelines_end_to_end(monkeypatch):
         assert (base / ".edit-mo-to" / "built" / "Timeline 01.json").exists()
         meta = json.loads((project / "draft_meta_info.json").read_text(encoding="utf-8"))
         listed = [v["file_Path"] for g in meta["draft_materials"] if g.get("type") == 0 for v in g["value"]]
-        for src in (a, b, vo):
-            assert listed.count(src) == 1 and Path(src).is_absolute()
+        for src in (a, b, vo):   # video clips are imported as their clean copies (clip_clean), the VO as is
+            want = bp.clip_clean.ensure_clean(src) if src != vo else src
+            assert listed.count(want) == 1 and Path(want).is_absolute()
     finally:
         if project.exists() and project.name.startswith("_test_"):
             shutil.rmtree(project, ignore_errors=True)

@@ -807,6 +807,16 @@ def add_overlay(project: Path, name: str, draft: Path, track_name: str = "video_
             **report}
 
 
+def _clean(path: str) -> str:
+    """Video clips go on the timeline as clean copies (clip_clean.py): no hidden B-frame/edit-list or AAC delay,
+    so CapCut plays picture and sound in sync like a normal player. Images, audio and overlays pass through."""
+    try:
+        import clip_clean
+    except ImportError:
+        return path
+    return clip_clean.ensure_clean(path)
+
+
 def _probe_media(path: str) -> dict:
     """{duration_us, width, height, kind} of a media file ('photo' for stills, 'video', 'audio')."""
     p = Path(path)
@@ -958,6 +968,7 @@ class _Patcher:
                 seg[key] = int(op[key])
 
     def _repoint(self, seg: dict, path: str) -> None:
+        path = _clean(path)
         info = _probe_media(path)
         kind, m = self._by_id()[seg["material_id"]]
         if sum(1 for t in self.c["tracks"] for s in t.get("segments", []) if s.get("material_id") == m["id"]) > 1:
@@ -985,6 +996,7 @@ class _Patcher:
         return {"op": "remove", "id": seg["id"]}
 
     def insert(self, op: dict) -> dict:
+        op = {**op, "file": _clean(op["file"])}
         info = _probe_media(op["file"])
         like_type = "audio" if info["kind"] == "audio" else "video"
         track = self._track(op["track"], like_type, op.get("track_before"))
