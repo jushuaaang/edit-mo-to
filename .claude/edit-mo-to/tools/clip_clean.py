@@ -27,6 +27,7 @@ from pathlib import Path
 
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi", ".mts", ".m2ts", ".3gp"}
 CLEAN_DIR = "_clean"
+VERSION = 2          # bump when the clean recipe changes: older copies are remade
 STANDARD_RATES = [Fraction(24000, 1001), Fraction(24), Fraction(25), Fraction(30000, 1001), Fraction(30),
                   Fraction(50), Fraction(60000, 1001), Fraction(60)]
 
@@ -106,15 +107,26 @@ def make_clean(path: str, out: Path | None = None) -> Path:
     has_audio = any(s.get("codec_type") == "audio" for s in info)
     rate = _rate(v)
     tmp = out.with_name(out.stem + ".tmp.mov")
+    # exactly the frames players show, and sound cut/padded to end on the last frame: file length = picture length,
+    # so CapCut can never add a frame past the last real picture (source audio often runs ~1 frame longer)
+    if v.get("r_frame_rate") == v.get("avg_frame_rate"):      # constant rate: keep every frame, no more, no less
+        n = int(subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames", "-show_entries",
+                                "stream=nb_read_frames", "-of", "csv=p=0", path], capture_output=True, text=True).stdout.strip() or 0)
+    else:                                                       # variable rate (phones): as many frames as the picture lasts
+        vd = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=duration",
+                             "-of", "csv=p=0", path], capture_output=True, text=True).stdout.strip()
+        n = round(float(vd) * float(rate)) if vd and vd != "N/A" else 0
+    length = n / float(rate) if n else None
     # timescale: an exact multiple of the frame rate (24 -> 24000, 30000/1001 -> 30000)
     ts = rate.numerator * 1000 if rate.denominator == 1 else rate.numerator
     cmd = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", path, "-map", "0:v:0"] + (["-map", "0:a:0"] if has_audio else []) + [
         "-vf", f"fps={rate.numerator}/{rate.denominator}", "-c:v", "libx264", "-crf", "15", "-preset", "slow", "-bf", "0",
-        "-pix_fmt", "yuv420p", "-video_track_timescale", str(ts)] + (["-c:a", "pcm_s16le", "-ar", "48000"] if has_audio else []) + [
+        "-pix_fmt", "yuv420p", "-video_track_timescale", str(ts)] + (["-frames:v", str(n)] if n else []) + (
+        ["-c:a", "pcm_s16le", "-ar", "48000"] + (["-af", f"apad=whole_dur={length:.6f},atrim=end={length:.6f}"] if length else []) if has_audio else []) + [
         "-use_editlist", "0", str(tmp)]
     subprocess.run(cmd, check=True, capture_output=True)
     tmp.replace(out)
-    out.with_suffix(".json").write_text(json.dumps({"source": str(path), **_stamp(path)}))
+    out.with_suffix(".json").write_text(json.dumps({"source": str(path), "v": VERSION, **_stamp(path)}))
     return out
 
 
@@ -127,7 +139,7 @@ def ensure_clean(path: str) -> str:
         if out.exists() and side.exists():
             try:
                 meta = json.loads(side.read_text())
-                if meta.get("size") == _stamp(path)["size"] and meta.get("mtime") == _stamp(path)["mtime"]:
+                if meta.get("v") == VERSION and meta.get("size") == _stamp(path)["size"] and meta.get("mtime") == _stamp(path)["mtime"]:
                     return str(out)
             except Exception:
                 pass
