@@ -7,8 +7,9 @@ so the lips and the sound drift apart on the timeline (found on Uvola 125, 2026-
 
 What: a clean copy is the clip exactly as players show it (edit lists applied), re-encoded as H.264 without
 B-frames at a constant frame rate, with uncompressed PCM audio, in a .mov with no edit lists. Picture and sound
-both start at 0, so every program plays it the same. Its sound is moved 2112 samples (47.9 ms) earlier to cancel
-the uncompensated AAC delay in CapCut's own exports (AUDIO_LEAD), so the exported video is in sync. Copies are cached in `_clean/` next to the source and remade
+both start at 0, so every program plays it the same. To cancel the uncompensated AAC delay in CapCut's own exports
+(AUDIO_LEAD, 47.9 ms) plus any clip-specific lag, the picture is delayed by whole frames (first frame repeated) and
+only the sub-frame remainder comes off the audio, so no sound is ever lost. Copies are cached in `_clean/` next to the source and remade
 when the source changes. Images, audio-only files and clips with transparency (overlays) are left alone; so are
 files that are already clean. If cleaning fails, the original path is returned (a build never breaks over it).
 
@@ -30,7 +31,7 @@ from pathlib import Path
 
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi", ".mts", ".m2ts", ".3gp"}
 CLEAN_DIR = "_clean"
-VERSION = 3          # bump when the clean recipe changes: older copies are remade
+VERSION = 4          # bump when the clean recipe changes: older copies are remade
 # CapCut exports AAC with the encoder's 2112-sample priming and no edit list to skip it (measured on an export,
 # Uvola 125, 2026-11-20: every shot's voice 47.9 ms late). Clean copies start their sound this much early so the
 # exported video lands the voice back on the lips. Set CLIP_CLEAN_AUDIO_LEAD=0 to turn it off.
@@ -126,13 +127,21 @@ def make_clean(path: str, out: Path | None = None, extra_lead: float = 0.0) -> P
         vd = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=duration",
                              "-of", "csv=p=0", path], capture_output=True, text=True).stdout.strip()
         n = round(float(vd) * float(rate)) if vd and vd != "N/A" else 0
-    length = n / float(rate) if n else None
+    # sync correction WITHOUT losing sound: the picture is delayed by whole frames (the first frame repeated k times)
+    # and only the sub-frame remainder comes off the audio (<1 frame, never a syllable). File time = source audio time,
+    # so plans cut by the clip's words (audio time) stay exact.
+    k = int(lead * float(rate) + 1e-6) if (has_audio and lead > 0) else 0
+    rem = lead - k / float(rate) if has_audio else 0.0
+    total = (n + k) if n else 0
+    length = total / float(rate) if total else None
     # timescale: an exact multiple of the frame rate (24 -> 24000, 30000/1001 -> 30000)
     ts = rate.numerator * 1000 if rate.denominator == 1 else rate.numerator
+    vf = f"fps={rate.numerator}/{rate.denominator}" + (f",tpad=start={k}:start_mode=clone" if k else "")
+    af = (f"atrim=start={rem:.6f},asetpts=PTS-STARTPTS," if rem > 1e-6 else "") + (f"apad=whole_dur={length:.6f},atrim=end={length:.6f}" if length else "anull")
     cmd = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", path, "-map", "0:v:0"] + (["-map", "0:a:0"] if has_audio else []) + [
-        "-vf", f"fps={rate.numerator}/{rate.denominator}", "-c:v", "libx264", "-crf", "15", "-preset", "slow", "-bf", "0",
-        "-pix_fmt", "yuv420p", "-video_track_timescale", str(ts)] + (["-frames:v", str(n)] if n else []) + (
-        ["-c:a", "pcm_s16le", "-ar", "48000"] + (["-af", (f"atrim=start={lead:.6f},asetpts=PTS-STARTPTS," if lead > 0 else "") + f"apad=whole_dur={length:.6f},atrim=end={length:.6f}"] if length else []) if has_audio else []) + [
+        "-vf", vf, "-c:v", "libx264", "-crf", "15", "-preset", "slow", "-bf", "0",
+        "-pix_fmt", "yuv420p", "-video_track_timescale", str(ts)] + (["-frames:v", str(total)] if total else []) + (
+        ["-c:a", "pcm_s16le", "-ar", "48000", "-af", af] if has_audio else []) + [
         "-use_editlist", "0", str(tmp)]
     subprocess.run(cmd, check=True, capture_output=True)
     tmp.replace(out)
