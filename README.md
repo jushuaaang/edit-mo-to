@@ -230,6 +230,7 @@ The install prompt in Step 1 follows these steps for you. They're here if you'd 
    python -m venv .venv
    .venv\Scripts\python -m pip install -r requirements.txt
    ```
+   This includes MediaPipe, which measures AI talking clips' lips on Windows (a Mac uses Apple Vision instead). On an older install, run the same `pip install` line again after updating; until then lip sync uses a 0.08 s default lag. Its face model (about 4 MB) downloads on first use.
 4. **HyperFrames (Node, pinned 0.8.162):**
    ```
    cd "D:\Video Editing\.claude\edit-mo-to\motion"

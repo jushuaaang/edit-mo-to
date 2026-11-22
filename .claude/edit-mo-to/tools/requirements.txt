@@ -4,3 +4,4 @@ pytest
 requests
 Pillow
 mlx-whisper; sys_platform == "darwin" and platform_machine == "arm64"
+mediapipe>=0.10.14; sys_platform != "darwin"

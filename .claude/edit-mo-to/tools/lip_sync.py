@@ -7,9 +7,10 @@ cancels; nothing set it, so exports read as "lips early" or "lips late".
 What, for every plan clip marked `"lips": true` (plan_tools.py expand runs this on its own):
   1. place: the clip's own voice is matched to the VO under it by audio-envelope cross-correlation (within
      +-0.5 s of the planned src_in, the cut and the speed stay); src_in moves to the best match, whole 30 fps frames.
-  2. lips: the clip's voice-after-lips lag is measured with Apple Vision mouth openness (macOS; `lipopen.swift`,
-     compiled on first use) and becomes the clip's `audio_lead` (rounded so the clean copy's picture delay is whole
-     source frames and its sound is never trimmed: file time = source time). Unmeasurable (no face, Windows,
+  2. lips: the clip's voice-after-lips lag is measured from mouth openness (Apple Vision on a Mac: `lipopen.swift`,
+     compiled on first use; MediaPipe Face Landmarker elsewhere, e.g. Windows; LIP_SYNC_ENGINE forces one) and
+     becomes the clip's `audio_lead` (rounded so the clean copy's picture delay is whole
+     source frames and its sound is never trimmed: file time = source time). Unmeasurable (no face, no tracker,
      weak match) -> DEFAULT_LAG.
   clip_clean then delays the picture by CapCut's export sound delay + that lag, so in the exported video the lips
   sit on the heard voice. A row that gives `audio_lead` itself keeps it; `"lips_place": false` skips step 1.
@@ -101,7 +102,7 @@ def best_offset(vo_env: np.ndarray, clip_env: np.ndarray, vo_t0: float, src_in: 
     return round(ds[i], 3), rs[i], float(rs[i] - rival), edge
 
 
-# --- lips (Apple Vision) --------------------------------------------------------------------------------------
+# --- lips (Apple Vision, macOS) --------------------------------------------------------------------------------------
 def _cache_dir() -> Path:
     try:
         from machine import TMP
@@ -157,10 +158,99 @@ def lag_from_curves(ts: np.ndarray, op: np.ndarray, audio: np.ndarray, sr: int =
     return {"lag": round(float(Ls[i]), 3), "r": round(float(rs[i]), 2), "sharp": round(float(rs[i] - side), 2)}
 
 
-def measure_lag(path: str) -> dict:
-    """{lag, r, sharp, source: "lips"|"default", why?} for one clip (raw source file), cached by size + mtime."""
+# --- lips (MediaPipe: Windows, or a Mac without Vision) -----------------------------------------------------------
+MP_MODEL_URL = ("https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/"
+                "face_landmarker.task")
+MP_WIDTH = 360            # frames are measured at this width (the face is large in talking clips; keeps it fast)
+
+
+def _mp_model() -> str:
+    """MediaPipe's face landmark model, downloaded once into the cache from Google's model store."""
+    f = _cache_dir() / "face_landmarker.task"
+    if not f.exists() or f.stat().st_size < 1_000_000:
+        import urllib.request
+        tmp = f.with_suffix(".part")
+        urllib.request.urlretrieve(MP_MODEL_URL, tmp)
+        tmp.replace(f)
+    return str(f)
+
+
+def _mp_available() -> bool:
+    try:
+        import mediapipe  # noqa: F401
+        return True
+    except Exception:
+        return False
+
+
+def _openness_mediapipe(path: str) -> tuple[np.ndarray, np.ndarray]:
+    """Per frame (time, mouth height / mouth width of the outer lips; -1 = no face), with MediaPipe Face Landmarker.
+    Frames come from ffmpeg (edit lists applied, so times match the audio as players show it)."""
+    import mediapipe as mp
+    from mediapipe.tasks.python import BaseOptions
+    from mediapipe.tasks.python import vision
+    fps = _fps(path)
+    info = clip_clean._probe(path).get("streams", [])
+    v = next(x for x in info if x.get("codec_type") == "video")
+    w0, h0 = int(v.get("width") or 0), int(v.get("height") or 0)
+    if not (w0 and h0):
+        out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+                              "-of", "csv=p=0", path], capture_output=True, text=True).stdout.strip().split(",")
+        w0, h0 = int(out[0]), int(out[1])
+    w = MP_WIDTH; h = int(round(h0 * w / w0 / 2)) * 2
+    proc = subprocess.Popen(["ffmpeg", "-nostdin", "-v", "error", "-i", path, "-an", "-vf", f"scale={w}:{h}",
+                             "-pix_fmt", "rgb24", "-f", "rawvideo", "-"], stdout=subprocess.PIPE)
+    opts = vision.FaceLandmarkerOptions(base_options=BaseOptions(model_asset_path=_mp_model()),
+                                        running_mode=vision.RunningMode.VIDEO, num_faces=1)
+    ts, op = [], []
+    size = w * h * 3
+    with vision.FaceLandmarker.create_from_options(opts) as lm:
+        i = 0
+        while True:
+            buf = proc.stdout.read(size)
+            if len(buf) < size:
+                break
+            img = mp.Image(image_format=mp.ImageFormat.SRGB, data=np.frombuffer(buf, np.uint8).reshape(h, w, 3))
+            t = i / fps
+            res = lm.detect_for_video(img, int(round(t * 1000)))
+            val = -1.0
+            if res.face_landmarks:
+                L = res.face_landmarks[0]
+                dy = abs(L[17].y - L[0].y) * h          # outer lips: top of the upper lip to the bottom of the lower
+                dx = abs(L[291].x - L[61].x) * w        # mouth corners
+                if dx > 0:
+                    val = dy / dx
+            ts.append(t); op.append(val); i += 1
+    proc.wait()
+    return np.array(ts), np.array(op)
+
+
+def _openness_vision(path: str) -> tuple[np.ndarray, np.ndarray] | None:
+    exe = _lipopen()
+    if not exe:
+        return None
+    txt = subprocess.run([exe, path], capture_output=True, text=True).stdout.split()
+    a = np.array(txt, float).reshape(-1, 3) if txt and len(txt) % 3 == 0 else np.zeros((0, 3))
+    return a[:, 0], a[:, 1]
+
+
+def engine() -> str | None:
+    """Which face tracker measures the lips here: LIP_SYNC_ENGINE (vision | mediapipe) if set, else Apple Vision
+    on a Mac, else MediaPipe when installed, else None (DEFAULT_LAG)."""
+    want = os.environ.get("LIP_SYNC_ENGINE", "").strip().lower()
+    if want in ("vision", "mediapipe"):
+        return want
+    if sys.platform == "darwin" and _lipopen():
+        return "vision"
+    return "mediapipe" if _mp_available() else None
+
+
+def measure_lag(path: str, eng: str | None = None) -> dict:
+    """{lag, r, sharp, source: "lips"|"default", engine, why?} for one clip (raw source file), cached by size + mtime
+    and engine."""
+    eng = eng or engine()
     st = os.stat(path)
-    key = hashlib.sha1(f"{os.path.abspath(path)}|{st.st_size}|{int(st.st_mtime)}|v1".encode()).hexdigest()[:16]
+    key = hashlib.sha1(f"{os.path.abspath(path)}|{st.st_size}|{int(st.st_mtime)}|{eng}|v2".encode()).hexdigest()[:16]
     cache = _cache_dir() / f"{key}.json"
     if cache.exists():
         try:
@@ -168,19 +258,23 @@ def measure_lag(path: str) -> dict:
         except Exception:
             pass
     res = {"lag": DEFAULT_LAG, "source": "default"}
-    exe = _lipopen()
-    if not exe:
-        res["why"] = "no Apple Vision on this machine"
+    curves = None
+    try:
+        curves = (_openness_vision(path) if eng == "vision" else _openness_mediapipe(path) if eng == "mediapipe" else None)
+    except Exception as e:                                   # a lip measurement never breaks a plan
+        res["why"] = f"{eng} failed: {e}"
+        return res                                           # not cached: retried next time
+    if curves is None:
+        res["why"] = "no face tracker on this machine (install mediapipe)"
     else:
-        txt = subprocess.run([exe, path], capture_output=True, text=True).stdout.split()
-        a = np.array(txt, float).reshape(-1, 3) if txt and len(txt) % 3 == 0 else np.zeros((0, 3))
-        m = lag_from_curves(a[:, 0], a[:, 1], _pcm(path, 16000)) if len(a) else None
+        res["engine"] = eng
+        m = lag_from_curves(curves[0], curves[1], _pcm(path, 16000)) if len(curves[0]) else None
         if m is None:
             res["why"] = "no face / no speech to measure"
         elif m["r"] < MIN_R or m["sharp"] < MIN_SHARP or not LAG_RANGE[0] <= m["lag"] <= LAG_RANGE[1]:
             res.update(why=f"weak match (lag {m['lag']:+.3f} r {m['r']} sharp {m['sharp']})", measured=m)
         else:
-            res = {**m, "source": "lips"}
+            res = {**m, "source": "lips", "engine": eng}
     cache.write_text(json.dumps(res))
     return res
 

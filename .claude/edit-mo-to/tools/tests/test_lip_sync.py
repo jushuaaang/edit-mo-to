@@ -110,3 +110,42 @@ def test_ops_carry_the_lip_lead():
     assert r["ops"] == [{"op": "set", "id": "S1", "file": "/v/a.mp4", "audio_lead": AL}]
     r = pt.ops(plan(0), plan(AL, src_in=1.3), "T", dump)
     assert [o["op"] for o in r["ops"]] == ["remove", "insert"] and r["ops"][1]["audio_lead"] == AL
+
+
+def test_engine_follows_the_override_and_falls_back(monkeypatch):
+    monkeypatch.setenv("LIP_SYNC_ENGINE", "mediapipe")
+    assert ls.engine() == "mediapipe"
+    monkeypatch.delenv("LIP_SYNC_ENGINE")
+    monkeypatch.setattr(ls.sys, "platform", "win32")
+    monkeypatch.setattr(ls, "_mp_available", lambda: True)
+    assert ls.engine() == "mediapipe"
+    monkeypatch.setattr(ls, "_mp_available", lambda: False)
+    assert ls.engine() is None
+
+
+def test_measure_lag_without_a_tracker_uses_the_default(tmp_path, monkeypatch):
+    f = tmp_path / "c.mp4"; f.write_bytes(b"x")
+    monkeypatch.setattr(ls, "_cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(ls, "engine", lambda: None)
+    m = ls.measure_lag(str(f))
+    assert m["lag"] == ls.DEFAULT_LAG and m["source"] == "default" and "mediapipe" in m["why"]
+
+
+def test_measure_lag_uses_the_mediapipe_curves(tmp_path, monkeypatch):
+    f = tmp_path / "c.mp4"; f.write_bytes(b"x")
+    monkeypatch.setattr(ls, "_cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(ls, "_openness_mediapipe", lambda p: (np.arange(0, 3, 1 / 24), np.ones(72)))
+    monkeypatch.setattr(ls, "_pcm", lambda p, sr: np.zeros(sr * 3, np.float32))
+    monkeypatch.setattr(ls, "lag_from_curves", lambda ts, op, a, sr=16000: {"lag": 0.06, "r": 0.8, "sharp": 0.6})
+    m = ls.measure_lag(str(f), eng="mediapipe")
+    assert m["lag"] == 0.06 and m["source"] == "lips" and m["engine"] == "mediapipe"
+
+
+def test_a_tracker_crash_falls_back_and_is_not_cached(tmp_path, monkeypatch):
+    f = tmp_path / "c.mp4"; f.write_bytes(b"x")
+    monkeypatch.setattr(ls, "_cache_dir", lambda: tmp_path)
+    def boom(p):
+        raise RuntimeError("no model")
+    monkeypatch.setattr(ls, "_openness_mediapipe", boom)
+    m = ls.measure_lag(str(f), eng="mediapipe")
+    assert m["source"] == "default" and "no model" in m["why"] and not list(tmp_path.glob("*.json"))
