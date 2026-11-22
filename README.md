@@ -183,7 +183,7 @@ The app's dashboard shows how much of your plan's week you have used, about how 
 | `/edit-mo-to`, `/practice-muna` (or their `-app` versions) don't show up | Start the Claude Code session in your video folder, not somewhere else |
 | Submit to Claude says "Claude isn't installed as a terminal command" | The app opens Claude through the Claude Code command-line tool, which the desktop app doesn't include. Install it once: Windows `winget install Anthropic.ClaudeCode`, Mac `curl -fsSL https://claude.ai/install.sh \| bash`. The first window it opens may ask you to log in. |
 | Graphics fail to render | Check your internet connection (graphics load their fonts online), then retry |
-| Want the newest templates and fixes | Tell Claude "update edit-mo-to" (a safe `git pull`; your own rules and client notes are never touched) |
+| Want the newest templates and fixes | Tell Claude "update edit-mo-to" (a safe `git pull`, then it installs any new tools the update needs; your own rules and client notes are never touched) |
 
 <details>
 <summary><b>For the technically curious: what's inside, manual setup, updates</b></summary>
@@ -230,7 +230,7 @@ The install prompt in Step 1 follows these steps for you. They're here if you'd 
    python -m venv .venv
    .venv\Scripts\python -m pip install -r requirements.txt
    ```
-   This includes MediaPipe, which measures AI talking clips' lips on Windows (a Mac uses Apple Vision instead). On an older install, run the same `pip install` line again after updating; until then lip sync uses a 0.08 s default lag. Its face model (about 4 MB) downloads on first use.
+   This includes MediaPipe, which measures AI talking clips' lips on Windows (a Mac uses Apple Vision instead). On an older install, "update edit-mo-to" installs it for you (until then lip sync uses a 0.08 s default lag). Its face model (about 4 MB) downloads on first use.
 4. **HyperFrames (Node, pinned 0.8.162):**
    ```
    cd "D:\Video Editing\.claude\edit-mo-to\motion"
@@ -294,6 +294,6 @@ The app runs on this computer only (`127.0.0.1`, port 4810, or `gui_port` in `ma
 **What Claude may run without asking.** The workflow ships `.claude/settings.json`, which pre-approves one command pattern: `Bash(.claude/edit-mo-to/run *)`. `run` starts only the workflow's own Python scripts in `.claude/edit-mo-to/gui/` and `.claude/edit-mo-to/tools/`, with the tools' Python, and refuses anything else. Those scripts can do everything the workflow does with any arguments, including writing CapCut projects and `playbook_scan.py`'s reads of a shared Playbook folder over the network; no other shell command is pre-approved (no `rm`, no git, no curl). That is why an answer you give in the app carries on without a permission question in chat. Your own `.claude/settings.local.json` is never changed. The same file also blocks Claude from reading `.claude/edit-mo-to/secrets.json`, where an ElevenLabs key would be kept.
 
 ### Getting updates
-The repo holds the shared workflow only: tools, agents, templates and starter rules. Nothing personal is ever uploaded, and Claude never pulls or pushes on its own. To get the newest version, tell Claude "update edit-mo-to": it runs `git pull --ff-only`, which never touches your `my-preferences.md`, client notes or videos.
+The repo holds the shared workflow only: tools, agents, templates and starter rules. Nothing personal is ever uploaded, and Claude never pulls or pushes on its own. To get the newest version, tell Claude "update edit-mo-to": it runs `tools/update.py`, which does `git pull --ff-only` (it never touches your `my-preferences.md`, client notes or videos), then `pip install -r requirements.txt` so any new Python package is installed, and `npm ci` for HyperFrames when its lockfile changed.
 
 </details>
