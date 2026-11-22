@@ -6,13 +6,13 @@ Every template is `templates\<name>.html`. For exact variables and defaults, run
 | Template | Use for | Key vars |
 |---|---|---|
 | badge | guarantee, offer, claim badge near the top | text, accent, bg, top |
-| cta | animated SHOP NOW button with tap ripple | text, bg, bottom, x (button centre px; empty = centred; off-centre auto-fits inside 40 px margins), outro (`fade` default, `none` = held to the last frame) |
+| cta | animated SHOP NOW button with tap ripple | text, bg, bottom, x (button centre px; empty = centred; off-centre auto-fits inside 40 px margins), outro (`fade` default, `none` = held to the last frame), ring (outline colour, default white; `none` = no ring, drop shadow only) |
 | end-card | closing panel: headline, sub, button | headline, sub, button, logo_text |
 | stat | counting number with a label | value, prefix, suffix, label |
 | word-pop | one big word slam with an underline | text, highlight, top |
 | callout | dot + line + tag pointing at a product | text, x, y, side |
 | hook-number | numbered hook badge (1, 2, 3…) | number, label |
-| split-labels | BEFORE / AFTER labels + divider for split screens | top_label, bottom_label |
+| split-labels | BEFORE / AFTER labels + divider for split screens | top_label, bottom_label; optional: stroke ("8" default outline px; "0"/"none" = no outline), stroke_color, chip ("on" = solid pill behind each label, soft shadow, no outline, auto-fits), chip_bg (#1E2A6B), chip_fg (#ffffff), divider, divider_h ("6"), divider_opacity ("1"), font, fg |
 | mirror-molecules | 50/50 bar, then mirror pair, then winner (science reveal) | split_text, pair_text, payoff_text, t_pair, t_payoff |
 | lottie | any Lottie animation (LottieFiles / After Effects `.json`): animated icons, arrows, emoji, stickers, confetti; plays frame-exact, empty `anim_file` = a self-drawing checkmark. `color` recolours one-colour icons to the client's colour | anim_file (path to the .json), color, size, x, y (centre), speed, loop |
 
@@ -22,7 +22,7 @@ Every template is `templates\<name>.html`. For exact variables and defaults, run
 | kinetic-title | two-line heavy-italic keyword title (white + colour line); replaces captions in this style | line1, line2, accent, top |
 | glass-card | iOS card with icon, title, sub, beside the hands or product | icon, icon_bg, title, sub, x, y, width |
 | glass-split | segmented bar (R 50% │ S 50%) | left, right, left_value, right_value |
-| glass-compare | ✓/✕ verdict rows, or mirror twins (`mode`) | win, lose, win_note, lose_note, mode, t_verdict |
+| glass-compare | ✓/✕ verdict rows, or mirror twins (`mode`) | win, lose, win_note, lose_note, mode, t_verdict, border (CSS border, default `1.5px solid #fff`; `none` = no outline, soft shadow instead) |
 | color-flash | full-frame colour wash on a beat | color, peak, hold, vignette |
 
 ## "Fascora glass" system: native 4:5, works for 9:16 too (built 2026-10-17)
@@ -33,7 +33,7 @@ Every template here has a `height` var (default 1350, use 1920 for 9:16) and a `
 | glass-title | hook title: light glass label (line 1) + navy panel (line 2); key phrase lights up in wave blue on its spoken word | line1, line2, key, t_key, y, align, scale, size1, size2 |
 | glass-toggle | iOS segmented control, e.g. "6 months ago │ Now"; thumb springs across on the word | left, right, t_switch, y, scale |
 | glass-counter | big counting number + label in a glass card ("20 clients a day") | value, prefix, suffix, label, from, t_count, count_dur, x, y, anchor |
-| pain-marker | pulsing pain point on the body + leader line + glass tag | label, x, y, side, dx, dy, color |
+| pain-marker | pulsing pain point on the body + leader line + glass tag | label, x, y, side, dx, dy, color, ring_stroke (px, default `4`; `none`/`0` = no outlines: filled soft-glow pulse, no white ring on the dot or tag hairline), line (`show` / `none` hides the leader line) |
 | light-sweep | soft blue-white glint across a cut (0.5 s), a premium alternative to `color-flash` | tint, peak, angle, dir |
 
 ## Creator effects kit (effects adapted from a "7 effects" creator reel, 2026-10-19)
@@ -133,7 +133,7 @@ Clinical white-space explainer: ink = pouch burgundy `#5a1426`, sky `#6fb4e6`, h
 | collagen-network-v2 | microscope field with a node lattice: each hard cut (t_beats) also morphs the state: ordered lattice, then broken fibres with nodes turned into crosses (highlighter rings mark breaks), then nodes pulled into dark clumps. Rim graduations + scale bar | t_beats, cx, cy, radius, pitch, fibre, node, clump, marker |
 | membrane-molecule-v2 | bilayer assembles from a particle field, sky dots bounce off (heads flinch), deep-red particles stream in and lock into ring-chain-ring through the membrane, both anchors pulse | mode (full/one-beat), t_dots, t_molecule, cy, bg |
 | paper-highlight-v2 | paper arrives blur-to-sharp; callouts become ONE white UI card: with a `*number` a stat card (header items, number counts up, % bar fills, marker underline); without, a list card whose rows drop in with line icons, plus `score` chart. Paper pulls out of focus when the card's number lands | v1 vars + card_w, count, focus, edge |
-| badge-pop-v2 | white UI chips (icon tile, heavy sans, 2+ digit numbers in serif italic) drop blur-to-sharp into faint dashed slot outlines (`ghost`), calendar-slot style; `label` mode pushes in blur-to-sharp. Keep `slots` off the product label | v1 vars + ghost, t_ghost (no tilt) |
+| badge-pop-v2 | white UI chips (icon tile, heavy sans, 2+ digit numbers in serif italic) drop blur-to-sharp into faint dashed slot outlines (`ghost`), calendar-slot style; `label` mode pushes in blur-to-sharp. Keep `slots` off the product label | v1 vars + ghost, t_ghost (no tilt), halo (`none` = no tinted shadow/hairline ring, soft neutral shadow only; use when chips show a coloured glow ring in CapCut), shadow (`none` = no drop shadow), edge (`none` = no icon-tile fill, no ghost) |
 | offer-end-card-v2 | "One idea." minimal end card: logo draws on, guarantee chip drops in on its word, headline word by word in 900 sans with an accent `dot`, key phrase highlighted as one block, serif italic offer2, dissolve to white | v1 vars + dot, chip_y |
 | journal-page | editorial "published paper" research beat (reference-style): a typeset journal-STYLE page on white (masthead, coloured section `tag`, bold `title`, authors/affiliations/abstract/body/table/image grid as blurred pseudo-word lorem so nothing false is legible; only tag, `cite`, `result`, `marks` read; `title_blur 1` (default) draws the title as unreadable shapes, use 0 only for a title made purely of brief facts; `fuzz` = em-based text-shadow blur so lorem stays unreadable at any zoom). Camera `path` scrolls + pushes in on anchors; highlighter wipes title marks, then the `result` sentence line by line on its word times; sky glow on `callouts`; `page b` = short report with a falling-score figure (no values) at `t_chart`. Built-in kinetic words: small italic sans lines + big Playfair italic `*words` (numbers count up); a `!` phrase dims/blurs the page behind it. Kinetic words replace captions for these beats | page (a/b), tag, title, title_marks, t_title_marks, cite, result, t_result (per word or per line), marks, t_marks, callouts, t_callouts, t_chart, path (t:anchor:zoom;… anchors top/title/abstract/results/result/figure/chart/cite/page-y), kinetic, k_times, ky, ky_dim, dim, fuzz, pad_top, outro |
 | whitescreen-test | full-frame "look at a white wall" hook (Velia hook 2, 2026-10-23): the viewer's own screen is the white wall; translucent SB-4-style floaters (tube threads, bead chains, rings, squiggles, specks) drift with a lag; on each `follow` time the view drifts toward a floater (faint wall texture moves) and it slides away ahead of the gaze. Kinetic words word by word (kinetic-type-v2 syntax), centred at `y`, floaters weave around the visible phrase. `reveal 1`: at `t_reveal` the white world shrinks into a pupil, the front iris turns side-on and becomes a clear eye cross-section, an orb crosses the lens to the retina. `bg ""` + `reveal 0` + `text ""` = transparent floater layer that follows across cuts (`follow` "t@dx:dy" = saccade on each cut, `avoid` = text band to weave around). Opaque by default; burned-in words replace captions | text, times, count, strength, size, seed, tone, follow, gain, reveal, t_reveal, orb, bg, grain, avoid, y, size_text, glow, eye_x, eye_y, eye_scale, fade_in, fade_out, height |

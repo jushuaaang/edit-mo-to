@@ -1,4 +1,4 @@
-<!--defaults {"win": "R-form", "win_note": "works", "lose": "S-form", "lose_note": "doesn't", "mode": "verdict", "win_color": "#248a3d", "lose_color": "#d70015", "x": 540, "y": 780, "width": 640, "t_verdict": 0.5, "font": "Inter", "duration": 2.4} -->
+<!--defaults {"win": "R-form", "win_note": "works", "lose": "S-form", "lose_note": "doesn't", "mode": "verdict", "win_color": "#248a3d", "lose_color": "#d70015", "x": 540, "y": 780, "width": 640, "t_verdict": 0.5, "font": "Inter", "border": "1.5px solid #fff", "duration": 2.4} -->
 <!doctype html>
 <html lang="en" data-resolution="portrait">
 <head>
@@ -10,8 +10,10 @@
   html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
   #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", -apple-system, sans-serif; }
   #c { position: absolute; left: {{x}}px; top: {{y}}px; width: {{width}}px; padding: 14px; border-radius: 34px;
-       background: linear-gradient(160deg, rgba(255,255,255,.95), rgba(232,236,245,.9)); border: 1.5px solid #fff;
+       background: linear-gradient(160deg, rgba(255,255,255,.95), rgba(232,236,245,.9)); border: {{border}};
        box-shadow: 0 24px 60px rgba(0,0,0,.35), inset 0 1px 0 #fff; }
+  /* border "none": no outline or hairline highlight; a soft layered shadow keeps the panel off the footage */
+  #c.nb { border: 0; box-shadow: 0 2px 8px rgba(0,0,0,.14), 0 24px 60px rgba(0,0,0,.38); }
   .row { display: flex; align-items: center; gap: 22px; padding: 16px 20px; border-radius: 22px; }
   .row + .row { margin-top: 8px; }
   .mk { flex: none; width: 66px; height: 66px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
@@ -30,6 +32,8 @@
 </div>
 <script>
   const D = {{duration}}, TV = Number("{{t_verdict}}"), MIRROR = "{{mode}}" === "mirror";
+  const BD = "{{border}}".trim().toLowerCase();
+  if (["none", "0", "off", "false", "no"].includes(BD)) document.getElementById("c").classList.add("nb");
   const tl = gsap.timeline({ paused: true });
   gsap.set("#c", { xPercent: -50 });
   gsap.set(["#tw", "#tl2"], { opacity: 0 });

@@ -134,6 +134,14 @@ def end_frame(timeline: dict) -> int:
     return max((_f(r["at"]) + _f(r["duration"]) for r in rows), default=0)
 
 
+def sfx_only(o: dict) -> bool:
+    """An invisible carrier (color-flash with peak 0, or "sfx_only": true) exists only to place its SFX cue:
+    it is never rendered and never put on the timeline as a video segment (CapCut mis-reads the alpha of our
+    overlay .movs, so a nothing-to-see overlay would still show as a wash)."""
+    v = o.get("vars") or {}
+    return bool(o.get("sfx_only")) or (o.get("template") == "color-flash" and str(v.get("peak")) in ("0", "0.0"))
+
+
 def overlays_to_frames(timeline: dict) -> list[dict]:
     """Contract overlays (seconds) -> {"template","from","to","vars","sfx","track"} in frames, the shape
     plan_common.sfx_cues reads. "file" and "cutout" are carried along when the overlay has them."""
@@ -142,6 +150,8 @@ def overlays_to_frames(timeline: dict) -> list[dict]:
         a = _f(o["at"])
         f = {"template": o["template"], "from": a, "to": a + _f(o["duration"]), "vars": o.get("vars", {}),
              "sfx": o.get("sfx", "none"), "track": o.get("track") or "ui"}
+        if sfx_only(o):
+            f["sfx_only"] = True
         for k in ("file", "cutout", "cutout_file"):
             if o.get(k):
                 f[k] = o[k]
@@ -313,6 +323,8 @@ def render_assets(plan: dict, timelines: list[dict], render_fn=mr.render) -> dic
     jobs, owners = [], []
     for tl in timelines:
         for n, (o, fr) in enumerate(zip(tl.get("overlays", []), overlays_to_frames(tl)), 1):
+            if sfx_only(o):
+                continue
             if o.get("file"):
                 o["file"] = mr.plain_path(o["file"])   # plans written before paths were normalised
                 continue
@@ -352,13 +364,15 @@ def build_timeline(plan: dict, timeline: dict, post=post, render=True) -> dict:
     canvas = _canvas(plan)
     end_f = end_frame(timeline)
     frames = overlays_to_frames(timeline)
-    missing = [o["template"] for o in frames if not o.get("file")]
+    missing = [o["template"] for o in frames if not o.get("file") and not o.get("sfx_only")]
     if missing:
         raise ValueError(f"{timeline['name']}: overlays without a rendered file: {missing}")
     did = post("create_draft", {"width": canvas[0], "height": canvas[1]})["output"]["draft_id"]
     counts = {"overlays": 0, "clips": 0, "keyframes": 0, "effects": 0, "cutouts": 0, "texts": 0, "temp_en": 0, "vo": 0,
               "music": 0, "sfx": 0}
     for o in frames:
+        if o.get("sfx_only"):
+            continue
         post("add_video", _overlay_body(did, o, canvas))
         counts["overlays"] += 1
     clips = sorted(timeline.get("clips", []), key=lambda c: (c.get("track", "video_main") != "video_main",
@@ -509,7 +523,7 @@ def mark_built(plan: dict, name: str, as_name: str | None = None) -> dict:
     old = json.loads(old_p.read_text(encoding="utf-8"))["timelines"][0].get("overlays", []) if old_p.exists() else []
     carried, unrendered = 0, []
     for n, o in enumerate(tl.get("overlays", []), 1):
-        if o.get("file"):
+        if o.get("file") or sfx_only(o):
             continue
         prev = next((x for x in old if x.get("file") and all(x.get(k) == o.get(k) for k in OVERLAY_KEY)), None)
         if prev:

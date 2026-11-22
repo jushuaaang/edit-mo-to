@@ -1,4 +1,4 @@
-<!--defaults {"label": "Heel pain", "x": 420, "y": 1100, "side": "right", "dx": 120, "dy": -170, "color": "#ff5b4f", "ink": "#0b2545", "scale": 1, "font": "Inter", "height": 1350, "duration": 2.5} -->
+<!--defaults {"label": "Heel pain", "x": 420, "y": 1100, "side": "right", "dx": 120, "dy": -170, "color": "#ff5b4f", "ink": "#0b2545", "scale": 1, "font": "Inter", "ring_stroke": "4", "line": "show", "height": 1350, "duration": 2.5} -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -12,7 +12,12 @@
           --s: {{scale}}; -webkit-font-smoothing: antialiased; }
   #pin { position: absolute; inset: 0; }
   .ring { position: absolute; left: calc({{x}}px - var(--s) * 60px); top: calc({{y}}px - var(--s) * 60px); width: calc(var(--s) * 120px); height: calc(var(--s) * 120px);
-          border-radius: 50%; border: calc(var(--s) * 4px) solid {{color}}; }
+          border-radius: 50%; border: calc(var(--s) * {{ring_stroke}}px) solid {{color}}; }
+  /* ring_stroke "none"/"0": no outlines anywhere; the pulse is a soft filled glow */
+  #root.soft .ring { border: 0; background: radial-gradient(circle, {{color}} 0%, {{color}} 22%, transparent 70%); }
+  #root.soft #core { box-shadow: 0 0 calc(var(--s) * 18px) {{color}}, 0 4px 14px rgba(0,0,0,.35); }
+  #root.soft #tag { box-shadow: 0 2px 6px rgba(6,18,40,.12), 0 16px 40px rgba(6,18,40,.26); }
+  #root.noline #line { display: none; }
   #core { position: absolute; left: calc({{x}}px - var(--s) * 17px); top: calc({{y}}px - var(--s) * 17px); width: calc(var(--s) * 34px); height: calc(var(--s) * 34px);
           border-radius: 50%; background: {{color}}; box-shadow: 0 0 0 calc(var(--s) * 5px) #fff, 0 4px 14px rgba(0,0,0,.35); }
   #line { position: absolute; left: {{x}}px; top: calc({{y}}px - var(--s) * 1.5px); height: calc(var(--s) * 3px); background: #fff; transform-origin: 0 50%; border-radius: 2px;
@@ -34,6 +39,10 @@
 <script>
   const D = Number("{{duration}}"), S = Number("{{scale}}"), DX = Number("{{dx}}") * S, DY = Number("{{dy}}") * S, SIDE = "{{side}}";
   const X = Number("{{x}}"), Y = Number("{{y}}");
+  const RS = "{{ring_stroke}}".trim().toLowerCase(), LN = "{{line}}".trim().toLowerCase();
+  const rootEl = document.getElementById("root");
+  if (["none", "0", "off", "false", "no"].includes(RS)) rootEl.classList.add("soft");
+  if (["none", "0", "off", "false", "no", "hide", "hidden"].includes(LN)) rootEl.classList.add("noline");
   const tag = document.getElementById("tag"), line = document.getElementById("line");
   function place() {
     const w = tag.offsetWidth, h = tag.offsetHeight;

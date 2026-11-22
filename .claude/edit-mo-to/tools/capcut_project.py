@@ -1058,6 +1058,13 @@ class _Patcher:
         t, seg = self._locate(op["id"])
         segs = sorted(t["segments"], key=lambda s: s["target_timerange"]["start"])
         i = segs.index(seg)
+        if op.get("name") is None:  # name null = straight cut: drop this segment's transition
+            by = self._by_id()
+            gone = {r for r in seg.get("extra_material_refs") or [] if by.get(r, (None,))[0] == "transitions"}
+            seg["extra_material_refs"] = [r for r in seg.get("extra_material_refs") or [] if r not in gone]
+            used = {r for tr in self.c["tracks"] for s in tr.get("segments", []) for r in s.get("extra_material_refs") or []}
+            self.mats["transitions"] = [x for x in self.mats.get("transitions", []) if x.get("id") not in gone or x.get("id") in used]
+            return {"op": "transition", "id": seg["id"], "name": None, "removed": len(gone)}
         if i + 1 >= len(segs) or segs[i + 1]["target_timerange"]["start"] != _span(seg)[1]:
             raise ValueError(f"segment {seg['id']} has no clip right after it to transition into")
         src = Path(op["from_draft"])

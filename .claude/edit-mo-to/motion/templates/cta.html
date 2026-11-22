@@ -12,6 +12,8 @@
   #c { position: absolute; bottom: {{bottom}}px; left: 50%; background: {{bg}}; color: {{fg}}; font-size: {{size}}px;
        padding: 0.428571em 1.285714em; border-radius: 999px; white-space: nowrap;
        box-shadow: 0 0 0 8px {{ring}}, 0 18px 40px rgba(0,0,0,.5); }
+  /* ring "none": no outline ring, only the drop shadow */
+  #c.nr { box-shadow: 0 18px 40px rgba(0,0,0,.5); }
   #tap { position: absolute; bottom: {{bottom}}px; left: 62%; width: 90px; height: 90px; border-radius: 50%;
          background: rgba(255,255,255,.85); opacity: 0; }
 </style>
@@ -23,6 +25,7 @@
 </div>
 <script>
   const D = {{duration}};
+  if (["none", "0", "off", "false", "no", "transparent"].includes("{{ring}}".trim().toLowerCase())) document.getElementById("c").classList.add("nr");
   // auto-fit: shrink text that would run past the safe width (measured with the real font)
   function fitW(el, maxW) {
     el.style.fontSize = "";

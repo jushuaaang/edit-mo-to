@@ -1,4 +1,4 @@
-<!--defaults {"top_label": "BEFORE", "bottom_label": "AFTER", "divider": "#ffffff", "fg": "#ffffff", "font": "Montserrat", "duration": 3} -->
+<!--defaults {"top_label": "BEFORE", "bottom_label": "AFTER", "divider": "#ffffff", "fg": "#ffffff", "font": "Montserrat", "stroke": "8", "stroke_color": "#000000", "chip": "off", "chip_bg": "#1E2A6B", "chip_fg": "#ffffff", "divider_h": "6", "divider_opacity": "1", "duration": 3} -->
 <!doctype html>
 <html lang="en" data-resolution="portrait">
 <head>
@@ -12,6 +12,12 @@
   #line { position: absolute; top: 957px; left: 0; height: 6px; width: 1080px; background: {{divider}}; transform-origin: center; }
   .lab { position: absolute; left: 40px; color: {{fg}}; font-size: 64px; -webkit-text-stroke: 8px #000; paint-order: stroke fill; }
   #t { top: 860px; } #b { top: 985px; }
+  /* stroke off (stroke: 0 / none): no text outline */
+  #root.nostroke .lab { -webkit-text-stroke: 0; }
+  /* chip on: solid pill behind the text, soft shadow, no border, no outline */
+  #root.chip .lab { -webkit-text-stroke: 0; background: {{chip_bg}}; color: {{chip_fg}}; font-size: 48px; line-height: 1; letter-spacing: 0.04em;
+    padding: 16px 28px; border-radius: 18px; white-space: nowrap; box-shadow: 0 10px 28px rgba(0,0,0,0.28), 0 2px 6px rgba(0,0,0,0.18); }
+  #root.chip #t { top: 860px; } #root.chip #b { top: 983px; }
 </style>
 </head>
 <body>
@@ -22,6 +28,28 @@
 </div>
 <script>
   const D = {{duration}};
+  (function () {
+    const root = document.getElementById("root");
+    const ch = String("{{chip}}").trim().toLowerCase();
+    const chip = (ch === "on" || ch === "1" || ch === "true" || ch === "yes");
+    if (chip) root.classList.add("chip");
+    const st = String("{{stroke}}").trim().toLowerCase();
+    const sw = parseFloat(st);
+    if (chip || st === "none" || st === "off" || st === "false" || !(sw > 0)) root.classList.add("nostroke");
+    else if (sw !== 8 || "{{stroke_color}}" !== "#000000") document.querySelectorAll(".lab").forEach(function (el) { el.style.webkitTextStroke = sw + "px {{stroke_color}}"; });
+    const line = document.getElementById("line");
+    const dh = parseFloat("{{divider_h}}");
+    if (dh >= 0 && dh !== 6) { line.style.height = dh + "px"; line.style.top = (960 - dh / 2) + "px"; }
+    const dop = parseFloat("{{divider_opacity}}");
+    if (dop >= 0 && dop < 1) line.style.opacity = String(dop);
+    if (chip) {
+      const fit = function () { document.querySelectorAll(".lab").forEach(function (el) {
+        el.style.fontSize = "";
+        let fs = 48; while (el.offsetWidth > 1000 && fs > 24) { fs -= 1; el.style.fontSize = fs + "px"; }
+      }); };
+      fit(); if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+    }
+  })();
   const tl = gsap.timeline({ paused: true });
   tl.fromTo("#line", { scaleX: 0 }, { scaleX: 1, duration: 0.3, ease: "power3.out" }, 0);
   tl.from("#t", { x: -80, opacity: 0, duration: 0.3, ease: "power3.out" }, 0.15);
