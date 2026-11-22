@@ -280,3 +280,36 @@ def test_failed_snapshot_removes_the_stale_one_and_says_so(project, monkeypatch)
     out = cp.patch_timeline(project, "Timeline 01", [{"op": "set", "id": "a1", "volume": 0.7}])
     assert out["last_snapshot"] is False and not cp.last_path(project, "Timeline 01").exists()
     assert not list((project / cp.BACKUP_DIR).glob("*.tmp"))
+
+
+def _trans_refs(c, seg):
+    ids = {t["id"] for t in c["materials"].get("transitions", [])}
+    return [r for r in seg["extra_material_refs"] if r in ids]
+
+
+def test_insert_like_does_not_copy_the_template_transition(project, tmp_path):
+    """Pieces cloned from a clip must not inherit its transition (it flashed at every join, Revella 2026-11-22)."""
+    effect = tmp_path / "effect_749"
+    effect.mkdir()
+    src = _transition_source(tmp_path, effect)
+    cp.patch_timeline(project, "Timeline 01", [
+        {"op": "transition", "id": "a1", "name": "Blur Focus", "from_draft": str(src)}])
+    out = cp.patch_timeline(project, "Timeline 01", [
+        {"op": "insert", "track": "video_broll", "file": "D:/x/V61.mp4", "start": 4 * S, "duration": S, "like": "a1"}])
+    c = _load(project)
+    assert _trans_refs(c, _seg_by(c, out["results"][0]["id"])) == []
+    assert len(_trans_refs(c, _seg_by(c, "a1"))) == 1
+    assert len(c["materials"]["transitions"]) == 1
+
+
+def test_split_keeps_the_transition_only_on_the_right_half(project, tmp_path):
+    effect = tmp_path / "effect_749"
+    effect.mkdir()
+    src = _transition_source(tmp_path, effect)
+    cp.patch_timeline(project, "Timeline 01", [
+        {"op": "transition", "id": "a1", "name": "Blur Focus", "from_draft": str(src)}])
+    out = cp.patch_timeline(project, "Timeline 01", [{"op": "split", "id": "a1", "at": 1 * S}])
+    c = _load(project)
+    assert _trans_refs(c, _seg_by(c, "a1")) == []
+    assert len(_trans_refs(c, _seg_by(c, out["results"][0]["new_id"]))) == 1
+    assert len(c["materials"]["transitions"]) == 1
