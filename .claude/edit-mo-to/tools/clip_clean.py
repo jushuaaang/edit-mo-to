@@ -18,7 +18,7 @@ CLI (prints JSON):
     make <file> [...]      make (or reuse) the clean copies; prints {source: clean path}
 Library: ensure_clean(path, extra_lead=0) -> path to use (the clean copy, or the original when it needs none).
 extra_lead (seconds): a clip's own voice-after-lips lag, cancelled on top of the CapCut fix. Plans set it per clip as
-"audio_lead" (e.g. Omni Flash / Uvola talking clips: ~0.08 s, measured with mouth openness on Uvola 125).
+"audio_lead"; lip_sync.py sets it from the measured lip lag on plan rows marked "lips": true (Omni Flash ~0.08 s).
 """
 from __future__ import annotations
 

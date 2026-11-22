@@ -1,8 +1,10 @@
 """Compact frame plan -> contract plan, plus the plan table.
 
 CLI (prints JSON):
-    expand <plan2.json> [--out plan.json] [--table plan_table.txt]
-                         expand the compact frame plan (plan2) into the edit-plan JSON the editor builds from
+    expand <plan2.json> [--out plan.json] [--table plan_table.txt] [--no-lips]
+                         expand the compact frame plan (plan2) into the edit-plan JSON the editor builds from;
+                         clips marked "lips": true are then lip-synced (lip_sync.py: placed on the VO by audio
+                         match, audio_lead from their measured lip lag); the report is "lips" in the output
     check <plan.json> [--limits limits.json]
                          timing, reuse, VO edges, overlay, template and scale problems, and a temp_en English
                          file whose line count differs from its timings' lines; exit code 1 when any
@@ -788,7 +790,8 @@ def _facts(c: dict) -> dict:
     return {"file": c["file"], "track": c.get("track", "video_main"), "src_in_f": round(c["src_in"] * 30),
             "start": _us(at_f), "duration": dur, "src_duration": round(dur * speed), "speed": speed,
             "scale": c.get("scale", 1.0), "x": c.get("x", 0.0), "y": c.get("y", 0.0), "volume": vol,
-            "src_start": round(c["src_in"] * 1e6), "at": c["at"], "src_in": c["src_in"]}
+            "src_start": round(c["src_in"] * 1e6), "at": c["at"], "src_in": c["src_in"],
+            "audio_lead": float(c.get("audio_lead") or 0.0)}
 
 
 def _pair_rows(old: list[dict], new: list[dict]) -> tuple[list, list, list]:
@@ -866,6 +869,8 @@ def ops(old_plan: dict, new_plan: dict, timeline: str, dump: dict) -> dict:
         if n["speed"] != o["speed"]:
             changed["speed"] = n["speed"]
         changed.update({k: n[k] for k in ("scale", "x", "y", "volume") if n[k] != o[k]})
+        if n["audio_lead"] != o["audio_lead"]:   # a new lip lead = the same clip from another clean copy
+            changed.update(file=n["file"], audio_lead=n["audio_lead"])
         if changed:
             seg = locate(o)
             if seg:
@@ -877,7 +882,8 @@ def ops(old_plan: dict, new_plan: dict, timeline: str, dump: dict) -> dict:
     for n in sorted(added, key=lambda r: r["start"]):
         out.append({"op": "insert", "track": TRACKS_DUMP.get(n["track"], n["track"]), "file": n["file"],
                     "start": n["start"], "duration": n["duration"], "src_start": n["src_start"],
-                    "speed": n["speed"], "scale": n["scale"], "x": n["x"], "y": n["y"], "volume": n["volume"]})
+                    "speed": n["speed"], "scale": n["scale"], "x": n["x"], "y": n["y"], "volume": n["volume"],
+                    **({"audio_lead": n["audio_lead"]} if n["audio_lead"] else {})})
     return {"ops": out, "unmapped": unmapped}
 
 
@@ -892,11 +898,17 @@ def main(argv: list[str]) -> None:
         out_p = Path(args[args.index("--out") + 1]) if "--out" in args else src.with_name("plan.json")
         tab_p = Path(args[args.index("--table") + 1]) if "--table" in args else src.with_name("plan_table.txt")
         plan = expand(json.loads(src.read_text(encoding="utf-8")))
+        lips = None
+        if "--no-lips" not in args and any(c.get("lips") for t in plan["timelines"] for c in t["clips"]):
+            import lip_sync
+            lips = lip_sync.sync_plan(plan)
         out_p.write_text(json.dumps(plan, indent=1, ensure_ascii=False), encoding="utf-8")
         tab_p.write_text(plan_table(plan), encoding="utf-8")
         out = {"plan": str(out_p), "table": str(tab_p), "timelines": len(plan["timelines"]),
                "clips": sum(len(t["clips"]) for t in plan["timelines"]),
                "overlays": sum(len(t["overlays"]) for t in plan["timelines"])}
+        if lips is not None:
+            out["lips"] = lips
     elif cmd == "check":
         limits = json.loads(Path(args[args.index("--limits") + 1]).read_text(encoding="utf-8")) if "--limits" in args else None
         errs = check(json.loads(Path(args[0]).read_text(encoding="utf-8")), limits)
