@@ -14,7 +14,7 @@ Proven defaults that every editor starts with. Agents read **General** plus thei
 - **Engaging and varied:** every shot a different angle; near-identical shots are boring.
 - **Default 9:16**, 1080×1920, 30 fps project. Generated clips can be 24 fps, so watch frame counts.
 - **Never add captions before step 10,** except the `TEMP_EN_delete_me` review track (temporary English lines for a script that is not English or Filipino); at step 10 the editor chooses: CapCut auto-caption, or Claude's text captions (see Captions). All on-screen text goes in during the edit, never in the generation.
-- **Save credits:** efficient clip lengths; suggest stock or client clips where they'd do.
+- **Always save credits** (every paid generator: Flow, Higgsfield, ElevenLabs). Re-read `my-preferences.md` right before generating, since rules get added mid-job. Clips go **x1 per prompt, never x2 or x4** (pictures may be x2: they cost no credits). Use the shortest clip length that covers the slot (4 s before 6 or 8 s) and no paid upscales. Reuse before regenerating: another take, the unused part of a take, or a trim. Regenerate only a shot that truly fails, one at a time at x1. Use free paths first (the image model for stills, edit an image instead of making a new video), and suggest stock or client clips where they'd do. Never raise outputs or length "for more choice"; say the credit cost when proposing a regeneration.
 - **Explain creative choices** in 2–3 lines when a deliverable needs it.
 - **Brief hook instructions are literal:** find exactly what the brief describes, not a close-enough shot.
 
