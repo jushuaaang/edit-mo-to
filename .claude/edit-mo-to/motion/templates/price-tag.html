@@ -1,0 +1,65 @@
+<!--defaults {"text": "$49 → $29", "x": 700, "y": 760, "angle": 8, "bg": "#ffffff", "fg": "#141416", "hole": "#c8c8cd", "string": "on", "font": "Inter", "weight": 800, "size": 64, "width": 760, "t_in": 0.1, "duration": 2} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<!-- Adapted from the price-tag sticker in the "broll-split" effect of claude-reel-effects (MIT, (c) 2026 Vibha Ramprakash, (c) 2026 Adam Digital Pte Ltd), rebuilt as a HyperFrames overlay. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@{{weight}}&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; }
+  #wrap { position: absolute; left: {{x}}px; top: {{y}}px; }
+  #tag { position: absolute; left: 0; top: 0; width: max-content; filter: drop-shadow(0 8px 14px rgba(0,0,0,.35)); }
+  #body { position: relative; background: {{bg}}; color: {{fg}}; font-family: "{{font}}", sans-serif; font-weight: {{weight}};
+          font-size: {{size}}px; line-height: 1; white-space: nowrap; letter-spacing: -.01em; width: max-content; }
+  #hole { position: absolute; border-radius: 50%; background: {{hole}}; }
+  svg#str { position: absolute; left: 0; top: 0; overflow: visible; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="wrap" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="tag">
+      <svg id="str" width="10" height="10"><path id="sp" fill="none" stroke="{{hole}}" stroke-width="5" stroke-linecap="round" /></svg>
+      <div id="body" data-layout-allow-overflow><span id="txt">{{text}}</span><div id="hole"></div></div>
+    </div>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), T = Number("{{t_in}}"), SIZE = Number("{{size}}"), MAXW = Number("{{width}}");
+  const body = document.getElementById("body"), txt = document.getElementById("txt"), hole = document.getElementById("hole");
+  const tag = document.getElementById("tag"), sp = document.getElementById("sp");
+  function layout() {
+    body.style.fontSize = SIZE + "px";
+    let fs = SIZE;
+    const measure = () => { const th = fs * 1.55, n = th * 0.5; body.style.padding = `0 ${fs * 0.55}px 0 ${n * 1.15}px`; body.style.height = th + "px"; body.style.lineHeight = th + "px"; return { th, n }; };
+    let m = measure();
+    if (body.offsetWidth > MAXW) { fs = fs * MAXW / body.offsetWidth; body.style.fontSize = fs + "px"; m = measure(); }
+    const tw = body.offsetWidth, th = m.th, n = m.n;
+    // tag shape: pointed left end, square right end
+    body.style.clipPath = `polygon(0 50%, ${n}px 0, 100% 0, 100% 100%, ${n}px 100%)`;
+    const r = n * 0.16;
+    Object.assign(hole.style, { width: 2 * r + "px", height: 2 * r + "px", left: (n * 0.71 - r) + "px", top: (th / 2 - r) + "px" });
+    // keep the whole tag (rotated) inside 40 px side margins: move the centre in if it would run off
+    const a = Math.abs(Number("{{angle}}")) * Math.PI / 180, half = (tw * Math.cos(a) + th * Math.sin(a)) / 2 + n * 0.9;
+    const X = Number("{{x}}"), cx = Math.min(Math.max(X, 40 + half), 1040 - half);
+    gsap.set(tag, { x: -tw / 2 + (cx - X), y: -th / 2 });
+    if ("{{string}}" !== "off") sp.setAttribute("d", `M ${n * 0.71} ${th / 2} C ${n * 0.1} ${th * 0.2}, ${-n * 0.6} ${-th * 0.2}, ${-n * 0.9} ${-th * 0.55}`);
+    gsap.set("#wrap", { transformOrigin: (cx - X) + "px 0px" });
+  }
+  layout();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
+  const tl = gsap.timeline({ paused: true });
+  gsap.set("#wrap", { rotation: Number("{{angle}}"), opacity: 0 });
+  // sticker pop with a small overshoot, then a gentle swing on its string
+  tl.fromTo("#wrap", { scale: 0.5, opacity: 0, rotation: Number("{{angle}}") - 10 },
+    { scale: 1, opacity: 1, rotation: Number("{{angle}}"), duration: 0.32, ease: "back.out(2)" }, T);
+  tl.to("#wrap", { rotation: Number("{{angle}}") - 2.5, duration: Math.max(0.3, (D - T - 0.6) / 2), ease: "sine.inOut", yoyo: true, repeat: 1 }, T + 0.32);
+  tl.to("#wrap", { opacity: 0, scale: 0.9, duration: 0.18, ease: "power2.in" }, D - 0.2);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

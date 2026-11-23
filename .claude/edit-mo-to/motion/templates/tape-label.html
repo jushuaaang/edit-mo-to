@@ -1,0 +1,58 @@
+<!--defaults {"text": "made for sensitive skin", "tape": "#ffd60a", "ink": "#151515", "edge": "#111111", "x": 540, "y": 1180, "angle": -2, "width": 900, "font": "Permanent Marker", "size": 64, "duration": 2} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<!-- Adapted from the "tape-label" effect in claude-reel-effects (MIT, (c) 2026 Vibha Ramprakash, (c) 2026 Adam Digital Pte Ltd), rebuilt as a HyperFrames overlay. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; }
+  #wrap { position: absolute; left: {{x}}px; top: {{y}}px; }
+  #tape { position: absolute; left: 0; top: 0; white-space: nowrap; font-family: "{{font}}", cursive; color: {{ink}};
+          background: {{tape}}; font-size: {{size}}px; line-height: 1.15; padding: .14em .5em .18em;
+          /* torn tape ends */
+          clip-path: polygon(0 4%, 2% 0, 98% 0, 100% 6%, 99% 22%, 100% 40%, 98.6% 58%, 100% 77%, 99% 100%, 1.4% 100%, 0 82%, 1.2% 63%, 0 45%, 1.3% 26%); }
+  #grp, #unroll { position: absolute; left: 0; top: 0; }
+  #shadow { position: absolute; background: {{edge}};
+            clip-path: polygon(0 4%, 2% 0, 98% 0, 100% 6%, 99% 22%, 100% 40%, 98.6% 58%, 100% 77%, 99% 100%, 1.4% 100%, 0 82%, 1.2% 63%, 0 45%, 1.3% 26%); }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="wrap" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="grp"><div id="unroll">
+      <div id="shadow"></div>
+      <div id="tape" data-layout-allow-overflow>{{text}}</div>
+    </div></div>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), W = Number("{{width}}");
+  const tape = document.getElementById("tape"), sh = document.getElementById("shadow"), grp = document.getElementById("grp");
+  function fit() {
+    tape.style.fontSize = "{{size}}px";
+    const w = tape.offsetWidth;
+    if (w > W) tape.style.fontSize = (Number("{{size}}") * W / w) + "px";
+    const tw = tape.offsetWidth, th = tape.offsetHeight, o = Math.max(5, th * 0.09);
+    gsap.set(tape, { x: -tw / 2, y: -th / 2 });
+    Object.assign(sh.style, { width: tw + "px", height: th + "px" });
+    gsap.set(sh, { x: -tw / 2 + o, y: -th / 2 + o });
+    gsap.set("#unroll", { transformOrigin: (-tw / 2) + "px 0px" });
+  }
+  fit();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+  const tl = gsap.timeline({ paused: true });
+  gsap.set(grp, { rotation: Number("{{angle}}"), transformOrigin: "0 0" });
+  // slapped on: drops from slightly bigger with a tiny overshoot, unrolls left to right
+  tl.fromTo(grp, { scale: 1.25, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.22, ease: "back.out(1.6)" }, 0.03);
+  tl.fromTo("#unroll", { scaleX: 0.15 }, { scaleX: 1, duration: 0.2, ease: "power2.out" }, 0.03);
+  tl.to(grp, { scale: 1.03, duration: Math.max(0.2, D - 0.7), ease: "none" }, 0.3);
+  tl.to(grp, { opacity: 0, duration: 0.18, ease: "power2.in" }, D - 0.2);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+<!--defaults {"mode": "strike", "text": "8 HOURS", "fg": "#fff6e8", "line": "#e0262f", "y": 640, "size": 300, "width": 960, "font": "", "t_line": 0.6, "shadow": "on", "duration": 1.8} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<!-- Adapted from the "huge-strike" and "crayon-write" effects in claude-reel-effects (MIT, (c) 2026 Vibha Ramprakash, (c) 2026 Adam Digital Pte Ltd), rebuilt as a HyperFrames overlay. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Permanent+Marker&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; }
+  #wrap { position: absolute; left: 540px; top: {{y}}px; }
+  #w { position: absolute; left: 0; top: 0; white-space: nowrap; line-height: 1; color: {{fg}}; font-size: {{size}}px; }
+  #w.strike { font-family: "Playfair Display", serif; font-weight: 700; letter-spacing: -.01em; }
+  #w.crayon { font-family: "Permanent Marker", cursive; color: {{line}}; }
+  #w.sh { text-shadow: 0 10px 34px rgba(0,0,0,.45); }
+  svg#ln { position: absolute; left: 0; top: 0; overflow: visible; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="wrap" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="w" data-layout-allow-overflow>{{text}}</div>
+    <svg id="ln" width="10" height="10"><path id="p" fill="none" stroke="{{line}}" stroke-linecap="round" stroke-linejoin="round" /></svg>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), MODE = "{{mode}}" === "crayon" ? "crayon" : "strike", TL = Number("{{t_line}}");
+  const SIZE = Number("{{size}}"), MAXW = Number("{{width}}");
+  const w = document.getElementById("w"), p = document.getElementById("p");
+  w.classList.add(MODE);
+  if ("{{font}}".trim()) w.style.fontFamily = '"{{font}}", sans-serif';
+  if ("{{shadow}}" !== "off") w.classList.add("sh");
+  let tw = 0, th = 0;
+  function fit() {
+    w.style.fontSize = SIZE + "px";
+    const ww = w.offsetWidth;
+    if (ww > MAXW) w.style.fontSize = (SIZE * MAXW / ww) + "px";
+    tw = w.offsetWidth; th = w.offsetHeight;
+    gsap.set(w, { x: -tw / 2, y: -th / 2 });
+    // hand-drawn line: a strike through the middle (slightly rising), or an underline for crayon
+    const fs = parseFloat(w.style.fontSize), pts = [];
+    const x0 = -tw * (MODE === "strike" ? 0.47 : 0.44), x1 = tw * (MODE === "strike" ? 0.47 : 0.44);
+    const yb = MODE === "strike" ? th * 0.04 : th * 0.5 + fs * 0.02;
+    for (let i = 0; i <= 40; i++) {
+      const u = i / 40;
+      pts.push((x0 + (x1 - x0) * u).toFixed(1) + "," + (yb - u * th * (MODE === "strike" ? 0.06 : 0.03) + Math.sin(u * 19) * fs * 0.008).toFixed(1));
+    }
+    p.setAttribute("d", "M" + pts.join(" L"));
+    p.setAttribute("stroke-width", Math.max(8, fs * (MODE === "strike" ? 0.07 : 0.05)));
+    const len = p.getTotalLength();
+    p.style.strokeDasharray = len; p.style.strokeDashoffset = len;
+    p.dataset.len = len;
+  }
+  fit();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { const o = p.style.strokeDashoffset; fit(); });
+  const tl = gsap.timeline({ paused: true });
+  // the word wipes in left to right (strike: quick and heavy; crayon: written over 0.8 s)
+  tl.fromTo(w, { clipPath: "inset(-20% 100% -20% 0)" }, { clipPath: "inset(-20% 0% -20% 0)", duration: MODE === "strike" ? 0.35 : 0.8,
+    ease: MODE === "strike" ? "power3.out" : "power1.inOut" }, 0.03);
+  const lt = MODE === "strike" ? TL : Math.max(TL, 0.9);
+  tl.fromTo(p, { strokeDashoffset: () => Number(p.dataset.len) }, { strokeDashoffset: 0, duration: MODE === "strike" ? 0.18 : 0.25, ease: "power2.out" }, lt);
+  tl.to("#wrap", { scale: 1.03, duration: Math.max(0.2, D - 0.5), ease: "none" }, 0.3);
+  tl.to("#wrap", { opacity: 0, duration: 0.2, ease: "power2.in" }, D - 0.22);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!--defaults {"title": "GLOW", "issue": "THE SKIN ISSUE  ·  2026", "lines": "30-day results|no filter|dermatologist tested|real customers", "color": "#e82434", "accent": "#ffd23f", "fg": "#ffffff", "lines_y": 980, "barcode": "on", "font": "Anton", "serif": "Playfair Display", "sans": "Archivo Black", "duration": 3} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<!-- Adapted from the "cover-star" effect in claude-reel-effects (MIT, (c) 2026 Vibha Ramprakash, (c) 2026 Adam Digital Pte Ltd), rebuilt as a HyperFrames overlay. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}&family={{serif}}:ital,wght@1,700&family={{sans}}&family=Space+Mono:wght@700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; }
+  #mast { position: absolute; left: 540px; top: 60px; white-space: nowrap; font-family: "{{font}}", sans-serif; color: {{color}};
+          font-size: 460px; line-height: .86; text-transform: uppercase; letter-spacing: -.01em; }
+  #issue { position: absolute; left: 540px; top: 26px; white-space: nowrap; font-family: "Space Mono", monospace; font-weight: 700;
+           color: {{fg}}; font-size: 28px; letter-spacing: .18em; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+  #lines { position: absolute; left: 54px; top: {{lines_y}}px; width: 560px; }
+  .ln { display: block; color: {{fg}}; font-family: "{{sans}}", sans-serif; font-size: 50px; line-height: 1.02; text-transform: uppercase;
+        text-shadow: 0 4px 14px rgba(0,0,0,.55); margin-bottom: 14px; white-space: nowrap; width: max-content; }
+  .ln.big { font-family: "{{serif}}", serif; font-style: italic; font-weight: 700; text-transform: none; color: {{accent}}; font-size: 96px; margin-bottom: 18px; }
+  #bc { position: absolute; right: 54px; bottom: 120px; background: #fff; padding: 10px 12px 26px; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="mast" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0" data-layout-allow-overflow>{{title}}</div>
+  <div id="issue" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="1">{{issue}}</div>
+  <div id="lines" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="2"></div>
+  <div id="bc" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="3"><svg id="bars" width="170" height="80"></svg></div>
+</div>
+<script>
+  const D = Number("{{duration}}");
+  const mast = document.getElementById("mast"), issue = document.getElementById("issue"), linesEl = document.getElementById("lines");
+  const LINES = "{{lines}}".split("|").map(s => s.trim()).filter(Boolean);
+  LINES.forEach((t, i) => { const d = document.createElement("div"); d.className = "ln" + (i === 0 ? " big" : ""); d.textContent = t; linesEl.appendChild(d); });
+  // barcode, seeded so every render is the same
+  const bars = document.getElementById("bars"); let x = 4, sd = 7;
+  const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  while (x < 166) { const w = [2, 2, 3, 5][Math.floor(rnd() * 4)];
+    bars.insertAdjacentHTML("beforeend", `<rect x="${x}" y="0" width="${w}" height="80" fill="#000"/>`); x += w + [2, 3, 4][Math.floor(rnd() * 3)]; }
+  if ("{{barcode}}" === "off") document.getElementById("bc").remove();
+  function fit() {
+    mast.style.fontSize = "460px";
+    if (mast.offsetWidth > 1000) mast.style.fontSize = (460 * 1000 / mast.offsetWidth) + "px";
+    if (mast.offsetHeight > 440) mast.style.fontSize = (parseFloat(mast.style.fontSize) * 440 / mast.offsetHeight) + "px";
+    issue.style.fontSize = "28px";
+    if (issue.offsetWidth > 960) issue.style.fontSize = (28 * 960 / issue.offsetWidth) + "px";
+    // the big line fits on its own; the small lines share one size (the smallest any of them needs)
+    const all = [...linesEl.querySelectorAll(".ln")]; all.forEach(el => el.style.fontSize = "");
+    const big = all.find(el => el.classList.contains("big")), small = all.filter(el => !el.classList.contains("big"));
+    if (big && big.offsetWidth > 560) big.style.fontSize = (parseFloat(getComputedStyle(big).fontSize) * 560 / big.offsetWidth) + "px";
+    const k = Math.min(1, ...small.map(el => 560 / el.offsetWidth));
+    small.forEach(el => el.style.fontSize = (50 * k) + "px");
+    gsap.set([mast, issue], { xPercent: -50 });
+  }
+  fit();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+  const tl = gsap.timeline({ paused: true });
+  // masthead drops in from above (pair with motion_render cutout so the head sits in front of it), then the cover lines slide in
+  tl.fromTo(mast, { yPercent: -40, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.35, ease: "power3.out" }, 0.02);
+  tl.fromTo(issue, { opacity: 0 }, { opacity: 1, duration: 0.25 }, 0.15);
+  linesEl.querySelectorAll(".ln").forEach((el, i) =>
+    tl.fromTo(el, { x: -60, opacity: 0 }, { x: 0, opacity: 1, duration: 0.3, ease: "power3.out" }, 0.15 + 0.08 * i));
+  if (document.getElementById("bc")) tl.fromTo("#bc", { opacity: 0 }, { opacity: 1, duration: 0.25 }, 0.35);
+  tl.to(mast, { scale: 1.03, duration: Math.max(0.2, D - 0.6), ease: "none" }, 0.37);
+  tl.to(["#mast", "#issue", "#lines", "#bc"].filter(s => document.querySelector(s)), { opacity: 0, duration: 0.2, ease: "power2.in" }, D - 0.22);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!--defaults {"from": 3, "to": 1, "label": "", "x": 540, "y": 520, "tile_w": 300, "tile_h": 380, "bg": "#1e1e22", "fg": "#fff6e8", "label_color": "#ffffff", "font": "Archivo Black", "label_font": "Inter", "duration": 3} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<!-- Adapted from the "countdown-flip" effect in claude-reel-effects (MIT, (c) 2026 Vibha Ramprakash, (c) 2026 Adam Digital Pte Ltd), rebuilt as a HyperFrames overlay. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}&family={{label_font}}:wght@800&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; }
+  #wrap { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+  #clock { position: absolute; left: calc({{x}}px - {{tile_w}}px / 2); top: calc({{y}}px - {{tile_h}}px / 2); width: {{tile_w}}px; height: {{tile_h}}px; perspective: 900px;
+           filter: drop-shadow(0 14px 22px rgba(0,0,0,.45)); }
+  .half { position: absolute; left: 0; width: 100%; height: 50%; overflow: hidden; background: {{bg}}; }
+  .half.top { top: 0; border-radius: 26px 26px 0 0; transform-origin: 50% 100%; }
+  .half.bot { top: 50%; border-radius: 0 0 26px 26px; transform-origin: 50% 0%; }
+  .half span { position: absolute; left: 0; width: 100%; height: {{tile_h}}px; display: flex; align-items: center; justify-content: center;
+               font-family: "{{font}}", sans-serif; color: {{fg}}; font-size: calc({{tile_h}}px * 0.62); line-height: 1; }
+  .half.top span { top: 0; }
+  .half.bot span { top: calc({{tile_h}}px * -0.5); }
+  .flap { z-index: 3; backface-visibility: hidden; }
+  #seam { position: absolute; left: 0; top: calc(50% - 3px); width: 100%; height: 6px; background: rgba(0,0,0,.85); z-index: 5; }
+  #label { position: absolute; left: {{x}}px; top: calc({{y}}px + {{tile_h}}px / 2 + 30px); white-space: nowrap; font-family: "{{label_font}}", sans-serif; font-weight: 800;
+           color: {{label_color}}; font-size: 54px; letter-spacing: .14em; text-transform: uppercase; text-shadow: 0 4px 16px rgba(0,0,0,.5); }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="wrap" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="clock">
+      <div class="half top" id="topS"><span data-layout-allow-overflow data-layout-allow-overlap data-layout-allow-occlusion></span></div>
+      <div class="half bot" id="botS"><span data-layout-allow-overflow data-layout-allow-overlap data-layout-allow-occlusion></span></div>
+      <div class="half top flap" id="flapT"><span data-layout-allow-overflow data-layout-allow-overlap data-layout-allow-occlusion></span></div>
+      <div class="half bot flap" id="flapB"><span data-layout-allow-overflow data-layout-allow-overlap data-layout-allow-occlusion></span></div>
+      <div id="seam"></div>
+    </div>
+    <div id="label" data-layout-allow-overflow>{{label}}</div>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), FROM = Math.round(Number("{{from}}")), TO = Math.round(Number("{{to}}"));
+  const TW = Number("{{tile_w}}"), TH = Number("{{tile_h}}");
+  const nums = []; for (let v = FROM; FROM >= TO ? v >= TO : v <= TO; v += FROM >= TO ? -1 : 1) nums.push(v);
+  const seg = D / nums.length;
+  const $ = id => document.getElementById(id).querySelector("span");
+  const topS = $("topS"), botS = $("botS"), flapT = $("flapT"), flapB = $("flapB");
+  gsap.set("#wrap", { transformOrigin: "{{x}}px {{y}}px" });
+  const label = document.getElementById("label");
+  function placeLabel() {
+    if (!"{{label}}".trim()) { label.remove(); return; }
+    label.style.fontSize = "54px";
+    if (label.offsetWidth > 960) label.style.fontSize = (54 * 960 / label.offsetWidth) + "px";
+    gsap.set(label, { xPercent: -50 });
+  }
+  placeLabel();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeLabel);
+  // seek-safe: every frame's state is computed from the playhead (HyperFrames renders by seeking, so no tl.call)
+  function draw(t) {
+    const i = Math.min(nums.length - 1, Math.max(0, Math.floor(t / seg)));
+    const cur = nums[i], prev = i > 0 ? nums[i - 1] : cur, lt = t - i * seg;
+    const fa = i > 0 ? Math.min(1, lt / 0.13) : 1, fb = i > 0 ? Math.min(1, Math.max(0, (lt - 0.13) / 0.15)) : 1;
+    topS.textContent = cur;
+    botS.textContent = fb < 1 ? prev : cur;
+    flapT.textContent = prev; flapB.textContent = cur;
+    // top flap (old number) falls to flat, then the bottom flap (new number) lands
+    gsap.set("#flapT", { rotationX: -90 * fa * fa, opacity: fa < 1 ? 1 : 0 });
+    gsap.set("#flapB", { rotationX: 90 * (1 - (1 - (1 - fb) * (1 - fb))), opacity: fb > 0 ? 1 : 0 });
+  }
+  const tl = gsap.timeline({ paused: true });
+  const st = { t: 0 };
+  tl.fromTo("#wrap", { scale: 0.7, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.3, ease: "back.out(1.7)" }, 0);
+  tl.fromTo(st, { t: 0 }, { t: D, duration: D, ease: "none", onUpdate: () => draw(st.t) }, 0);
+  tl.to("#wrap", { opacity: 0, duration: 0.18, ease: "power2.in" }, D - 0.2);
+  draw(0);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

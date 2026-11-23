@@ -1,0 +1,64 @@
+<!--defaults {"text": "2X", "y": 560, "size": 300, "from": 0.55, "t_drag": 0.25, "drag_dur": 0.7, "fg": "#fff3e0", "blue": "#1e78ff", "font": "Bodoni Moda", "weight": 700, "duration": 1.8} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<!-- Adapted from the "select-resize" effect in claude-reel-effects (MIT, (c) 2026 Vibha Ramprakash, (c) 2026 Adam Digital Pte Ltd), rebuilt as a HyperFrames overlay. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@{{weight}}&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; }
+  #wrap { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+  #w { position: absolute; left: 540px; top: {{y}}px; white-space: nowrap; font-family: "{{font}}", serif; font-weight: {{weight}}; color: {{fg}};
+       line-height: 1; font-size: {{size}}px; text-shadow: 0 8px 26px rgba(0,0,0,.45); }
+  #box { position: absolute; left: 540px; top: {{y}}px; border: 3px dashed {{blue}}; }
+  #fill { position: absolute; inset: 0; background: {{blue}}; }
+  .h { position: absolute; width: 20px; height: 20px; background: #fff; border: 3px solid {{blue}}; }
+  #cur { position: absolute; left: 540px; top: {{y}}px; width: 54px; height: 54px; filter: drop-shadow(0 3px 5px rgba(0,0,0,.45)); }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="wrap" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="box" data-layout-allow-overlap><div id="fill"></div>
+      <div class="h" id="h0"></div><div class="h" id="h1"></div><div class="h" id="h2"></div><div class="h" id="h3"></div></div>
+    <div id="w" data-layout-allow-overflow data-layout-allow-overlap>{{text}}</div>
+    <svg id="cur" viewBox="0 0 24 24" data-layout-allow-overlap><path d="M3 2 L3 19 L7.5 14.8 L10.6 21.6 L13.4 20.4 L10.4 13.7 L16.6 13.7 Z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), T0 = Number("{{t_drag}}"), TD = Number("{{drag_dur}}"), F0 = Number("{{from}}");
+  let SIZE = Number("{{size}}");
+  const w = document.getElementById("w"), box = document.getElementById("box"), cur = document.getElementById("cur");
+  let bw = 0, bh = 0, ww = 0;
+  function measure() {
+    w.style.fontSize = SIZE + "px";
+    if (w.offsetWidth > 940) { SIZE = SIZE * 940 / w.offsetWidth; w.style.fontSize = SIZE + "px"; }
+    ww = w.offsetWidth; bw = ww + 32; bh = w.offsetHeight;
+  }
+  measure();
+  // the whole graphic is drawn from one value k (scale of the number), so every seek is exact
+  const st = { k: F0, fill: 0.5 };
+  function draw() {
+    const k = st.k, W = bw * k, H = bh * k;
+    gsap.set(w, { x: -ww / 2, y: -bh / 2, scale: k, transformOrigin: "50% 50%" });
+    Object.assign(box.style, { width: W + "px", height: H + "px" });
+    gsap.set(box, { x: -W / 2, y: -H / 2 });
+    document.getElementById("fill").style.opacity = st.fill;
+    [[0, 0], [1, 0], [0, 1], [1, 1]].forEach(([a, b], i) => gsap.set("#h" + i, { x: a * W - 12, y: b * H - 12 }));
+    gsap.set(cur, { x: W / 2 - 6, y: H / 2 - 4 });
+  }
+  draw();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { SIZE = Number("{{size}}"); measure(); draw(); });
+  const tl = gsap.timeline({ paused: true });
+  tl.fromTo("#wrap", { opacity: 0 }, { opacity: 1, duration: 0.08 }, 0);
+  tl.fromTo(st, { k: F0, fill: 0.5 }, { k: 1, duration: TD, ease: "power2.inOut", onUpdate: draw }, T0);
+  tl.fromTo(st, { fill: 0.5 }, { fill: 0.12, duration: 0.3, ease: "power1.out", onUpdate: draw, immediateRender: false }, T0 + TD);
+  tl.to("#wrap", { opacity: 0, duration: 0.2, ease: "power2.in" }, D - 0.22);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+<!--defaults {"title": "best way to fix dry skin?", "item": "Our serum", "others": "drugstore cream|home remedies|doing nothing|harsh scrubs", "tiers": "S|A|B|C|D|F", "colors": "#ff7f7f|#ffbf7f|#ffdf7f|#bfff7f|#7fbfff|#bf7fff", "item_bg": "#e8743b", "item_fg": "#ffffff", "title_color": "#ffd23f", "board": "#16161a", "row": "#28282e", "chip": "#4e4e56", "chip_fg": "#e1e1e6", "title_y": 300, "y": 880, "width": 760, "t_fly": 0.45, "font": "Inter", "title_font": "Playfair Display", "duration": 3} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<!-- Adapted from the "tier-list" effect in claude-reel-effects (MIT, (c) 2026 Vibha Ramprakash, (c) 2026 Adam Digital Pte Ltd), rebuilt as a HyperFrames overlay. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}:wght@600;800&family={{title_font}}:ital,wght@1,700&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; font-family: "{{font}}", sans-serif; }
+  #title { position: absolute; left: 540px; top: {{title_y}}px; white-space: nowrap; font-family: "{{title_font}}", serif; font-style: italic;
+           font-weight: 700; color: {{title_color}}; font-size: 104px; line-height: 1; text-shadow: 0 8px 26px rgba(0,0,0,.55); }
+  #boardW { position: absolute; left: 540px; top: {{y}}px; }
+  #board { position: absolute; left: 0; top: 0; width: {{width}}px; background: {{board}}; border-radius: 26px; padding: 12px;
+           box-shadow: 0 14px 34px rgba(0,0,0,.45); }
+  .row { display: flex; gap: 12px; margin-bottom: 12px; height: 88px; }
+  .row:last-child { margin-bottom: 0; }
+  .lab { flex: 0 0 88px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 44px; color: #141416; }
+  .lane { flex: 1; background: {{row}}; border-radius: 12px; display: flex; align-items: center; padding: 0 12px; overflow: hidden; }
+  .chip { background: {{chip}}; color: {{chip_fg}}; border-radius: 10px; padding: 0 20px; height: 62px; line-height: 62px; font-weight: 600; font-size: 30px; white-space: nowrap; }
+  #item { position: absolute; left: 0; top: 0; background: {{item_bg}}; color: {{item_fg}}; border-radius: 12px; padding: 0 26px; height: 66px; line-height: 66px;
+          font-weight: 800; font-size: 32px; white-space: nowrap; box-shadow: 0 8px 18px rgba(0,0,0,.4); }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="title" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0" data-layout-allow-overflow>{{title}}</div>
+  <div id="boardW" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="1">
+    <div id="board" data-layout-allow-overflow></div>
+    <div id="item" data-layout-allow-overflow data-layout-allow-overlap>{{item}}</div>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), TF = Number("{{t_fly}}"), BW = Number("{{width}}");
+  const TIERS = "{{tiers}}".split("|"), COLS = "{{colors}}".split("|"), OTH = "{{others}}".split("|").map(s => s.trim());
+  const board = document.getElementById("board"), item = document.getElementById("item"), title = document.getElementById("title");
+  // rows: first tier is where the item lands; "others" fill the rows from the third tier down (B, C, D, F)
+  TIERS.forEach((t, i) => {
+    const r = document.createElement("div"); r.className = "row";
+    r.innerHTML = `<div class="lab" style="background:${COLS[i % COLS.length]}"></div><div class="lane"></div>`;
+    r.querySelector(".lab").textContent = t;
+    const o = i >= 2 ? OTH[i - 2] : "";
+    if (o) { const c = document.createElement("div"); c.className = "chip"; c.textContent = o; r.querySelector(".lane").appendChild(c); }
+    board.appendChild(r);
+  });
+  function fit() {
+    title.style.fontSize = "104px";
+    if (title.offsetWidth > 980) title.style.fontSize = (104 * 980 / title.offsetWidth) + "px";
+    gsap.set(title, { xPercent: -50 });
+    board.querySelectorAll(".chip").forEach(c => { c.style.fontSize = "30px"; const lw = BW - 24 - 100 - 24;
+      if (c.offsetWidth > lw) c.style.fontSize = (30 * lw / c.offsetWidth) + "px"; });
+    item.style.fontSize = "32px";
+    if (item.offsetWidth > BW - 150) item.style.fontSize = (32 * (BW - 150) / item.offsetWidth) + "px";
+    gsap.set(board, { x: -BW / 2 });
+  }
+  fit();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+  // item slot = start of the first row's lane (board-local), item starts off to the right and higher up
+  const slot = () => ({ x: -BW / 2 + 12 + 88 + 12 + 12, y: 12 + (88 - 66) / 2 });
+  const tl = gsap.timeline({ paused: true });
+  tl.fromTo(title, { scale: 0.9, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.3, ease: "power3.out" }, 0);
+  tl.fromTo(board, { y: 260, opacity: 0 }, { y: 0, opacity: 1, duration: 0.38, ease: "back.out(1.4)" }, 0.02);
+  const s0 = slot();
+  tl.fromTo(item, { x: BW * 0.32, y: -240, scale: 1.25, rotation: 18, opacity: 0 },
+    { x: s0.x, y: s0.y, scale: 1, rotation: 0, opacity: 1, duration: 0.42, ease: "back.out(1.5)" }, TF);
+  tl.fromTo(board.querySelector(".row .lab"), { scale: 1 }, { scale: 1.12, duration: 0.12, yoyo: true, repeat: 1, ease: "power2.out" }, TF + 0.4);
+  tl.to(["#title", "#boardW"], { opacity: 0, duration: 0.2, ease: "power2.in" }, D - 0.22);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>

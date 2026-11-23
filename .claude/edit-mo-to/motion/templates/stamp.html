@@ -1,0 +1,57 @@
+<!--defaults {"text": "REJECTED", "color": "#d62828", "angle": -12, "x": 540, "y": 1180, "width": 700, "font": "Archivo Black", "texture": "on", "t_slam": 0.05, "duration": 1.6} -->
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1080, height=1920" />
+<!-- Adapted from the "reject-stamp" effect in claude-reel-effects (MIT, (c) 2026 Vibha Ramprakash, (c) 2026 Adam Digital Pte Ltd), rebuilt as a HyperFrames overlay. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{font}}&display=block" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #root { position: relative; width: 100%; height: 100%; }
+  #wrap { position: absolute; left: {{x}}px; top: {{y}}px; }
+  #st { position: absolute; left: 0; top: 0; white-space: nowrap; font-family: "{{font}}", sans-serif; text-transform: uppercase;
+        color: {{color}}; border: 14px solid {{color}}; border-radius: 22px; padding: 10px 40px 14px; line-height: 1;
+        font-size: 150px; letter-spacing: .02em; }
+  #st.tex { filter: url(#ink); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <filter id="ink" x="-5%" y="-5%" width="110%" height="110%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.045 0.08" numOctaves="4" seed="3" result="n" />
+    <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -7 6.1" result="m" />
+    <feComposite in="SourceGraphic" in2="m" operator="in" />
+  </filter>
+</svg>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{{duration}}" data-width="1080" data-height="1920">
+  <div id="wrap" class="clip" data-start="0" data-duration="{{duration}}" data-track-index="0">
+    <div id="st" data-layout-allow-overflow>{{text}}</div>
+  </div>
+</div>
+<script>
+  const D = Number("{{duration}}"), T = Number("{{t_slam}}"), W = Number("{{width}}"), A = Number("{{angle}}");
+  const st = document.getElementById("st");
+  if ("{{texture}}" !== "off") st.classList.add("tex");
+  function fit() {
+    st.style.fontSize = "150px";
+    const w = st.offsetWidth;
+    if (w > W) st.style.fontSize = (150 * W / w) + "px";
+    const bw = Math.max(6, parseFloat(st.style.fontSize) * 0.09);
+    st.style.borderWidth = bw + "px";
+  }
+  fit();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+  const tl = gsap.timeline({ paused: true });
+  gsap.set(st, { xPercent: -50, yPercent: -50, rotation: A, opacity: 0 });
+  // slam: big and see-through, then hits hard; the stamp jolts for a moment as it lands
+  tl.fromTo(st, { scale: 2.3, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.16, ease: "power4.in" }, T);
+  tl.to(st, { keyframes: [{ x: -9, y: 5 }, { x: 7, y: -6 }, { x: -4, y: 3 }, { x: 0, y: 0 }], duration: 0.24, ease: "none" }, T + 0.16);
+  tl.to(st, { scale: 1.03, duration: Math.max(0.2, D - T - 0.6), ease: "none" }, T + 0.4);
+  tl.to(st, { opacity: 0, duration: 0.2, ease: "power2.in" }, D - 0.22);
+  window.__timelines["main"] = tl;
+  tl.seek(0);
+</script>
+</body>
+</html>
