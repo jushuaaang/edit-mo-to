@@ -917,15 +917,28 @@ class _Patcher:
         self.mats[kind].append(m)
         return new
 
-    def _clone_segment(self, seg: dict) -> dict:
+    def _clone_segment(self, seg: dict, transitions: bool = False) -> dict:
+        """Copy a segment with its own materials. Its transition (the effect on the cut AFTER it) is left behind
+        unless `transitions`: a new piece sits somewhere else, so copying it put a fade/blur on every join of a
+        clip split into pieces (Revella 2026-11-22)."""
         new = copy.deepcopy(seg)
         new["id"] = _new_id().replace("-", "").lower()
         new["material_id"] = self._clone_material(seg["material_id"])
+        by = self._by_id()
         new["extra_material_refs"] = [self._clone_material(r) for r in seg.get("extra_material_refs") or []
-                                      if r in self._by_id()]
+                                      if r in by and (transitions or by[r][0] != "transitions")]
         new["keyframe_refs"] = []
         new["common_keyframes"] = []
         return new
+
+    def _drop_transition(self, seg: dict) -> int:
+        """Remove the transition on the cut after `seg` (and its material when nothing else uses it)."""
+        by = self._by_id()
+        gone = {r for r in seg.get("extra_material_refs") or [] if by.get(r, (None,))[0] == "transitions"}
+        seg["extra_material_refs"] = [r for r in seg.get("extra_material_refs") or [] if r not in gone]
+        used = {r for tr in self.c["tracks"] for s in tr.get("segments", []) for r in s.get("extra_material_refs") or []}
+        self.mats["transitions"] = [x for x in self.mats.get("transitions", []) if x.get("id") not in gone or x.get("id") in used]
+        return len(gone)
 
     def _set_speed(self, seg: dict, speed) -> None:
         seg["speed"] = speed
@@ -1026,7 +1039,8 @@ class _Patcher:
         s0, s1 = _span(seg)
         if not s0 < at < s1:
             raise ValueError(f"split point {at} is outside segment {seg['id']} ({s0}-{s1})")
-        right = self._clone_segment(seg)
+        right = self._clone_segment(seg, transitions=True)   # the cut after the clip is now after the right half
+        self._drop_transition(seg)
         left_dur = at - s0
         speed = float(seg.get("speed", 1.0))
         seg["target_timerange"]["duration"] = left_dur
@@ -1059,12 +1073,7 @@ class _Patcher:
         segs = sorted(t["segments"], key=lambda s: s["target_timerange"]["start"])
         i = segs.index(seg)
         if op.get("name") is None:  # name null = straight cut: drop this segment's transition
-            by = self._by_id()
-            gone = {r for r in seg.get("extra_material_refs") or [] if by.get(r, (None,))[0] == "transitions"}
-            seg["extra_material_refs"] = [r for r in seg.get("extra_material_refs") or [] if r not in gone]
-            used = {r for tr in self.c["tracks"] for s in tr.get("segments", []) for r in s.get("extra_material_refs") or []}
-            self.mats["transitions"] = [x for x in self.mats.get("transitions", []) if x.get("id") not in gone or x.get("id") in used]
-            return {"op": "transition", "id": seg["id"], "name": None, "removed": len(gone)}
+            return {"op": "transition", "id": seg["id"], "name": None, "removed": self._drop_transition(seg)}
         if i + 1 >= len(segs) or segs[i + 1]["target_timerange"]["start"] != _span(seg)[1]:
             raise ValueError(f"segment {seg['id']} has no clip right after it to transition into")
         src = Path(op["from_draft"])
