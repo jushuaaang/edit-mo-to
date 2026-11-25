@@ -371,3 +371,36 @@ def test_flow_unknown_model_uses_the_flow_rules_with_a_warning():
 def test_higgsfield_fallback_is_unchanged_by_flow_models():
     import generators as g
     assert g.strictest() == {"min_s": 5, "max_s": 8, "max_attach": 3}
+
+
+# --- Drama style: one agent, look realistic | cartoon; cartoon-drama is an old alias ---
+DRAMA_LOCKS = {**SPEC2["locks"], "style_bible": "STYLE BIBLE: 2D cartoon, clean line art."}
+REAL = ["realism", "notext", "voice", "look", "pacing"]
+TOON = ["style_bible", "notext", "voice", "look", "pacing"]
+
+
+def _drama(locks, **top):
+    return {**SPEC2, "style": "drama", "locks": DRAMA_LOCKS, **top,
+            "prompts": [dict(SPEC2["prompts"][0], attach=["@Image1"], locks=locks)]}
+
+
+def test_drama_realistic_locks():
+    assert pt.lock_style({"style": "drama"}) == "drama:realistic"
+    assert pt.check_prompts(_drama(REAL), SCRIPT, None) == []
+    assert pt.check_prompts(_drama(REAL, look="realistic"), SCRIPT, None) == []
+    errs = pt.check_prompts(_drama(REAL[1:]), SCRIPT, None)
+    assert any("missing locks: realism" in e for e in errs)
+
+
+def test_drama_cartoon_and_old_alias():
+    for top in ({"look": "cartoon"}, {"style": "cartoon-drama"}):
+        assert pt.check_prompts(_drama(TOON, **top), SCRIPT, None) == []
+        errs = pt.check_prompts(_drama(REAL, **top), SCRIPT, None)
+        assert any("missing locks: style_bible" in e for e in errs)
+    kf = dict(SPEC2["prompts"][0], id="SB-1", kind="keyframe", attach=["@Image1"], locks=["style_bible", "notext", "look"], dialogue="")
+    assert pt.check_prompts({**_drama(TOON, look="cartoon"), "prompts": [kf]}, SCRIPT, None) == []
+
+
+def test_drama_unknown_look():
+    errs = pt.check_prompts(_drama(REAL, look="anime"), SCRIPT, None)
+    assert len(errs) == 1 and "unknown look 'anime'" in errs[0]
