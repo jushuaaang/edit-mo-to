@@ -476,7 +476,19 @@ REQUIRED_LOCKS = {
     "pixar": ["style_bible", "notext", "voice"],
     "claymation": ["style_bible", "notext", "voice"],
     "product-ad": ["product", "notext"],
+    "drama:realistic": ["realism", "notext", "voice", "look", "pacing"],
+    "drama:cartoon": ["style_bible", "notext", "voice", "look", "pacing"],
 }
+DRAMA_LOOKS = ("realistic", "cartoon")
+STYLE_ALIASES = {"cartoon-drama": "drama:cartoon"}   # the old cartoon agent's specs still check
+
+
+def lock_style(spec: dict) -> str:
+    """The REQUIRED_LOCKS key for a spec: `drama` splits by its `look` (default realistic); old names map over."""
+    style = spec.get("style", "ugc")
+    if style == "drama":
+        return f"drama:{spec.get('look', 'realistic')}"
+    return STYLE_ALIASES.get(style, style)
 IMAGE_KINDS = {"keyframe", "character"}
 IMAGE_DROP = {"voice", "pacing"}          # a still has no voice and no pacing
 CHARACTER_DROP = IMAGE_DROP | {"product"}  # a character sheet shows the person, not the product
@@ -576,7 +588,9 @@ def _line_text(script_lines: list[str], p: dict) -> str | None:
 
 def check_prompts(spec: dict, script_lines: list[str], timings: dict | None) -> list[str]:
     """Problems in a prompts2 spec: locks, attachments, generator limits, dialogue and length vs the VO span."""
-    style = spec.get("style", "ugc")
+    style = lock_style(spec)
+    if style.startswith("drama:") and style not in REQUIRED_LOCKS:
+        return [f"unknown look {spec.get('look')!r} for drama ({' or '.join(DRAMA_LOOKS)})"]
     if style not in REQUIRED_LOCKS:
         return [f"unknown style {style!r} (one of {', '.join(REQUIRED_LOCKS)})"]
     errs: list[str] = []

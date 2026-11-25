@@ -114,3 +114,12 @@ def test_pack_cli_takes_model_for_flow(tmp_path, monkeypatch):
     out = tmp_path / "pack.md"
     cp.main(["broll", "--generator", "flow", "--model", "quality", "--out", str(out)])
     assert "Google Flow · Veo 3.1 Quality" in out.read_text(encoding="utf-8")
+
+
+def test_pack_drama_and_alias_use_drama_section(tmp_path):
+    root = _root(tmp_path)
+    p = root / ".claude" / "edit-mo-to" / "preferences.md"
+    p.write_text(PREFS + "## Drama\ndrama rule\n", encoding="utf-8")
+    for style in ("drama", "cartoon-drama"):
+        pack = cp.build_pack(style, root=root)
+        assert "## Drama" in pack and "drama rule" in pack and "## UGC" not in pack

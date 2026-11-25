@@ -17,7 +17,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import generators as gens  # noqa: E402
 from machine import ROOT  # noqa: E402
 
-STYLES = {"ugc": "UGC", "broll": "B-roll", "claymation": "Claymation", "pixar": "Pixar", "product-ad": "Product ad"}
+STYLES = {"ugc": "UGC", "broll": "B-roll", "claymation": "Claymation", "pixar": "Pixar", "product-ad": "Product ad",
+          "drama": "Drama", "cartoon-drama": "Drama"}   # cartoon-drama: old name of the drama agent
 
 
 def _sections(text: str) -> dict[str, str]:

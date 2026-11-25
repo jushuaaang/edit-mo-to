@@ -70,6 +70,45 @@ Proven defaults that every editor starts with. Agents read **General** plus thei
 - **One-word descriptor per shot;** no claims the brand hasn't verified. Logo in one clip; overlay the real logo file if the generated one warps.
 - **Congruency:** clips from the same batch (lighting, setting, outfit).
 
+## Drama
+Characters act a scripted scene and speak their own lines (each clip's own voice, no separate VO). One agent, `drama`, with a **look**: `realistic` (live-action AI) or `cartoon` (2D cartoon / anime).
+
+**Story and pacing (both looks)**
+- **Script is law:** every line word for word, in order, by its character, names as the script has them. The reference gives pacing, layout and energy, never its shots: design your own staging.
+- **Hook:** the first 2 s land on the conflict, a sharp reaction or the strongest line the script allows; never a slow open or logo. **Hook versions follow the brief:** make them only if the brief asks, the way it says; otherwise one hook. Never add words the client didn't write.
+- **Arc:** setup → conflict → the product as the turning point or resolution, never a jarring interruption.
+- **Pacing:** shots about 1.5–3 s; pauses over 0.3 s cut to ~0.15 s (~0.1 s before and ~0.15 s after each line); no dead air.
+- **A visual change every 3–5 s** by angle, shot size or a listener reaction, **never a zoom or punch-in**. Jump cuts inside the same shot get a short soft Dissolve (~5 f).
+- **J/L cuts by reaction overlays:** plan reaction clips of the listener (mouth closed, reacting to the line) and lay them muted over part of the speaker's line; the voice always comes from the speaker's own clip, so lips never drift.
+
+**Framing and look (both looks)**
+- **Shot progression:** wider shots at the setup, tighter close-ups as the tension rises; faces carry the emotion.
+- **Eyes:** the speaker looks at the other character, never at the camera (only the CTA lines may look to camera). One speaker talking at a time; the others keep their mouth closed.
+- **Location (strict):** one spot per scene; each character keeps their side of the frame and the same background behind them; a new location only when the script changes scene. Set lock in words + one approved establishing keyframe attached to later shots of that set.
+- **Colour follows each scene's mood** (e.g. cooler and tenser in the conflict, warmer at the resolution): one grade per scene, natural skin tones.
+- **Safe zones:** faces, key action and graphics inside the 9:16 centre safe area, clear of the right-side icons, the top tabs and the caption band.
+- **Voice lock per character,** in full in every talking prompt: age, accent, pitch, tone, pace, attitude, so a regenerated take sounds like the same person.
+- **Storyboard first:** keyframes approved by the editor before any clip is generated; clips x1; regenerate a bad take instead of fixing it in the edit.
+
+**Sound and delivery (both looks)**
+- Clear, forward dialogue at one level; light SFX for script actions and tension (room tone, risers, impacts, door, footsteps), never theatrical.
+- **Music:** none until step 11; if the editor adds it there, low and ducked under the voices.
+- Captions at step 10 as usual; a caption-free twin timeline only if the brief asks.
+- Graphics (title card, offer, badge, end card) only when the brief, script or reference has them.
+
+**Realistic look**
+- **Both characters in every medium and wide shot** (change the angle, never drop the other person); nobody hidden behind props.
+- **Close-ups:** true close-ups of the speaker looking off-camera at the other character; attach only that character's sheet plus their fixed background plate (cropped from the avatar or establishing frame).
+- **No over-the-shoulder shots** with someone's back in the foreground.
+- Clips play at 1.0x with their own audio and **no `audio_lead`** (Flow's own lip/voice pairing); never slow a flawed clip down.
+- Ultra-realistic look per the brief; no text, logos or watermarks in frame.
+
+**Cartoon look**
+- **Layout (letterbox frame):** 9:16 canvas with a full-width picture panel (about 1080×885, top edge near y 620, lower than centre), a bold white two-line title hook above it (heavy sans, caps), and a dark textured background filling the rest. Clips are generated **16:9 landscape** and scaled to fill the panel height (sides cropped by the canvas); the frame (background with a transparent panel window) and the title sit on top tracks for the whole video.
+- **Avatars:** the client's character sheets are attached to every shot of that character (Flow max 7 attachments); never redesign a character. One look per character per scene (hair, outfit).
+- **Style:** match the reference's drawing style, not the sheets' style (style reference board + face and hair locks per character).
+- Mix of wide, medium, close-up, extreme close-up and inserts of hands or props.
+
 ## Editing in CapCut
 - **On-screen graphics are HyperFrames motion overlays** from `motion/CATALOGUE.md`, in the client's colours and fonts.
 - **Overlays render slim and offline:** the build renders each unique overlay once, then re-encodes it to a slim ProRes 4444 `.mov` (about 40% smaller, same look, alpha kept). GSAP is bundled, so renders need no internet once HyperFrames has cached the fonts.

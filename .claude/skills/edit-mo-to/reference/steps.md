@@ -17,6 +17,7 @@
 - Clay / stop-motion → `claymation`
 - 3D animated story → `pixar`
 - Music-only product or TikTok → `product-ad`
+- Drama acted by characters speaking their own lines → `drama`, with `look: realistic` (live-action AI) or `look: cartoon` (2D cartoon / anime from avatar sheets, letterbox title layout)
 
 If the style is mixed (e.g. UGC host + heavy B-roll), pick the main one and pass the secondary rules in the dispatch. If unsure, ⛔ ask.
 
